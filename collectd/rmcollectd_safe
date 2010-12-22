@@ -1,0 +1,95 @@
+#!/bin/bash
+
+program_name=rmcollectd
+
+pid_file=/var/run/archiving/${program_name}_safe.pid
+
+exec >>/var/log/${program_name}_startup.log
+exec 2>&1
+
+__run() {
+	if [ "$__VALGRIND_RUN" = "true" ] && [ -n "$__VALGRIND" ]; then
+		echo "Enabling Valgrind"
+		valgrind_options="${valgrind_extra_options}"
+		case "$__VALGRIND_TOOL" in
+		  memcheck+track_origins)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full --track-origins=yes"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		  memcheck)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		  callgrind)
+		    valgrind_options="${valgrind_options} --tool=callgrind --callgrind-out-file=${__VALGRIND_LOG}_callgrind.%p"
+			;;
+		  *)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		esac
+		[ "$__VALGRIND_TRACK_FDS" = "true" ] && valgrind_options="${valgrind_options} --track-fds=yes";
+		$__VALGRIND $valgrind_options --suppressions=/usr/share/archiving/${program_name}.supp --time-stamp=yes --log-file="$__VALGRIND_LOG".%p "$@"
+		unset valgrind_options
+	else
+		[ "$__VALGRIND_RUN" = "true" ] &&
+			echo "No valgrind found; continuing normal startup"
+
+		[ "$__MALLOC_CHECK" = "true" ] &&
+			echo "Enabling MALLOC_CHECK_=1"
+		[ "$__MALLOC_CHECK" = "true" ] &&
+			export MALLOC_CHECK_=1
+			
+		exec "$@"
+	fi
+}
+
+if [ -r "$pid_file" ]; then
+	pid=$( cat $pid_file );
+
+	if [ -n "$pid" ]; then
+
+		## hack!!!
+		if [ "$1" = "stop" ]; then
+			kill "$pid"; ( sleep 1; kill -0 "$pid" >/dev/null 2>&1 && kill -9 "$pid" )&
+			exit 0;
+		else
+			kill -0 "$pid" >/dev/null 2>&1 && exit 1;
+		fi
+	fi
+fi
+
+[ "$1" = "stop" ] && exit 0;
+
+program=$1; shift
+
+_01st_crash_time=0
+
+echo $$ > $pid_file
+
+while true; do
+	echo $program "$@"
+	__run $program "$@"
+	exit_status=$?
+	[ $exit_status -eq 0 ] &&
+		exit 0
+
+	if [ "$_01st_crash_time" -eq 0 ]; then
+		_01st_crash_time=$(date +%s)
+		_crash_count=1
+	elif [ "$_crash_count" -eq 10 ]; then
+		if [ $(( $(date +%s) - $_01st_crash_time )) -lt 10 ]; then
+			echo "${program_name} died ( status: $exit_status ) several times; Giving-up..."
+			exit 1;
+		else
+			_01st_crash_time=0
+			_crash_count=0
+		fi
+	fi
+
+	_crash_count=$(( $_crash_count + 1 ))
+	
+	echo
+	echo "${program_name} died ( status: $exit_status ) Restarting..."
+done;
+
