@@ -8,6 +8,7 @@
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
+#include <rml/config.h>
 
 #include <sys/types.h>
 #include <grp.h>
@@ -16,6 +17,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <string.h>
+#include <signal.h>
+
 
 #include <iostream>
 #include <fstream>
@@ -120,117 +123,112 @@ int main(int argc, char **argv) {
 
 		bopts::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
-
 				("app.run_as_user", bopts::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
 				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
 				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-
-				("app.config_include_dir", bopts::value<std::string>()->default_value(std::string(CONFIG_FILE_PATH".d")), "config include directory")
-
-				("log.file_path", bopts::value<std::string>()->default_value(std::string(DEFAULT_LOG_FILE_PATH)), "logfile path")
-				("log.level", bopts::value<int>()->default_value(4), "logging level")
-				("log.stderr_level", bopts::value<int>()->default_value(2), "logging level for stderr")
-
+				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archivingx")), "data directory")
 				;
-		std::ifstream ifs_config(CONFIG_FILE_PATH);
-		if(!ifs_config) {
-			std::cerr << "Unable to open config: "CONFIG_FILE_PATH"\n";
-			exit(rml::utils::exit::codes::config_file_missing);
-		}
+
+		rml::logger::describe_config(optsDesc);
 
 		try {
-			bopts::store(bopts::parse_config_file(ifs_config, optsDesc, true), app::confMap);
-			bopts::notify(app::confMap);
+			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
+
+			// configure the logger
+			rml::logger::configure(app::confMap, SYSLOG_APP_NAME);
+
+			// a new day is a gift!
+			LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
+			LogAlways("built on "<<version_date<<' '<<build_host);
+
+			// set the signal handlers
+			siginit();
+
+			// set core limit
+			{
+				struct rlimit rlim;
+				if(getrlimit(RLIMIT_CORE, &rlim) == 0)
+				{
+					unsigned long core_limit = app::confMap["app.max_core_size_mega_bytes"].as<unsigned long>();
+					LogVerbose("Setting core limit from " << rlim.rlim_cur << "B to " << core_limit << 'M' );
+
+					rlim.rlim_cur = core_limit * ( 1024 * 1024 );
+					if(0 != setrlimit(RLIMIT_CORE,&rlim))
+						LogError("Could not enable core - err:"<<strerror(errno));
+				}
+				else
+					LogError("Could not getrlimit - err:"<<strerror(errno));
+			}
+
+			// change user & group
+			{
+				std::string runas_user = app::confMap["app.run_as_user"].as<std::string>();
+				std::string runas_group = app::confMap["app.run_as_group"].as<std::string>();
+
+				std::string data_dir = app::confMap["app.data_dir"].as<std::string>();
+
+				uid_t runas_uid = 0;
+				gid_t runas_gid = 0;
+
+				if(!runas_user.empty()) {
+					struct passwd *pw = getpwnam(runas_user.c_str());
+					if(!pw) {
+						LogCritical("User " << runas_user << " not found on system");
+						throw rml::exception("Configuration error - cdrpostd.run_as_user improper");
+					}
+
+					runas_uid = pw->pw_uid;
+					if(pw->pw_dir && strlen(pw->pw_dir))
+						data_dir = pw->pw_dir;
+
+					if(runas_group.empty())
+						runas_gid = pw->pw_gid;
+				}
+
+				if(!runas_group.empty()) {
+					struct group *gr = getgrnam(runas_group.c_str());
+					if(!gr) {
+						LogCritical("Group " << runas_group << " not found on system");
+						throw rml::exception("Configuration error - cdrpostd.runas_group improper");
+					}
+					runas_gid = gr->gr_gid;
+				}
+
+				if(!runas_group.empty()) {
+					if(setgid(runas_gid)) {
+						LogCritical("Unable to set gid to " << runas_group << "(gid:" << runas_gid << ") err: " << strerror(errno));
+						throw rml::exception("setgid failed");
+					}
+
+					if(initgroups(runas_user.c_str(), runas_gid))
+						LogError("Unable to set initgroups() with gid " << runas_gid);
+				}
+
+				if(!runas_user.empty()) {
+					if(setuid(runas_uid)) {
+						LogCritical("Unable to set uid to " << runas_user << "(uid:" << runas_uid << ") err: " << strerror(errno));
+						throw rml::exception("setuid failed");
+					}
+				}
+
+				// change dir so that we have a chance of getting some cores
+				if(-1 == chdir(data_dir.c_str())) {
+					THROW_RML_EXCEPTION("Failed changing directory to " << data_dir << " - err:" << strerror(errno));
+				}
+				else
+					LogVerbose("Changed directory to " << data_dir);
+			}
+
+			// create / update pid file
+			rml::utils::pid_file::create(PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
-			LogError("Error loading configuration - exception: "<<e.what());
-			exit(rml::utils::exit::codes::config_file_invalid);
+			LogError("Initialization Error - exception: "<<e.what());
+			exit(rml::utils::exit_codes::initialization_error);
 		}
 	}
 
-	rml::logger::configure(app::confMap, SYSLOG_APP_NAME);
-
-	LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
-	LogAlways("built on "<<version_date<<' '<<build_host);
-
 	try {
-		siginit();
-
-		// set core limit
-		{
-			struct rlimit rlim;
-			if(getrlimit(RLIMIT_CORE, &rlim) == 0)
-			{
-				unsigned long core_limit = app::confMap["cdrpostd.max_core_size_mega_bytes"].as<unsigned long>();
-				LogVerbose("Setting core limit from " << rlim.rlim_cur << "B to " << core_limit << 'M' );
-
-				rlim.rlim_cur = core_limit * ( 1024 * 1024 );
-				if(0 != setrlimit(RLIMIT_CORE,&rlim))
-					LogError("Could not enable core - err:"<<strerror(errno));
-			}
-			else
-				LogError("Could not getrlimit - err:"<<strerror(errno));
-		}
-
-		// change user & group
-		{
-			std::string runas_user = app::confMap["cdrpostd.run_as_user"].as<std::string>();
-			std::string runas_group = app::confMap["cdrpostd.run_as_group"].as<std::string>();
-
-			std::string home_dir = "/var/lib/archiving";
-
-			uid_t runas_uid = 0;
-			gid_t runas_gid = 0;
-
-			if(!runas_user.empty()) {
-				struct passwd *pw = getpwnam(runas_user.c_str());
-				if(!pw) {
-					LogCritical("User " << runas_user << " not found on system");
-					throw rml::exception("Configuration error - cdrpostd.run_as_user improper");
-				}
-
-				runas_uid = pw->pw_uid;
-				if(pw->pw_dir && strlen(pw->pw_dir))
-					home_dir = pw->pw_dir;
-
-				if(runas_group.empty())
-					runas_gid = pw->pw_gid;
-			}
-
-			if(!runas_group.empty()) {
-				struct group *gr = getgrnam(runas_group.c_str());
-				if(!gr) {
-					LogCritical("Group " << runas_group << " not found on system");
-					throw rml::exception("Configuration error - cdrpostd.runas_group improper");
-				}
-				runas_gid = gr->gr_gid;
-			}
-
-			if(!runas_group.empty()) {
-				if(setgid(runas_gid)) {
-					LogCritical("Unable to set gid to " << runas_group << "(gid:" << runas_gid << ") err: " << strerror(errno));
-					throw rml::exception("setgid failed");
-				}
-
-				if(initgroups(runas_user.c_str(), runas_gid))
-					LogError("Unable to set initgroups() with gid " << runas_gid);
-			}
-
-			if(!runas_user.empty()) {
-				if(setuid(runas_uid)) {
-					LogCritical("Unable to set uid to " << runas_user << "(uid:" << runas_uid << ") err: " << strerror(errno));
-					throw rml::exception("setuid failed");
-				}
-			}
-
-			// change dir so that we have a chance of getting some cores
-			if(-1 == chdir(home_dir.c_str()))
-				LogError("Failed changing directory to " << home_dir << " - err:" << strerror(errno));
-			else
-				LogVerbose("Changed directory to " << home_dir);
-		}
-
-		rml::utils::pid_file::create(PID_FILE_PATH);
 
 /*
 		app::cdr_dir = app::confMap["cdrpostd.freeswitch_cdr_log_dir"].as<std::string>();
@@ -311,12 +309,12 @@ int main(int argc, char **argv) {
 
 		rml::logger::deconfigure();
 
-		exit(rml::utils::exit::codes::normal);
+		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {
 		LogCritical( e.what() );
 	}
 
 	LogCritical( "terminated with failure" );
-	exit(rml::utils::exit::codes::failure);
+	exit(rml::utils::exit_codes::failure);
 }
