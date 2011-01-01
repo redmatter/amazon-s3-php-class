@@ -1,6 +1,12 @@
 include /usr/share/librml/Makefile.macros
 include ../version_info
 
+FREESWITCH_DIR=/opt/freeswitch
+
+CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
+C_INCLUDES += -I$(FREESWITCH_DIR)/include
+LIBS += -L$(FREESWITCH_DIR)/lib
+
 TARGET=collectd
 
 DEFAULT_APP_NAME=rm$(TARGET)
@@ -29,6 +35,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
+	-lcrypt -luuid -lfreeswitch \
 	-lrml
 
 CXX_SRCS += \
