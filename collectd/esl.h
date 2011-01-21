@@ -13,9 +13,9 @@
 #include <vector>
 #include <string>
 
-namespace esl {
-
 #include <esl/esl_oop.h>
+
+namespace esl {
 
 typedef boost::shared_ptr<ESLconnection> ESLconnectionPtr;
 typedef boost::shared_ptr<ESLevent> ESLeventPtr;
