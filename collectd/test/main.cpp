@@ -65,8 +65,8 @@ void print_events(boost::system::error_code ec, esl::ESLeventPtr ev, esl::ESLcon
 		LogError(ec);
 	}
 	else {
+		LogMessage(ev->serialize());
 	}
-
 }
 
 int main() {
