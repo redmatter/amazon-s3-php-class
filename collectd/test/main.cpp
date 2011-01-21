@@ -89,10 +89,11 @@ int main() {
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 
-		typedef boost::function<void (boost::system::error_code, esl::ESLeventPtr, esl::ESLconnectionPtr) > handler_type;
-
 		// Waits for monitored events
-		void async_get_events(const handler_type& handler) {
+		ev_mon.async_get_events(print_events);
+
+		while(!app::quit)
+			sleep(1);
 
 		LogMessage("Terminated normally");
 		exit(0);
