@@ -1,19 +1,19 @@
-#include "../esl.h"
-#include "../fs_event_monitor.hpp"
+#include <signal.h>
+#include <unistd.h>
 
-#include <rml/logger.h>
-#include <rml/utils.h>
+#include <string>
+#include <fstream>
 
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/ref.hpp>
 
-#include <string>
-#include <fstream>
+#include <rml/logger.h>
+#include <rml/utils.h>
 
-#include <signal.h>
-#include <unistd.h>
+#include "../esl.h"
+#include "../fs_event_monitor.hpp"
 
 namespace app {
 bool quit = false;
@@ -60,9 +60,16 @@ void siginit(void) {
 	signal(SIGTERM,(__sighandler_t)sigterm);
 }
 
-int main() {
-	using namespace rmltest;
+void print_events(boost::system::error_code ec, esl::ESLeventPtr ev, esl::ESLconnectionPtr conn) {
+	if (ec) {
+		LogError(ec);
+	}
+	else {
+	}
 
+}
+
+int main() {
 	try {
 
 		rml::logger::configure();
@@ -81,6 +88,11 @@ int main() {
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
+
+		typedef boost::function<void (boost::system::error_code, esl::ESLeventPtr, esl::ESLconnectionPtr) > handler_type;
+
+		// Waits for monitored events
+		void async_get_events(const handler_type& handler) {
 
 		LogMessage("Terminated normally");
 		exit(0);

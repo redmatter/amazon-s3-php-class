@@ -27,7 +27,9 @@ public:
 
 		// adopt the descriptor
 		socket_.assign(boost::asio::ip::tcp::v4(), connection_->socketDescriptor());
-		socket_.io_control(boost::asio::ip::tcp::socket::non_blocking(true));
+
+		boost::asio::socket_base::non_blocking_io command(true); 
+		socket_.io_control(command); 
 	}
 
 	/// set filter
