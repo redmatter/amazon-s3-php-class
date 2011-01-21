@@ -29,7 +29,7 @@ public:
 		socket_.assign(boost::asio::ip::tcp::v4(), connection_->socketDescriptor());
 
 		boost::asio::socket_base::non_blocking_io command(true); 
-		socket_.io_control(command); 
+		socket_.io_control(command);
 	}
 
 	/// set filter
@@ -47,6 +47,7 @@ public:
 	// Waits for monitored events
 	void async_get_events(const handler_type& handler) {
 		handler_ = handler;
+		connection_->send("event plain ALL");
 		async_get_events();
 	}
 
