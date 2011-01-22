@@ -1,4 +1,3 @@
-#include <signal.h>
 #include <unistd.h>
 
 #include <string>
@@ -8,6 +7,7 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/ref.hpp>
+#include <boost/noncopyable.hpp>
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -15,59 +15,28 @@
 #include "../esl.h"
 #include "../fs_event_monitor.hpp"
 
+#include "siginit.h"
+
 namespace app {
 bool quit = false;
 }
 
-/* save+quit */
-void sigint(int s) {
-	LogError("SIGINT: Trying a clean exit");
-	app::quit = true;
-}
-
-/* quit */
-void sighup(int s) {
-	LogError("SIGHUPed");
-}
-
-/* kill */
-void sigterm(int s) {
-	LogError("SIGTERM: Trying a clean exit");
-	app::quit = true;
-}
-
-/* save */
-void sigusr1(int s) {
-	LogError("SIGUSR1 Ignored");
-}
-
-/* reset all */
-void sigusr2(int s) {
-	LogError("SIGUSR2 Ignored");
-}
-
-/* sigpipe ?! */
-void sigpipe(int s) {
-	LogError("SIGPIP Ignored");
-}
-
-void siginit(void) {
-	signal(SIGINT, (__sighandler_t)sigint );
-	signal(SIGHUP, (__sighandler_t)sighup );
-	signal(SIGUSR1,(__sighandler_t)sigusr1);
-	signal(SIGUSR2,(__sighandler_t)sigusr2);
-	signal(SIGPIPE,(__sighandler_t)sigpipe);
-	signal(SIGTERM,(__sighandler_t)sigterm);
-}
-
-void print_events(boost::system::error_code ec, esl::ESLeventPtr ev, esl::ESLconnectionPtr conn) {
-	if (ec) {
-		LogError(ec);
+class event : public boost::noncopyable {
+public:
+	void print(boost::system::error_code ec, esl::ESLeventPtr ev, esl::ESLconnectionPtr conn) {
+		boost::thread::id thread_id = boost::this_thread::get_id();
+		ESLconnection* conn_ = conn.get();
+		if (ec) {
+			LogError(thread_id<<": "<<conn_<<' '<<ec);
+			app::quit=true;
+		}
+		else {
+			LogMessage(thread_id<<": "<<conn_<<' '<<ev->serialize("json"));
+			LogMessage(thread_id<<": "<<conn_<<" ...event...");
+			LogMessage(thread_id<<": "<<conn_<<" connected: "<<conn->connected());
+		}
 	}
-	else {
-		LogMessage(ev->serialize());
-	}
-}
+};
 
 int main() {
 	try {
@@ -76,13 +45,33 @@ int main() {
 
 		siginit();
 
+		esl::ESLconnectionPtr conn(new ESLconnection("localhost", "8021", "ClueCon"));
+		if(!conn || !conn->connected())
+			throw rml::exception("Could not connect to freeswitch");
+
+		LogMessage("connected!!!");
+
+		conn->send("event plain RE_SCHEDULE HEARTBEAT");
+
+
+
+		esl::ESLconnectionPtr conn1(new ESLconnection("localhost", "8021", "ClueCon"));
+		if(!conn1 || !conn1->connected())
+			throw rml::exception("Could not connect to freeswitch");
+
+		LogMessage("connected!!!");
+
+		conn1->send("event plain RE_SCHEDULE HEARTBEAT");
+
+
 
 		boost::asio::io_service ios;
 		boost::thread_group tg;
 
-		esl::ESLconnectionPtr conn(new ESLconnection("localhost", "8021", "ClueCon"));
+		event ep;
 
 		app::fs_event_monitor ev_mon(conn, ios);
+		app::fs_event_monitor ev_mon1(conn1, ios);
 
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
@@ -90,10 +79,16 @@ int main() {
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 
 		// Waits for monitored events
-		ev_mon.async_get_events(print_events);
+		ev_mon.async_get_events(boost::bind(&event::print, &ep, _1, _2, _3));
+		ev_mon1.async_get_events(boost::bind(&event::print, &ep, _1, _2, _3));
 
-		while(!app::quit)
+		while(!app::quit && conn->connected()) {
+			LogMessage("beep...");
 			sleep(1);
+		}
+
+		ios.stop();
+		tg.join_all();
 
 		LogMessage("Terminated normally");
 		exit(0);

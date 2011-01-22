@@ -1,3 +1,6 @@
+# default; override from commandline
+BUILD_MODE=DEBUG
+
 include /usr/share/librml/Makefile.macros
 include ../../version_info
 
@@ -38,13 +41,12 @@ LIBS += \
 	-lrml -lesl
 
 CXX_SRCS += \
+	siginit.cpp \
 
 C_SRCS += \
-
-BUILD_MODE=DEBUG
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
-$(TMP)/main.o : main.cpp
+$(TMP)/main.o : main.cpp siginit.h ../fs_event_monitor.hpp
 
