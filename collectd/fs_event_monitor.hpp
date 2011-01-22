@@ -28,8 +28,8 @@ public:
 		// adopt the descriptor
 		socket_.assign(boost::asio::ip::tcp::v4(), connection_->socketDescriptor());
 
-		boost::asio::socket_base::non_blocking_io command(true); 
-		socket_.io_control(command);
+//		boost::asio::socket_base::non_blocking_io command(true); 
+//		socket_.io_control(command);
 	}
 
 	/// set filter
@@ -47,7 +47,6 @@ public:
 	// Waits for monitored events
 	void async_get_events(const handler_type& handler) {
 		handler_ = handler;
-		connection_->send("event plain ALL");
 		async_get_events();
 	}
 
@@ -64,6 +63,7 @@ private:
 	void handle_event(const boost::system::error_code& e) {
 
 		handler_(e, e? esl::ESLeventPtr(): esl::ESLeventPtr(connection_->recvEvent()), connection_);
+		async_get_events();
 	}
 
 private:
