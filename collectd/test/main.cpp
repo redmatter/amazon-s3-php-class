@@ -11,17 +11,17 @@
 
 #include <rml/logger.h>
 #include <rml/utils.h>
+#include <rml/siginit.h>
 
 #include "../esl.h"
 #include "../fs_event_monitor.hpp"
 
-#include "siginit.h"
 
 namespace app {
 bool quit = false;
 }
 
-class event : public boost::noncopyable {
+class print_event : public boost::noncopyable {
 public:
 	void print(boost::system::error_code ec, esl::ESLeventPtr ev, esl::ESLconnectionPtr conn) {
 		boost::thread::id thread_id = boost::this_thread::get_id();
@@ -53,8 +53,6 @@ int main() {
 
 		conn->send("event plain RE_SCHEDULE HEARTBEAT");
 
-
-
 		esl::ESLconnectionPtr conn1(new ESLconnection("localhost", "8021", "ClueCon"));
 		if(!conn1 || !conn1->connected())
 			throw rml::exception("Could not connect to freeswitch");
@@ -63,12 +61,10 @@ int main() {
 
 		conn1->send("event plain RE_SCHEDULE HEARTBEAT");
 
-
-
 		boost::asio::io_service ios;
 		boost::thread_group tg;
 
-		event ep;
+		print_event ep;
 
 		app::fs_event_monitor ev_mon(conn, ios);
 		app::fs_event_monitor ev_mon1(conn1, ios);
@@ -79,8 +75,8 @@ int main() {
 		tg.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(ios)));
 
 		// Waits for monitored events
-		ev_mon.async_get_events(boost::bind(&event::print, &ep, _1, _2, _3));
-		ev_mon1.async_get_events(boost::bind(&event::print, &ep, _1, _2, _3));
+		ev_mon.async_get_events(boost::bind(&print_event::print, &ep, _1, _2, _3));
+		ev_mon1.async_get_events(boost::bind(&print_event::print, &ep, _1, _2, _3));
 
 		while(!app::quit && conn->connected()) {
 			LogMessage("beep...");
@@ -94,7 +90,7 @@ int main() {
 		exit(0);
 	}
 	catch(const std::exception& e) {
-		LogMessage("Abnormal termination - exception:"<<e.what());
+		LogMessage("Abnormal termination - exception: "<<e.what());
 	}
 	catch(...) {
 		LogMessage("Abnormal termination with unknown exception");
