@@ -43,7 +43,7 @@ int main() {
 
 		rml::logger::configure();
 
-		siginit();
+		rml::siginit();
 
 		esl::ESLconnectionPtr conn(new ESLconnection("localhost", "8021", "ClueCon"));
 		if(!conn || !conn->connected())
