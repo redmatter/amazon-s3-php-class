@@ -29,8 +29,8 @@ int main(int argc, char* argv[]) {
 			std::ifstream ifs(argv[i], std::ios::binary);
 			if(ifs) {
 				ifs.exceptions(std::ios::badbit | std::ios::failbit);
-				app::md5hasher::pointer h = app::md5hasher::hash(ifs);
-				LogMessage("Hashed: "<<argv[i]<<": "<<*(h.get()));
+				const archiving::hash_vector& hash(archiving::md5hasher::hash(ifs));
+				LogMessage("Hashed: "<<argv[i]<<": "<<hash);
 			}
 			else
 				LogError("Failed to open file: "<<argv[i]);

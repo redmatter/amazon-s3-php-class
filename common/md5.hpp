@@ -21,24 +21,41 @@
 
 #include "md5.h"
 
-namespace app {
-class md5hasher;
+namespace archiving {
+
+typedef std::vector<unsigned char> hash_vector;
+
 }
 
 namespace std {
-std::ostream& operator<<(std::ostream& ostr, const app::md5hasher& md5);
+
+std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash) {
+	static const char* hex = "0123456789abcdef";
+	archiving::hash_vector::const_iterator hash_end = hash.end();
+	for(archiving::hash_vector::const_iterator itr = hash.begin(); itr != hash_end; ++itr) {
+		ostr << hex[*itr >> 4];
+		ostr << hex[*itr & 0x0f];
+	}
+
+	return ostr;
 }
 
-namespace app {
+}
+
+namespace archiving {
 
 class md5hasher : public boost::noncopyable {
 
 public:
-	friend std::ostream& std::operator<<(std::ostream& ostr, const md5hasher& md5);
+
+	enum {
+		max_buf_size = 40960,
+		hash_bytes_size = 16
+	};
 
 	typedef boost::shared_ptr< md5hasher > pointer;
 
-	md5hasher() : handle(new MD5()), closed(false) {
+	md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false) {
 		MD5Open(handle);
 	}
 
@@ -51,15 +68,18 @@ public:
 
 	void close() {
 		if(handle) {
-			MD5Close(handle, hash_);
+			MD5Close(handle, &hash_[0]);
 			delete handle; handle = 0;
 		}
 
 		closed = true;
 	}
 
-	unsigned const char * const get_hash() const {
-		return hash_;
+	hash_vector get_hash() const {
+		if(!closed)
+			LogWarning("hash not complete");
+
+		return hash_vector(hash_);
 	}
 
 	~md5hasher() {
@@ -68,8 +88,8 @@ public:
 		}
 	}
 
-	static pointer hash(std::ifstream& ifs) {
-		pointer hasher(new md5hasher);
+	static std::vector<unsigned char> hash(std::ifstream& ifs) {
+		md5hasher hasher;
 		size_t fLength, md5edLength;
 
 		std::filebuf *pbuf = ifs.rdbuf();
@@ -82,52 +102,28 @@ public:
 
 		char md5buf[max_buf_size];
 		while(md5edLength < fLength) {
-			std::streamsize blockSize = std::min<std::streamsize>((std::streamsize)max_buf_size,(std::streamsize)(fLength-md5edLength));
+			std::streamsize blockSize = std::min<std::streamsize>((std::streamsize)max_buf_size, (std::streamsize)(fLength - md5edLength));
 			blockSize = pbuf->sgetn(md5buf, blockSize);
 			md5edLength += blockSize;
-			hasher->digest(md5buf, blockSize);
-LogVerbose("md5: blockSize: "<<blockSize);
-LogVerbose("md5: done: "<<md5edLength<<'/'<<fLength);
+			hasher.digest(md5buf, blockSize);
 		}
 
 		if(md5edLength == fLength)
-			hasher->close();
+			hasher.close();
 		else if(md5edLength > fLength)
 			throw rml::exception("more than expected data MD5ed");
 
-		return hasher;
+		return std::vector<unsigned char>(hasher.get_hash());
 	}
 
 private:
 	MD5* handle;
-
-	enum {
-		max_buf_size = 40960
-	};
+	hash_vector hash_;
 
 protected:
 	bool closed;
-	unsigned char hash_[16];
 };
 
 } // namespace app
-
-namespace std {
-
-std::ostream& operator<<(std::ostream& ostr, const app::md5hasher& md5) {
-	if(md5.closed) {
-		static const char* hex = "0123456789abcdef";
-		for(int i = 0; i<16; ++i) {
-			ostr << hex[md5.hash_[i] >> 4];
-			ostr << hex[md5.hash_[i] & 0x0f];
-		}
-	}
-	else
-		ostr<<"---------not-closed-yet---------";
-
-	return ostr;
-}
-
-}  // namespace std
 
 #endif /* MD5_HPP_ */
