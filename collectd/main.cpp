@@ -9,6 +9,7 @@
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
 #include <rml/config.h>
+#include <rml/siginit.h>
 
 #include <sys/types.h>
 #include <grp.h>
@@ -19,7 +20,6 @@
 #include <string.h>
 #include <signal.h>
 
-
 #include <iostream>
 #include <fstream>
 
@@ -28,6 +28,12 @@
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/ref.hpp>
+
+#include "../common/archived_file.hpp"
+#include "../common/types.hpp"
+
+#include "cdr_inspector.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-collectd"
@@ -69,51 +75,6 @@ boost::program_options::variables_map confMap;
 // time to quit?
 bool quit = false;
 
-// reload time?
-bool wasHUPed = false;
-
-}
-
-/* save+quit */
-void sigint(int s) {
-	LogError("SIGINT: Trying a clean exit");
-	app::quit = true;
-}
-
-/* quit */
-void sighup(int s) {
-	LogError("SIGHUPed");
-	app::wasHUPed = true;
-}
-
-/* kill */
-void sigterm(int s) {
-	LogError("SIGTERM: Trying a clean exit");
-	app::quit = true;
-}
-
-/* save */
-void sigusr1(int s) {
-	LogError("SIGUSR1 Ignored");
-}
-
-/* reset all */
-void sigusr2(int s) {
-	LogError("SIGUSR2 Ignored");
-}
-
-/* sigpipe ?! */
-void sigpipe(int s) {
-	LogError("SIGPIP Ignored");
-}
-
-void siginit(void) {
-	signal(SIGINT,(__sighandler_t)sigint);
-	signal(SIGHUP,(__sighandler_t)sighup);
-	signal(SIGUSR1,(__sighandler_t)sigusr1);
-	signal(SIGUSR2,(__sighandler_t)sigusr2);
-	signal(SIGPIPE,(__sighandler_t)sigpipe);
-	signal(SIGTERM,(__sighandler_t)sigterm);
 }
 
 int main(int argc, char **argv) {
@@ -126,7 +87,10 @@ int main(int argc, char **argv) {
 				("app.run_as_user", bopts::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
 				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
 				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archivingx")), "data directory")
+				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
+				("cdr_monitor.directory", bopts::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("cdr_monitor.inspector_threads", bopts::value<unsigned int>()->default_value(2), "number of cdr inspector threads")
+
 				;
 
 		rml::logger::describe_config(optsDesc);
@@ -142,7 +106,7 @@ int main(int argc, char **argv) {
 			LogAlways("built on "<<version_date<<' '<<build_host);
 
 			// set the signal handlers
-			siginit();
+			rml::siginit();
 
 			// set core limit
 			{
@@ -230,81 +194,34 @@ int main(int argc, char **argv) {
 
 	try {
 
-/*
-		app::cdr_dir = app::confMap["cdrpostd.freeswitch_cdr_log_dir"].as<std::string>();
-		LogVerbose("CDRs will be read from " << app::cdr_dir);
+		const std::string cdr_directory( app::confMap["cdr_monitor.directory"].as<std::string>() );
 
-		app::cdr_channel theChannel;
+		archiving::archived_file_channel_t inward_cdrs_channel;
 
 		boost::thread_group threads;
+		boost::asio::io_service io_service;
 
-	    boost::asio::io_service io_service;
-	    app::dir_monitor dir_monitor(io_service);
+		archiving::cdr_dir_monitor cdr_dir_monitor(inward_cdrs_channel);
+		archiving::dir_monitor dir_monitor(io_service);
+		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
+		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		dir_monitor.add_directory(app::cdr_dir, app::dir_monitor::event::created | app::dir_monitor::event::closed);
+		app::cdr_inspector cdr_inspector(inward_cdrs_channel);
+		for(unsigned int i = app::confMap["cdr_monitor.inspector_threads"].as<unsigned int>(); i > 0; --i)
+			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
-		cdr_arrival_notification cdr_arrival_notification_(app::cdr_dir, theChannel);
-		dir_monitor.async_monitor(cdr_arrival_notification_);
-
-        {
-            char hostname_buf[256];
-            {
-				if(gethostname(hostname_buf, 256)) {
-					LogError("gethostname failed - err:"<<strerror(errno));
-					throw rml::exception("gethostname failed");
-				}
-
-				char* dot = strchrnul(hostname_buf, '.');
-				*dot = '\0';
-            }
-
-            app::cdr_poster::init(
-            		app::confMap["cdrpostd.disable_100_continue"].as<std::string>() == "true"
-            		,app::confMap["cdrpostd.post_timeout_seconds"].as<unsigned int>()
-            		,app::confMap["cdrpostd.post_url"].as<std::string>()
-            		,hostname_buf
-            		,app::cdr_dir);
-        }
-
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
-
-		const unsigned int number_of_post_threads = app::confMap["cdrpostd.number_of_poster_threads"].as<unsigned int>();
-		std::vector<app::cdr_poster*> posters(number_of_post_threads);
-		std::vector<boost::thread*> thread_posters(number_of_post_threads);
-
-		for(unsigned int i = number_of_post_threads; i > 0; --i) {
-			app::cdr_poster* p = new app::cdr_poster(theChannel);
-			boost::thread* t = new boost::thread(rml::thread_adapter(&app::cdr_poster::do_thread, p));
-			posters.push_back(p);
-			thread_posters.push_back(t);
-			threads.add_thread(t);
-		}
-
-		LogMessage(number_of_post_threads << " poster(s) started");
-
-		app::directory_loader *dir_loader = new app::directory_loader(theChannel, app::cdr_dir);
-		boost::thread* dir_loader_thread = new boost::thread(rml::thread_adapter(&(dir_loader->do_thread), dir_loader));
-		threads.add_thread(dir_loader_thread);
+		// TODO do we need more io_service threads here??
+		threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
 		while(!app::quit) {
+			LogVerbose("tick-tock");
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
-			io_service.poll();
 		}
 
-		io_service.stop();
-		theChannel.set_finishing();
+		inward_cdrs_channel.set_finishing();
+
 		threads.join_all();
 
-		for(unsigned int i = number_of_post_threads; i > 0; --i) {
-			threads.remove_thread(thread_posters[i]);
-			delete thread_posters[i];
-			delete posters[i];
-		}
-
-		threads.remove_thread(dir_loader_thread);
-		delete dir_loader_thread;
-		delete dir_loader;
-*/
 		LogAlways("terminated normally");
 
 		rml::logger::deconfigure();

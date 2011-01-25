@@ -75,11 +75,11 @@ public:
 		closed = true;
 	}
 
-	hash_vector get_hash() const {
+	const hash_vector& get_hash() const {
 		if(!closed)
 			LogWarning("hash not complete");
 
-		return hash_vector(hash_);
+		return hash_;
 	}
 
 	~md5hasher() {
@@ -88,7 +88,7 @@ public:
 		}
 	}
 
-	static std::vector<unsigned char> hash(std::ifstream& ifs) {
+	static hash_vector hash(std::ifstream& ifs) {
 		md5hasher hasher;
 		size_t fLength, md5edLength;
 
@@ -113,7 +113,7 @@ public:
 		else if(md5edLength > fLength)
 			throw rml::exception("more than expected data MD5ed");
 
-		return std::vector<unsigned char>(hasher.get_hash());
+		return hash_vector(hasher.get_hash());
 	}
 
 private:
