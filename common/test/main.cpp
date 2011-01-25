@@ -26,8 +26,9 @@ int main(int argc, char* argv[]) {
 		rml::siginit();
 
 		for(int i = 0; i < argc; ++i) {
-			std::ifstream ifs(argv[i]);
+			std::ifstream ifs(argv[i], std::ios::binary);
 			if(ifs) {
+				ifs.exceptions(std::ios::badbit | std::ios::failbit);
 				app::md5hasher::pointer h = app::md5hasher::hash(ifs);
 				LogMessage("Hashed: "<<argv[i]<<": "<<*(h.get()));
 			}
