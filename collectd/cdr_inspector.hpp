@@ -21,13 +21,15 @@ class cdr_inspector : public boost::noncopyable {
 	archiving::archived_file_channel_t& channel;
 
 public:
+	cdr_inspector(archiving::archived_file_channel_t& channel) : channel(channel) {}
+
 	void run() {
 		while(!app::quit) {
 			try {
 				archiving::archived_file::pointer file = channel.consume();
 				LogVerbose(file->get_file_path()<<": md5: "<<file->get_md5());
 			}
-			catch(const rml::pc_channel::finishing_exception& e) {
+			catch(const archiving::archived_file_channel_t::finishing_exception& e) {
 				LogVerbose("cdr_inspector::run - "<<e.what());
 				break;
 			}

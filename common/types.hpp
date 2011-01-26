@@ -14,7 +14,7 @@
 
 namespace archiving {
 
-typedef rml::pc_channel<archived_file::pointer> archived_file_channel_t;
+typedef rml::pc_channel<archived_file::pointer, archived_file_pointer_compare> archived_file_channel_t;
 
 }
 

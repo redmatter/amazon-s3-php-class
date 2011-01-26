@@ -19,6 +19,7 @@
 #include <sys/resource.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 
 #include <iostream>
 #include <fstream>
@@ -32,6 +33,8 @@
 
 #include "../common/archived_file.hpp"
 #include "../common/types.hpp"
+#include "../common/cdr_dir_monitor.hpp"
+#include "../common/dir_monitor.hpp"
 
 #include "cdr_inspector.hpp"
 
@@ -74,6 +77,8 @@ boost::program_options::variables_map confMap;
 
 // time to quit?
 bool quit = false;
+
+bool wasHUPed = false;
 
 }
 
@@ -214,11 +219,13 @@ int main(int argc, char **argv) {
 		threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
 		while(!app::quit) {
-			LogVerbose("tick-tock");
+			LogVerbose(((time(0)%2) ? "tik": "tok"));
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
 		inward_cdrs_channel.set_finishing();
+
+		io_service.stop();
 
 		threads.join_all();
 

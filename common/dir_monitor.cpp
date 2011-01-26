@@ -131,19 +131,17 @@ ostream& operator<<(ostream& ostr, const archiving::dir_monitor::event& e) {
 
 	ostr << "dir_monitor::event{ dir_name: " << e.dir_name << ", file_name:" << e.file_name << ", type: ";
 
-	using archiving::dir_monitor::event;
-
-	if(e.type & event::created)
+	if(e.type & archiving::dir_monitor::event::created)
 		ostr << "created";
-	else if(e.type & event::deleted)
+	else if(e.type & archiving::dir_monitor::event::deleted)
 		ostr << "deleted";
-	else if(e.type & event::moved_from)
+	else if(e.type & archiving::dir_monitor::event::moved_from)
 		ostr << "moved-from";
-	else if(e.type & event::moved_to)
+	else if(e.type & archiving::dir_monitor::event::moved_to)
 		ostr << "moved-to";
-	else if(e.type & event::closed)
+	else if(e.type & archiving::dir_monitor::event::closed)
 		ostr << "closed";
-	else if(e.type & event::opened)
+	else if(e.type & archiving::dir_monitor::event::opened)
 		ostr << "opened";
 	else
 		ostr << "UNKNOWN-EVENT-TYPE";

@@ -13,6 +13,7 @@
 #include <rml/pc_channel.h>
 
 #include "archived_file.hpp"
+#include "dir_monitor.hpp"
 
 namespace archiving {
 
@@ -37,7 +38,7 @@ public:
 			else if(ev.type & (dir_monitor::event::closed | dir_monitor::event::moved_to)) {
 				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close.find(file_path) != files_created_waiting_close.end()) ) {
 					channel.produce(archived_file::pointer(new archived_file(file_path)));
-					files_created_waiting_close.erase(archived_file);
+					files_created_waiting_close.erase(file_path);
 				}
 			}
 	        /* else ignore */

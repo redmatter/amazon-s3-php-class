@@ -6,6 +6,7 @@ TARGET=libarchiving_common.a
 LIBS = \
 
 CXX_SRCS += \
+		dir_monitor.cpp
 
 C_SRCS += \
 		md5.c

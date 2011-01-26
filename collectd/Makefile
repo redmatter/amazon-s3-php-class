@@ -5,7 +5,8 @@ FREESWITCH_DIR=/opt/freeswitch
 
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
-LIBS += -L$(FREESWITCH_DIR)/lib
+LIBS += -L$(FREESWITCH_DIR)/lib \
+		-L../common/$(TMP)
 
 TARGET=collectd
 
@@ -36,7 +37,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypt -luuid -lfreeswitch \
-	-lrml
+	-lrml -larchiving_common
 
 CXX_SRCS += \
 
