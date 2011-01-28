@@ -10,11 +10,11 @@
 
 #include <rml/pc_channel.h>
 
-#include "archived_file.hpp"
+#include "archivable.hpp"
 
 namespace archiving {
 
-typedef rml::pc_channel<archived_file::pointer, archived_file_pointer_compare> archived_file_channel_t;
+typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
 
 }
 

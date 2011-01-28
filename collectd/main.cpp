@@ -31,7 +31,6 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
 
-#include "../common/archived_file.hpp"
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
@@ -93,12 +92,12 @@ int main(int argc, char **argv) {
 				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
 				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
 				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("cdr_monitor.directory", bopts::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
-				("cdr_monitor.inspector_threads", bopts::value<unsigned int>()->default_value(2), "number of cdr inspector threads")
+				("cdr.directory", bopts::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
 
 				;
 
 		rml::logger::describe_config(optsDesc);
+		app::cdr_inspector::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -199,20 +198,21 @@ int main(int argc, char **argv) {
 
 	try {
 
-		const std::string cdr_directory( app::confMap["cdr_monitor.directory"].as<std::string>() );
+		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 
-		archiving::archived_file_channel_t inward_cdrs_channel;
+		archiving::archivable_channel_t in_channel;
+		archiving::archivable_channel_t out_channel;
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		archiving::cdr_dir_monitor cdr_dir_monitor(inward_cdrs_channel);
+		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel);
 		archiving::dir_monitor dir_monitor(io_service);
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		app::cdr_inspector cdr_inspector(inward_cdrs_channel);
-		for(unsigned int i = app::confMap["cdr_monitor.inspector_threads"].as<unsigned int>(); i > 0; --i)
+		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
+		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
 		// TODO do we need more io_service threads here??
@@ -223,7 +223,8 @@ int main(int argc, char **argv) {
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
-		inward_cdrs_channel.set_finishing();
+		in_channel.set_finishing();
+		out_channel.set_finishing();
 
 		io_service.stop();
 
