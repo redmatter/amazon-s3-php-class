@@ -10,6 +10,8 @@ LIBS += -L$(FREESWITCH_DIR)/lib \
 
 TARGET=collectd
 
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
+
 DEFAULT_APP_NAME=rm$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 
@@ -50,3 +52,5 @@ include /usr/share/librml/Makefile.app_target
 
 $(TMP)/main.o : main.cpp
 
+../common/$(TMP)/libarchiving_common.a :
+	@$(MAKE) -s -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP)
