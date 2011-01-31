@@ -19,6 +19,7 @@
 
 namespace app {
 bool quit = false;
+bool wasHUPed = false;
 }
 
 class print_event : public boost::noncopyable {

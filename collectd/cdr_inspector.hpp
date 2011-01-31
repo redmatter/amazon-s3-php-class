@@ -58,7 +58,7 @@ public:
 
 				{
 					filter_orgs.clear();
-					const std::string& filter_orgs_str(confMap["cdrpostd.filter_orgs"].as<std::string>());
+					const std::string& filter_orgs_str(confMap["cdr_handler.filter_orgs"].as<std::string>());
 					if(!filter_orgs_str.empty()) {
 						if(filter_orgs_str == "all")
 							filter_orgs_all = true;
@@ -69,7 +69,7 @@ public:
 
 				{
 					filtered_xpaths.clear();
-					const std::string& filtered_xpaths_str(confMap["cdrpostd.filtered_xpaths"].as<std::string>());
+					const std::string& filtered_xpaths_str(confMap["cdr_handler.filtered_xpaths"].as<std::string>());
 					if(!filtered_xpaths_str.empty()) {
 						boost::split(filtered_xpaths, filtered_xpaths_str, boost::is_any_of(", \t"));
 					}
@@ -100,9 +100,38 @@ public:
 						if(!doc.load(*ifs))
 							throw rml::exception("Unable to load CDR for filtering");
 
-
 						const bool isAleg( bool(doc.select_single_node("/cdr/channel_data[ direction = 'outbound' ]")) );
 						const char* cdr_uuid = doc.select_single_node("/cdr/variables/uuid/text()").node().value();
+
+						const char* rmOrgID_str = doc.select_single_node("/cdr/variables/rmOrgID/text()").node().value();
+						LogVerbose("rmOrgID_str: "<<rmOrgID_str);
+						archiving::org_id rmOrgID = 0;
+						{
+							char *end = 0;
+							unsigned long val = strtoul(rmOrgID_str, &end, 10);
+							if ((errno == ERANGE) || (errno != 0 && val == 0) || (rmOrgID_str == end))
+								LogError("Invalid OrgID: "<<rmOrgID_str);
+							else
+								rmOrgID = (archiving::org_id)val;
+						}
+						archiving::user_id rmUserID = 0;
+						{
+							pugi::xpath_node rmUserID_node = doc.select_single_node("/cdr/variables/rmUserID/text()");
+							if(rmUserID_node) {
+								const char *str = rmUserID_node.node().value();
+								char *end = 0;
+								double val = strtod(str, &end);
+								if ((errno == ERANGE) || (errno != 0 && val == 0) || (str == end))
+									LogError("Invalid userID: "<<str);
+								else
+									rmUserID = (archiving::user_id)val;
+							}
+						}
+
+						archiving::owner_info owner(rmOrgID);
+						owner.addUser(rmUserID);
+
+						archivable_cdr->set_owners(owner);
 
 						if(filter_orgs_all || !filter_orgs.empty() || enable_rmCDRDiscard) {
 
@@ -113,8 +142,7 @@ public:
 								}
 
 								if(!isDiscardable) {
-									pugi::xpath_node rmOrgID_node = doc.select_single_node("/cdr/variables/rmOrgID/text()");
-									if(filter_orgs_all || (rmOrgID_node && (filter_orgs.end() != std::find(filter_orgs.begin(), filter_orgs.end(), rmOrgID_node.node().value())))) {
+									if(filter_orgs_all || (filter_orgs.end() != std::find(filter_orgs.begin(), filter_orgs.end(), rmOrgID_str))) {
 
 										const bool& rmAssumeALeg(0 == strncasecmp("true", doc.select_single_node("/cdr/variables/rmAssumeALeg/text()").node().value(), 4));
 										const bool& isLegAnswered(0 == strncasecmp("ANSWER", doc.select_single_node("/cdr/variables/endpoint_disposition/text()").node().value(), 6));
@@ -150,7 +178,9 @@ public:
 						pugi::xpath_node node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]/rmDispRecordFileLocation/text()");
 						if(node) {
 							LogMessage(archivable_cdr->get_file_path()<<" - Archivable recording found.");
-							out_channel.produce(archiving::archivable::pointer(new archiving::archivable(node.node().value(), archiving::archivable::file_type::call_recording, archivable_cdr)));
+							archiving::archivable::pointer archivable_recording(new archiving::archivable(node.node().value(), archiving::archivable::file_type::call_recording, archivable_cdr));
+							archivable_recording->set_owners(owner);
+							out_channel.produce(archivable_recording);
 						}
 
 						// OK, now we have a CDR that has to be POSTed

@@ -35,6 +35,7 @@
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
 
+#include "archived_client.hpp"
 #include "cdr_inspector.hpp"
 
 #ifndef SYSLOG_APP_NAME
@@ -97,7 +98,9 @@ int main(int argc, char **argv) {
 				;
 
 		rml::logger::describe_config(optsDesc);
+
 		app::cdr_inspector::describe_config(optsDesc);
+		app::archived_client::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -200,8 +203,8 @@ int main(int argc, char **argv) {
 
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 
-		archiving::archivable_channel_t in_channel;
-		archiving::archivable_channel_t out_channel;
+		archiving::archivable_channel_t in_channel("IN");
+		archiving::archivable_channel_t out_channel("OUT");
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
@@ -214,6 +217,12 @@ int main(int argc, char **argv) {
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
+
+	    boost::asio::ip::tcp::resolver resolver(io_service);
+	    boost::asio::ip::tcp::resolver::query query(app::confMap["archived_client.server_host"].as<std::string>(), app::confMap["archived_client.server_port"].as<std::string>());
+	    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
+
+	    app::archived_client archived_client(io_service, out_channel, iterator);
 
 		// TODO do we need more io_service threads here??
 		threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));

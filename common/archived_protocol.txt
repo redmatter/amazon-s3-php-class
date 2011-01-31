@@ -1,0 +1,28 @@
+-> CollectD
+<- ArchiveD
+
+( Just Connected )
+<- ArchiveD v0.0.1 protocol 1.0\r\n
+-> OK CollectD v0.0.1 protocol 1.0\r\n
+<- OK\r\n
+
+( Handshaked; any incompatibility can be flagged by server or client by ERR )
+( Ready for tansmission )
+
+-> PUT <OrgID> <md5> <content-length>\r\n
+( TODO Check for local space and reserve it )
+<- OK PUT <OrgID> <original-md5>\r\n
+--- OR ---
+<- ERR PUT <OrgID> <original-md5> <message>\r\n
+
+( Now we are good to send data as binary followed by end-of-file [^Z] )
+
+-> bytes x <content-length>^Z
+
+( ArchiveD can verify content length and MD5 and do ACK or NACK )
+
+<- OK RECV <OrgID> <original-md5>\r\n
+--- OR ---
+<- ERR RECV <OrgID> <original-md5> <message>\r\n
+
+( CollectD deleted the file if OK else queues for retransmission )

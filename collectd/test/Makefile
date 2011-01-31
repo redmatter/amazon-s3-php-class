@@ -41,11 +41,10 @@ LIBS += \
 	-lrml -lesl
 
 CXX_SRCS += \
+	main.cpp
 
 C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
-
-$(TMP)/main.o : main.cpp ../fs_event_monitor.hpp
 

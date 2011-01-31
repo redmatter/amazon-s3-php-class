@@ -3,10 +3,15 @@ include ../version_info
 
 TARGET=libarchiving_common.a
 
+ifeq ($(LOG_SOURCE_LOCATION),YES)
+CPPFLAGS += -DLOG_SOURCE_LOCATION
+endif
+
 LIBS = \
 
 CXX_SRCS += \
-		dir_monitor.cpp
+		dir_monitor.cpp \
+		archived.cpp
 
 C_SRCS += \
 		md5.c
