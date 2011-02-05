@@ -1,4 +1,4 @@
-COMPONENTS=collectd
+COMPONENTS=collectd archived
 RECENT_COMPONENT=$(shell ls -dt $(COMPONENTS) | head -1 )
 
 all :

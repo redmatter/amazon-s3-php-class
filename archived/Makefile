@@ -12,10 +12,11 @@ TARGET=archived
 
 TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
-LOG_SOURCE_LOCATION=YES
+# set RML_LOG_SOURCE_LOCATION=NO from make command line to disable source-location in log lines
+RML_LOG_SOURCE_LOCATION=YES
 
-ifeq ($(LOG_SOURCE_LOCATION),YES)
-CPPFLAGS += -DLOG_SOURCE_LOCATION
+ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
+CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
 endif
 
 DEFAULT_APP_NAME=rm$(TARGET)
@@ -47,7 +48,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcrypt -luuid -lfreeswitch \
+	-lcrypt -luuid \
 	-lrml -lpugixml -larchiving_common
 
 CXX_SRCS += \
@@ -61,8 +62,8 @@ include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
 ../common/$(TMP)/libarchiving_common.a :
-	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) LOG_SOURCE_LOCATION=$(LOG_SOURCE_LOCATION)
+	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
 
 clean_extra:
-	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) LOG_SOURCE_LOCATION=$(LOG_SOURCE_LOCATION) clean
+	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
 

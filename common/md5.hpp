@@ -40,6 +40,38 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 	return ostr;
 }
 
+std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv) {
+	bool ok = true;
+
+	archiving::hash_vector hv_(16);
+
+	for(int i = 0; ok && (i < 16); ++i) {
+		hv_[i] = '\0';
+		for(int j = 0; ok && (j < 2); ++j) {
+			char c; istr >> c;
+
+			unsigned char uc;
+
+			if(c >= '0' && c <= '9')
+				uc = (unsigned char)(c - '0');
+			else if(c >= 'a' && c <= 'f')
+				uc = (unsigned char)(9 + c - 'a');
+			else if(c >= 'A' && c <= 'F')
+				uc = (unsigned char)(9 + c - 'A');
+			else
+				ok = false;
+
+			if(ok)
+				hv_[i] |= uc << (j == 0? 4 : 0);
+		}
+	}
+
+	if(ok)
+		std::copy(hv_.begin(), hv_.end(), hv.begin());
+
+    return istr;
+}
+
 }
 
 namespace archiving {
@@ -55,18 +87,18 @@ public:
 
 	typedef boost::shared_ptr< md5hasher > pointer;
 
-	md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false) {
+	inline md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false) {
 		MD5Open(handle);
 	}
 
-	void digest(const char* const data, const unsigned int len) {
+	inline void digest(const char* const data, const unsigned int len) {
 		if(closed)
 			throw rml::exception("md5hash: already closed");
 
 		MD5Digest(handle, data, len);
 	}
 
-	void close() {
+	inline void close() {
 		if(handle) {
 			MD5Close(handle, &hash_[0]);
 			delete handle; handle = 0;
@@ -75,28 +107,38 @@ public:
 		closed = true;
 	}
 
-	const hash_vector& get_hash() const {
+	inline const hash_vector& get_hash() const {
 		if(!closed)
 			LogWarning("hash not complete");
 
 		return hash_;
 	}
 
-	~md5hasher() {
+	inline ~md5hasher() {
 		if(handle) {
 			delete handle; handle = 0;
 		}
 	}
 
-	static hash_vector hash(std::ifstream& ifs) {
+	static inline hash_vector hash(boost::shared_ptr<std::fstream>& fstr_ptr, const size_t& file_length_ = 0) {
+		assert(fstr_ptr.get());
+		return hash(*fstr_ptr, file_length_);
+	}
+
+	static hash_vector hash(std::fstream& fstr, const size_t& file_length_ = 0) {
 		md5hasher hasher;
 		size_t fLength, md5edLength;
 
-		std::filebuf *pbuf = ifs.rdbuf();
+		std::filebuf *pbuf = fstr.rdbuf();
 
-		fLength = 0;
-		fLength = pbuf->pubseekoff(0,std::ios::end,std::ios::in);
-		pbuf->pubseekpos(0,std::ios::in);
+
+		if(!file_length_) {
+			fLength = 0;
+			fLength = pbuf->pubseekoff(0,std::ios::end,std::ios::in);
+			pbuf->pubseekpos(0,std::ios::in);
+		}
+		else
+			fLength = file_length_;
 
 		md5edLength = 0;
 

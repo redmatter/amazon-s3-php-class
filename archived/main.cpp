@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -35,8 +36,9 @@
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
 
-#include "archived_client.hpp"
-#include "cdr_inspector.hpp"
+#include "globals.h"
+#include "put_session.hpp"
+#include "put_server.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-archived"
@@ -62,14 +64,6 @@
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
 
-extern "C" {
-	extern int version_number[3];
-	extern const char *version_number_string;
-	extern const char *version_date;
-	extern const char *build_host;
-	extern const char *copyright_string;
-}
-
 namespace app {
 
 // the configuration map
@@ -78,6 +72,7 @@ boost::program_options::variables_map confMap;
 // time to quit?
 bool quit = false;
 
+// was HUPed
 bool wasHUPed = false;
 
 }
@@ -93,14 +88,13 @@ int main(int argc, char **argv) {
 				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
 				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
 				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("cdr.directory", bopts::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
-
+				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				;
 
 		rml::logger::describe_config(optsDesc);
 
-		app::cdr_inspector::describe_config(optsDesc);
-		app::archived_client::describe_config(optsDesc);
+		app::put_session::describe_config(optsDesc);
+		app::put_server::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -200,32 +194,18 @@ int main(int argc, char **argv) {
 	}
 
 	try {
-
-		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
-
 		archiving::archivable_channel_t in_channel("IN");
 		archiving::archivable_channel_t out_channel("OUT");
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel);
-		archiving::dir_monitor dir_monitor(io_service);
-		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
-		dir_monitor.async_monitor(cdr_dir_monitor);
+		app::put_server put_server(app::confMap, in_channel, io_service);
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
-		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
-			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
-
-	    boost::asio::ip::tcp::resolver resolver(io_service);
-	    boost::asio::ip::tcp::resolver::query query(app::confMap["archived_client.server_host"].as<std::string>(), app::confMap["archived_client.server_port"].as<std::string>());
-	    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
-
-	    app::archived_client archived_client(io_service, out_channel, iterator);
-
-		// TODO do we need more io_service threads here??
-		threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		unsigned int n_service_threads = ( 1 + std::max<unsigned int>(app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
+		LogMessage("Starting "<<n_service_threads<<" service threads");
+		while(0 < --n_service_threads)
+			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
 		while(!app::quit) {
 			LogVerbose(((time(0)%2) ? "tik": "tok"));

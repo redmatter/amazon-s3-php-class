@@ -20,14 +20,6 @@
 #include "md5.hpp"
 
 namespace archiving {
-class archivable;
-}  // namespace archiving
-
-namespace std {
-ostream& operator<<(ostream& ostr, const archiving::archivable& a);
-} // namespace std
-
-namespace archiving {
 
 typedef unsigned int org_id;
 typedef int user_id;
@@ -56,15 +48,12 @@ struct owner_info {
 class archivable_pointer_compare;
 
 class archivable {
-	bool error;
-	std::string error_str;
-
 protected:
 	std::string file_path;
 	bool deletable;
 
 public:
-	typedef boost::shared_ptr<std::ifstream> ifstream_ptr;
+	typedef boost::shared_ptr<std::fstream> fstream_ptr;
 	typedef boost::shared_ptr<archivable> pointer;
 
 	typedef boost::shared_ptr<rml::utils::tmp_file> tmp_file_ptr;
@@ -83,7 +72,7 @@ public:
 	};
 
 	struct file_type {
-		enum type {
+		enum file_type_t {
 			unknown = 0,
 			cdr,
 			call_recording,
@@ -93,7 +82,7 @@ public:
 			n_file_types
 		};
 
-		static const char* to_string(const type t) {
+		static const char* to_string(const file_type_t t) {
 			static const char* types_str[] = {
 					"unknown",
 					"cdr",
@@ -109,64 +98,81 @@ public:
 
 			return types_str[n_file_types];
 		}
+
+
+		static const file_type_t from_string(const std::string& str) {
+			file_type_t type;
+			if(str == "unknown")
+				type = unknown;
+			else if(str == "cdr")
+				type = cdr;
+			else if(str == "call_recording")
+				type = call_recording;
+			else if(str == "hold_music")
+				type = hold_music;
+			else if(str == "voice_recording")
+				type = voice_recording;
+			else
+				THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
+
+			return type;
+		}
 	};
 
 private:
-	ifstream_ptr ifs;
-	hash_vector md5;
-	std::vector<tmp_file_ptr> tmp_files;
+	fstream_ptr fstr_;
+	hash_vector md5_;
 
-	size_t file_size;
+	std::vector<rml::utils::tmp_fstream::pointer> tmp_fstreams_;
 
-	const file_type::type type;
+	size_t file_size_;
 
-	pointer parent;
+	const file_type::file_type_t type_;
 
-	owner_info owners;
+	pointer parent_;
+
+	owner_info owners_;
 
 public:
-	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
-
-	archivable(const std::string& file_path, const file_type::type& type, const pointer& parent = pointer(), const policy_ptr& policy = policy_ptr())
-	: error(false),
-	  file_path(file_path),
+	archivable(const std::string& file_path, const file_type::file_type_t& type, const pointer& parent = pointer(), const policy_ptr& policy = policy_ptr())
+	: file_path(file_path),
 	  deletable(false),
-	  type(type),
-	  parent(parent)
+	  type_(type),
+	  parent_(parent)
 	{
 		set_file_path(file_path);
 	}
 
-	ifstream_ptr get_stream() {
-		return ifs;
+	fstream_ptr get_stream() {
+		return fstr_;
 	}
 
 	const hash_vector& get_md5() const {
-		return md5;
+		return md5_;
 	}
 
 	const std::string& get_file_path() const {
 		return file_path;
 	}
 
-	const file_type::type& get_type() const {
-		return type;
+	const file_type::file_type_t& get_type() const {
+		return type_;
 	}
 
-	ifstream_ptr get_file_ifstream_ptr() {
-		return ifs;
+	fstream_ptr get_file_ifstream_ptr() {
+		return fstr_;
 	}
 
 	void set_owners(const owner_info& o) {
-		owners.orgID = o.orgID;
-		owners.userIDs.clear();
+		owners_.orgID = o.orgID;
+		owners_.userIDs.clear();
 		BOOST_FOREACH(user_id userID, o.userIDs) {
-			owners.addUser(userID);
+			owners_.addUser(userID);
 		}
 	}
 
 	const org_id& get_org_id() const {
-		return owners.orgID;
+		return owners_.orgID;
 	}
 
 	void set_deletable() {
@@ -178,38 +184,38 @@ public:
 	}
 
 	const size_t& get_file_size() const {
-		return file_size;
+		return file_size_;
 	}
 
-	void set_file_path(const std::string& path, const tmp_file_ptr& tmp_file = tmp_file_ptr()) {
+	void set_file_path(const std::string& path, const rml::utils::tmp_fstream::pointer& tmp_fstr = rml::utils::tmp_fstream::pointer()) {
+		if(tmp_fstr) {
+			tmp_fstreams_.push_back(tmp_fstr);
+			assert(tmp_fstr->get_filename() == path);
 
-		if(tmp_file.get()) {
-			tmp_files.push_back(tmp_file);
-			assert(tmp_file->getName() == path);
+			fstr_ = tmp_fstr;
+		}
+		else {
+			fstr_.reset(new std::fstream(file_path.c_str(), std::ios_base::in | std::ios_base::binary));
+			if(fstr_->fail())
+				THROW_RML_EXCEPTION("failed to open file: "<<file_path<<" err: "<<strerror(errno));
+
+			fstr_->exceptions(std::ios::badbit | std::ios::failbit);
 		}
 
-		if(ifs)
-			ifs->close();
+		if(file_path.empty())
+			file_path = path;
 
-		file_path = path;
-		ifs.reset(new std::ifstream(file_path.c_str(), std::ios::binary));
-
-		if(ifs->fail())
-			THROW_RML_EXCEPTION("failed to open file: "<<file_path<<" err: "<<strerror(errno));
-
-		ifs->exceptions(std::ios::badbit | std::ios::failbit);
-
-		file_size = 0;
+		file_size_ = 0;
 		{
-			std::filebuf *pbuf = ifs->rdbuf();
-			file_size = pbuf->pubseekoff(0,std::ios::end, std::ios::in);
+			std::filebuf *pbuf = fstr_->rdbuf();
+			file_size_ = pbuf->pubseekoff(0,std::ios::end, std::ios::in);
 			pbuf->pubseekpos(0,std::ios::in);
 		}
 
-		if( 0 == file_size )
+		if( 0 == file_size_ )
 			throw rml::exception("Zero length CDR");
 
-		md5 = md5hasher::hash(*ifs.get());
+		md5_ = md5hasher::hash(fstr_, file_size_);
 	}
 };
 
@@ -225,8 +231,23 @@ public:
 
 namespace std {
 
-ostream& operator<<(ostream& ostr, const archiving::archivable& a) {
+inline ostream& operator<<(ostream& ostr, const archiving::archivable& a) {
 	return ostr << archiving::archivable::file_type::to_string(a.get_type()) << ": " << a.get_file_path() << " md5:" << a.get_md5();
+}
+
+inline ostream& operator<<(ostream& ostr, const archiving::archivable::file_type::file_type_t& t) {
+	return ostr << archiving::archivable::file_type::to_string(t);
+}
+
+inline istream& operator>>(istream& istr, archiving::archivable::file_type::file_type_t& t) {
+	std::string tmp; istr >> tmp;
+	try {
+		t = archiving::archivable::file_type::from_string(tmp); // we may throw here
+	}
+	catch(...) {
+		LogWarning("Invalid file_type");
+	}
+	return istr;
 }
 
 }  // namespace std

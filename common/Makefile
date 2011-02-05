@@ -11,7 +11,7 @@ LIBS = \
 
 CXX_SRCS += \
 		dir_monitor.cpp \
-		archived.cpp
+		defines.cpp
 
 C_SRCS += \
 		md5.c

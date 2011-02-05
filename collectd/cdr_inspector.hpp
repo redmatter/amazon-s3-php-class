@@ -90,7 +90,7 @@ public:
 
 					// inspect and cleanup CDR
 					{
-						archiving::archivable::ifstream_ptr ifs = archivable_cdr->get_file_ifstream_ptr();
+						archiving::archivable::fstream_ptr ifs = archivable_cdr->get_file_ifstream_ptr();
 						ifs->rdbuf()->pubseekpos(0,std::ios::in);
 
 						bool modified = false;
@@ -183,7 +183,6 @@ public:
 							out_channel.produce(archivable_recording);
 						}
 
-						// OK, now we have a CDR that has to be POSTed
 						// We need to strip out any unwanted tags using filtered_xpaths[]
 						if(!filtered_xpaths.empty()) {
 							BOOST_FOREACH ( const std::string& xpath, filtered_xpaths ) {
@@ -194,20 +193,16 @@ public:
 								}
 
 								if(modified) {
-									archiving::archivable::tmp_file_ptr tmp_file_ptr(new rml::utils::tmp_file("arc-cdr"));
-
-									if(!doc.save_file(tmp_file_ptr->getName().c_str(), "  "))
-										throw rml::exception("failed saving filtered CDR");
-
-									archivable_cdr->set_file_path(tmp_file_ptr->getName(), tmp_file_ptr);
-									LogVerbose("Modified: "<<archivable_cdr->get_file_path()<<": md5: "<<archivable_cdr->get_md5());
+									rml::utils::tmp_fstream::pointer tmp_fsptr = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream("collectd.cdr_inspector.tmp."));
+									doc.save(*tmp_fsptr, "  ");
+									archivable_cdr->set_file_path(tmp_fsptr->get_filename(), tmp_fsptr);
+									LogVerbose("Modified - "<<archivable_cdr->get_file_path()<<" md5:"<<archivable_cdr->get_md5());
 								}
 							}
 						}
 
 						out_channel.produce(archivable_cdr);
 					}
-
 				}
 				catch(const archiving::archivable_channel_t::finishing_exception& e) {
 					LogVerbose("cdr_inspector::run - "<<e.what());

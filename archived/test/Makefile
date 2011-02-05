@@ -6,6 +6,12 @@ include ../../version_info
 
 TARGET=test
 
+RML_LOG_SOURCE_LOCATION=YES
+
+ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
+CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
+endif
+
 FREESWITCH_DIR=/opt/freeswitch
 
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include

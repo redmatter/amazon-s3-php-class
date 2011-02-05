@@ -10,21 +10,7 @@
 
 #include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// from $(TMP)/version.c
-extern int version_number[3];
-extern const char *version_number_string;
-extern const char *version_number_only_string;
-extern const char *version_date;
-extern const char *build_host;
-extern const char *copyright_string;
-
-#ifdef __cplusplus
-}
-#endif
+#include <rml/version.h>
 
 namespace app {
 

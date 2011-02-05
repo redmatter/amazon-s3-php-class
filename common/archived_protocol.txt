@@ -9,7 +9,7 @@
 ( Handshaked; any incompatibility can be flagged by server or client by ERR )
 ( Ready for tansmission )
 
--> PUT <OrgID> <md5> <content-length>\r\n
+-> PUT <OrgID> <file_type> <md5> <content-length>\r\n
 ( TODO Check for local space and reserve it )
 <- OK PUT <OrgID> <original-md5>\r\n
 --- OR ---

@@ -214,13 +214,13 @@ int main(int argc, char **argv) {
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
-		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
-			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
-
 	    boost::asio::ip::tcp::resolver resolver(io_service);
 	    boost::asio::ip::tcp::resolver::query query(app::confMap["archived_client.server_host"].as<std::string>(), app::confMap["archived_client.server_port"].as<std::string>());
 	    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
+
+		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
+		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
+			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
 	    app::archived_client archived_client(io_service, out_channel, iterator);
 

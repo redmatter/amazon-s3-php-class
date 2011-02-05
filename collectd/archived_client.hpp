@@ -9,7 +9,7 @@
 #define ARCHIVED_CLIENT_HPP_
 
 #include "../common/archivable.hpp"
-#include "../common/archived.h"
+#include "../common/defines.h"
 #include "../common/types.hpp"
 
 #include "globals.h"
@@ -151,16 +151,16 @@ private:
 				LogError("Error: Invalid response from server");
 				current_state_ = states::handshake_err;
 			}
-			else if(protocol_version_number != archived::protocol_version_str) {
+			else if(protocol_version_number != archiving::put_protocol_version_str) {
 				ostr << "ERR protocol version mismatch\r\n";
-				LogError("Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archived::protocol_version_str);
+				LogError("Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
 				current_state_ = states::handshake_err;
 			}
 			else {
 				if(version_number != version_number_only_string)
 					LogWarning("Warning: Server differs in version from client");
 
-				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archived::protocol_version_str<<"\r\n";
+				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
 				current_state_ = states::handshake_sent;
 			}
@@ -175,8 +175,8 @@ private:
 
 		case states::handshake_err:
 		{
-			io_service_.post(boost::bind(&archived_client::do_close, this));
 			current_state_ = states::closing;
+			io_service_.post(boost::bind(&archived_client::do_close, this));
 			break;
 		}
 
@@ -196,7 +196,7 @@ private:
 			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
 			is >> OK_or_ERR;
 			if(OK_or_ERR == "ERR") {
-				is >> sp >> message >> cr >> lf;
+				is >> sp; std::getline(is, message, '\r'); is >> lf;
 				LogError("handshake_ack_waiting: error: "<<message);
 				current_state_ = states::handshake_ack_err;
 				io_service_.post(boost::bind(&archived_client::do_close, this));
@@ -235,7 +235,7 @@ private:
 			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
 			is >> OK_or_ERR >> sp[0] >> PUT >> sp[1] >> OrgID >> sp[2] >> md5;
 			if(OK_or_ERR == "ERR") {
-				is >> sp[3] >> message >> cr >> lf;
+				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError("put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = states::put_sent_ack_err;
 				io_service_.post(boost::bind(&archived_client::do_close, this));
@@ -245,7 +245,7 @@ private:
 				LogMessage("PUT OK; Sending file");
 
 				current_state_ = states::put_sending_file;
-				archiving::archivable::ifstream_ptr ifs = put_archivable_ptr_->get_file_ifstream_ptr();
+				archiving::archivable::fstream_ptr ifs = put_archivable_ptr_->get_file_ifstream_ptr();
 				ifs->rdbuf()->pubseekpos(0,std::ios::in);
 
 				put_file_size_ = put_archivable_ptr_->get_file_size();
@@ -318,7 +318,7 @@ private:
 			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
 			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> OrgID >> sp[2] >> md5;
 			if(OK_or_ERR == "ERR") {
-				is >> sp[3] >> message >> cr >> lf;
+				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError("put_sent_file_ack_waiting: PUT Error: "<<message);
 				current_state_ = states::put_sent_file_ack_err;
 				io_service_.post(boost::bind(&archived_client::do_close, this));
@@ -382,6 +382,7 @@ private:
 	}
 
 	void do_close() {
+		current_state_ = states::closed;
 		socket_.close();
 	}
 };
