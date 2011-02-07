@@ -32,6 +32,8 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
 
+#include <libaws/aws.h>
+
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
@@ -39,6 +41,7 @@
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
+#include "storage.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-archived"
@@ -95,6 +98,7 @@ int main(int argc, char **argv) {
 
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
+		app::storage::s3_backend::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -201,6 +205,7 @@ int main(int argc, char **argv) {
 		boost::asio::io_service io_service;
 
 		app::put_server put_server(app::confMap, in_channel, io_service);
+		app::storage::s3_storage s3Storage(app::confMap);
 
 		unsigned int n_service_threads = ( 1 + std::max<unsigned int>(app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
 		LogMessage("Starting "<<n_service_threads<<" service threads");
