@@ -1,0 +1,40 @@
+Preconditions:
+# Pseudo-random 128bit key per Org, never changes
+# Org Key is held in the API
+
+
+Highlights:
+# Pseudo-random 64-bit IV, which is stored with the encrypted data in header
+# Final padding bytes ( 0x01 - 0x08 ) followed CRC-24 checksum of the clear data
+
++-------------------------------------------+
+|   ["RMA-CE"]                    6 bytes   |
+|   [-archived-version-]          3 bytes   |
+|   [-file-format-version-]       2 bytes   |
+|   [-IV-]                        8 bytes   |
+|   [-padding-]                  21 bytes   |
++---------------- encrypted ----------------+
+| +---------------------------------------+ |
+| | ["RMA"]                       3 bytes | |
+| | [-format-]                    1 bytes | |  <- format specification below
+| | [-sub-format-]                1 bytes | |
+| | [-compressed-content-length-] 8 bytes | |
+| | [-clear-content-length-]      8 bytes | |
+| | [-CRC24-]                     3 bytes | |
+| +---------------------------------------+ |
+| | **   -compressed-or-clear-data-    ** | |
+| +---------------------------------------+ |
+| | [-8-byte-block-size-pad-]     x bytes | |
+| +---------------------------------------+ |
++-------------------------------------------+
+
+
+format specification
+* 0x00 clear
+* 0x01 compressed
+
+sub format specification
+* 0x00 application/octet-stream
+* 0x01 application/xml  OR xml
+* 0x02 audio/x-wav      OR wav
+* 0x03 audio/mpeg       OR mp3

@@ -48,7 +48,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcrypt -luuid \
+	-lcrypt -luuid -laws\
 	-lrml -lpugixml -larchiving_common
 
 CXX_SRCS += \

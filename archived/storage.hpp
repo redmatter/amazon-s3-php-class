@@ -18,15 +18,13 @@ namespace app {
 
 namespace storage {
 
-template< class Backend >
+template< typename Backend, typename object_identifier_t >
 class basic_storage : public boost::noncopyable
 {
-	typedef Backend::object_identifier_t object_identifier_t;
-
 	const boost::program_options::variables_map& confMap_;
 
 public:
-	typedef boost::function<void (const bool, const object_identifier_t&, boost::shared_ptr<std::fstream>)> fn_get_handler_t;
+	typedef boost::function<void (const bool, object_identifier_t&, boost::shared_ptr<std::fstream>)> fn_get_handler_t;
 
 	basic_storage(const boost::program_options::variables_map& confMap) :
 		confMap_(confMap)
@@ -36,20 +34,20 @@ public:
 	}
 
 	boost::shared_ptr<std::fstream> open_for_put(
-			const object_identifier_t& obj,
+			object_identifier_t& obj,
 			const std::ios_base::openmode& mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary | std::ios_base::trunc
 			)
 	{
 		return Backend::get_instance()->open(obj, operation::put_object_init, mode);
 	}
 
-	bool commit_put(const object_identifier_t& obj)
+	bool commit_put(object_identifier_t& obj)
 	{
 		return Backend::get_instance()->commit_put(obj);
 	}
 
 	boost::shared_ptr<std::fstream> open_for_get(
-			const object_identifier_t& obj,
+			object_identifier_t& obj,
 			const std::ios_base::openmode& mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary | std::ios_base::trunc
 			)
 	{
@@ -57,7 +55,11 @@ public:
 	}
 };
 
-typedef basic_storage<s3_backend> s3_storage;
+namespace s3 {
+
+typedef basic_storage<s3::backend, s3::object_identifier> storage;
+
+}  // namespace s3
 
 }  // namespace storage
 

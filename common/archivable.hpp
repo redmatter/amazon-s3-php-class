@@ -16,13 +16,11 @@
 
 #include <rml/logger.h>
 #include <rml/exception.h>
+#include <rml/pc_channel.h>
 
 #include "md5.hpp"
 
 namespace archiving {
-
-typedef unsigned int org_id;
-typedef int user_id;
 
 struct owner_info {
 	org_id orgID;
@@ -84,13 +82,13 @@ public:
 
 		static const char* to_string(const file_type_t t) {
 			static const char* types_str[] = {
-					"unknown",
-					"cdr",
-					"call_recording",
-					"hold_music",
-					"voice_recording",
+				"unknown",
+				"cdr",
+				"call_recording",
+				"hold_music",
+				"voice_recording",
 
-					"invalid-file-type"
+				"invalid-file-type"
 			};
 
 			if(t >= unknown && t < n_file_types)
@@ -226,6 +224,7 @@ public:
 	}
 };
 
+typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
 
 }  // namespace archiving
 

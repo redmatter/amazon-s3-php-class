@@ -8,13 +8,15 @@
 #ifndef TYPES_HPP_
 #define TYPES_HPP_
 
-#include <rml/pc_channel.h>
+#include <stdint.h>
 
 #include "archivable.hpp"
 
 namespace archiving {
 
-typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
+typedef uint32_t org_id;
+typedef int32_t user_id;
+typedef uint32_t group_id;
 
 }
 

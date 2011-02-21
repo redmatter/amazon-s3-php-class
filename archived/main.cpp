@@ -1,16 +1,3 @@
-/*
- * distiller.cpp
- *
- *  Created on: Apr 28, 2010
- *      Author: dkorah
- */
-
-#include <rml/logger.h>
-#include <rml/utils.h>
-#include <rml/thread_adapter.h>
-#include <rml/config.h>
-#include <rml/siginit.h>
-
 #include <sys/types.h>
 #include <grp.h>
 #include <pwd.h>
@@ -34,6 +21,12 @@
 
 #include <libaws/aws.h>
 
+#include <rml/logger.h>
+#include <rml/utils.h>
+#include <rml/thread_adapter.h>
+#include <rml/config.h>
+#include <rml/siginit.h>
+
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
@@ -42,6 +35,8 @@
 #include "put_session.hpp"
 #include "put_server.hpp"
 #include "storage.hpp"
+#include "storage_operation.hpp"
+#include "storage_runner.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-archived"
@@ -73,10 +68,10 @@ namespace app {
 boost::program_options::variables_map confMap;
 
 // time to quit?
-bool quit = false;
+volatile bool quit = false;
 
 // was HUPed
-bool wasHUPed = false;
+volatile bool wasHUPed = false;
 
 }
 
@@ -98,7 +93,7 @@ int main(int argc, char **argv) {
 
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
-		app::storage::s3_backend::describe_config(optsDesc);
+		app::storage::s3::backend::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -181,9 +176,8 @@ int main(int argc, char **argv) {
 				}
 
 				// change dir so that we have a chance of getting some cores
-				if(-1 == chdir(data_dir.c_str())) {
+				if(-1 == chdir(data_dir.c_str()))
 					THROW_RML_EXCEPTION("Failed changing directory to " << data_dir << " - err:" << strerror(errno));
-				}
 				else
 					LogVerbose("Changed directory to " << data_dir);
 			}
@@ -192,33 +186,46 @@ int main(int argc, char **argv) {
 			rml::utils::pid_file::create(PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
-			LogError("Initialization Error - exception: "<<e.what());
+			LogError("Initialisation Error - exception: "<<e.what());
 			exit(rml::utils::exit_codes::initialization_error);
 		}
 	}
 
 	try {
-		archiving::archivable_channel_t in_channel("IN");
-		archiving::archivable_channel_t out_channel("OUT");
+		archiving::archivable_channel_t put_channel("->PUT");
+		archiving::archivable_channel_t to_s3_channel("PUT->S3");
+
+		app::storage::s3::operation_channel_t s3_operation_channel("s3ops");
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		app::put_server put_server(app::confMap, in_channel, io_service);
-		app::storage::s3_storage s3Storage(app::confMap);
+		app::put_server put_server(app::confMap, put_channel, to_s3_channel, io_service);
 
-		unsigned int n_service_threads = ( 1 + std::max<unsigned int>(app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
-		LogMessage("Starting "<<n_service_threads<<" service threads");
-		while(0 < --n_service_threads)
-			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		app::storage::s3::storage s3storage(app::confMap);
+		app::storage::s3::runner s3runner(s3storage, s3_operation_channel, app::quit);
+
+		{
+			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );
+			LogMessage("Starting "<<n_threads<<" s3 threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&app::storage::s3::runner::run, boost::ref(s3runner)));
+		}
+
+		{
+			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
+			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		}
 
 		while(!app::quit) {
 			LogVerbose(((time(0)%2) ? "tik": "tok"));
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
-		in_channel.set_finishing();
-		out_channel.set_finishing();
+		put_channel.set_finishing();
+		to_s3_channel.set_finishing();
 
 		io_service.stop();
 

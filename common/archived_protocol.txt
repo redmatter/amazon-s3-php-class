@@ -9,7 +9,15 @@
 ( Handshaked; any incompatibility can be flagged by server or client by ERR )
 ( Ready for tansmission )
 
--> PUT <OrgID> <file_type> <md5> <content-length>\r\n
+-> PUT <OrgID> <file_type> <collectd-object-identifier(uses md5 for now)> <content-length>\r\n
+OwnerID: <UserID>[,<UserID>,...]\r\n
+md5: <md5>\r\n
+CreateTime: <CreateEpoch>\r\n
+RetentionPolicyID: <PolicyID>\r\n   
+LegUUID: <UUID>\r\n
+ResourceID: <ResourceUuid>\r\n
+CustomHeader: <Value>\r\n
+\r\n
 ( TODO Check for local space and reserve it )
 <- OK PUT <OrgID> <original-md5>\r\n
 --- OR ---

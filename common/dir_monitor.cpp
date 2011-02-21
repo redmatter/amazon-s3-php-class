@@ -100,20 +100,20 @@ void dir_monitor::handle_read(const boost::system::error_code& e, std::size_t by
 {
     if (!e)
     {
-        struct inotify_event* inotify_event;
+        struct inotify_event* p_event;
         unsigned int bytes_processed = 0;
         if (bytes_transferred > sizeof (struct inotify_event))
         {
             do
             {
-                inotify_event = reinterpret_cast<struct inotify_event*> (buffer_ + bytes_processed);
-                watch_descriptors_type::left_iterator it = watch_descriptors_.left.find(inotify_event->wd);
+                p_event = reinterpret_cast<struct inotify_event*> (buffer_ + bytes_processed);
+                watch_descriptors_type::left_iterator it = watch_descriptors_.left.find(p_event->wd);
                 if (it != watch_descriptors_.left.end())
-                	handler_(event((inotify_event->len? inotify_event->name : ""), it->second, static_cast<event::event_type> (inotify_event->mask)), e);
+                	handler_(event((p_event->len? p_event->name : ""), it->second, static_cast<event::event_type> (p_event->mask)), e);
 
-                bytes_processed += sizeof (struct inotify_event) + inotify_event->len;
+                bytes_processed += sizeof (struct inotify_event) + p_event->len;
             }
-            while (bytes_transferred - bytes_processed >= sizeof (struct inotify_event) + inotify_event->len);
+            while (bytes_transferred - bytes_processed >= sizeof (struct inotify_event) + p_event->len);
         }
         async_read();
     }

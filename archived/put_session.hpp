@@ -18,6 +18,7 @@
 #include "../common/archivable.hpp"
 
 #include "globals.h"
+#include "types.hpp"
 
 namespace app {
 
@@ -68,6 +69,7 @@ class put_session : public boost::enable_shared_from_this<put_session> {
 	boost::shared_ptr<std::fstream> ofs_;
 	archiving::hash_vector md5_;
 	archiving::org_id orgID_;
+	types::put_metadata::pointer metadata_;
 	archiving::archivable::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
 	bool xfrd_ok_;
@@ -190,13 +192,14 @@ private:
 			ofs_.reset();
 			md5_.clear();
 			orgID_ = 0;
+			metadata_.reset();
 			file_type_ = archiving::archivable::file_type::unknown;
 			content_length_ = 0;
 			xfrd_content_length_ = 0;
 			xfrd_ok_ = false;
 
 			current_state_ = states::put_received;
-			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
+			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n\r\n",
 					boost::bind(&put_session::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error));
 			break;
@@ -243,6 +246,7 @@ private:
 						ofs_ = boost::static_pointer_cast<std::fstream, rml::utils::tmp_fstream>(ofs);
 						md5_ = md5;
 						orgID_ = orgID;
+						metadata_.reset(new types::put_metadata(istr)); // read it from stream
 						file_type_ = file_type;
 						content_length_ = content_length;
 						xfrd_content_length_ = 0;
