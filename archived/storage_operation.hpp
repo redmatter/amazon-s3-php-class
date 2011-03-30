@@ -12,19 +12,21 @@
 
 #include <rml/pc_channel.h>
 
-#include "storage_object_identifier.hpp"
+#include "operation_data.hpp"
 
 namespace app {
 
 namespace storage {
 
-struct operation {
+struct operations
+{
 
 	// Order of the enum below decides operation queue priority as well; see operation_ex_compare
 	//    hence the customer facing get_object set to be the first one; it does expose
 	//    a potential DoS, but we should rate-limit such operations before it hits the
 	//    ArchiveD
-	enum operation_t {
+	enum operations_t
+	{
 		invalid = 0,
 		get_object,
 		put_object_init,
@@ -34,16 +36,18 @@ struct operation {
 	};
 };
 
-struct operation_result {
+struct operation_result
+{
 	enum operation_result_t { success, failure, interrupted };
 };
 
 template < typename object_identifier >
-struct operation_ex {
+struct operation_ex
+{
 	typedef boost::function< void (boost::shared_ptr<object_identifier>, operation_result::operation_result_t) > callback_t;
 	typedef object_identifier object_identifier_t;
 
-	operation::operation_t operation;
+	operations::operations_t operation;
 	boost::shared_ptr<object_identifier> obj;
 	callback_t callback;
 };
@@ -51,14 +55,13 @@ struct operation_ex {
 
 namespace s3 {
 
-typedef storage::operation_ex< s3::object_identifier > operation_ex;
+typedef storage::operation_ex< operation_data > operation_ex;
 
-struct operation_ex_compare {
+struct operation_ex_compare
+{
 	bool operator() (const operation_ex& lhs, const operation_ex& rhs) {
-		if(lhs.operation < rhs.operation)
-			return true;
-		else if(lhs.operation > rhs.operation)
-			return false;
+		if(lhs.operation != rhs.operation)
+			return lhs.operation < rhs.operation;
 
 		return lhs.obj < rhs.obj;
 	}

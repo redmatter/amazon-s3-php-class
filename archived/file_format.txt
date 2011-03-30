@@ -20,7 +20,8 @@ Highlights:
 | | [-sub-format-]                1 bytes | |
 | | [-compressed-content-length-] 8 bytes | |
 | | [-clear-content-length-]      8 bytes | |
-| | [-CRC24-]                     3 bytes | |
+| | [-CRC32-]                     4 bytes | |
+| | [-padding-]                   7 bytes | |
 | +---------------------------------------+ |
 | | **   -compressed-or-clear-data-    ** | |
 | +---------------------------------------+ |
@@ -34,7 +35,8 @@ format specification
 * 0x01 compressed
 
 sub format specification
-* 0x00 application/octet-stream
-* 0x01 application/xml  OR xml
-* 0x02 audio/x-wav      OR wav
-* 0x03 audio/mpeg       OR mp3
+* 0x00 unknown/error/should-not-use
+* 0x01 application/octet-stream
+* 0x02 application/xml  OR xml
+* 0x03 audio/x-wav      OR wav
+* 0x04 audio/mpeg       OR mp3

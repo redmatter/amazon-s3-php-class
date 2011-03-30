@@ -28,9 +28,11 @@ extern const char *copyright_string;
 
 namespace app {
 
-extern bool quit;
+extern boost::program_options::variables_map confMap;
 
-extern bool wasHUPed;
+extern volatile bool quit;
+
+extern volatile bool wasHUPed;
 
 }  // namespace app
 

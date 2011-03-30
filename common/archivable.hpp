@@ -13,12 +13,14 @@
 #include <iostream>
 
 #include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
 
 #include <rml/logger.h>
 #include <rml/exception.h>
 #include <rml/pc_channel.h>
 
 #include "md5.hpp"
+#include "types.hpp"
 
 namespace archiving {
 
@@ -164,7 +166,8 @@ public:
 	void set_owners(const owner_info& o) {
 		owners_.orgID = o.orgID;
 		owners_.userIDs.clear();
-		BOOST_FOREACH(user_id userID, o.userIDs) {
+		user_id userID;
+		BOOST_FOREACH(userID, o.userIDs) {
 			owners_.addUser(userID);
 		}
 	}

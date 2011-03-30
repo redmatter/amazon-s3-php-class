@@ -18,24 +18,27 @@ namespace app {
 namespace storage {
 
 template < typename storage_t, typename channel_t >
-class basic_runner {
+class basic_runner
+{
 	typedef channel_t::item_t operation_ex_t;
 	typedef channel_t::item_t::object_identifier_t object_identifier_t;
 
 	storage_t& storage_;
 	channel_t& channel_;
 
-	volatile bool& quit_;
+	volatile const bool& quit_;
 
 public:
-	basic_runner(storage_t& storage, channel_t& channel, volatile bool& quit) :
+	basic_runner(storage_t& storage, channel_t& channel, volatile const bool& quit) :
 		storage_(storage), channel_(channel), quit_(quit)
 	{
+		//ctor
 	}
 
 	virtual ~basic_runner() {}
 
-	void run() {
+	void run()
+	{
 		while(!quit_) {
 			try {
 				operation_ex_t op_obj = channel_.consume();
@@ -77,7 +80,8 @@ public:
 
 namespace s3 {
 
-class runner : public basic_runner<storage, operation_channel_t> {
+class runner : public basic_runner<storage, operation_channel_t>
+{
 public:
 	enum { min_threads = 2 };
 

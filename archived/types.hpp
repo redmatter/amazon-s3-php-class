@@ -11,6 +11,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <functional>
+#include <algorithm>
+
 #include "../common/defines.h"
 
 #include "globals.h"
@@ -29,7 +32,8 @@
 | | [-sub-format-]                1 bytes | |
 | | [-compressed-content-length-] 8 bytes | |
 | | [-clear-content-length-]      8 bytes | |
-| | [-CRC24-]                     3 bytes | |
+| | [-CRC32-]                     4 bytes | |
+| | [-padding-]                   7 bytes | |
 | +---------------------------------------+ |
 | | **   -compressed-or-clear-data-    ** | |
 | +---------------------------------------+ |
@@ -54,35 +58,91 @@ namespace app {
 
 namespace types {
 
-struct file_format_version {
+struct file_format_version
+{
 	enum {
 		major = 1,
 		minor = 0
 	};
 };
 
-struct data_format {
-	enum data_format_t {
-		clear      = 0x00,
-		compressed = 0x01,
-		encrypted  = 0x10
+struct data_format
+{
+	enum data_format_t
+	{
+		clear      = 0x0000,
+		compressed = 0x0001,
+		encrypted  = 0x0010
 	};
 };
 
-struct data_format_mask {
-	enum data_format_mask_t {
-		compressed = 0x0f,
-		encrypted  = 0xf0
+struct data_format_mask
+{
+	enum data_format_mask_t
+	{
+		compressed = 0x000f,
+		encrypted  = 0x00f0
 	};
 };
 
-struct data_sub_format {
-	enum data_sub_format_t {
-		binary = 0x00, // blob (default / ignore content)
-		xml    = 0x01,
-		wav    = 0x02,
-		mp3    = 0x03
+struct data_sub_format
+{
+	enum data_sub_format_t
+	{
+		unknown   = 0,    // flags errors
+		binary, //= 0x01, // blob ( catchall for any unrecognized data )
+		xml,    //= 0x02,
+		wav,    //= 0x03,
+		mp3,    //= 0x04
+
+		n_data_sub_format
 	};
+
+	static inline const char* to_string(const data_sub_format_t& data_sub_format)
+	{
+		static const char* str[] = {
+				"unknown",
+				"binary",
+				"xml",
+				"wav",
+				"mp3"
+		};
+
+		if(data_sub_format > unknown && data_sub_format < n_data_sub_format)
+			return str[data_sub_format];
+
+		return str[0];
+	}
+
+	static inline data_sub_format_t from_string(const std::string& str)
+	{
+		if(str == "binary")
+			return binary;
+		if(str == "xml")
+			return xml;
+		if(str == "wav")
+			return wav;
+		if(str == "mp3")
+			return mp3;
+
+		return unknown;
+	}
+
+	static inline data_sub_format_t from_filename(const std::string& filename)
+	{
+		std::size_t pos = filename.rfind('.');
+		data_sub_format_t ret = unknown;
+
+		if(pos != std::string::npos)
+			ret = from_string(std::string(filename, pos + 1));
+
+		if(ret == unknown) {
+			LogWarning("Unknown filetype from filename "<<filename);
+			return binary;
+		}
+
+		return ret;
+	}
 };
 
 /// file format states based on data_format & data_sub_format
@@ -105,8 +165,12 @@ struct data_sub_format {
  *
  */
 
-struct file_format {
-	enum file_format_t {
+struct file_format
+{
+	enum file_format_t
+	{
+		unknown                      = 0,
+
 		clear_binary                 = ( data_format::clear << 8 ) | data_sub_format::binary,
 		clear_xml                    = ( data_format::clear << 8 ) | data_sub_format::xml,
 		clear_wav                    = ( data_format::clear << 8 ) | data_sub_format::wav,
@@ -116,12 +180,162 @@ struct file_format {
 		compressed_xml               = ( data_format::compressed << 8 ) | data_sub_format::xml,
 		compressed_wav               = ( data_format::compressed << 8 ) | data_sub_format::wav,
 
-		encrypted_compressed_binary  = (( data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::binary,
-		encrypted_compressed_xml     = (( data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::xml,
-		encrypted_compressed_wav     = (( data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::wav,
+		encrypted_compressed_binary  = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::binary,
+		encrypted_compressed_xml     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::xml,
+		encrypted_compressed_wav     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::wav,
 
 		encrypted_mp3                = ( data_format::encrypted << 8 ) | data_sub_format::mp3
 	};
+
+	static const char* to_string(const file_format_t& ff)
+	{
+		static const char* str[] = {
+			"unknown",
+
+			"clear_binary",
+			"clear_xml",
+			"clear_wav",
+			"clear_mp3",
+
+			"compressed_binary",
+			"compressed_xml",
+			"compressed_wav",
+
+			"encrypted_compressed_binary",
+			"encrypted_compressed_xml",
+			"encrypted_compressed_wav",
+
+			"encrypted_mp3"
+		};
+
+		switch(ff) {
+		case clear_binary:
+			return str[1];
+		case clear_xml:
+			return str[2];
+		case clear_wav:
+			return str[3];
+		case clear_mp3:
+			return str[4];
+
+		case compressed_binary:
+			return str[5];
+		case compressed_xml:
+			return str[6];
+		case compressed_wav:
+			return str[7];
+
+		case encrypted_compressed_binary:
+			return str[8];
+		case encrypted_compressed_xml:
+			return str[9];
+		case encrypted_compressed_wav:
+			return str[10];
+
+		case encrypted_mp3:
+			return str[11];
+
+		case unknown:
+		default:
+			return str[0];
+		}
+	}
+
+	static const char* to_extension(const file_format_t& ff)
+	{
+		static const char* str[] = {
+			"unk",
+
+			"blob",
+			"xml",
+			"wav",
+			"mp3",
+
+			"blob.bz2",
+			"xml.bz2",
+			"wav.bz2",
+
+			"blob.bz2.bf",
+			"xml.bz2.bf",
+			"wav.bz2.bf",
+
+			"mp3.bf"
+		};
+
+		switch(ff) {
+		case clear_binary:
+			return str[1];
+		case clear_xml:
+			return str[2];
+		case clear_wav:
+			return str[3];
+		case clear_mp3:
+			return str[4];
+
+		case compressed_binary:
+			return str[5];
+		case compressed_xml:
+			return str[6];
+		case compressed_wav:
+			return str[7];
+
+		case encrypted_compressed_binary:
+			return str[8];
+		case encrypted_compressed_xml:
+			return str[9];
+		case encrypted_compressed_wav:
+			return str[10];
+
+		case encrypted_mp3:
+			return str[11];
+
+		case unknown:
+		default:
+			return str[0];
+		}
+	}
+
+	struct convert_action
+	{
+		enum convert_action_t
+		{
+			nothing   = 0,
+			compress,
+			encrypt,
+			decrypt,
+			uncompress,
+			transcode /* wav -> mp3 OR mp3 -> wav */
+		};
+	};
+
+	/**
+	 * handy function to put the format components together
+	 *
+	 * @param compressed
+	 * @param encrypted
+	 * @param dsf
+	 * @return
+	 */
+	static inline file_format_t make(const bool compressed, const bool encrypted, const data_sub_format::data_sub_format_t dsf)
+	{
+		uint16_t df = data_format::clear;
+		if(compressed && (dsf != data_sub_format::mp3)) // XXX fix this special case
+			df |= data_format::compressed;
+		if(encrypted)
+			df |= data_format::encrypted;
+
+		return file_format_t((df << 8 ) | dsf);
+	}
+
+	static inline bool is_encrypted(const file_format_t& ff)
+	{
+		return ff & ( data_format_mask::encrypted << 8 );
+	}
+
+	static inline bool is_compressed(const file_format_t& ff)
+	{
+		return ff & ( data_format_mask::compressed << 8 );
+	}
 
 	/**
 	 * Implements the state table for the file format transformation
@@ -130,63 +344,72 @@ struct file_format {
 	 * @param to
 	 * @return
 	 */
-	static inline file_format_t get_next_state(const file_format_t& from, const file_format_t& to) {
-		if(from == to)
-			return from;
-
+	static inline std::pair<convert_action::convert_action_t, file_format_t> get_next(const file_format_t& from, const file_format_t& to)
+	{
 		LogDebug("from  : " << RML_HEX(4, from));
 		LogDebug("to    : " << RML_HEX(4, to));
-
-		data_sub_format::data_sub_format_t dsf_from = (data_sub_format::data_sub_format_t)(from & 0xff);
-		bool from_encrypted = (bool)(from & ( data_format_mask::encrypted << 8 ));
-		bool from_compressed = (bool)(from & ( data_format_mask::compressed << 8 ));
-
-		data_sub_format::data_sub_format_t dsf_to = (data_sub_format::data_sub_format_t)(to & 0xff);
-		bool to_encrypted = (bool)(to & ( data_format_mask::encrypted << 8 ));
-		bool to_compressed = (bool)(to & ( data_format_mask::compressed << 8 ));
-
 #if DEBUG >= 1
-#define verbose_return( ret ) \
+#define verbose_return( ret_action, ret_format ) \
 	do { \
-		file_format_t  ret_ = file_format_t( ret ); \
-		LogDebug("result: " << RML_HEX(4, ret_)); \
-		return ret_; \
+		LogDebug("result: [" << RML_HEX(4, ret_action) << ", " << RML_HEX(4, (ret_format) ) << ']'); \
+		return std::make_pair(ret_action, file_format_t( ret_format )); \
 	} while(false)
 #else
-#define verbose_return( ret ) \
-	return file_format_t( ret );
+#define verbose_return( ret_action, ret_format ) \
+		return std::make_pair(ret_action, file_format_t( ret_format ));
 #endif
 
+		if(from == to)
+			verbose_return( convert_action::nothing, from );
+
+		data_sub_format::data_sub_format_t dsf_from = (data_sub_format::data_sub_format_t)(from & 0xff);
+		bool from_encrypted = is_encrypted(from);
+		bool from_compressed = is_compressed(from);
+
+		data_sub_format::data_sub_format_t dsf_to = (data_sub_format::data_sub_format_t)(to & 0xff);
+		bool to_encrypted = is_encrypted(to);
+		bool to_compressed = is_compressed(to);
+
+		if( (data_sub_format::unknown == dsf_from) || ( data_sub_format::unknown == dsf_to) )
+			verbose_return(convert_action::nothing, file_format::unknown);
+
 		if(from_encrypted)
-			verbose_return(from & ~(data_format_mask::encrypted << 8));
+			verbose_return(convert_action::decrypt, from & ~(data_format_mask::encrypted << 8));
 
 		if(from_compressed)
 		{
 			if(to_encrypted && to_compressed && (dsf_from == dsf_to))
-				verbose_return(from | (data_format::encrypted << 8));
+				verbose_return(convert_action::encrypt, from | (data_format::encrypted << 8));
 
-			verbose_return(from & ~(data_format_mask::compressed << 8));
+			verbose_return(convert_action::uncompress, from & ~(data_format_mask::compressed << 8));
 		}
 
 		if(dsf_from != dsf_to)
-			verbose_return(dsf_to);
+			verbose_return(convert_action::transcode, dsf_to);
 
-		if(to_compressed)
-			verbose_return(from | (data_format::compressed << 8));
+		if(to_compressed) {
+			// we do not want to compress already compressed audio
+			// we should never get here and must be handled by the calling code
+			if(dsf_from == data_sub_format::mp3)
+				verbose_return(convert_action::nothing, file_format::unknown);
+
+			verbose_return(convert_action::compress, from | (data_format::compressed << 8));
+		}
 
 		if(to_encrypted)
-			verbose_return(from | (data_format::encrypted << 8));
+			verbose_return(convert_action::encrypt, from | (data_format::encrypted << 8));
+
+		verbose_return(convert_action::nothing, file_format::unknown);
 
 #undef verbose_return
 
 	}
 };
 
-
-class put_metadata :
-	public std::multimap<std::string, std::string>
+class metadata : public std::multimap<std::string, std::string>
 {
-	bool validate(const std::string& key) {
+	bool validate(const std::string& key)
+	{
 		// sanity check the current state before we add a new key and its value
 		// a way to make sure we do not allow certain keys to occur more than one time.
 
@@ -203,7 +426,7 @@ class put_metadata :
 		};
 
 		bool validate_single_occurance = false;
-		for(int i = 0; i < sizeof(single_occurance_keys); ++i) {
+		for(unsigned int i = 0; i < sizeof(single_occurance_keys); ++i) {
 			if(key == single_occurance_keys[i]) {
 				validate_single_occurance = true;
 				break;
@@ -213,49 +436,96 @@ class put_metadata :
 		return validate_single_occurance? (end() == find(key)) : true;
 	}
 
-	void read_data(std::istream& istr);
-
 public:
-	typedef boost::shared_ptr<put_metadata> pointer;
+	typedef boost::shared_ptr<metadata> pointer;
 
-	put_metadata(const std::string& str) {
+	metadata(const std::string& str)
+	{
 		std::istringstream istr(str);
 		read_data(istr);
 	}
 
-	put_metadata(std::istream& istr) {
+	metadata(std::istream& istr)
+	{
 		read_data(istr);
 	}
 
 	template< typename T >
-	inline void add(const std::string& key, const T& value) {
+	inline void add(const std::string& key, const T& value)
+	{
 		std::ostringstream ostr;
 		ostr << value;
 
 		if(!validate(key))
-			THROW_RML_EXCEPTION("metadat key '"<<key<<"' can occur only once");
+			THROW_RML_EXCEPTION("metadata key '"<<key<<"' can occur only once");
 
 		insert(std::make_pair(key, ostr.str()));
 	}
 
-	template<>
-	inline void add(const std::string& key, const std::string& value) {
+	inline void add(const std::string& key, const std::string& value)
+	{
+		LogDebug("key: "<<key);
+		LogDebug("value: "<<value);
+
 		if(!validate(key))
-			THROW_RML_EXCEPTION("metadat key '"<<key<<"' can occur only once");
+			THROW_RML_EXCEPTION("metadata key '"<<key<<"' can occur only once");
 
 		insert(std::make_pair(key, value));
 	}
 
+	void make_headers(std::map<std::string, std::string>& headers) const
+	{
+		const_iterator first_itr = begin();
+		const_iterator end_itr = end();
+
+		while(first_itr == end_itr) {
+			const_iterator last = std::adjacent_find(first_itr, end_itr);
+
+			std::string map_value;
+			std::string map_key = (*first_itr).first;
+
+			do {
+				if(map_value.empty())
+					map_value = (*first_itr).second;
+				else {
+					map_value += ',';
+					map_value += (*first_itr).second;
+				}
+				++first_itr;
+			} while(first_itr != last);
+
+			headers.insert(std::make_pair(map_key, map_value));
+			LogDebug(map_key<<'='<<map_value);
+		}
+	}
+
+	std::string to_string()
+	{
+		std::ostringstream ostr;
+
+		const_iterator itr = begin();
+		const_iterator end_itr = end();
+
+		while(itr != end_itr) {
+			ostr << (*itr).first << ": " << (*itr).second<< "\r\n";
+			++itr;
+		}
+		ostr << "\r\n";
+
+		return ostr.str();
+	}
+
 private:
-	void read_data(std::istream& istr) {
+	void read_data(std::istream& istr)
+	{
 		std::string line;
 		int line_number = 0;
-		while(!std::getline(istr, line)) {
+		while(std::getline(istr, line)) {
 			if(line[0] == '\r')
 				break;
 
 			{
-				std::string::iterator cr_itr = line.end(); cr_itr--;
+				std::string::iterator cr_itr = line.end(); --cr_itr;
 				assert(*cr_itr == '\r');
 				line.erase(cr_itr);
 			}
@@ -268,7 +538,7 @@ private:
 				continue;
 			}
 
-			add(std::string(line, 0, colon_pos - 1), std::string(line, colon_pos+2));
+			add(std::string(line, 0, colon_pos), std::string(line, colon_pos+2));
 		}
 
 		if(empty())
@@ -277,7 +547,8 @@ private:
 };
 
 #pragma pack(push,1)
-struct header_encrypted {
+struct header_encrypted
+{
 	uint8_t magic[6];
 
 	uint8_t archived_version_major;
@@ -318,16 +589,20 @@ struct header_encrypted {
 //#pragma pack(pop)
 
 #pragma pack(push,1)
-struct header_precrypt {
+struct header_precrypt
+{
 	uint8_t magic[3];
 	uint8_t format;
 	uint8_t sub_format;
 	uint64_t content_length;
 	uint64_t inflated_size;
-	uint8_t crc24[3];
+	uint32_t crc32;
+
+	uint8_t padding[7];
 
 	header_precrypt() {
 		memcpy(magic, "RMA", 3);
+		memcpy(padding, "RedMatterRedMatterRedMatterRedMatterRedMatterRedMatterRedMatter", sizeof(padding));
 	}
 };
 #pragma pack(pop)

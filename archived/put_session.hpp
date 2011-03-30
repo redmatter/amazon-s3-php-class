@@ -22,10 +22,12 @@
 
 namespace app {
 
-class put_session : public boost::enable_shared_from_this<put_session> {
-
-	struct states {
-		enum state_t {
+class put_session : public boost::enable_shared_from_this<put_session>
+{
+	struct states
+	{
+		enum state_t
+		{
 			accepting,
 //			accepted,
 //			disconnected, TODO
@@ -69,7 +71,7 @@ class put_session : public boost::enable_shared_from_this<put_session> {
 	boost::shared_ptr<std::fstream> ofs_;
 	archiving::hash_vector md5_;
 	archiving::org_id orgID_;
-	types::put_metadata::pointer metadata_;
+	types::metadata::pointer metadata_;
 	archiving::archivable::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
 	bool xfrd_ok_;
@@ -80,19 +82,25 @@ public:
 	typedef boost::shared_ptr<put_session> pointer;
 
 	put_session( boost::program_options::variables_map& confMap, archiving::archivable_channel_t& channel, boost::asio::io_service& io_service )
-	: confMap_(confMap), io_service_(io_service), socket_(io_service), current_state_(states::accepting), channel_(channel) { }
+	: confMap_(confMap), io_service_(io_service), socket_(io_service), current_state_(states::accepting), channel_(channel)
+	{
+		//ctor
+	}
 
-	boost::asio::ip::tcp::socket& socket() {
+	boost::asio::ip::tcp::socket& socket()
+	{
 		return socket_;
 	}
 
-	static void describe_config(boost::program_options::options_description& optsDesc) {
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
 		optsDesc.add_options()
 				("archived.cache_dir", boost::program_options::value<std::string>()->default_value("/var/lib/archiving/cache"), "ArchiveD file cache")
 				;
 	}
 
-	void start() {
+	void start()
+	{
 		current_state_ = states::handshake_sent;
 		std::ostream ostr(&send_buffer_);
 		ostr << "ArchiveD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
@@ -103,7 +111,8 @@ public:
 	}
 
 private:
-	void run_statemachine(const boost::system::error_code& error) {
+	void run_statemachine(const boost::system::error_code& error)
+	{
 		if(error) {
 			//TODO deduce next action from current state & error
 			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
@@ -246,7 +255,7 @@ private:
 						ofs_ = boost::static_pointer_cast<std::fstream, rml::utils::tmp_fstream>(ofs);
 						md5_ = md5;
 						orgID_ = orgID;
-						metadata_.reset(new types::put_metadata(istr)); // read it from stream
+						metadata_.reset(new types::metadata(istr)); // read it from stream
 						file_type_ = file_type;
 						content_length_ = content_length;
 						xfrd_content_length_ = 0;
@@ -330,8 +339,8 @@ private:
 		}
 	}
 
-	bool put_receiving_file_is_complete(const boost::system::error_code& error, std::size_t bytes_transferred) {
-
+	bool put_receiving_file_is_complete(const boost::system::error_code& error, std::size_t bytes_transferred)
+	{
 		LogVerbose("error: "<<error);
 		LogVerbose("bytes_transferred: "<<bytes_transferred);
 
@@ -376,7 +385,8 @@ private:
 		return true;
 	}
 
-	void do_close() {
+	void do_close()
+	{
 		current_state_ = states::closed;
 		socket_.close();
 	}

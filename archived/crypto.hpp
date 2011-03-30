@@ -17,33 +17,41 @@
 #include <cryptopp/blowfish.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/secblock.h>
+#include <cryptopp/files.h>
+#include <cryptopp/crc.h>
+
 
 #include <rml/utils.h>
 
 #include "types.hpp"
+#include "operation_data.hpp"
 
 namespace app {
 
-class crypto {
+namespace impl {
+
+class crypto
+{
 	CryptoPP::AutoSeededRandomPool rng_;
 
 public:
-	crypto() {
-
+	inline void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+	{
+		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
 	}
 
-	void encrypt(rml::utils::tmp_fstream& f, detail d, const std::string& out_dir, const std::string& identifier) {
+	void encrypt(std::istream& istr, std::ostream& ostr, const std::vector<uint8_t>& encryption_key)
+	{
 		try {
 			uint8_t iv[CryptoPP::Blowfish::BLOCKSIZE];
 			rng_.GenerateBlock(iv, sizeof(iv));
 
 			CryptoPP::CBC_Mode< CryptoPP::Blowfish >::Encryption blowfish_enc;
-			blowfish_enc.SetKeyWithIV(d.encryption_key, d.encryption_key.size(), iv, CryptoPP::Blowfish::BLOCKSIZE);
+			blowfish_enc.SetKeyWithIV(&encryption_key[0], encryption_key.size(), iv, CryptoPP::Blowfish::BLOCKSIZE);
 
-			std::istream& f_in(*(f.get_istream_ptr()));
 			std::size_t file_size = 0;
 			{
-				std::filebuf *pbuf = f_in.rdbuf();
+				std::streambuf *pbuf = istr.rdbuf();
 				file_size = pbuf->pubseekoff(0,std::ios::end, std::ios::in);
 				pbuf->pubseekpos(0,std::ios::in);
 			}
@@ -51,15 +59,7 @@ public:
 			if( 0 == file_size )
 				throw rml::exception("Zero length input to encrypt()");
 
-			types::header_precrypt& header_precrypt( d.header );
-
-			size_t padding_length = 8 - ( file_size % 8 );
-
-			rml::utils::tmp_fstream::pointer tmp_file(
-					new rml::utils::tmp_fstream(
-							f.get_filename(true),
-							file_size + sizeof(types::header_encrypted) + sizeof(types::header_precrypt) + padding_length,
-							f.get_directory()));
+			//size_t padding_length = 8 - ( file_size % 8 );
 
 			types::header_encrypted header;
 
@@ -68,134 +68,237 @@ public:
 #endif
 			memcpy(header.iv, iv, CryptoPP::Blowfish::BLOCKSIZE);
 
-			tmp_file->write(reinterpret_cast<char*>(&header), sizeof(app::types::header_encrypted));
+			ostr.write(reinterpret_cast<char*>(&header), sizeof(app::types::header_encrypted));
 
-			std::ofstream& f_out(*(tmp_file->get_ostream_ptr()));
-
-			CryptoPP::StringSource source(reinterpret_cast<char*>(&header_precrypt), sizeof(types::header_precrypt),
+			CryptoPP::FileSource(istr,
 					true,
 					new CryptoPP::StreamTransformationFilter(
 							blowfish_enc,
-							new CryptoPP::FileSink(f_out),
-							CryptoPP::NO_PADDING));
-
-			CryptoPP::FileSource source(f_in,
-					true,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_enc,
-							new CryptoPP::FileSink(f_out),
-							CryptoPP::NO_PADDING));
-
-			uint8_t padding[padding_length];
-			memset(padding, (int)padding_length, padding_length);
-
-			CryptoPP::StringSource source(padding, padding_length,
-					true,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_enc,
-							new CryptoPP::FileSink(f_out),
-							CryptoPP::NO_PADDING));
+							new CryptoPP::FileSink(ostr),
+							CryptoPP::BlockPaddingSchemeDef::PKCS_PADDING));
 		}
 		catch(const CryptoPP::Exception& e) {
 			THROW_RML_EXCEPTION("CryptoPP::Exception: "<<e.what());
 		}
 	}
 
-	void decrypt(rml::utils::tmp_fstream& f, detail d, const std::string& out_dir, const std::string& identifier) {
-		try {
-			uint8_t iv[CryptoPP::Blowfish::BLOCKSIZE];
+	inline void decrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+	{
+		decrypt(istr, ostr, detail->p_endpoint->encryption_key);
+	}
 
+	void decrypt(std::istream& istr, std::ostream& ostr, const std::vector<uint8_t>& encryption_key)
+	{
+		try {
 			CryptoPP::CBC_Mode< CryptoPP::Blowfish >::Decryption blowfish_dec;
 
-			std::istream& f_in(*(f.get_istream_ptr()));
-			f_in.rdbuf()->pubseekpos(0,std::ios::in); // make sure we are at offset 0
+			istr.seekg(0); // make sure we are at offset 0
 
 			types::header_encrypted header;
+			types::header_encrypted blank_header;
 #if DEBUG >= 1
 			assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv));
 #endif
-			f_in.read(reinterpret_cast<char*>(&header), sizeof(types::header_encrypted));
-
-			if(0 != memcmp("RMA-CE", header.magic, 6))
+			istr.read((char*)&header, sizeof(types::header_encrypted));
+			if(0 != memcmp(blank_header.magic, header.magic, sizeof(blank_header.magic)))
 				throw rml::exception("header found corrupt; magic pattern did not match");
 
 			// TODO change this to handle differences in future header changes
-			if(0 != memcmp("RedMatterRedMatterRedMatterRedMatterRedMatterRedMatterRedMatter", header.padding, sizeof(header.padding)))
+			if(0 != memcmp(blank_header.padding, header.padding, sizeof(blank_header.padding)))
 				throw rml::exception("header found corrupt; padding pattern did not match");
 
 			// TODO change this to handle future version differences, rather than checking for equality
 			if((header.format_version_major != app::types::file_format_version::major) || (header.format_version_minor != app::types::file_format_version::minor))
 				throw rml::exception("header found corrupt; Invalid file format version");
 
-			blowfish_dec.SetKeyWithIV(d.encryption_key, d.encryption_key.size(), header.iv, CryptoPP::Blowfish::BLOCKSIZE);
-
-			types::header_precrypt header_precrypt;
-			std::string header_precrypt_str(sizeof(types::header_precrypt));
-
-			CryptoPP::FileSource source(f_in,
+			blowfish_dec.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.iv, CryptoPP::Blowfish::BLOCKSIZE);
+			CryptoPP::FileSource source(istr,
 					true,
 					new CryptoPP::StreamTransformationFilter(
 							blowfish_dec,
-							new StringSink(header_precrypt_str),
-							CryptoPP::NO_PADDING));
-
-			memcpy(reinterpret_cast<char*>(&header_precrypt), &header_precrypt_str[0], sizeof(types::header_precrypt));
-
-			rml::utils::tmp_fstream::pointer tmp_file;
-			{
-				std::ostringstream ostr;
-				ostr << "dec_" << identifier;
-				tmp_file.reset(
-						new rml::utils::tmp_fstream(
-								ostr.str(),
-								header_precrypt.content_length,
-								f.get_directory()));
-			}
-
-			std::ofstream& f_out(*(tmp_file->get_ostream_ptr()));
-
-			CryptoPP::FileSource source(f_in,
-					false,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_dec,
-							new CryptoPP::FileSink(f_out),
-							CryptoPP::NO_PADDING));
-
-			{
-				size_t pumped = source.Pump(header_precrypt.content_length);
-				assert(pumped == header_precrypt.content_length);
-			}
-
-
-			size_t padding_length = 8 - ( header_precrypt.content_length % 8 );
-			std::string padding(padding_length);
-			CryptoPP::FileSource source(f_in,
-					true,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_dec,
-							new StringSink(padding),
-							CryptoPP::NO_PADDING));
-
-			if(padding != std::string(padding_length, (char)padding_length))
-				throw rml::exception("Invalid padding");
-
-			CryptoPP::FileSource source(f_in,
-					true,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_enc,
-							new CryptoPP::FileSink(f_out),
-							CryptoPP::NO_PADDING));
-
-			// TODO return
+							new CryptoPP::FileSink(ostr),
+							CryptoPP::BlockPaddingSchemeDef::PKCS_PADDING));
 		}
 		catch(const CryptoPP::Exception& e) {
 			THROW_RML_EXCEPTION("CryptoPP::Exception: "<<e.what());
 		}
 	}
 
-	void run() {
+	void encrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& encrypted_format)
+	{
+		if(types::file_format::is_encrypted(opdata->p_detail->current_file_format))
+			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already encrypted");
+
+		rml::utils::tmp_fstream::pointer current_fstream = opdata->get_tmp_fstream();
+
+		rml::utils::tmp_fstream::pointer encrypted_fstream = opdata->get_tmp_fstream(encrypted_format, true, true);
+		if(!encrypted_fstream)
+			throw rml::exception("Unable to get tmp_fstream");
+
+		if(!types::file_format::is_compressed(opdata->p_detail->current_file_format)) {
+			LogMessage(opdata->p_detail->identifier<<" Not compressed; adding precrypt header");
+
+			types::header_precrypt precrypt_hdr;
+			precrypt_hdr.inflated_size = current_fstream->get_size();
+			precrypt_hdr.content_length = precrypt_hdr.inflated_size;
+			precrypt_hdr.format = types::data_format::clear;
+			precrypt_hdr.sub_format = (opdata->p_detail->current_file_format & 0xff);
+			{
+				CryptoPP::CRC32 hash;
+				uint32_t crc32;
+				CryptoPP::FileSource f(*(current_fstream->get_istream_ptr()), true,
+						new CryptoPP::HashFilter(hash,
+								new CryptoPP::ArraySink((byte *)&crc32, CryptoPP::CRC32::DIGESTSIZE)));
+
+				precrypt_hdr.crc32 = crc32;
+			}
+
+			rml::utils::tmp_fstream::pointer bare_stream = current_fstream;
+
+			// here we are using encrypted_fstream only as a temporary file under the same storage identifier
+
+			encrypted_fstream->write(reinterpret_cast<char*>(&precrypt_hdr), sizeof(types::header_precrypt));
+			*(encrypted_fstream) << current_fstream->rdbuf();
+
+			// set the new tmp file as current
+			current_fstream = encrypted_fstream;
+			current_fstream->seekg(0);
+
+			// now we need to create a new tmp fstream for the encrypted file
+			encrypted_fstream = opdata->get_tmp_fstream(encrypted_format, true, true);
+			if(!encrypted_fstream)
+				throw rml::exception("Unable to get tmp_fstream");
+		}
+
+		encrypt(*(current_fstream->get_istream_ptr()), *(encrypted_fstream->get_ostream_ptr()), opdata->p_detail);
+
+		opdata->p_detail->current_file_format = encrypted_format;
+	}
+
+	void decrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& decrypted_format)
+	{
+		if(!types::file_format::is_encrypted(opdata->p_detail->current_file_format))
+			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already decrypted");
+
+		rml::utils::tmp_fstream::pointer current_fstream = opdata->get_tmp_fstream();
+
+		rml::utils::tmp_fstream::pointer decrypted_fstream = opdata->get_tmp_fstream(decrypted_format, true, true);
+		if(!decrypted_fstream)
+			throw rml::exception("Unable to get tmp_fstream");
+
+		decrypt(*(current_fstream->get_istream_ptr()), *(decrypted_fstream->get_ostream_ptr()), opdata->p_detail);
+
+		if(!types::file_format::is_compressed(decrypted_format)) {
+
+			LogMessage(opdata->p_detail->identifier<<" Is not compressed; removing precrypt header");
+
+			current_fstream = decrypted_fstream;
+
+			rml::utils::tmp_fstream::pointer decrypted_fstream = opdata->get_tmp_fstream(decrypted_format, true, true);
+			if(!decrypted_fstream)
+				throw rml::exception("Unable to get tmp_fstream");
+
+			current_fstream->seekg(0);
+
+			types::header_precrypt precrypt_hdr;
+			current_fstream->read(reinterpret_cast<char *>(&precrypt_hdr), sizeof(types::header_precrypt));
+
+			if(precrypt_hdr.format != types::data_format::clear)
+				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" not 'clear' according to precrypt-header");
+
+			if(precrypt_hdr.content_length != (current_fstream->get_size() - sizeof(types::header_precrypt)))
+				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" file size mismatch");
+
+			*(decrypted_fstream) << current_fstream->rdbuf();
+
+			decrypted_fstream->seekg(0);
+
+			uint32_t crc32;
+			{
+				CryptoPP::CRC32 hash;
+				CryptoPP::FileSource f(*(decrypted_fstream->get_istream_ptr()), true,
+						new CryptoPP::HashFilter(hash,
+								new CryptoPP::ArraySink((byte *)&crc32, CryptoPP::CRC32::DIGESTSIZE)));
+			}
+
+			if(crc32 != precrypt_hdr.crc32)
+				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch");
+		}
+
+		opdata->p_detail->current_file_format = decrypted_format;
 	}
 };
+
+}  // namespace impl
+
+class crypto : private impl::crypto
+{
+	app::operation_data::channel_t& crypto_channel_;
+	app::operation_data::channel_t& main_channel_;
+	volatile bool& quit_flag_;
+public:
+	crypto(app::operation_data::channel_t& crypto_channel, app::operation_data::channel_t& main_channel, volatile bool& quit_flag) :
+		crypto_channel_(crypto_channel), main_channel_(main_channel), quit_flag_(quit_flag)
+	{
+	}
+
+	void run()
+	{
+		while(!quit_flag_) {
+			try {
+				operation_data::pointer opdata = crypto_channel_.consume();
+
+				if(opdata->state != operation_states::get_file_convert || opdata->state != operation_states::put_file_convert);
+					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
+
+				const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
+						types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
+
+				switch(next.first) {
+				case types::file_format::convert_action::encrypt:
+					encrypt(opdata, next.second);
+					break;
+
+				case types::file_format::convert_action::decrypt:
+					decrypt(opdata, next.second);
+					break;
+
+				default:
+					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
+				}
+
+				{
+					const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
+							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
+
+					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
+						opdata->state = operation_states::operation_states_t(opdata->state + 1); // let it move on from "convert"
+				}
+
+				// put it back to the main channel
+				main_channel_.produce(opdata);
+			}
+			catch(const app::operation_data::channel_t::finishing_exception& e) {
+				LogMessage("Channel(s) finishing");
+				break;
+			}
+			catch(const std::exception& e) {
+				LogError("exception: "<<e.what());
+			}
+			catch(...) {
+				LogError("Unexpected exception");
+			}
+		}
+	}
+};
+
+namespace utils {
+
+class crypto : public impl::crypto
+{
+};
+
+} // namespace utils
 
 }  // namespace app
 

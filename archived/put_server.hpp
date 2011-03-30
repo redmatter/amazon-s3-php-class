@@ -19,7 +19,8 @@
 
 namespace app {
 
-class put_server {
+class put_server
+{
 	boost::program_options::variables_map& confMap_;
 	archiving::archivable_channel_t& channel_;
 	boost::asio::io_service& io_service_;
@@ -28,7 +29,8 @@ class put_server {
 public:
 	typedef boost::shared_ptr<put_server> pointer;
 
-	static void describe_config(boost::program_options::options_description& optsDesc) {
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
 		optsDesc.add_options()
 				("archived.put_port",  boost::program_options::value<unsigned short>()->default_value(archiving::ports::put), "ArchiveD PUT port")
 				;
@@ -60,7 +62,8 @@ public:
 						boost::asio::placeholders::error));
 	}
 
-	void handle_accept(put_session::pointer session, const boost::system::error_code& error) {
+	void handle_accept(put_session::pointer session, const boost::system::error_code& error)
+	{
 		if (!error) {
 			session->start();
 			put_session::pointer new_session(new put_session(confMap_, channel_, io_service_));

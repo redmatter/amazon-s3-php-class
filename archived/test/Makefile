@@ -36,6 +36,11 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
+MYSQLPP_MYSQL_HEADERS_BURIED=YES
+ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
+CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
+endif
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -44,7 +49,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lesl
+	-lrml -lpugixml -lmysqlpp -lcryptopp
 
 CXX_SRCS += \
 	main.cpp
@@ -53,4 +58,10 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+
+$(TMP)/remove-precrypt-header : $(TMP)/remove-precrypt-header.o
+	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)
+
+remove-precrypt-header : $(TMP)/remove-precrypt-header
+	rm -f remove-precrypt-header && ln -s $< remove-precrypt-header
 

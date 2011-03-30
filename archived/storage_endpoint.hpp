@@ -8,14 +8,22 @@
 #ifndef STORAGE_ENDPOINT_HPP_
 #define STORAGE_ENDPOINT_HPP_
 
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/filters.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/base64.h>
+
 #include "coreapi.hpp"
+#include "cache.hpp"
 
 namespace app {
 
 namespace storage {
 
-struct endpoint_type {
-	enum endpoint_type_t {
+struct endpoint_type
+{
+	enum endpoint_type_t
+	{
 		unknown = 0,
 		s3,
 		file_system,
@@ -23,7 +31,8 @@ struct endpoint_type {
 		n_endpoint_types
 	};
 
-	static inline endpoint_type_t from_string(const std::string& str) {
+	static inline endpoint_type_t from_string(const std::string& str)
+	{
 		if(str == "s3")
 			return s3;
 		else if(str == "file-system")
@@ -33,8 +42,9 @@ struct endpoint_type {
 			return unknown;
 	}
 
-	static inline const char* to_string(const endpoint_type_t t) {
-		static const char const* str = {
+	static inline const char* to_string(const endpoint_type_t t)
+	{
+		static const char* str[n_endpoint_types] = {
 				"unknown",
 				"s3",
 				"file-system"
@@ -47,93 +57,126 @@ struct endpoint_type {
 	}
 };
 
-class basic_endpoint {
-	endpoint_type::endpoint_type_t type_;
+struct basic_endpoint
+{
+	endpoint_type::endpoint_type_t type;
+	uint64_t identifier;
 
-protected:
-	std::string identifier_;
-
-	basic_endpoint();
-public:
-	basic_endpoint(const endpoint_type::endpoint_type_t type, const std::string& identifier) : type_(type), identifier_(identifier) {}
-	basic_endpoint(const basic_endpoint& t) : type_(t.type_), identifier_(t.identifier_) {}
-	virtual ~basic_endpoint() {}
-
-	virtual bool operator==(const basic_endpoint& rhs) const {
-		return type_ == rhs.type_ && identifier_ == rhs.identifier_;
+	basic_endpoint(const endpoint_type::endpoint_type_t type, const uint64_t& identifier) : type(type), identifier(identifier)
+	{
+		//ctor
 	}
 
-	virtual std::ostream& operator<<(std::ostream& os) {
-		return os << identifier_;
+	basic_endpoint(const basic_endpoint& t) : type(t.type), identifier(t.identifier)
+	{
+		//ctor
+	}
+
+	virtual bool operator==(const basic_endpoint& rhs) const
+	{
+		return type == rhs.type && identifier == rhs.identifier;
+	}
+
+	virtual std::ostream& operator<<(std::ostream& os)
+	{
+		return os << identifier;
 	}
 };
 
 namespace s3 {
 
-class endpoint : public basic_endpoint {
-	const std::string access_key_;
-	const std::string secret_key_;
-	const std::string bucket_;
-	const std::vector<uint8_t> encryption_key_;
+struct endpoint : public basic_endpoint
+{
+	std::string access_key;
+	std::string secret_key;
+	std::string bucket;
+	std::vector<uint8_t> encryption_key;
+	bool is_encrypted;
+	bool is_compressed;
 
 	endpoint();
 public:
 	typedef boost::shared_ptr<endpoint> pointer;
 
-	endpoint(const std::string& access_key, const std::string& secret_key, const std::string& bucket, std::vector<uint8_t>& encryption_key) :
-		basic_endpoint(endpoint_type::s3, std::string("s3://")+access_key+':'+secret_key+'@'+bucket),
-		access_key_(access_key), secret_key_(secret_key), bucket_(bucket), encryption_key_(encryption_key)
+	endpoint(const uint64_t& id, const std::string& access_key, const std::string& secret_key, const std::string& bucket, const std::vector<uint8_t>& encryption_key, const bool is_encrypted, const bool is_compressed) :
+		basic_endpoint(endpoint_type::s3, id),
+		access_key(access_key), secret_key(secret_key), bucket(bucket), encryption_key(encryption_key),
+		is_encrypted(is_encrypted), is_compressed(is_compressed)
 	{
 	}
 
 	endpoint(const endpoint& t) :
-		basic_endpoint(dynamic_cast<basic_endpoint&>(t)),
-		access_key_(t.access_key_), secret_key_(t.secret_key_), bucket_(t.bucket_), encryption_key_(t.encryption_key_)
+		basic_endpoint(static_cast<basic_endpoint>(t)),
+		access_key(t.access_key), secret_key(t.secret_key), bucket(t.bucket), encryption_key(t.encryption_key),
+		is_encrypted(t.is_encrypted), is_compressed(t.is_compressed)
 	{
 	}
 
-	virtual bool operator==(const endpoint& rhs) const {
-		return type_ == rhs.type_ &&
-				access_key_ == rhs.access_key_ &&
-				secret_key_ == rhs.secret_key_ &&
-				bucket_ == rhs.bucket_ &&
-				encryption_key_ == rhs.encryption_key_
+	virtual bool operator==(const endpoint& rhs) const
+	{
+		return type == rhs.type &&
+				access_key == rhs.access_key &&
+				secret_key == rhs.secret_key &&
+				bucket == rhs.bucket &&
+				encryption_key == rhs.encryption_key &&
+				is_encrypted == rhs.is_encrypted &&
+				is_compressed == rhs.is_compressed
 				;
 	}
 
-	virtual std::ostream& operator<<(std::ostream& os) {
-		return os << "s3://**ak**:**sk**@"<<bucket_;
+	virtual std::ostream& operator<<(std::ostream& os)
+	{
+		return os << "s3://**ak**:**sk**@"<<bucket;
 	}
+
+	static pointer finder(coreapi& api, const archiving::org_id& org_id)
+	{
+		std::ostringstream ostr;
+
+		// TODO use OrgID and Format ( archiving::archivable::file_type ) so that we can store CDRs to a different EndPoint
+		ostr << "/archiving/endpoint/" << org_id;
+
+		const std::string& response = api.get(ostr.str());
+
+		// run xpath
+		pugi::xml_document doc;
+		if(!doc.load(response.c_str()))
+			throw rml::exception("Unable to load response document");
+
+		const char* id_str = doc.select_single_node("/Archiving/Endpoint/ID/text()").node().value();
+		assert(id_str && strlen(id_str));
+
+		// TODO use factory to make endpoints
+		const char* type_str = doc.select_single_node("/Archiving/Endpoint/Type/text()").node().value();
+		assert(type_str && strlen(type_str));
+		assert(0 == strcmp(type_str, "s3"));
+
+		const char* is_encrypted_str = doc.select_single_node("/Archiving/Endpoint/Encrypted/text()").node().value();
+		assert(is_encrypted_str && strlen(is_encrypted_str));
+		const char* is_compressed_str = doc.select_single_node("/Archiving/Endpoint/Compressed/text()").node().value();
+		assert(is_compressed_str && strlen(is_compressed_str));
+
+		std::vector<uint8_t> enc_key(32);
+		const char* encryption_key = doc.select_single_node("/Archiving/Endpoint/EncryptionKey/text()").node().value();
+		assert(encryption_key && strlen(encryption_key));
+		CryptoPP::StringSource((const byte*)encryption_key, strlen(encryption_key), true,
+				new CryptoPP::Base64Decoder(
+						new CryptoPP::ArraySink(&enc_key[0], 32)));
+
+		const char* access_key = doc.select_single_node("/Archiving/Endpoint/AccessKey/text()").node().value();
+		assert(access_key && strlen(access_key));
+		const char* secret_key = doc.select_single_node("/Archiving/Endpoint/SecretKey/text()").node().value();
+		assert(secret_key && strlen(secret_key));
+		const char* bucket = doc.select_single_node("/Archiving/Endpoint/Bucket/text()").node().value();
+		assert(bucket && strlen(bucket));
+
+		return pointer(new endpoint(rml::utils::strtoull(id_str), access_key, secret_key, bucket, enc_key, 0==strcmp(is_encrypted_str, "yes"), 0==strcmp(is_compressed_str, "yes")));
+	}
+
+	typedef cache::result_cache<const archiving::org_id&, pointer> cached_finder_t;
 };
 
 }  // namespace s3
-
-
-class endpoint_finder {
-	mutable coreapi api_;
-public:
-	endpoint_finder (coreapi& api) : api_(api)
-	{
-	}
-
-	endpoint::pointer operator()(const archiving::org_id& org_id) const {
-		std::ostringstream ostr;
-		ostr << "/archivingendpoints/" << org_id;
-
-		// TODO use factory to make endpoints
-
-		const std::string& response = api_.get(ostr.str());
-
-		// FIXME run XPath & create definition;
-
-		std::vector<uint8_t> enc_key(32);
-		const std::string key_str("abcdefghijklmnopqrstuvwxyz0123456");
-		memcpy(&enc_key[0], &key_str[0], 32);
-		s3::endpoint::pointer p(new s3::endpoint("xxx", "yyy", "archiving", enc_key));
-
-		return p;
-	}
-};
 
 }  // namespace storage
 

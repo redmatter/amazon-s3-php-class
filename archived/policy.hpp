@@ -15,15 +15,19 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/program_options.hpp>
 #include <boost/foreach.hpp>
+#include <boost/function.hpp>
 
 #include <rml/exception.h>
 
 #include "coreapi.hpp"
+#include "cache.hpp"
 
 namespace app {
 
-struct retention_units {
-	enum retention_units_t {
+struct retention_units
+{
+	enum retention_units_t
+	{
 		unknown = 0,
 		days,
 		weeks,
@@ -33,7 +37,8 @@ struct retention_units {
 		n_retention_units
 	};
 
-	static const retention_units_t& from_string(const std::string& str) {
+	static const retention_units_t from_string(const std::string& str)
+	{
 		if(str == "days")
 			return days;
 		else if(str == "weeks")
@@ -46,7 +51,8 @@ struct retention_units {
 		return unknown;
 	}
 
-	static const char* to_string(const retention_units_t& ru) {
+	static const char* to_string(const retention_units_t& ru)
+	{
 		static const char* str[retention_units::n_retention_units] = {
 				"unknown",
 				"days",
@@ -62,48 +68,152 @@ struct retention_units {
 	}
 };
 
-struct retention_period {
-	unsigned short int period;
+struct retention_period
+{
+	typedef uint32_t period_type;
+
+	period_type period;
 	retention_units::retention_units_t unit;
 
-	retention_period(unsigned short int& period, const retention_units::retention_units_t& unit) :
+	retention_period(const period_type& period, const retention_units::retention_units_t& unit) :
 		period(period), unit(unit)
 	{
+		//ctor
 	}
 
 	retention_period() : period(0), unit(retention_units::unknown)
 	{
+		//ctor
 	}
 
-	static boost::posix_time::ptime add(const boost::posix_time::ptime& pt, const retention_period& rp) {
-		switch(rp.unit) {
+	boost::posix_time::ptime add_to(const boost::posix_time::ptime& pt) const
+	{
+		switch(unit) {
 		case retention_units::days:
-			return pt + boost::gregorian::days(rp.period + 1); // additional day to account for time truncation in retention data
+			return pt + boost::gregorian::days(period + 1); // additional day to account for time truncation in retention data
 			break;
 
 		case retention_units::weeks:
-			return pt + boost::gregorian::weeks(rp.period) + boost::gregorian::days(1);
+			return pt + boost::gregorian::weeks(period) + boost::gregorian::days(1);
 			break;
 
 		case retention_units::months:
-			return pt + boost::gregorian::months(rp.period) + boost::gregorian::days(1);
+			return pt + boost::gregorian::months(period) + boost::gregorian::days(1);
 			break;
 
 		case retention_units::years:
-			return pt + boost::gregorian::years(rp.period) + boost::gregorian::days(1);
+			return pt + boost::gregorian::years(period) + boost::gregorian::days(1);
 			break;
 
 		default:
-			THROW_RML_EXCEPTION("Invalid retention_unit: "<<retention_units::to_string(rp.unit));
+			THROW_RML_EXCEPTION("Invalid retention_unit: "<<retention_units::to_string(unit));
 		}
+	}
+
+	boost::posix_time::ptime add_to(const time_t& t) const
+	{
+		return add_to(boost::posix_time::from_time_t(t));
 	}
 };
 
 typedef std::set<archiving::user_id> users_t;
 
-struct access_control_list {
-	uint64_t id;
-	uint16_t version; // for audit purpose ( during purge & GET for audit log )
+struct policy
+{
+	typedef uint64_t id_type;
+	typedef uint16_t version_type;
+
+	id_type id;
+	version_type version; // for audit purpose ( during purge & GET for audit log )
+
+	retention_period min_retention;
+	retention_period max_retention;
+
+	typedef boost::shared_ptr< policy > pointer;
+
+	policy(const id_type& id, const version_type& version,
+			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
+			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit) :
+				id(id), version(version),
+				min_retention(min_retention_period, min_retention_unit),
+				max_retention(max_retention_period, max_retention_unit)
+	{
+		//ctor
+	}
+
+	static pointer finder(coreapi& api, const std::pair<archiving::org_id, id_type>& org_policy)
+	{
+		std::ostringstream ostr;
+		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
+
+		const std::string& response = api.get(ostr.str());
+
+		// FIXME run XPath & create definition;
+		(void)response;
+
+		return pointer(new policy(org_policy.second, 1, 6, retention_units::months, 1, retention_units::years));
+	};
+
+	typedef cache::result_cache<const std::pair<archiving::org_id, id_type>, pointer> cached_finder_t;
+};
+
+struct applied_policy
+{
+	typedef boost::posix_time::ptime::date_type::ymd_type ymd_t;
+
+	policy::pointer p_policy;
+	boost::posix_time::ptime creation_time;
+
+	applied_policy()
+	{
+		//ugly!!
+	}
+
+	applied_policy(policy::pointer policy, const time_t& create_time) :
+		p_policy(policy),
+		creation_time(boost::posix_time::from_time_t(create_time))
+	{
+	}
+
+	std::time_t get_creation_epoch() const
+	{
+		boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+		return std::time_t( (creation_time - epoch).total_seconds() );
+	}
+
+	ymd_t get_creation_ymd() const
+	{
+		return creation_time.date().year_month_day();
+	}
+
+	ymd_t get_max_retention_ymd() const
+	{
+		return p_policy->max_retention.add_to(creation_time).date().year_month_day();
+	}
+
+
+	ymd_t get_min_retention_ymd() const
+	{
+		return p_policy->min_retention.add_to(creation_time).date().year_month_day();
+	}
+
+	std::ostream& operator<<(std::ostream& os) const
+	{
+		const boost::posix_time::ptime::date_type::ymd_type& creation_date(get_creation_ymd());
+		const boost::posix_time::ptime::date_type::ymd_type& max_retention_date(get_max_retention_ymd());
+		const boost::posix_time::ptime::date_type::ymd_type& min_retention_date(get_min_retention_ymd());
+		return os <<
+				creation_date.year << creation_date.month << creation_date.day << ',' <<
+				max_retention_date.year << max_retention_date.month << max_retention_date.day << ',' <<
+				min_retention_date.year << min_retention_date.month << min_retention_date.day << ',' <<
+				"[policy:" << p_policy->id << 'v' << p_policy->version << ']';
+	}
+};
+
+struct access_control_list
+{
+	policy::id_type id;
+	policy::version_type version; // for audit purpose ( during purge & GET for audit log )
 
 	bool owner_allowed;
 	users_t users;
@@ -135,53 +245,17 @@ struct access_control_list {
 	}
 };
 
-struct policy {
-	uint64_t id;
-	uint16_t version; // for audit purpose ( during purge & GET for audit log )
-
-	retention_period min_retention;
-	retention_period max_retention;
-
-	typedef boost::shared_ptr< policy > pointer;
-};
-
-class policy_finder {
-	mutable coreapi api_;
-public:
-	policy_finder (coreapi& api) : api_(api)
-	{
-	}
-
-	policy::pointer operator()(const uint64_t& id) const {
-		std::ostringstream ostr;
-		ostr << "/archivingpolicies/" << id;
-
-		const std::string& response = api_.get(ostr.str());
-
-		// FIXME run XPath & create definition;
-
-		policy::pointer p(new policy());
-		p->id = id;
-		p->version = 1;
-		p->min_retention = retention_period(6, retention_units::months);
-		p->max_retention = retention_period(1, retention_units::years);
-
-		return p;
-	}
-};
-
-
-class policy_acl_finder {
+class policy_acl_finder
+{
 	mutable coreapi& api_;
-//	boost::function< policy::pointer(const uint64&) > policy_finder_;
 
 public:
-//	policy_acl_finder(coreapi& api, const boost::function< policy::pointer(const uint64&) >& policy_finder) : api_(api), policy_finder_(policy_finder)
 	policy_acl_finder(coreapi& api) : api_(api)
 	{
 	}
 
-	access_control_list::pointer operator()(const uint64_t& policy_id) const {
+	access_control_list::pointer operator()(const policy::id_type& policy_id) const
+	{
 		std::ostringstream ostr;
 		ostr << "/archivingpolicies/" << policy_id << "/acl";
 
@@ -190,6 +264,7 @@ public:
 		const std::string& response = api_.get(ostr.str());
 
 		// FIXME run XPath & create definition;
+		(void)response;
 
 		access_control_list::pointer acl(new access_control_list());
 		acl->id = policy_id;
@@ -199,6 +274,7 @@ public:
 	}
 };
 
+typedef cache::result_cache<const policy::id_type&, access_control_list::pointer> cached_policy_acl_finder_t;
 
 }  // namespace app
 

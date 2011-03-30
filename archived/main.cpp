@@ -75,17 +75,15 @@ volatile bool wasHUPed = false;
 
 }
 
-int main(int argc, char **argv) {
-
+int main(int argc, char **argv)
+{
 	{
-		namespace bopts = boost::program_options;
-
-		bopts::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
+		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
-				("app.run_as_user", bopts::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
-				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
-				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
+				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
+				("app.run_as_group", boost::program_options::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
+				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
+				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				;
 

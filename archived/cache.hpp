@@ -10,20 +10,36 @@
 
 #include <time.h>
 
+#include <map>
+#include <algorithm>
+
 #include <boost/thread/mutex.hpp>
 #include <boost/type_traits/remove_reference.hpp>
+#include <boost/function.hpp>
+
+#include <rml/utils.h>
+#include <rml/logger.h>
 
 namespace app {
 
 namespace cache {
 
-template <typename Arg, typename Result>
-class result_cache {
-		typedef boost::remove_reference<Arg>::type key_type;
+template <
+	typename Arg,
+	typename Result,
+	typename Arg_Compare = std::less< typename boost::remove_reference<Arg>::type >
+>
+class result_cache
+{
+		typedef typename boost::remove_reference<Arg>::type key_type;
 		typedef Result val_type;
-		typedef Result (*fun_type) (Arg);
 
-		struct timed_val_type {
+		typedef boost::function< Result (Arg) > function_type;
+
+//		typedef Result (*fun_type) (Arg);
+
+		struct timed_val_type
+		{
 			time_t atime;
 			val_type value;
 
@@ -31,25 +47,37 @@ class result_cache {
 			{
 			}
 
-			timed_val_type& operator=(const val_type& rhs) {
+			timed_val_type& operator=(const val_type& rhs)
+			{
 				value = rhs;
-				atime = time(0);
+				time(&atime);
 			}
 		};
 
-		typedef std::map<key_type, timed_val_type> cache_type;
+		typedef std::map< key_type, timed_val_type, Arg_Compare > cache_type;
 		typedef typename cache_type::iterator iter_type;
 
-		const fun_type fun_;
+		const function_type fun_;
 		mutable cache_type cache_;
 
 		mutable boost::mutex mutex_;
 
 	public:
-		result_cache (fun_type fun) :fun_(fun) {}
+		result_cache (const function_type& fun) : fun_(fun)
+		{
+			LogDebug("fun_: empty? "<<fun_.empty());
+		}
 
-		Result operator() (Arg arg) const {
+		~result_cache()
+		{
+			LogDebug("Destroyed");
+		}
+
+		Result operator() (Arg arg) const
+		{
 			boost::unique_lock<boost::mutex> lock(mutex_);
+
+			LogDebug("fun_: empty? "<<fun_.empty());
 
 			iter_type it = cache_.find(arg);
 			if (it != cache_.end()) {
@@ -57,10 +85,18 @@ class result_cache {
 				return it->second.value;
 			}
 
-			cache_[arg] = fun_(arg);
+			timed_val_type t_value;
+			{
+				t_value.value = fun_(arg);
+				time(&t_value.atime);
+				cache_[arg] = t_value;
+			}
+
+			return t_value.value;
 		}
 
-		void clear_unused(time_t diff) {
+		void clear_unused(time_t diff)
+		{
 			boost::unique_lock<boost::mutex> lock(mutex_);
 
 			time_t newer = time(0) - diff;
@@ -72,10 +108,10 @@ class result_cache {
 		}
 };
 
-template <typename Arg, typename Result>
-result_cache<Arg, Result> make_result_cache (Result (*f) (Arg)) {
-	return result_cache<Arg, Result>(f);
-}
+//template <typename Arg, typename Result>
+//result_cache<Arg, Result> make_result_cache (Result (*f) (Arg)) {
+//	return result_cache<Arg, Result>(f);
+//}
 
 }  // namespace cache
 
