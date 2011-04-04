@@ -103,8 +103,8 @@ public:
 	}
 
 	inline static void compress(
-			rml::utils::tmp_fstream::pointer& current_fstream,
-			rml::utils::tmp_fstream::pointer& compressed_fstream,
+			rml::utils::tmp_fstream::pointer current_fstream,
+			rml::utils::tmp_fstream::pointer compressed_fstream,
 			const types::file_format::file_format_t& current_file_format,
 			const std::string& identifier)
 	{

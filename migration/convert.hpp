@@ -31,6 +31,7 @@ class convert
 
 	app::impl::crypto crypto_;
 
+public:
 	convert(migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
 			inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
 	{
@@ -40,14 +41,14 @@ class convert
 	{
 		try {
 			while(!app::quit) {
-				const migration_data& data(inward_channel_.consume());
+				migration_data data = inward_channel_.consume();
 
 				const std::string& tmp_prefix(data.identifier+'.');
 
 				data.p_fstream.reset(new rml::utils::tmp_fstream(rmfs_base_directory+'/'+data.path, std::fstream::in | std::fstream::binary));
 
-				rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(tmp_prefix, std::size_t(0),
-						std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc, temp_files_base_directory));
+				rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(tmp_prefix, std::size_t(0), temp_files_base_directory,
+						std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
 
 				unsigned int iter = 3;
 				while(iter && !app::quit) {
@@ -60,8 +61,8 @@ class convert
 					{
 						app::bzip2::compress(data.p_fstream, p_tmp, types::file_format::clear_wav, data.identifier);
 						data.p_fstream = p_tmp;
-						p_tmp.reset(new rml::utils::tmp_fstream(tmp_prefix, std::size_t(0),
-								std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc, temp_files_base_directory));
+						p_tmp.reset(new rml::utils::tmp_fstream(tmp_prefix, std::size_t(0), temp_files_base_directory,
+								std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
 						break;
 					}
 

@@ -8,6 +8,8 @@
 #ifndef GLOBALS_H_
 #define GLOBALS_H_
 
+#include <boost/program_options.hpp>
+
 #include <string>
 
 #ifdef __cplusplus

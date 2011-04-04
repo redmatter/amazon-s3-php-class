@@ -8,13 +8,15 @@
 #ifndef STORAGE_ENDPOINT_HPP_
 #define STORAGE_ENDPOINT_HPP_
 
+#include "coreapi.hpp"
+#include "cache.hpp"
+
+#include "../common/archivable.hpp"
+
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/filters.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/base64.h>
-
-#include "coreapi.hpp"
-#include "cache.hpp"
 
 namespace app {
 

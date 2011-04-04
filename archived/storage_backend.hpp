@@ -198,10 +198,6 @@ public:
 		if(!tmpfs)
 			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
 
-		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
-		if(!tmpfs)
-			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
-
 		assert(false == opdata->p_detail->p_metadata->empty());
 		std::map< std::string, std::string > headers;
 		opdata->p_detail->p_metadata->make_headers(headers);

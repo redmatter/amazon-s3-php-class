@@ -59,9 +59,8 @@ C_SRCS += \
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
-$(TMP)/remove-precrypt-header : $(TMP)/remove-precrypt-header.o
+$(TMP)/extract : $(TMP)/extract.o
 	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)
 
-remove-precrypt-header : $(TMP)/remove-precrypt-header
-	rm -f remove-precrypt-header && ln -s $< remove-precrypt-header
-
+extract : $(TMP)/extract
+	rm -f $@ && ln -s $< $@

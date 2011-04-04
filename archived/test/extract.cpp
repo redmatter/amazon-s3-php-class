@@ -12,6 +12,7 @@
 #include <boost/ref.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/program_options.hpp>
+#include <boost/format.hpp>
 
 #include <cryptopp/crc.h>
 #include <cryptopp/files.h>
@@ -30,18 +31,24 @@ namespace app {
 std::string operation_data::temp_files_base_directory;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char* argv[]) try
 {
 	boost::program_options::variables_map cli_confMap;
 	{
-		boost::program_options::options_description cli_optsDesc;
+		boost::program_options::options_description cli_optsDesc(
+					boost::str(boost::format(
+							"Archiving Extract Utility v%1%"
+							"\nUtility to convert a 'stored' file to its original format"
+							"\n"
+							"\n%2%\n\nOptions"
+							) % version_number_string % copyright_string));
 		cli_optsDesc.add_options()
-				("help", "this help")
 				("source", boost::program_options::value<std::string>(), "read from file")
 				("target", boost::program_options::value<std::string>(), "write to file")
 				("api-url", boost::program_options::value<std::string>()->default_value("http://api.redmatter.com"), "CoreAPI URL")
 				("api-auth-hash", boost::program_options::value<std::string>(), "CoreAPI auth hash")
-				("org-id", boost::program_options::value<unsigned int>()->default_value(0), "CoreAPI auth hash")
+				("org-id", boost::program_options::value<unsigned int>(), "CoreAPI auth hash")
+				("help", "this help")
 				;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 		boost::program_options::notify(cli_confMap);
@@ -54,9 +61,6 @@ int main(int argc, char* argv[])
 
 	app::operation_data::temp_files_base_directory = ".";
 
-	if(1 != cli_confMap.count("api-auth-hash"))
-		throw rml::exception("api-auth-hash not given");
-
 	if(1 != cli_confMap.count("org-id"))
 		throw rml::exception("org-id not given");
 
@@ -66,20 +70,13 @@ int main(int argc, char* argv[])
 	if(1 != cli_confMap.count("target"))
 		throw rml::exception("target not given");
 
-	const std::string& api_auth_hash(cli_confMap["api-auth-hash"].as<std::string>());
 	const unsigned int& org_id(cli_confMap["org-id"].as<unsigned int>());
-
-	app::coreapi coreapi(cli_confMap["api-url"].as<std::string>(), api_auth_hash);
-	app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
-			boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
 	app::types::header_precrypt ph;
 
 	rml::utils::tmp_fstream::pointer p_source(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::fstream::in | std::fstream::binary));
 	p_source->unsetf(std::ios_base::skipws);
 
-	rml::utils::tmp_fstream::pointer p_target(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
-	rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::size_t(0), "."));
 	unsigned int iter = 0;
 	{
 		const std::size_t& max_header_size = std::max<std::size_t>(sizeof(app::types::header_encrypted), sizeof(app::types::header_precrypt));
@@ -91,6 +88,8 @@ int main(int argc, char* argv[])
 
 		if(0 == memcmp(&header[0], eh.magic, sizeof(eh.magic))) {
 			LogMessage("RMA-CE file format");
+			if(1 != cli_confMap.count("api-auth-hash"))
+				throw rml::exception("api-auth-hash not given");
 			iter = 3;
 		}
 		else if(0 == memcmp(&header[0], ph.magic, sizeof(ph.magic))) {
@@ -102,6 +101,9 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 	}
+
+	rml::utils::tmp_fstream::pointer p_target(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
+	rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::size_t(0), "."));
 
 	while(iter) {
 		p_source->seekg(0);
@@ -163,8 +165,9 @@ int main(int argc, char* argv[])
 
 		case 3:
 		{
-			app::storage::s3::endpoint::pointer p_ep = app::storage::s3::endpoint::finder(coreapi, org_id);
+			app::coreapi coreapi(cli_confMap["api-url"].as<std::string>(), cli_confMap["api-auth-hash"].as<std::string>());
 			app::utils::crypto crypto;
+			app::storage::s3::endpoint::pointer p_ep = app::storage::s3::endpoint::finder(coreapi, org_id);
 			crypto.decrypt(*p_source, *p_tmp, p_ep->encryption_key);
 			p_source = p_tmp;
 			p_tmp.reset(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::size_t(0), "."));
@@ -174,4 +177,12 @@ int main(int argc, char* argv[])
 
 		}
 	}
+}
+catch(const std::exception& e) {
+	LogError("Exception: "<<e.what());
+	return 1;
+}
+catch(...) {
+	LogError("Unexpected exception");
+	return 1;
 }

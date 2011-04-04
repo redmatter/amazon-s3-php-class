@@ -22,10 +22,13 @@
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
 
-#include "../archived/types.hpp"
-#include "../archived/compress.hpp"
-#include "../archived/crypto.hpp"
+#include "migration_data.hpp"
+#include "migration_database.hpp"
+#include "convert.hpp"
+#include "storage.hpp"
+
 #include "../archived/coreapi.hpp"
+#include "../archived/policy.hpp"
 
 #include <rml/config.h>
 #include <rml/logger.h>
@@ -35,9 +38,7 @@
 
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
-#include <boost/asio.hpp>
 #include <boost/ref.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 
@@ -67,8 +68,9 @@ std::string rmfs_base_directory;
 std::string hostname;
 
 boost::program_options::variables_map confMap;
-bool quit = false;
-bool wasHUPed = false;
+volatile bool quit = false;
+volatile bool wasHUPed = false;
+
 }
 
 int main(int argc, char* argv[]) try
@@ -97,24 +99,23 @@ int main(int argc, char* argv[]) try
 		if(1 != cli_confMap.count("hostname"))
 			throw rml::exception("hostname not given");
 
-		app::hostname = cli_confMap.["hostname"].as<std::string>();
+		app::hostname = cli_confMap["hostname"].as<std::string>();
 
 		// -------------- config loading ------------------
 
 		boost::program_options::options_description optsDesc;
 		optsDesc.add_options()
-				("app.run_as_user", bopts::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
-				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
-				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
+				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
+				("app.run_as_group", boost::program_options::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
+				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
+				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 
-				("temp_files.base_directory", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving/migration")), "migration temp data directory")
-				("rmfs.base_directory", bopts::value<std::string>()->default_value(std::string("/mnt/store01")), "rmfs data directory")
+				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/migration")), "migration temp data directory")
+				("rmfs.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/store01")), "rmfs data directory")
 
 				;
 		rml::logger::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
-		app::operation_data::describe_config(optsDesc);
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -213,8 +214,51 @@ int main(int argc, char* argv[]) try
 		}
 	}
 
-	app::temp_files_base_directory = confMap["temp_files.base_directory"].as<std::string>();
-	app::rmfs_base_directory = confMap["rmfs.base_directory"].as<std::string>();
+	app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
+	app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
+
+	app::migration_data::channel_t channel_data_in("channel:DataIn");
+	app::migration_data::channel_t channel_convert("channel:Convert");
+	app::migration_data::channel_t channel_copy_to_s3("channel:Copy2S3");
+	app::migration_data::channel_t channel_save_retention("channel:SaveRetention");
+
+	app::coreapi coreapi(app::confMap);
+	app::policy::cached_finder_t cached_policy_finder(
+			boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
+	app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
+			boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
+
+
+	app::database::migration migration_db(app::confMap, channel_data_in, channel_convert, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
+	app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
+	app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_save_retention, app::quit);
+
+	boost::thread_group threads;
+	{
+		threads.create_thread(boost::bind(&app::database::migration::find_migratables, boost::ref(migration_db)));
+
+		threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+		threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+
+		threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+		threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+
+		threads.create_thread(boost::bind(&app::database::migration::update_status, boost::ref(migration_db)));
+
+		threads.create_thread(boost::bind(&app::database::migration::flush_retention, boost::ref(migration_db)));
+	}
+
+	while(!app::quit) {
+		LogVerbose(((time(0)%2) ? "tik": "tok"));
+		boost::this_thread::sleep(boost::posix_time::seconds(1));
+	}
+
+	channel_data_in.set_finishing();
+	channel_convert.set_finishing();
+	channel_copy_to_s3.set_finishing();
+	channel_save_retention.set_finishing();
+
+	threads.join_all();
 
 	exit(rml::utils::exit_codes::normal);
 }

@@ -8,7 +8,10 @@
 #ifndef POLICY_HPP_
 #define POLICY_HPP_
 
-#include <stdint.h>
+#include "coreapi.hpp"
+#include "cache.hpp"
+
+#include <rml/exception.h>
 
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -17,10 +20,7 @@
 #include <boost/foreach.hpp>
 #include <boost/function.hpp>
 
-#include <rml/exception.h>
-
-#include "coreapi.hpp"
-#include "cache.hpp"
+#include <stdint.h>
 
 namespace app {
 

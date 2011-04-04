@@ -24,6 +24,7 @@ archived/storage_runner.hpp
 archived/test/main.cpp
 archived/test/tmpdbg-4.4.5-libc2.12.1/version.c
 archived/types.hpp
+archived/Makefile
 collectd/archived_client.hpp
 collectd/cdr_inspector.hpp
 collectd/esl.h
@@ -32,6 +33,7 @@ collectd/globals.h
 collectd/main.cpp
 collectd/test/main.cpp
 collectd/tmpdbg-4.4.5-libc2.12.1/version.c
+collectd/Makefile
 common/archivable.hpp
 common/archived_protocol.txt
 common/cdr_dir_monitor.hpp
@@ -47,4 +49,13 @@ common/md5.hpp
 common/test/main.cpp
 common/test/tmpdbg-4.4.5-libc2.12.1/version.c
 common/types.hpp
-archived/test/remove-precrypt-header.cpp
+archived/test/extract.cpp
+archived/test/Makefile
+migration/main.cpp
+migration/scripts/migration.awk
+migration/scripts/migration-pick-host.php
+migration/Makefile
+migration/convert.hpp
+migration/migration_data.hpp
+migration/storage.hpp
+migration/migration_database.hpp

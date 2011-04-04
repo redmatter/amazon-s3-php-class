@@ -23,6 +23,7 @@ class migration : public basic_database< migration >
 	migration_data::channel_t& retention_channel_;
 
 	const policy::cached_finder_t& cached_policy_finder_;
+	const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder_;
 
 	volatile bool& quit_;
 	const unsigned int host_count_;
@@ -40,13 +41,14 @@ public:
 
 	migration(
 			const boost::program_options::variables_map& confMap,
-			operation_data::channel_t& new_migratables_channel, operation_data::channel_t& done_migratables_channel, migration_data::channel_t& retention_channel,
-			const policy::cached_finder_t& cached_policy_finder,
+			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& done_migratables_channel, migration_data::channel_t& retention_channel,
+			const policy::cached_finder_t& cached_policy_finder, const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder,
 			volatile bool& quit) :
 
 					basic_database< migration >(confMap), confMap_(confMap),
 					new_migratables_channel_(new_migratables_channel), done_migratables_channel_(done_migratables_channel), retention_channel_(retention_channel),
 					cached_policy_finder_(cached_policy_finder),
+					cached_s3endpoint_finder_(cached_s3endpoint_finder),
 					quit_(quit),
 					host_count_(confMap.count("migration_data.host_count")? confMap["migration_data.host_count"].as<unsigned int>(): throw rml::exception("migration_data.host_count not defined")),
 					host_index_(confMap.count("migration_data.host_index")? confMap["migration_data.host_index"].as<unsigned int>(): throw rml::exception("migration_data.host_index not defined")),
@@ -91,13 +93,15 @@ public:
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
 					// make migration_data
+					archiving::org_id org = rml::utils::strtoull(row[3].c_str());
 					new_migratables_channel_.produce(
 							migration_data(
 									rml::utils::strtoull(row[0].c_str()),
 									row[1].c_str(),
 									row[2].c_str(),
-									rml::utils::strtoull(row[3].c_str()),
+									org,
 									rml::utils::strtoull(row[4].c_str()),
+									cached_s3endpoint_finder_(org),
 									app::types::file_format::encrypted_compressed_wav,
 									archiving::archivable::file_type::call_recording));
 				}
@@ -129,7 +133,7 @@ public:
 					try {
 						rml::MySQLConnection conn(pool_);
 
-						mysqlpp::Transaction transaction(conn);
+						mysqlpp::Transaction transaction(*conn, false);
 						std::string cur_status;
 						{
 							mysqlpp::Query query = conn->query();
@@ -169,7 +173,7 @@ public:
 				}
 			}
 			catch(const migration_data::channel_t::consume_timed_out_exception& e) {
-				LogMessage(done_migratables_channel_<< ": No data to flush; nap time!")
+				LogMessage(done_migratables_channel_<< ": No data to flush; nap time!");
 			}
 			catch(const std::exception& e) {
 				LogError("Exception: "<<e.what());
@@ -191,7 +195,7 @@ public:
 				continue;
 			}
 
-			database::retention::data_set retention_set;
+			database::retention::data_multiset retention_set;
 
 			try {
 				while(retention_set.size() < 1024) {
@@ -204,11 +208,11 @@ public:
 						retention.user = 0;
 						retention.uuid = data.uuid;
 						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
-						std::pair<database::retention::data_set::iterator, bool> res = retention_set.insert(retention);
-						if(!res.second)
-							LogWarning("Adding item to retention_set ignored; Duplicates ?!?");
+
+						retention_set.insert(retention);
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
+						LogVerbose("consume rimed-out; flush items we already have...");
 						break;
 					}
 				}
@@ -224,9 +228,8 @@ public:
 					retention.user = 0;
 					retention.uuid = itr->uuid;
 					retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
-					std::pair<database::retention::data_set::iterator, bool> res = retention_set.insert(retention);
-					if(!res.second)
-						LogWarning("Adding item to retention_set ignored; Duplicates ?!?");
+
+					retention_set.insert(retention);
 				}
 				break;
 			}
@@ -242,7 +245,7 @@ public:
 
 		LogMessage("flush_retention(): thread ending");
 	}
-}
+};
 
 }
 

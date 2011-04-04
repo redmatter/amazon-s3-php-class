@@ -5,12 +5,10 @@
  *      Author: dkorah
  */
 
-#ifndef TYPES_HPP_
-#define TYPES_HPP_
+#ifndef ARCHIVING_TYPES_HPP_
+#define ARCHIVING_TYPES_HPP_
 
 #include <stdint.h>
-
-#include "archivable.hpp"
 
 namespace archiving {
 
@@ -20,4 +18,4 @@ typedef uint32_t group_id;
 
 }
 
-#endif /* TYPES_HPP_ */
+#endif /* ARCHIVING_TYPES_HPP_ */

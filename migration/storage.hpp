@@ -7,17 +7,16 @@
 
 namespace app {
 
-class migration_storage
+class migration_storage : public storage::s3::backend
 {
 	migration_data::channel_t& inward_channel_;
 	migration_data::channel_t& outward_channel_;
 
-	storage::s3::backend backend_;
-
 	volatile bool& quit_;
 
-	migration_storage(const boost::program_options::variables_map& confMap, migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder, volatile bool& quit) :
-			inward_channel_(inward_channel), outward_channel_(outward_channel), cached_s3endpoint_finder_(cached_s3endpoint_finder), backend_(confMap), quit_(quit)
+public:
+	migration_storage(const boost::program_options::variables_map& confMap, migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
+			storage::s3::backend(confMap), inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
 	{
 	}
 
@@ -26,11 +25,11 @@ class migration_storage
 	{
 		try {
 			while(!app::quit) {
-				const migration_data& data(inward_channel_.consume());
-				const std::string& tmp_prefix(data.identifier+'.');
+				migration_data data = inward_channel_.consume();
+//				const std::string& tmp_prefix(data.identifier+'.');
 
 				try {
-					backend_.put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
+					put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
 					LogMessage(data.identifier<<": copied to S3");
 					data.state = migration_data::copied;
 				}
