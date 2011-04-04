@@ -83,6 +83,8 @@ struct basic_endpoint
 	{
 		return os << identifier;
 	}
+
+	virtual ~basic_endpoint() {}
 };
 
 namespace s3 {
