@@ -89,23 +89,36 @@ public:
 		}
 	}
 
-
 	static void compress(app::operation_data::pointer opdata, const types::file_format::file_format_t& compressed_format)
 	{
 		if(types::file_format::is_compressed(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already compressed");
 
-		rml::utils::tmp_fstream::pointer current_fstream = opdata->get_tmp_fstream();
+		compress(opdata->get_tmp_fstream(),
+				opdata->get_tmp_fstream(compressed_format, true, true),
+				opdata->p_detail->current_file_format,
+				opdata->p_detail->identifier);
 
-		rml::utils::tmp_fstream::pointer compressed_fstream = opdata->get_tmp_fstream(compressed_format, true, true);
+		opdata->p_detail->current_file_format = compressed_format;
+	}
+
+	inline static void compress(
+			rml::utils::tmp_fstream::pointer& current_fstream,
+			rml::utils::tmp_fstream::pointer& compressed_fstream,
+			const types::file_format::file_format_t& current_file_format,
+			const std::string& identifier)
+	{
+		if(types::file_format::is_compressed(current_file_format))
+			THROW_RML_EXCEPTION(identifier << " already compressed");
+
 		if(!compressed_fstream)
-			throw rml::exception("Unable to get tmp_fstream");
+			throw rml::exception("Invalid output stream");
 
 		types::header_precrypt precrypt_hdr;
 		precrypt_hdr.inflated_size = current_fstream->get_size();
 		// precrypt_hdr.content_length = LATER
 		precrypt_hdr.format = types::data_format::compressed;
-		precrypt_hdr.sub_format = (opdata->p_detail->current_file_format & 0xff);
+		precrypt_hdr.sub_format = (current_file_format & 0xff);
 		{
 			current_fstream->seekg(0);
 
@@ -119,13 +132,14 @@ public:
 		}
 
 		if(!(*current_fstream) && !current_fstream->eof())
-			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Error while creating hash [crc32]");
+			THROW_RML_EXCEPTION(identifier << " Error while creating hash [crc32]");
 
 		current_fstream->clear(); // reset eof
 		current_fstream->seekg(0); // reset pos
 
 		compressed_fstream->write(reinterpret_cast<char*>(&precrypt_hdr), sizeof(types::header_precrypt));
-//		precrypt_hdr.content_length = compress(*current_fstream, *compressed_fstream, precrypt_hdr.inflated_size);
+
+		// compress and set precrypt_hdr.content_length
 		precrypt_hdr.content_length = compress(*current_fstream, *compressed_fstream);
 
 		// rewrite header
@@ -133,8 +147,6 @@ public:
 		compressed_fstream->write(reinterpret_cast<char*>(&precrypt_hdr), sizeof(types::header_precrypt));
 
 		//compressed_fstream->set_persistent(true);
-
-		opdata->p_detail->current_file_format = compressed_format;
 	}
 
 

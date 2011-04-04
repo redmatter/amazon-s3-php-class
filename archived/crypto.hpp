@@ -35,10 +35,10 @@ class crypto
 	CryptoPP::AutoSeededRandomPool rng_;
 
 public:
-	inline void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
-	{
-		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
-	}
+//	inline void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+//	{
+//		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
+//	}
 
 	void encrypt(std::istream& istr, std::ostream& ostr, const std::vector<uint8_t>& encryption_key)
 	{
@@ -129,50 +129,59 @@ public:
 		if(types::file_format::is_encrypted(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already encrypted");
 
-		rml::utils::tmp_fstream::pointer current_fstream = opdata->get_tmp_fstream();
+		encrypt(opdata->get_tmp_fstream(),
+				opdata->get_tmp_fstream(encrypted_format, true, true),
+				opdata->p_detail->current_file_format,
+				opdata->p_detail->identifier,
+				opdata->p_detail->p_endpoint->encryption_key);
 
-		rml::utils::tmp_fstream::pointer encrypted_fstream = opdata->get_tmp_fstream(encrypted_format, true, true);
+		opdata->p_detail->current_file_format = encrypted_format;
+	}
+
+	inline void encrypt(
+			rml::utils::tmp_fstream::pointer& current_fstream,
+			rml::utils::tmp_fstream::pointer& encrypted_fstream,
+			const types::file_format::file_format_t& current_file_format,
+			const std::string& identifier,
+			const std::vector<uint8_t>& encryption_key)
+	{
+		if(types::file_format::is_encrypted(current_file_format))
+			THROW_RML_EXCEPTION(identifier << " already encrypted");
+
 		if(!encrypted_fstream)
-			throw rml::exception("Unable to get tmp_fstream");
+			throw rml::exception("Invalid output stream");
 
-		if(!types::file_format::is_compressed(opdata->p_detail->current_file_format)) {
-			LogMessage(opdata->p_detail->identifier<<" Not compressed; adding precrypt header");
+		if(!types::file_format::is_compressed(current_file_format)) {
+			LogMessage(identifier<<" Not compressed; adding precrypt header");
+
+			// lets get a new temporary file inside the same location as the encrypted_fstream
+			rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(encrypted_fstream->get_filename()+".pch_"/*XXXXXX*/, std::size_t(0),
+					std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc, "/"));
 
 			types::header_precrypt precrypt_hdr;
 			precrypt_hdr.inflated_size = current_fstream->get_size();
 			precrypt_hdr.content_length = precrypt_hdr.inflated_size;
 			precrypt_hdr.format = types::data_format::clear;
-			precrypt_hdr.sub_format = (opdata->p_detail->current_file_format & 0xff);
+			precrypt_hdr.sub_format = (current_file_format & 0xff);
 			{
 				CryptoPP::CRC32 hash;
 				uint32_t crc32;
-				CryptoPP::FileSource f(*(current_fstream->get_istream_ptr()), true,
+				CryptoPP::FileSource f(*current_fstream, true,
 						new CryptoPP::HashFilter(hash,
 								new CryptoPP::ArraySink((byte *)&crc32, CryptoPP::CRC32::DIGESTSIZE)));
 
 				precrypt_hdr.crc32 = crc32;
 			}
 
-			rml::utils::tmp_fstream::pointer bare_stream = current_fstream;
+			p_tmp->write((char*)&precrypt_hdr, sizeof(types::header_precrypt));
+			*(p_tmp) << current_fstream->rdbuf();
 
-			// here we are using encrypted_fstream only as a temporary file under the same storage identifier
+			p_tmp->seekg(0);
 
-			encrypted_fstream->write(reinterpret_cast<char*>(&precrypt_hdr), sizeof(types::header_precrypt));
-			*(encrypted_fstream) << current_fstream->rdbuf();
-
-			// set the new tmp file as current
-			current_fstream = encrypted_fstream;
-			current_fstream->seekg(0);
-
-			// now we need to create a new tmp fstream for the encrypted file
-			encrypted_fstream = opdata->get_tmp_fstream(encrypted_format, true, true);
-			if(!encrypted_fstream)
-				throw rml::exception("Unable to get tmp_fstream");
+			encrypt(*p_tmp, *encrypted_fstream, encryption_key);
 		}
-
-		encrypt(*(current_fstream->get_istream_ptr()), *(encrypted_fstream->get_ostream_ptr()), opdata->p_detail);
-
-		opdata->p_detail->current_file_format = encrypted_format;
+		else
+			encrypt(*current_fstream, *encrypted_fstream, encryption_key);
 	}
 
 	void decrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& decrypted_format)
@@ -186,7 +195,7 @@ public:
 		if(!decrypted_fstream)
 			throw rml::exception("Unable to get tmp_fstream");
 
-		decrypt(*(current_fstream->get_istream_ptr()), *(decrypted_fstream->get_ostream_ptr()), opdata->p_detail);
+		decrypt(*current_fstream, *decrypted_fstream, opdata->p_detail);
 
 		if(!types::file_format::is_compressed(decrypted_format)) {
 
@@ -216,7 +225,7 @@ public:
 			uint32_t crc32;
 			{
 				CryptoPP::CRC32 hash;
-				CryptoPP::FileSource f(*(decrypted_fstream->get_istream_ptr()), true,
+				CryptoPP::FileSource f(*decrypted_fstream, true,
 						new CryptoPP::HashFilter(hash,
 								new CryptoPP::ArraySink((byte *)&crc32, CryptoPP::CRC32::DIGESTSIZE)));
 			}

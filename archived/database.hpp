@@ -48,6 +48,31 @@ public:
 class retention : public basic_database< retention >
 {
 public:
+	struct data
+	{
+		archiving::org_id org;
+		archiving::user_id user;
+		std::string uuid;
+		applied_policy retention;
+		types::file_format::file_format_t file_format;
+
+		struct compare
+		{
+			inline bool operator()(const data& lhs, const data& rhs) const
+			{
+				if(lhs.org != rhs.org)
+					return lhs.org < rhs.org;
+
+				if(lhs.user != rhs.user)
+					return lhs.org < rhs.org;
+
+				return lhs.uuid < rhs.uuid;
+			}
+		};
+	};
+
+	typedef std::set<data, data::compare> data_set;
+
 	static inline const char* get_identifier()
 	{
 		static const char* identifier = "retention";
@@ -101,6 +126,59 @@ public:
 		}
 
 		return std::make_pair(false, app::retention());
+	}
+
+	void save(const data_set& data)
+	{
+		data_set::const_iterator end = data.end();
+
+		rml::MySQLConnection conn(pool_); // scoped connection		
+		mysqlpp::SQLQueryParms qp;
+		mysqlpp::Query query = conn->query();
+		query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` "
+				"("
+					" UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID "
+				")"
+				" VALUES"
+				;
+
+		int values_count = 0;
+		for(data_set::const_iterator itr = data_set.begin(); itr != end; ++itr, values_count+=16/*see template query*/) {
+
+			query << (values_count? ',': ' ') << "( UNHEX(%"<<(values_count+0)<<"q:UUID_"<<values_count<<"), %"<<(values_count+1)<<":Format_"<<values_count<<", "
+			"%"<<(values_count+2)<<":OrgID_"<<values_count<<", %"<<(values_count+3)<<":UserID_"<<values_count<<", "
+			"%"<<(values_count+4)<<":PolicyID_"<<values_count<<", %"<<(values_count+5)<<":PolicyVersion_"<<values_count<<", "
+			"'%"<<(values_count+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count+8)<<":CreationDateDay_"<<values_count<<"', "
+			"'%"<<(values_count+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count+11)<<":RetentionMinDateDay_"<<values_count<<"', "
+			"'%"<<(values_count+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
+			"%"<<(values_count+15)<<":EndpointID_"<<values_count<<" )";
+
+			const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
+			const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
+			const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
+
+			qp << itr->uuid << itr->file_format
+
+					<< itr->org << itr->user
+					<< itr->retention.p_policy->id << itr->retention.p_policy->version;
+
+					<< applied_policy::ymd_t::year_type::value_type(creation_ymd.year)
+					<< applied_policy::ymd_t::month_type::value_type(creation_ymd.month)
+					<< applied_policy::ymd_t::day_type::value_type(creation_ymd.day)
+
+					<< applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)
+					<< applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)
+					<< applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)
+
+					<< applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)
+					<< applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)
+					<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day);
+		}
+
+		query.parse();
+		LogVerbose("SQL: "<<query.str(qp));
+		mysqlpp::SimpleResult res = query.execute(qp);
+		LogMessage("Retention data: "<<res.rows()<<" rows added");
 	}
 
 	void save(const archiving::org_id& org, const archiving::user_id& user, const std::string& identifier, const applied_policy& retention)

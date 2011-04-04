@@ -28,8 +28,7 @@ namespace app {
 
 namespace storage {
 
-
-template < typename Backend, typename object_identifier_t >
+template < typename Backend >
 class basic_backend : public boost::noncopyable
 {
 	static Backend* p_backend_;
@@ -55,8 +54,6 @@ public:
 		return p_backend_;
 	}
 
-	virtual	boost::shared_ptr<std::fstream> open(object_identifier_t&, const operations::operations_t&, const std::iostream::openmode&) = 0;
-
 	virtual ~basic_backend()
 	{
 		//virtual do nothing!
@@ -64,20 +61,12 @@ public:
 
 };
 
-template <typename Backend, typename object_identifier_t>
-Backend* basic_backend< Backend, object_identifier_t >::p_backend_(0);
+template < typename Backend >
+Backend* basic_backend< Backend >::p_backend_(0);
 
 // specialisation
 
 namespace s3 {
-
-struct object_identifier
-{
-	/// the bucket description
-	endpoint::pointer p_endpoint;
-	/// the object key
-	std::string identifier;
-};
 
 namespace specific {
 
@@ -116,7 +105,7 @@ typedef cache::result_cache<const endpoint::pointer&, connection_pool_ptr, cache
 }  // namespace specific
 
 
-class backend : public basic_backend<backend, object_identifier>
+class backend : public basic_backend<backend>
 {
 	const boost::program_options::variables_map& confMap_;
 	specific::connection_pool_finder connection_pool_finder_;
@@ -138,7 +127,7 @@ protected:
 
 public:
 
-	friend class basic_backend<backend, object_identifier>;
+	friend class basic_backend<backend>;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -205,37 +194,47 @@ public:
 		if(opdata->state != operation_states::put_file_save && opdata->p_detail->retry > 0)
 			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
 
+		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
+		if(!tmpfs)
+			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
+
+		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
+		if(!tmpfs)
+			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
+
+		assert(false == opdata->p_detail->p_metadata->empty());
+		std::map< std::string, std::string > headers;
+		opdata->p_detail->p_metadata->make_headers(headers);
+
+		put(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, tmpfs, opdata->p_detail->target_file_format, headers);
+	}
+
+	inline void put(endpoint::pointer p_endpoint, const std::string& identifier, rml::utils::tmp_fstream::pointer tmpfs, const types::file_format::file_format_t& target_file_format, const std::map< std::string, std::string >& headers = std::map< std::string, std::string >())
+	{
 		try {
-			aws::S3ConnectionPtr p_s3Conn = cached_connection_pool_finder_(opdata->p_detail->p_endpoint)->getConnection();
+			aws::S3ConnectionPtr p_s3Conn = cached_connection_pool_finder_(p_endpoint)->getConnection();
 
-			rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
-			if(!tmpfs)
-				THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
-
-			assert(false == opdata->p_detail->p_metadata->empty());
-			std::map< std::string, std::string > headers;
+			std::map< std::string, std::string > s3headers = headers;
 			{
-				opdata->p_detail->p_metadata->make_headers(headers);
-				headers.insert(std::make_pair(
+				s3headers.insert(std::make_pair(
 						"FileTypeIsCompressed",
-						types::file_format::is_compressed(opdata->p_detail->target_file_format)? "true": "false"));
-				headers.insert(std::make_pair(
+						types::file_format::is_compressed(target_file_format)? "true": "false"));
+				s3headers.insert(std::make_pair(
 						"FileTypeIsEncrypted",
-						types::file_format::is_encrypted(opdata->p_detail->target_file_format)? "true": "false"));
-				headers.insert(std::make_pair(
+						types::file_format::is_encrypted(target_file_format)? "true": "false"));
+				s3headers.insert(std::make_pair(
 						"FileType",
-						types::data_sub_format::to_string(
-								types::data_sub_format::data_sub_format_t(
-										opdata->p_detail->target_file_format & 0xff))));
+						types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 			}
 
-			aws::PutResponsePtr p_putRes = p_s3Conn->put(opdata->p_detail->p_endpoint->bucket, opdata->p_detail->identifier,
-					*reinterpret_cast<std::ifstream*>(tmpfs.get()), "application/octet-stream", &headers, -1);
+			aws::PutResponsePtr p_putRes = p_s3Conn->put(p_endpoint->bucket, identifier,
+					*tmpfs, "application/octet-stream", &headers, -1);
 		}
 		catch(const aws::PutException& e) {
-			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<" - PUT failed - error:"<<e.what());
+			THROW_RML_EXCEPTION(p_endpoint->bucket<<'/'<<identifier<<" - PUT failed - error:"<<e.what());
 		}
 	}
+
 };
 
 }  // namespace s3

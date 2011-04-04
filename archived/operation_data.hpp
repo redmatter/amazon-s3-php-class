@@ -98,22 +98,25 @@ struct operation_data
 	rml::utils::tmp_fstream::pointer get_tmp_fstream(const types::file_format::file_format_t format,
 			const bool create_missing = false, const bool force_new = false)
 	{
-		files_map_t::iterator itr = p_detail->files_map.find(format);
+		rml::utils::tmp_fstream::pointer ret;
 		const files_map_t::iterator& end = p_detail->files_map.end();
+
+		files_map_t::iterator itr = p_detail->files_map.find(format);
+		if(itr != end)
+			ret = itr->second;
+
 		if(itr == end || force_new) {
 			if((itr == end) && !create_missing)
-				return rml::utils::tmp_fstream::pointer(); // empty!
+				return ret; // empty!
 
 			if(itr != end)
 				p_detail->files_map.erase(itr);
 
-			rml::utils::tmp_fstream::pointer ret(new rml::utils::tmp_fstream(p_detail->identifier, std::size_t(0), temp_files_base_directory));
+			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier, std::size_t(0), temp_files_base_directory));
 			p_detail->files_map.insert(std::make_pair(format, ret));
-
-			return ret;
 		}
 
-		return itr->second;
+		return ret;
 	}
 
 	struct pointer_compare_lt
