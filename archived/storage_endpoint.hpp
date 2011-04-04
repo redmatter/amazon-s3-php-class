@@ -74,17 +74,15 @@ struct basic_endpoint
 		//ctor
 	}
 
-	virtual bool operator==(const basic_endpoint& rhs) const
+	bool operator==(const basic_endpoint& rhs) const
 	{
 		return type == rhs.type && identifier == rhs.identifier;
 	}
 
-	virtual std::ostream& operator<<(std::ostream& os)
+	std::ostream& operator<<(std::ostream& os)
 	{
 		return os << identifier;
 	}
-
-	virtual ~basic_endpoint() {}
 };
 
 namespace s3 {
@@ -116,7 +114,7 @@ public:
 	{
 	}
 
-	virtual bool operator==(const endpoint& rhs) const
+	bool operator==(const endpoint& rhs) const
 	{
 		return type == rhs.type &&
 				access_key == rhs.access_key &&
@@ -128,7 +126,7 @@ public:
 				;
 	}
 
-	virtual std::ostream& operator<<(std::ostream& os)
+	std::ostream& operator<<(std::ostream& os)
 	{
 		return os << "s3://**ak**:**sk**@"<<bucket;
 	}
