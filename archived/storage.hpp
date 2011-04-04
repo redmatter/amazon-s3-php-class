@@ -8,11 +8,11 @@
 #ifndef BASIC_STORAGE_HPP_
 #define BASIC_STORAGE_HPP_
 
-#include <boost/program_options.hpp>
-#include <boost/noncopyable.hpp>
-
 #include "storage_operation.hpp"
 #include "storage_backend.hpp"
+
+#include <boost/program_options.hpp>
+#include <boost/noncopyable.hpp>
 
 namespace app {
 

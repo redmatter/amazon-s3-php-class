@@ -8,19 +8,19 @@
 #ifndef OPERATION_DATA_HPP_
 #define OPERATION_DATA_HPP_
 
-#include <stdint.h>
-
-#include <map>
-#include <string>
-
-#include <boost/shared_ptr.hpp>
-
-#include "../common/archivable.hpp"
-
 #include "types.hpp"
 #include "storage_endpoint.hpp"
 #include "policy.hpp"
 #include "globals.h"
+
+#include "../common/archivable.hpp"
+
+#include <boost/shared_ptr.hpp>
+
+#include <map>
+#include <string>
+
+#include <stdint.h>
 
 namespace app {
 

@@ -7,10 +7,10 @@
 
 #include "dir_monitor.hpp"
 
-#include <sstream>
-
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
+
+#include <sstream>
 
 #include <errno.h>
 #include <string.h>

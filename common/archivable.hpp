@@ -8,19 +8,19 @@
 #ifndef ARCHIVED_FILE_HPP_
 #define ARCHIVED_FILE_HPP_
 
-#include <string.h>
-
-#include <iostream>
-
-#include <boost/shared_ptr.hpp>
-#include <boost/foreach.hpp>
+#include "md5.hpp"
+#include "types.hpp"
 
 #include <rml/logger.h>
 #include <rml/exception.h>
 #include <rml/pc_channel.h>
 
-#include "md5.hpp"
-#include "types.hpp"
+#include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
+
+#include <iostream>
+
+#include <string.h>
 
 namespace archiving {
 

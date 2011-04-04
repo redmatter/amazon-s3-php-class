@@ -8,13 +8,13 @@
 #ifndef CLEAR_CACHE_HPP_
 #define CLEAR_CACHE_HPP_
 
-#include <sys/stat.h>
-#include <unistd.h>
+#include "database.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
 
-#include "database.hpp"
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace app {
 

@@ -8,14 +8,14 @@
 #ifndef COREAPI_HPP_
 #define COREAPI_HPP_
 
+#include <rml/logger.h>
+#include <rml/exception.h>
+
 #include <boost/network/protocol/http/client.hpp>
-#include <boost/thread/mutex.hpp>
-//#include <boost/thread/condition_variable.hpp>
 
 #include <pugixml/pugixml.hpp>
 
-#include <rml/logger.h>
-#include <rml/exception.h>
+#include <boost/thread/mutex.hpp>
 
 namespace app {
 

@@ -8,17 +8,17 @@
 #ifndef COLLECTD_SESSION_HPP_
 #define COLLECTD_SESSION_HPP_
 
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/asio.hpp>
-
-#include <rml/logger.h>
-#include <rml/utils.h>
+#include "globals.h"
+#include "types.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
 
-#include "globals.h"
-#include "types.hpp"
+#include <rml/logger.h>
+#include <rml/utils.h>
+
+#include <boost/enable_shared_from_this.hpp>
+#include <boost/asio.hpp>
 
 namespace app {
 

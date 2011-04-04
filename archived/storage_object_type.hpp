@@ -8,11 +8,11 @@
 #ifndef STORAGE_OBJECT_IDENTIFIER_HPP_
 #define STORAGE_OBJECT_IDENTIFIER_HPP_
 
-#include <iostream>
+#include <rml/utils.h>
 
 #include <boost/shared_ptr.hpp>
 
-#include <rml/utils.h>
+#include <iostream>
 
 namespace app {
 

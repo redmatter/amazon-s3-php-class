@@ -8,14 +8,14 @@
 #ifndef SERVER_HPP_
 #define SERVER_HPP_
 
-#include <boost/asio.hpp>
-#include <boost/program_options.hpp>
-#include <boost/shared_ptr.hpp>
+#include "put_session.hpp"
 
 #include "../common/types.hpp"
 #include "../common/defines.h"
 
-#include "put_session.hpp"
+#include <boost/asio.hpp>
+#include <boost/program_options.hpp>
+#include <boost/shared_ptr.hpp>
 
 namespace app {
 

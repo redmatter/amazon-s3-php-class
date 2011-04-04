@@ -8,25 +8,25 @@
 #ifndef COMPRESS_HPP_
 #define COMPRESS_HPP_
 
-#include <string.h>
+#include "operation_data.hpp"
 
-#include <algorithm>
-#include <iterator>
-#include <istream>
+#include <rml/exception.h>
+#include <rml/logger.h>
+
+#include <cryptopp/crc.h>
+#include <cryptopp/files.h>
+#include <cryptopp/filters.h>
 
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/write.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
 
-#include <cryptopp/crc.h>
-#include <cryptopp/files.h>
-#include <cryptopp/filters.h>
+#include <algorithm>
+#include <iterator>
+#include <istream>
 
-#include <rml/exception.h>
-#include <rml/logger.h>
-
-#include "operation_data.hpp"
+#include <string.h>
 
 namespace app {
 

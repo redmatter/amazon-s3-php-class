@@ -1,3 +1,33 @@
+#include "globals.h"
+#include "put_session.hpp"
+#include "put_server.hpp"
+#include "storage.hpp"
+#include "storage_operation.hpp"
+#include "storage_runner.hpp"
+
+#include "../common/types.hpp"
+#include "../common/cdr_dir_monitor.hpp"
+#include "../common/dir_monitor.hpp"
+
+#include <rml/logger.h>
+#include <rml/utils.h>
+#include <rml/thread_adapter.h>
+#include <rml/config.h>
+#include <rml/siginit.h>
+
+#include <libaws/aws.h>
+
+#include <boost/asio.hpp>
+#include <boost/program_options.hpp>
+#include <boost/format.hpp>
+#include <boost/thread.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/ref.hpp>
+
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+
 #include <sys/types.h>
 #include <grp.h>
 #include <pwd.h>
@@ -7,36 +37,6 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
-
-#include <iostream>
-#include <fstream>
-#include <algorithm>
-
-#include <boost/asio.hpp>
-#include <boost/program_options.hpp>
-#include <boost/format.hpp>
-#include <boost/thread.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/ref.hpp>
-
-#include <libaws/aws.h>
-
-#include <rml/logger.h>
-#include <rml/utils.h>
-#include <rml/thread_adapter.h>
-#include <rml/config.h>
-#include <rml/siginit.h>
-
-#include "../common/types.hpp"
-#include "../common/cdr_dir_monitor.hpp"
-#include "../common/dir_monitor.hpp"
-
-#include "globals.h"
-#include "put_session.hpp"
-#include "put_server.hpp"
-#include "storage.hpp"
-#include "storage_operation.hpp"
-#include "storage_runner.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-archived"

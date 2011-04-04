@@ -8,22 +8,22 @@
 #ifndef BASIC_STORAGE_BACKEND_HPP_
 #define BASIC_STORAGE_BACKEND_HPP_
 
-#include <stdint.h>
+#include "types.hpp"
+#include "storage_operation.hpp"
+#include "storage_object_type.hpp"
+#include "storage_endpoint.hpp"
+
+#include <rml/exception.h>
+
+#include <libaws/aws.h>
+
+#include <boost/noncopyable.hpp>
 
 #include <fstream>
 #include <string>
 #include <map>
 
-#include <boost/noncopyable.hpp>
-
-#include <libaws/aws.h>
-
-#include <rml/exception.h>
-
-#include "types.hpp"
-#include "storage_operation.hpp"
-#include "storage_object_type.hpp"
-#include "storage_endpoint.hpp"
+#include <stdint.h>
 
 namespace app {
 

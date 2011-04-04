@@ -8,11 +8,11 @@
 #ifndef STORAGE_OPERATION_HPP_
 #define STORAGE_OPERATION_HPP_
 
-#include <boost/function.hpp>
+#include "operation_data.hpp"
 
 #include <rml/pc_channel.h>
 
-#include "operation_data.hpp"
+#include <boost/function.hpp>
 
 namespace app {
 

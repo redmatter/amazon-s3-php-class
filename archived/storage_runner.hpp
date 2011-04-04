@@ -8,10 +8,10 @@
 #ifndef STORAGE_RUNNER_HPP_
 #define STORAGE_RUNNER_HPP_
 
-#include <rml/exception.h>
-
 #include "storage_operation.hpp"
 #include "storage.hpp"
+
+#include <rml/exception.h>
 
 namespace app {
 

@@ -8,20 +8,19 @@
 #ifndef APP_TYPES_HPP_
 #define APP_TYPES_HPP_
 
-#include <stdint.h>
-#include <string.h>
+#include "globals.h"
 
-#include <functional>
-#include <algorithm>
-//#include <iostream>
-#include <iomanip>
+#include "../common/defines.h"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
 
-#include "../common/defines.h"
+#include <functional>
+#include <algorithm>
+#include <iomanip>
 
-#include "globals.h"
+#include <stdint.h>
+#include <string.h>
 
 /*
 +-------------------------------------------+

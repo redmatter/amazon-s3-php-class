@@ -8,9 +8,9 @@
 #ifndef EXCEPTION_HPP_
 #define EXCEPTION_HPP_
 
-#include <string>
-
 #include <rml/exception.h>
+
+#include <string>
 
 namespace archiving {
 

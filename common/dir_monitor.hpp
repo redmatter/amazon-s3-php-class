@@ -8,16 +8,16 @@
 #ifndef _DIR_MONITOR_HPP
 #define	_DIR_MONITOR_HPP
 
-#include <stdexcept>
-
-#include <sys/inotify.h>
-
 #include <boost/asio.hpp>
 #include <boost/bimap.hpp>
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
 #include <boost/foreach.hpp>
 #include <boost/noncopyable.hpp>
+
+#include <stdexcept>
+
+#include <sys/inotify.h>
 
 namespace archiving {
 

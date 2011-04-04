@@ -8,12 +8,12 @@
 #ifndef CDR_DIR_MONITOR_HPP_
 #define CDR_DIR_MONITOR_HPP_
 
-#include <set>
+#include "archivable.hpp"
+#include "dir_monitor.hpp"
 
 #include <rml/pc_channel.h>
 
-#include "archivable.hpp"
-#include "dir_monitor.hpp"
+#include <set>
 
 namespace archiving {
 

@@ -8,11 +8,11 @@
 #ifndef OPERATION_HPP_
 #define OPERATION_HPP_
 
-#include <rml/pc_channel.h>
-
 #include "operation_data.hpp"
 #include "storage_endpoint.hpp"
 #include "policy.hpp"
+
+#include <rml/pc_channel.h>
 
 namespace app {
 

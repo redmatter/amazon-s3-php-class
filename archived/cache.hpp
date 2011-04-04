@@ -8,18 +8,18 @@
 #ifndef CACHE_HPP_
 #define CACHE_HPP_
 
-#include <time.h>
-
-#include <map>
-#include <algorithm>
+#include <rml/utils.h>
+#include <rml/logger.h>
 
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/function.hpp>
 
-#include <rml/utils.h>
-#include <rml/logger.h>
+#include <map>
+#include <algorithm>
+
+#include <time.h>
 
 namespace app {
 

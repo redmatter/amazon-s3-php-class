@@ -8,9 +8,9 @@
 #ifndef RETENTION_HPP_
 #define RETENTION_HPP_
 
-#include "../common/types.hpp"
-
 #include "policy.hpp"
+
+#include "../common/types.hpp"
 
 namespace app {
 

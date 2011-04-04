@@ -8,7 +8,10 @@
 #ifndef CRYPTO_HPP_
 #define CRYPTO_HPP_
 
-#include <string.h>
+#include "types.hpp"
+#include "operation_data.hpp"
+
+#include <rml/utils.h>
 
 #include <cryptopp/osrng.h>
 #include <cryptopp/cryptlib.h>
@@ -20,11 +23,7 @@
 #include <cryptopp/files.h>
 #include <cryptopp/crc.h>
 
-
-#include <rml/utils.h>
-
-#include "types.hpp"
-#include "operation_data.hpp"
+#include <string.h>
 
 namespace app {
 
