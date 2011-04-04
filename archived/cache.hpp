@@ -14,6 +14,7 @@
 #include <algorithm>
 
 #include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/function.hpp>
 

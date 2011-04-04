@@ -12,6 +12,7 @@
 
 #include <fstream>
 #include <string>
+#include <map>
 
 #include <boost/noncopyable.hpp>
 
@@ -205,7 +206,14 @@ public:
 		put(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, tmpfs, opdata->p_detail->target_file_format, headers);
 	}
 
-	inline void put(endpoint::pointer p_endpoint, const std::string& identifier, rml::utils::tmp_fstream::pointer tmpfs, const types::file_format::file_format_t& target_file_format, const std::map< std::string, std::string >& headers = std::map< std::string, std::string >())
+	typedef std::map < std::string, std::string > string_string_map;
+
+	inline void put(
+			endpoint::pointer p_endpoint,
+			const std::string& identifier,
+			rml::utils::tmp_fstream::pointer tmpfs,
+			const types::file_format::file_format_t& target_file_format,
+			const string_string_map& headers = string_string_map())
 	{
 		try {
 			aws::S3ConnectionPtr p_s3Conn = cached_connection_pool_finder_(p_endpoint)->getConnection();

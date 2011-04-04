@@ -67,7 +67,7 @@ public:
 		enum {
 			collected,
 			stored,
-			stored_acked,
+			stored_acked
 		};
 	};
 
