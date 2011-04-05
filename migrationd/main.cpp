@@ -216,10 +216,10 @@ int main(int argc, char* argv[]) try
 	app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
 	app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
 
-	app::migration_data::channel_t channel_data_in("channel:DataIn");
-	app::migration_data::channel_t channel_convert("channel:Convert");
-	app::migration_data::channel_t channel_copy_to_s3("channel:Copy2S3");
-	app::migration_data::channel_t channel_save_retention("channel:SaveRetention");
+	app::migration_data::channel_t channel_data_in("DataIn");
+	app::migration_data::channel_t channel_convert("Convert");
+	app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
+	app::migration_data::channel_t channel_save_retention("SaveRetention");
 
 	app::coreapi coreapi(app::confMap);
 	app::policy::cached_finder_t cached_policy_finder(
