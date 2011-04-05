@@ -80,7 +80,6 @@ int main(int argc, char* argv[]) try
 		boost::program_options::options_description cli_optsDesc(
 					boost::str(boost::format(
 							DEFAULT_APP_LONG_NAME" v%1%"
-							"\n"
 							"\n%2%\n\nOptions"
 							) % version_number_string % copyright_string));
 		cli_optsDesc.add_options()
