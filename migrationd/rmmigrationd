@@ -6,7 +6,7 @@
 # chkconfig: 2345 80 05
 # description: Archive Migration Daemon
 # processname: rmmigrationd
-# config: /etc/rmmigrationd.conf
+# config: /etc/archiving/rmmigrationd.conf
 # pidfile: /var/run/archiving/rmmigrationd.pid
 
 # Source function library.
@@ -25,7 +25,7 @@ program=/usr/bin/${program_name}.bin
 
 program_opts=
 
-config_file=/etc/${program_name}.conf
+config_file=/etc/archiving/${program_name}.conf
 
 _pid() {
 	if [ -r "$pid_file" ];then
