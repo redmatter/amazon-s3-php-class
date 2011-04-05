@@ -1,4 +1,5 @@
-COMPONENTS=collectd archived
+COMPONENTS=collectd archived migrationd
+COMPONENTS=migrationd
 RECENT_COMPONENT=$(shell ls -dt $(COMPONENTS) | head -1 )
 
 all :

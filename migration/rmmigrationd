@@ -21,7 +21,7 @@ program_name=rmmigrationd
 
 pid_file=/var/run/archiving/${program_name}.pid
 
-program=/usr/bin/${program_name}
+program=/usr/bin/${program_name}.bin
 
 program_opts=
 
