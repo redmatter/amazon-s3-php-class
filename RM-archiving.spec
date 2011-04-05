@@ -8,23 +8,23 @@ Name: RM-%{appname}
 Prefix: /
 Release: 0
 Source: RM-%{appname}-%{version}.tar.gz
-URL: http://redmatter.com/
+URL: http://www.redmatter.com/
 Version: %{version}
 Buildroot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: boost > 1.45.0-11338, mysql++ >= 3.1.0, libaws, cryptopp
-BuildRequires: boost-devel > 1.45.0-11338, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-11338, libaws-devel, cryptopp-devel, pugixml
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1, libaws-devel, cryptopp-devel, pugixml
 
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost > 1.45.0-11338, mysql++ >= 3.1.0, libaws, cryptopp
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
 
 %package migrationd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost > 1.45.0-11338, mysql++ >= 3.1.0, libaws, cryptopp
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
 
 %description
 Archiving daemon ( ArchiveD )
@@ -56,7 +56,7 @@ mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
 
 # ArchiveD
-cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
+#cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
 cp archived/rmarchived_safe %{buildroot}/usr/bin/
 cp archived/rmarchived %{buildroot}/etc/rc.d/init.d/
 cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
@@ -65,7 +65,7 @@ cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
 cp archived/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchived.conf
 
 # CollectD
-cp collectd/tmp-%{buildtype}-build/collectd %{buildroot}/usr/bin/rmcollectd.bin
+#cp collectd/tmp-%{buildtype}-build/collectd %{buildroot}/usr/bin/rmcollectd.bin
 cp collectd/rmcollectd_safe %{buildroot}/usr/bin/
 cp collectd/rmcollectd %{buildroot}/etc/rc.d/init.d/
 cp collectd/rmcollectd.supp %{buildroot}/usr/share/archiving/
@@ -136,7 +136,7 @@ fi
 
 %files
 %defattr(-,root,root) 
-/usr/bin/rmarchived.bin
+#/usr/bin/rmarchived.bin
 /usr/bin/rmarchived_safe
 /usr/share/archiving/rmarchived.supp
 /etc/rc.d/init.d/rmarchived
@@ -148,7 +148,7 @@ fi
 
 %files collectd
 %defattr(-,root,root) 
-/usr/bin/rmcollectd.bin
+#/usr/bin/rmcollectd.bin
 /usr/bin/rmcollectd_safe
 /usr/share/archiving/rmcollectd.supp
 /etc/rc.d/init.d/rmcollectd
