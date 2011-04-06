@@ -227,9 +227,9 @@ int main(int argc, char* argv[]) try
 		app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
 		app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
 
-		app::migration_data::channel_t channel_data_in("DataIn");
 		app::migration_data::channel_t channel_convert("Convert");
 		app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
+		app::migration_data::channel_t channel_copy_to_s3_done("Copy2S3Done");
 		app::migration_data::channel_t channel_save_retention("SaveRetention");
 
 		app::coreapi coreapi(app::confMap);
@@ -239,12 +239,12 @@ int main(int argc, char* argv[]) try
 				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
 
-		app::database::migration migration_db(app::confMap, channel_data_in, channel_convert, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
+		app::database::migration migration_db(app::confMap, channel_convert, channel_copy_to_s3_done, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
 		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
-		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_save_retention, app::quit);
+		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_copy_to_s3_done, app::quit);
 
 		initialized = true;
-		LogMessage("Initialization complete");
+		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
 		{
@@ -262,8 +262,10 @@ int main(int argc, char* argv[]) try
 		}
 
 		while(!app::quit) {
-			LogVerbose(((time(0)%2) ? "tik": "tok"));
+			LogDebug(((time(0)%2) ? "tik": "tok"));
+
 			//TODO monitoring stuff goes in here
+
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
