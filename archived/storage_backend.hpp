@@ -25,6 +25,12 @@
 
 #include <stdint.h>
 
+extern "C" {
+S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
+int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData);
+}
+
 namespace app {
 
 namespace storage {
@@ -94,7 +100,7 @@ protected:
 	bool initialised_;
 
 public:
-	static initialiser static_initialiser;
+	static initialiser< ignore > static_initialiser;
 
 	initialiser() : mutex_(), cond_initialised_(mutex_), initialised_(false)
 	{
@@ -128,14 +134,20 @@ public:
 	}
 };
 
-template <>
-initialiser<void> initialiser<void>::static_initialiser;
+template < typename ignore >
+initialiser< ignore > initialiser< ignore >::static_initialiser;
 
-}  // namespace specific
+} //namespace specific
+
+typedef specific::initialiser<void> initialiser;
 
 class backend : public basic_backend<backend>
 {
 	const boost::program_options::variables_map& confMap_;
+
+	friend S3Status response_properties_cb_(const S3ResponseProperties*, void*);
+	friend void response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend int put_object_data_cb_(int, char*, void*);
 
 protected:
 	backend(const boost::program_options::variables_map& confMap) :
@@ -356,5 +368,24 @@ public:
 }  // namespace storage
 
 }  // namespace app
+
+extern "C" {
+
+S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+{
+	return app::storage::s3::backend::response_properties_cb(properties, callbackData);
+}
+
+void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
+{
+	app::storage::s3::backend::response_complete_cb(status, error, callbackData);
+}
+
+int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
+{
+	return app::storage::s3::backend::put_object_data_cb(bufferSize, buffer, callbackData);
+}
+
+}
 
 #endif /* BASIC_STORAGE_BACKEND_HPP_ */

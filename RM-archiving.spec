@@ -19,12 +19,12 @@ BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >=
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
 
 %package migrationd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
 
 %description
 Archiving daemon ( ArchiveD )
