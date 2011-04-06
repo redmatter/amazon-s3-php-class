@@ -145,9 +145,9 @@ class backend : public basic_backend<backend>
 {
 	const boost::program_options::variables_map& confMap_;
 
-	friend S3Status response_properties_cb_(const S3ResponseProperties*, void*);
-	friend void response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
-	friend int put_object_data_cb_(int, char*, void*);
+	friend S3Status ::response_properties_cb_(const S3ResponseProperties*, void*);
+	friend void ::response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend int ::put_object_data_cb_(int, char*, void*);
 
 protected:
 	backend(const boost::program_options::variables_map& confMap) :
