@@ -75,6 +75,7 @@ volatile bool wasHUPed = false;
 
 int main(int argc, char* argv[]) try
 {
+	bool initialized = false;
 	boost::program_options::variables_map cli_confMap;
 	{
 		boost::program_options::options_description cli_optsDesc(
@@ -218,53 +219,62 @@ int main(int argc, char* argv[]) try
 		}
 	}
 
-	app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
-	app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
+	try {
+		app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
+		app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
 
-	app::migration_data::channel_t channel_data_in("DataIn");
-	app::migration_data::channel_t channel_convert("Convert");
-	app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
-	app::migration_data::channel_t channel_save_retention("SaveRetention");
+		app::migration_data::channel_t channel_data_in("DataIn");
+		app::migration_data::channel_t channel_convert("Convert");
+		app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
+		app::migration_data::channel_t channel_save_retention("SaveRetention");
 
-	app::coreapi coreapi(app::confMap);
-	app::policy::cached_finder_t cached_policy_finder(
-			boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
-	app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
-			boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
+		app::coreapi coreapi(app::confMap);
+		app::policy::cached_finder_t cached_policy_finder(
+				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
+		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
+				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
 
-	app::database::migration migration_db(app::confMap, channel_data_in, channel_convert, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
-	app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
-	app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_save_retention, app::quit);
+		app::database::migration migration_db(app::confMap, channel_data_in, channel_convert, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
+		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
+		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_save_retention, app::quit);
 
-	boost::thread_group threads;
-	{
-		threads.create_thread(boost::bind(&app::database::migration::find_migratables, boost::ref(migration_db)));
+		initialized = true;
+		LogMessage("Initialization complete");
 
-		threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
-		threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+		boost::thread_group threads;
+		{
+			threads.create_thread(boost::bind(&app::database::migration::find_migratables, boost::ref(migration_db)));
 
-		threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
-		threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+			threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+			threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
 
-		threads.create_thread(boost::bind(&app::database::migration::update_status, boost::ref(migration_db)));
+			threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+			threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
 
-		threads.create_thread(boost::bind(&app::database::migration::flush_retention, boost::ref(migration_db)));
+			threads.create_thread(boost::bind(&app::database::migration::update_status, boost::ref(migration_db)));
+
+			threads.create_thread(boost::bind(&app::database::migration::flush_retention, boost::ref(migration_db)));
+		}
+
+		while(!app::quit) {
+			LogVerbose(((time(0)%2) ? "tik": "tok"));
+			boost::this_thread::sleep(boost::posix_time::seconds(1));
+		}
+
+		channel_data_in.set_finishing();
+		channel_convert.set_finishing();
+		channel_copy_to_s3.set_finishing();
+		channel_save_retention.set_finishing();
+
+		threads.join_all();
+
+		exit(rml::utils::exit_codes::normal);
 	}
-
-	while(!app::quit) {
-		LogVerbose(((time(0)%2) ? "tik": "tok"));
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
+	catch(const std::exception &e) {
+		LogError("exception: "<<e.what());
+		exit(initialized? rml::utils::exit_codes::failure: rml::utils::exit_codes::initialization_error);
 	}
-
-	channel_data_in.set_finishing();
-	channel_convert.set_finishing();
-	channel_copy_to_s3.set_finishing();
-	channel_save_retention.set_finishing();
-
-	threads.join_all();
-
-	exit(rml::utils::exit_codes::normal);
 }
 catch(const std::exception& e) {
 	LogError("Exception: "<<e.what());
