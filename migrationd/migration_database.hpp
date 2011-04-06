@@ -8,6 +8,8 @@
 
 #include <rml/utils.h>
 
+#include <boost/algorithm/string.hpp>
+
 namespace app {
 
 extern std::string hostname;
@@ -31,12 +33,27 @@ class migration : public basic_database< migration >
 	const unsigned int poll_interval_seconds_;
 	const unsigned int flush_interval_seconds_;
 
+	std::vector<archiving::org_id> orgs_enabled_;
+
 	app::database::retention retention_db_;
 public:
 	static inline const char* get_identifier()
 	{
 		static const char* identifier = "migration";
 		return identifier;
+	}
+
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		basic_database<migration>::describe_config(optsDesc);
+		retention::describe_config(optsDesc);
+		optsDesc.add_options()
+				("migration_data.poll_interval_seconds", boost::program_options::value<unsigned int>()->default_value(300U), "migration data polling interval")
+				("migration_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "migration data - status update flush interval")
+				("migration_data.host_count", boost::program_options::value<unsigned int>(), "migration hosts count")
+				("migration_data.host_index", boost::program_options::value<unsigned int>(), "migration hosts index")
+				("migration_data.orgs_enabled", boost::program_options::value<std::string>()->default_value("1"), "migration enabled for org-ids (comma separated list)")
+				;
 	}
 
 	migration(
@@ -56,18 +73,16 @@ public:
 					flush_interval_seconds_(confMap["migration_data.flush_interval_seconds"].as<unsigned int>()),
 					retention_db_(confMap)
 	{
-	}
-
-	static void describe_config(boost::program_options::options_description& optsDesc)
-	{
-		basic_database<migration>::describe_config(optsDesc);
-		retention::describe_config(optsDesc);
-		optsDesc.add_options()
-				("migration_data.poll_interval_seconds", boost::program_options::value<unsigned int>()->default_value(300U), "migration data polling interval")
-				("migration_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "migration data - status update flush interval")
-				("migration_data.host_count", boost::program_options::value<unsigned int>(), "migration hosts count")
-				("migration_data.host_index", boost::program_options::value<unsigned int>(), "migration hosts index")
-				;
+		if(confMap.count("migration_data.orgs_enabled")) {
+			const std::string& orgs_enabled(confMap["migration_data.orgs_enabled"].as<std::string>());
+			if(!orgs_enabled.empty()) {
+				std::vector<std::string> orgs_enabled_str;
+				boost::algorithm::split(orgs_enabled_str, orgs_enabled, boost::is_any_of(", \t"));
+				std::vector<std::string>::const_iterator end = orgs_enabled_str.end();
+				for(std::vector<std::string>::const_iterator itr = orgs_enabled_str.begin(); itr != end; ++itr)
+					orgs_enabled_.push_back(rml::utils::strtoull(itr->c_str()));
+			}
+		}
 	}
 
 	void find_migratables()
@@ -84,13 +99,32 @@ public:
 			try {
 				rml::MySQLConnection conn(pool_);
 				mysqlpp::Query query = conn->query();
-				query << "SELECT ID, UUID, Path, OrgID, CreateEpoch "
-				"FROM Migration "
-				"WHERE FileState='ok' AND Status='pending' AND Type='recording'"
-					"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT 200";
-				query.parse();
+				{
+					query << "SELECT ID, UUID, Path, OrgID, CreateEpoch "
+					"FROM Migration "
+					"WHERE ";
+					if(!orgs_enabled_.empty()) {
+						if(1 == orgs_enabled_.size()) {
+							query << "OrgID="<<orgs_enabled_[0]<<" AND ";
+						}
+						else {
+							int c = 0;
+							std::vector<archiving::org_id>::const_iterator end = orgs_enabled_.end();
+							query << "OrgID IN (";
+							for(std::vector<archiving::org_id>::const_iterator itr = orgs_enabled_.begin(); itr != end; ++itr) {
+								query << (c? ',': ' ')<<*itr;
+								c++;
+							}
+							query << ") AND ";
+						}
+					}
+					query << "FileState='ok' AND Status='pending' AND Type='recording'"
+							"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT 200";
+					query.parse();
+				}
 				mysqlpp::SQLQueryParms qp;
 				qp << app::hostname << host_count_ << host_index_;
+				LogDebug("SQL: "<<query.str(qp));
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
 					// make migration_data
