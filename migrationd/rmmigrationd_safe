@@ -14,15 +14,12 @@ __log() {
 	/usr/bin/logger -t "$syslog_tag" -p "local0.$level" -- "[safe] $@";
 }
 
-# exec >>/var/log/${program_name}_startup.log
-
 npipe=/tmp/${program_name}_safe_$$.tmp
 trap "rm -f $npipe" EXIT
 mknod $npipe p
 /usr/bin/logger -t "$syslog_tag" -p "local0.info" <$npipe &
 exec 1>&-
 exec 1>$npipe
-
 exec 2>&1
 
 __run() {
@@ -118,31 +115,31 @@ while true; do
 			;;
 			
 		1)
-			__log info "${program_name} stopped abnormally (general failure)."
+			__log err "${program_name} stopped abnormally (general failure)."
 			;;
 			
 		2)
-			__log info "${program_name} stopped abnormally (config file missing)."
+			__log err "${program_name} stopped abnormally (config file missing)."
 			exit 2;
 			;;
 			
 		3)
-			__log info "${program_name} stopped abnormally (config file unreadable)."
+			__log err "${program_name} stopped abnormally (config file unreadable)."
 			exit 3;
 			;;
 			
 		4)
-			__log info "${program_name} stopped abnormally (config file invalid)."
+			__log err "${program_name} stopped abnormally (config file invalid)."
 			exit 3;
 			;;
 
 		5)
-			__log info "${program_name} stopped abnormally (general initialization error)."
+			__log err "${program_name} stopped abnormally (general initialization error)."
 			exit 3;
 			;;
 			
 		*)
-			__log info "${program_name} stopped abnormally (possibly a crash)."
+			__log err "${program_name} stopped abnormally (possibly a crash)."
 			;;
 	esac
 
@@ -163,3 +160,4 @@ while true; do
 	
 	__log warning "${program_name} died ( status: $exit_status ) Restarting..."
 done;
+
