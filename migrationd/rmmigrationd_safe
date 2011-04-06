@@ -13,10 +13,10 @@ __log() {
 
 # exec >>/var/log/${program_name}_startup.log
 
-npipe=/tmp/$(program_name)_safe_$$.tmp
+npipe=/tmp/${program_name}_safe_$$.tmp
 trap "rm -f $npipe" EXIT
 mknod $npipe p
-/usr/bin/logger -t "$syslog_tag" -p "local0.info" <$npipe
+/usr/bin/logger -t "$syslog_tag" -p "local0.info" <$npipe &
 exec 1>&-
 exec 1>$npipe
 
