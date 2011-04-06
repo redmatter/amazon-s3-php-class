@@ -43,7 +43,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -laws
+	-lrml -lpugixml -lmysqlpp -lcryptopp -ls3
 
 CXX_SRCS += \
 	main.cpp

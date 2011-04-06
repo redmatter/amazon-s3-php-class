@@ -13,8 +13,8 @@ Version: %{version}
 Buildroot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libaws, cryptopp
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-11350, libaws-devel, cryptopp-devel, pugixml
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, cryptopp
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-11350, libs3-devel, cryptopp-devel, pugixml
 
 %package collectd
 Summary: Archiving CollectD
