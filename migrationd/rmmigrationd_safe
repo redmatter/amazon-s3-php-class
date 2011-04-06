@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Enable debug
+# set -x
+
 program_name=rmmigrationd
 
 syslog_tag=rm-migrationd
