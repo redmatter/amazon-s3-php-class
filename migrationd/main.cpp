@@ -76,6 +76,10 @@ volatile bool wasHUPed = false;
 int main(int argc, char* argv[]) try
 {
 	bool initialized = false;
+
+	// default initialization to catch any initialization error
+	rml::logger::configure();
+
 	boost::program_options::variables_map cli_confMap;
 	{
 		boost::program_options::options_description cli_optsDesc(
@@ -259,6 +263,7 @@ int main(int argc, char* argv[]) try
 
 		while(!app::quit) {
 			LogVerbose(((time(0)%2) ? "tik": "tok"));
+			//TODO monitoring stuff goes in here
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 

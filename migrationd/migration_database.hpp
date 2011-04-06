@@ -247,7 +247,8 @@ public:
 						retention_set.insert(retention);
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
-						LogVerbose("consume rimed-out; flush items we already have...");
+						if(!retention_set.empty())
+							LogVerbose("consume timed-out; flush items we already have...");
 						break;
 					}
 				}

@@ -80,7 +80,7 @@ cp migrationd/rmmigrationd.supp %{buildroot}/usr/share/archiving/
 cp migrationd/scripts/* %{buildroot}/usr/share/archiving/migration-scripts/.
 cp migrationd/rmmigrationd.conf %{buildroot}/etc/archiving/
 cp migrationd/rmmigrationd_migration_database.conf %{buildroot}/etc/archiving/rmmigrationd_migration_database.conf.sample
-cp retentiond/rmmigrationd_retention_database.conf %{buildroot}/etc/archiving/rmmigrationd_retention_database.conf.sample
+cp migrationd/rmmigrationd_retention_database.conf %{buildroot}/etc/archiving/rmmigrationd_retention_database.conf.sample
 cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
 cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
 
@@ -166,12 +166,15 @@ fi
 /usr/share/archiving/rmmigrationd.supp
 /etc/rc.d/init.d/rmmigrationd
 %config(noreplace) /etc/archiving/rmmigrationd.conf
+/etc/archiving/rmmigrationd_migration_database.conf.sample
+/etc/archiving/rmmigrationd_retention_database.conf.sample
 %dir /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmmigrationd
 /etc/rsyslog.d/11-rmmigrationd.conf
 %dir /usr/share/archiving/migration-scripts
 /usr/share/archiving/migration-scripts/*
+
 
 %clean
 rm -fR %{buildroot}
