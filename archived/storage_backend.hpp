@@ -346,9 +346,9 @@ public:
 		s3bc.secretAccessKey = &p_endpoint->secret_key[0];
 
 		S3PutObjectHandler putHandler;
-		putHandler.responseHandler.completeCallback = &response_complete_cb;
-		putHandler.responseHandler.propertiesCallback = &response_properties_cb;
-		putHandler.putObjectDataCallback = &put_object_data_cb;
+		putHandler.responseHandler.completeCallback = &response_complete_cb_;
+		putHandler.responseHandler.propertiesCallback = &response_properties_cb_;
+		putHandler.putObjectDataCallback = &put_object_data_cb_;
 
 		put_callback_data data(tmpfs);
 
