@@ -59,7 +59,7 @@ struct migration_data
 			throw rml::exception("Storage endpoint not found");
 
 		std::ostringstream ostr;
-		ostr << archiving::archivable::file_type::to_string(filetype) << '/' << org << uuid;
+		ostr << archiving::archivable::file_type::to_string(filetype) << '/' << org << '/' << uuid;
 		identifier = ostr.str();
 	}
 

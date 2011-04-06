@@ -100,7 +100,7 @@ public:
 				rml::MySQLConnection conn(pool_);
 				mysqlpp::Query query = conn->query();
 				{
-					query << "SELECT ID, UUID, Path, OrgID, CreateEpoch "
+					query << "SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, Path, OrgID, CreateEpoch "
 					"FROM Migration "
 					"WHERE ";
 					if(!orgs_enabled_.empty()) {
