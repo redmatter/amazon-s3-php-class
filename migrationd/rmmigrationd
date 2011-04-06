@@ -23,7 +23,7 @@ pid_file=/var/run/archiving/${program_name}.pid
 
 program=/usr/bin/${program_name}.bin
 
-program_opts="--hostname $( uname -n | cut -d. -f1)"
+program_opts="--hostname $( uname -n | cut -d. -f1 )"
 
 config_file=/etc/archiving/${program_name}.conf
 

@@ -95,14 +95,7 @@ int main(int argc, char* argv[]) try
 			return 1;
 		}
 
-		if(1 != cli_confMap.count("hostname"))
-			throw rml::exception("hostname not given");
-
-		app::hostname = cli_confMap["hostname"].as<std::string>();
-
-		// -------------- config loading ------------------
-
-		boost::program_options::options_description optsDesc;
+		boost::program_options::options_description optsDesc("Configuration options ( please ignore '--' )");
 		optsDesc.add_options()
 				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
 				("app.run_as_group", boost::program_options::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
@@ -115,11 +108,18 @@ int main(int argc, char* argv[]) try
 
 		rml::logger::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
+		app::database::migration::describe_config(optsDesc);
+		app::migration_storage::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
 			return 1;
 		}
+
+		if(1 != cli_confMap.count("hostname"))
+			throw rml::exception("hostname not given");
+
+		app::hostname = cli_confMap["hostname"].as<std::string>();
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);

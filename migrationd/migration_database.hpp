@@ -60,7 +60,8 @@ public:
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
-		app::database::retention::describe_config(optsDesc);
+		basic_database<migration>::describe_config(optsDesc);
+		retention::describe_config(optsDesc);
 		optsDesc.add_options()
 				("migration_data.poll_interval_seconds", boost::program_options::value<unsigned int>()->default_value(300U), "migration data polling interval")
 				("migration_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "migration data - status update flush interval")

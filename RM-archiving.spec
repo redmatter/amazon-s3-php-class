@@ -47,7 +47,6 @@ make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 %install
 mkdir -p %{buildroot}/usr/bin/
 mkdir -p %{buildroot}/etc/archiving/conf.d/
-mkdir -p %{buildroot}/etc/httpd/conf.d/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
@@ -80,6 +79,8 @@ cp migrationd/rmmigrationd %{buildroot}/etc/rc.d/init.d/
 cp migrationd/rmmigrationd.supp %{buildroot}/usr/share/archiving/
 cp migrationd/scripts/* %{buildroot}/usr/share/archiving/migration-scripts/.
 cp migrationd/rmmigrationd.conf %{buildroot}/etc/archiving/
+cp migrationd/rmmigrationd_migration_database.conf %{buildroot}/etc/archiving/rmmigrationd_migration_database.conf.sample
+cp retentiond/rmmigrationd_retention_database.conf %{buildroot}/etc/archiving/rmmigrationd_retention_database.conf.sample
 cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
 cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
 
@@ -174,3 +175,4 @@ fi
 
 %clean
 rm -fR %{buildroot}
+

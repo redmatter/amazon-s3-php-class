@@ -20,6 +20,12 @@ public:
 	{
 	}
 
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		storage::s3::backend::describe_config(optsDesc);
+//		optsDesc.add_options()
+//				;
+	}
 
 	void run()
 	{
