@@ -84,6 +84,7 @@ int main(int argc, char* argv[]) try
 							) % version_number_string % copyright_string));
 		cli_optsDesc.add_options()
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
+				("help-conf", "conf file help")
 				("help", "this help")
 				;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
@@ -93,7 +94,6 @@ int main(int argc, char* argv[]) try
 			std::cout << cli_optsDesc << "\n";
 			return 1;
 		}
-
 
 		if(1 != cli_confMap.count("hostname"))
 			throw rml::exception("hostname not given");
@@ -111,10 +111,15 @@ int main(int argc, char* argv[]) try
 
 				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/migration")), "migration temp data directory")
 				("rmfs.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/store01")), "rmfs data directory")
-
 				;
+
 		rml::logger::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
+
+		if(cli_confMap.count("help-conf")) {
+			std::cout << optsDesc << "\n";
+			return 1;
+		}
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
