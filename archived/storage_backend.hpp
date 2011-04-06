@@ -188,6 +188,8 @@ protected:
 		put_callback_data *data = (put_callback_data *) callbackData;
 		data->status = status;
 
+		LogVerbose("response_complete_cb: ... "<<S3_get_status_name(status));
+
 		if (error && error->message)
 			LogError("Error: "<<error->message);
 
@@ -208,6 +210,8 @@ protected:
 	static int put_object_data_cb(int bufferSize, char *buffer, void *callbackData)
 	{
 		put_callback_data *data = (put_callback_data *) callbackData;
+
+		LogVerbose("put_object_data_cb: ...");
 
 		int ret = 0;
 
@@ -356,6 +360,8 @@ public:
 		do {
 			S3_put_object(&s3bc, &identifier[0], data.to_be_copied, &s3pp, 0, &putHandler, &data);
 		} while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
+
+		LogVerbose("PUT Result Status: "<<S3_get_status_name(data.status));
 
 		if(data.status != S3StatusOK)
 			throw rml::exception("S3 PUT failed");
