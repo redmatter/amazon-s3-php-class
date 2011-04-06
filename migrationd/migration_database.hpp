@@ -173,7 +173,10 @@ public:
 						{
 							mysqlpp::Query query = conn->query();
 							query << "SELECT ID, Status FROM Migration WHERE ID=%1:ID FOR UPDATE";
-							mysqlpp::StoreQueryResult res = query.store();
+							query.parse();
+							mysqlpp::SQLQueryParms qp;
+							qp << data.id;
+							mysqlpp::StoreQueryResult res = query.store(qp);
 							cur_status = res[0][1].c_str();
 						}
 
