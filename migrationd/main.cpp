@@ -269,9 +269,9 @@ int main(int argc, char* argv[]) try
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
-		channel_data_in.set_finishing();
 		channel_convert.set_finishing();
 		channel_copy_to_s3.set_finishing();
+		channel_copy_to_s3_done.set_finishing();
 		channel_save_retention.set_finishing();
 
 		threads.join_all();
