@@ -127,13 +127,14 @@ public:
 		return std::make_pair(false, app::retention());
 	}
 
-	void save(const data_multiset& data)
+	void save(data_multiset& data)
 	{
-		data_multiset::iterator b_itr = data.begin();
 		while(data.begin() != data.end()) {
+			data_multiset::iterator b_itr = data.begin();
 			std::pair< data_multiset::iterator, data_multiset::iterator > range = data.equal_range(*b_itr);
 
 			const archiving::org_id& org(b_itr->org);
+
 			rml::MySQLConnection conn(pool_); // scoped connection
 			mysqlpp::SQLQueryParms qp;
 			mysqlpp::Query query = conn->query();
@@ -145,13 +146,13 @@ public:
 					;
 			int values_count = 0;
 			for(data_multiset::iterator itr = range.first; itr != range.second; ++itr) {
-				query << (values_count? ',': ' ') << "( UNHEX(%"<<(values_count+0)<<"q:UUID_"<<values_count<<"), %"<<(values_count+1)<<":Format_"<<values_count<<", "
-				"%"<<(values_count+2)<<":OrgID_"<<values_count<<", %"<<(values_count+3)<<":UserID_"<<values_count<<", "
-				"%"<<(values_count+4)<<":PolicyID_"<<values_count<<", %"<<(values_count+5)<<":PolicyVersion_"<<values_count<<", "
-				"'%"<<(values_count+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count+8)<<":CreationDateDay_"<<values_count<<"', "
-				"'%"<<(values_count+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count+11)<<":RetentionMinDateDay_"<<values_count<<"', "
-				"'%"<<(values_count+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
-				"%"<<(values_count+15)<<":EndpointID_"<<values_count<<" )";
+				query << (values_count? ',': ' ') << "( UNHEX(REPLACE(%"<<(values_count*16+0)<<"q:UUID_"<<values_count<<", '-', '')), %"<<(values_count*16+1)<<":Format_"<<values_count<<", "
+				"%"<<(values_count*16+2)<<":OrgID_"<<values_count<<", %"<<(values_count*16+3)<<":UserID_"<<values_count<<", "
+				"%"<<(values_count*16+4)<<":PolicyID_"<<values_count<<", %"<<(values_count*16+5)<<":PolicyVersion_"<<values_count<<", "
+				"'%"<<(values_count*16+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count*16+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count*16+8)<<":CreationDateDay_"<<values_count<<"', "
+				"'%"<<(values_count*16+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count*16+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count*16+11)<<":RetentionMinDateDay_"<<values_count<<"', "
+				"'%"<<(values_count*16+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count*16+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count*16+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
+				"%"<<(values_count*16+15)<<":EndpointID_"<<values_count<<" )";
 
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
@@ -175,14 +176,16 @@ public:
 						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)
 
 						<< itr->endpoint_id;
+
+				values_count++;
 			}
-LogVerbose("query: "<<query.str());
+
 			query.parse();
 			LogVerbose("SQL: "<<query.str(qp));
 			mysqlpp::SimpleResult res = query.execute(qp);
 			LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
-			b_itr = range.second;
+			data.erase(range.first, range.second);
 		}
 	}
 
