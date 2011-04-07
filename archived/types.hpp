@@ -18,6 +18,7 @@
 #include <functional>
 #include <algorithm>
 #include <iomanip>
+#include <map>
 
 #include <stdint.h>
 #include <string.h>
@@ -410,6 +411,17 @@ struct file_format
 	}
 };
 
+
+struct caseless_string_key_compare
+{
+	bool operator()(const std::string& lhs, const std::string& rhs) const
+	{
+		return 0 > strcasecmp(lhs.c_str(), rhs.c_str());
+	}
+};
+
+typedef std::map < std::string, std::string, caseless_string_key_compare > caseless_key_string_map;
+
 class metadata : public std::multimap<std::string, std::string>
 {
 	bool validate(const std::string& key)
@@ -477,7 +489,7 @@ public:
 		insert(std::make_pair(key, value));
 	}
 
-	void make_headers(std::map<std::string, std::string>& headers) const
+	void make_headers(caseless_key_string_map& headers) const
 	{
 		const_iterator first_itr = begin();
 		const_iterator end_itr = end();

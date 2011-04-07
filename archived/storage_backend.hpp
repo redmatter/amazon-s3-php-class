@@ -24,6 +24,7 @@
 #include <map>
 
 #include <stdint.h>
+#include <strings.h>
 
 namespace {
 
@@ -330,31 +331,29 @@ public:
 			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
 
 		assert(false == opdata->p_detail->p_metadata->empty());
-		std::map< std::string, std::string > headers;
+		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
 		put(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, tmpfs, opdata->p_detail->target_file_format, headers);
 	}
-
-	typedef std::map < ci_string, std::string > string_string_map;
 
 	inline void put(
 			endpoint::pointer p_endpoint,
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer tmpfs,
 			const types::file_format::file_format_t& target_file_format,
-			const string_string_map& headers = string_string_map())
+			const types::caseless_key_string_map& headers = types::caseless_key_string_map())
 	{
-		string_string_map s3headers = headers;
+		types::caseless_key_string_map s3headers = headers;
 		{
 			s3headers.insert(std::make_pair(
-					ci_string("file-type-is-compressed"),
+					"file-type-is-compressed",
 					types::file_format::is_compressed(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					ci_string("file-type-is-encrypted"),
+					"file-type-is-encrypted",
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					ci_string("file-type"),
+					"file-type",
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
@@ -362,7 +361,7 @@ public:
 		S3NameValue metadata[s3headers.size()];
 		LogVerbose("Adding "<<s3headers.size()<<" metadata headers");
 		int i = 0;
-		for(string_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
+		for(types::caseless_key_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
 			if(!itr->first.empty() && !itr->second.empty()) {
 				metadata[i].name = &(*itr).first[0];
 				metadata[i].value = &(*itr).second[0];
