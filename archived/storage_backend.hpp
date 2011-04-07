@@ -317,13 +317,18 @@ public:
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
-		std::vector<S3NameValue> metadata;
+
+		S3NameValue metadata[s3headers.size()];
+		LogVerbose("Adding "<<s3headers.size()<<" metadata headers");
+		int i = 0;
 		for(string_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
 			if(!itr->first.empty() && !itr->second.empty()) {
-				S3NameValue nv;
-				nv.name = &(*itr).first[0];
-				nv.value = &(*itr).second[0];
-				metadata.push_back(nv);
+				metadata[i].name = &(*itr).first[0];
+				metadata[i].value = &(*itr).second[0];
+
+				LogVerbose("Metadata["<<i<<"] - name: "<<metadata[i].name<<" value: "<< metadata[i].value);
+
+				i++;
 			}
 		}
 
@@ -331,8 +336,8 @@ public:
 		s3pp.contentType = 0;
 		// TODO XXX FIXME add md5
 		s3pp.md5 = 0;
-		s3pp.metaDataCount = 0;//metadata.size();
-		s3pp.metaData = 0;//&metadata[0];
+		s3pp.metaDataCount = s3headers.size();
+		s3pp.metaData = metadata;
 		s3pp.cacheControl = 0;
 		s3pp.contentDispositionFilename = 0;
 		s3pp.contentEncoding = 0;
