@@ -283,7 +283,7 @@ public:
 //				const std::map<std::string, std::string>& metadata(p_headRes->getMetaData());
 //				std::map<std::string, std::string>::const_iterator itr_is_compressed = metadata.find("file-type-is-compressed");
 //				std::map<std::string, std::string>::const_iterator itr_is_encrypted  = metadata.find("file-type-is-encrypted");
-//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type");
+//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type-content");
 //				std::map<std::string, std::string>::const_iterator itr_end = metadata.end();
 //				types::data_sub_format::data_sub_format_t dsf = types::data_sub_format::binary;
 //				if(itr_filetype != itr_end) {
@@ -353,7 +353,7 @@ public:
 					"file-type-is-encrypted",
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"file-type",
+					"file-type-content",
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
