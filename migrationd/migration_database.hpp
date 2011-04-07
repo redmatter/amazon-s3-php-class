@@ -172,7 +172,7 @@ public:
 						std::string cur_status;
 						{
 							mysqlpp::Query query = conn->query();
-							query << "SELECT ID, Status FROM Migration WHERE ID=%1:ID FOR UPDATE";
+							query << "SELECT ID, Status FROM Migration WHERE ID=%0:ID FOR UPDATE";
 							query.parse();
 							mysqlpp::SQLQueryParms qp;
 							qp << data.id;
@@ -180,16 +180,18 @@ public:
 							cur_status = res[0][1].c_str();
 						}
 
-						std::string new_status = ((data.state == migration_data::copied)? "migrated" : ((cur_status == "retry")? "migration_error": "retry"));
+						{
+							std::string new_status = ((data.state == migration_data::copied)? "migrated" : ((cur_status == "retry")? "migration_error": "retry"));
 
-						mysqlpp::Query query = conn->query();
-						query << "UPDATE Migration SET Status=%0q:Status WHERE ID=%1:ID";
-						query.parse();
-						mysqlpp::SQLQueryParms qp;
-						qp << new_status << data.id;
-						mysqlpp::SimpleResult res = query.execute(qp);
-						if(res.rows())
-							LogMessage(data.identifier<<" [id:"<<data.id<<"] marked as "<<new_status);
+							mysqlpp::Query query = conn->query();
+							query << "UPDATE Migration SET Status=%0q:Status WHERE ID=%1:ID";
+							query.parse();
+							mysqlpp::SQLQueryParms qp;
+							qp << new_status << data.id;
+							mysqlpp::SimpleResult res = query.execute(qp);
+							if(res.rows())
+								LogMessage(data.identifier<<" [id:"<<data.id<<"] marked as "<<new_status);
+						}
 
 						transaction.commit();
 

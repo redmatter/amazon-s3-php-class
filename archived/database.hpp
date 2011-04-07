@@ -173,7 +173,7 @@ public:
 						<< applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)
 						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day);
 			}
-
+LogVerbose("query: "<<query.str());
 			query.parse();
 			LogVerbose("SQL: "<<query.str(qp));
 			mysqlpp::SimpleResult res = query.execute(qp);
