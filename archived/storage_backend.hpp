@@ -25,6 +25,47 @@
 
 #include <stdint.h>
 
+namespace {
+
+struct ci_char_traits: public std::char_traits<char> {
+
+	static bool eq(char c1, char c2) {
+		return toupper(c1) == toupper(c2);
+	}
+
+	static bool ne(char c1, char c2) {
+		return toupper(c1) != toupper(c2);
+	}
+
+	static bool lt(char c1, char c2) {
+		return toupper(c1) < toupper(c2);
+	}
+
+	static int compare(const char* s1, const char* s2, size_t n) {
+		while (n-- != 0) {
+			if (toupper(*s1) < toupper(*s2))
+				return -1;
+			if (toupper(*s1) > toupper(*s2))
+				return 1;
+			++s1;
+			++s2;
+		}
+		return 0;
+	}
+
+	static const char* find(const char* s, int n, char a) {
+		while (n-- > 0 && toupper(*s) != toupper(a)) {
+			++s;
+		}
+		return s;
+	}
+
+};
+
+typedef std::basic_string<char, ci_char_traits> ci_string;
+
+}
+
 extern "C" {
 S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
@@ -295,7 +336,7 @@ public:
 		put(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, tmpfs, opdata->p_detail->target_file_format, headers);
 	}
 
-	typedef std::map < std::string, std::string > string_string_map;
+	typedef std::map < ci_string, std::string > string_string_map;
 
 	inline void put(
 			endpoint::pointer p_endpoint,
@@ -307,13 +348,13 @@ public:
 		string_string_map s3headers = headers;
 		{
 			s3headers.insert(std::make_pair(
-					"file-type-is-compressed",
+					ci_string("file-type-is-compressed"),
 					types::file_format::is_compressed(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"file-type-is-encrypted",
+					ci_string("file-type-is-encrypted"),
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"file-type",
+					ci_string("file-type"),
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
@@ -332,35 +373,35 @@ public:
 			}
 		}
 
-		S3PutProperties s3pp;
-		s3pp.contentType = 0;
+		S3PutProperties put_props;
+		put_props.contentType = 0;
 		// TODO XXX FIXME add md5
-		s3pp.md5 = 0;
-		s3pp.metaDataCount = s3headers.size();
-		s3pp.metaData = metadata;
-		s3pp.cacheControl = 0;
-		s3pp.contentDispositionFilename = 0;
-		s3pp.contentEncoding = 0;
-		s3pp.expires = -1;
-		s3pp.cannedAcl = S3CannedAclPrivate;
+		put_props.md5 = 0;
+		put_props.metaDataCount = s3headers.size();
+		put_props.metaData = metadata;
+		put_props.cacheControl = 0;
+		put_props.contentDispositionFilename = 0;
+		put_props.contentEncoding = 0;
+		put_props.expires = -1;
+		put_props.cannedAcl = S3CannedAclPrivate;
 
-		S3BucketContext s3bc;
-		s3bc.bucketName = &p_endpoint->bucket[0];
-		s3bc.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-		s3bc.uriStyle = S3UriStyleVirtualHost;
-		s3bc.accessKeyId = &p_endpoint->access_key[0];
-		s3bc.secretAccessKey = &p_endpoint->secret_key[0];
+		S3BucketContext bucket_context;
+		bucket_context.bucketName = &p_endpoint->bucket[0];
+		bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
+		bucket_context.uriStyle = S3UriStyleVirtualHost;
+		bucket_context.accessKeyId = &p_endpoint->access_key[0];
+		bucket_context.secretAccessKey = &p_endpoint->secret_key[0];
 
-		S3PutObjectHandler putHandler;
-		putHandler.responseHandler.completeCallback = &response_complete_cb_;
-		putHandler.responseHandler.propertiesCallback = &response_properties_cb_;
-		putHandler.putObjectDataCallback = &put_object_data_cb_;
+		S3PutObjectHandler put_handler;
+		put_handler.responseHandler.completeCallback = &response_complete_cb_;
+		put_handler.responseHandler.propertiesCallback = &response_properties_cb_;
+		put_handler.putObjectDataCallback = &put_object_data_cb_;
 
 		put_callback_data data(tmpfs);
 
 		int retry = 2;
 		do {
-			S3_put_object(&s3bc, &identifier[0], data.to_be_copied, &s3pp, 0, &putHandler, &data);
+			S3_put_object(&bucket_context, &identifier[0], data.to_be_copied, &put_props, 0, &put_handler, &data);
 		} while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
 		LogVerbose("PUT Result Status: "<<S3_get_status_name(data.status));
