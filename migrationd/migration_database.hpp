@@ -248,6 +248,7 @@ public:
 						retention.user = 0;
 						retention.uuid = data.uuid;
 						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
+						retention.endpoint_id = data.p_endpoint->identifier;
 
 						retention_set.insert(retention);
 					}
@@ -269,6 +270,7 @@ public:
 					retention.user = 0;
 					retention.uuid = itr->uuid;
 					retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
+					retention.endpoint_id = itr->p_endpoint->identifier;
 
 					retention_set.insert(retention);
 				}

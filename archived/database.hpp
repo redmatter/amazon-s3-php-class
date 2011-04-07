@@ -59,6 +59,7 @@ public:
 		std::string uuid;
 		applied_policy retention;
 		types::file_format::file_format_t file_format;
+		uint64_t endpoint_id;
 
 		struct compare
 		{
@@ -171,7 +172,9 @@ public:
 
 						<< applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)
 						<< applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)
-						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day);
+						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)
+
+						<< itr->endpoint_id;
 			}
 LogVerbose("query: "<<query.str());
 			query.parse();
