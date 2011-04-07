@@ -263,10 +263,18 @@ int main(int argc, char* argv[]) try
 			threads.create_thread(boost::bind(&app::database::migration::flush_retention, boost::ref(migration_db)));
 		}
 
+		int ticker = 1;
 		while(!app::quit) {
 			LogDebug(((time(0)%2) ? "tik": "tok"));
 
 			//TODO monitoring stuff goes in here
+
+			if(0 == (ticker % 20)) {
+				cached_endpoint_finder.clear_unused(300);
+				cached_policy_finder.clear_unused(300);
+			}
+
+			ticker++;
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
