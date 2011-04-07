@@ -180,7 +180,7 @@ protected:
 		put_callback_data *data = (put_callback_data *) callbackData;
 		data->status = status;
 
-		LogVerbose("response_complete_cb: ... "<<S3_get_status_name(status));
+		LogVerbose("status: "<<S3_get_status_name(status));
 
 		if (error && error->message)
 			LogError("Error: "<<error->message);
@@ -346,7 +346,7 @@ public:
 
 		S3BucketContext s3bc;
 		s3bc.bucketName = &p_endpoint->bucket[0];
-		s3bc.protocol = S3ProtocolHTTPS; // TODO config driven
+		s3bc.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
 		s3bc.uriStyle = S3UriStyleVirtualHost;
 		s3bc.accessKeyId = &p_endpoint->access_key[0];
 		s3bc.secretAccessKey = &p_endpoint->secret_key[0];
@@ -381,8 +381,6 @@ extern "C" {
 
 S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
 {
-	LogMessage("........................");
-
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
@@ -400,8 +398,6 @@ S3Status response_properties_cb_(const S3ResponseProperties *properties, void *c
 
 void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
 {
-	LogMessage("........................");
-
 	try {
 		app::storage::s3::backend::response_complete_cb(status, error, callbackData);
 	}
@@ -415,8 +411,6 @@ void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *c
 
 int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
 {
-	LogMessage("........................");
-
 	int ret = -1;
 
 	try {
