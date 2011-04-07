@@ -100,6 +100,8 @@ class result_cache
 		{
 			boost::unique_lock<boost::mutex> lock(mutex_);
 
+			LogVerbose("Removing older cache items");
+
 			time_t newer = time(0) - diff;
 			iter_type cache_end = cache_.end();
 			for(iter_type it = cache_.begin(); it != cache_end; ++it) {
