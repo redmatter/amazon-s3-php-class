@@ -77,7 +77,6 @@ namespace s3 {
 
 namespace specific {
 
-template < typename ignore >
 class initialiser {
 	mutable boost::mutex mutex_;
 	boost::condition_variable cond_initialised_;
@@ -100,9 +99,7 @@ protected:
 	bool initialised_;
 
 public:
-	static initialiser< ignore > static_initialiser;
-
-	initialiser() : mutex_(), cond_initialised_(mutex_), initialised_(false)
+	initialiser() : initialised_(false)
 	{
 		boost::unique_lock<boost::mutex> lock(mutex_);
 		S3Status status = S3_initialize("RedMatterArchive", S3_INIT_ALL);
@@ -134,12 +131,7 @@ public:
 	}
 };
 
-template < typename ignore >
-initialiser< ignore > initialiser< ignore >::static_initialiser;
-
 } //namespace specific
-
-typedef specific::initialiser<void> initialiser;
 
 class backend : public basic_backend<backend>
 {
@@ -247,9 +239,9 @@ public:
 //			{
 //				aws::HeadResponsePtr p_headRes = p_s3Conn->head(opdata->p_detail->p_endpoint->bucket, opdata->p_detail->identifier);
 //				const std::map<std::string, std::string>& metadata(p_headRes->getMetaData());
-//				std::map<std::string, std::string>::const_iterator itr_is_compressed = metadata.find("FileTypeIsCompressed");
-//				std::map<std::string, std::string>::const_iterator itr_is_encrypted  = metadata.find("FileTypeIsEncrypted");
-//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("FileType");
+//				std::map<std::string, std::string>::const_iterator itr_is_compressed = metadata.find("file-type-is-compressed");
+//				std::map<std::string, std::string>::const_iterator itr_is_encrypted  = metadata.find("file-type-is-encrypted");
+//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type");
 //				std::map<std::string, std::string>::const_iterator itr_end = metadata.end();
 //				types::data_sub_format::data_sub_format_t dsf = types::data_sub_format::binary;
 //				if(itr_filetype != itr_end) {
@@ -315,13 +307,13 @@ public:
 		string_string_map s3headers = headers;
 		{
 			s3headers.insert(std::make_pair(
-					"FileTypeIsCompressed",
+					"file-type-is-compressed",
 					types::file_format::is_compressed(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"FileTypeIsEncrypted",
+					"file-type-is-encrypted",
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"FileType",
+					"file-type",
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
@@ -336,11 +328,16 @@ public:
 		}
 
 		S3PutProperties s3pp;
-		s3pp.contentType = "application/octet-stream";
+		s3pp.contentType = 0;
 		// TODO XXX FIXME add md5
-		// s3pp.md5 = 0;
-		s3pp.metaDataCount = metadata.size();
-		s3pp.metaData = &metadata[0];
+		s3pp.md5 = 0;
+		s3pp.metaDataCount = 0;//metadata.size();
+		s3pp.metaData = 0;//&metadata[0];
+		s3pp.cacheControl = 0;
+		s3pp.contentDispositionFilename = 0;
+		s3pp.contentEncoding = 0;
+		s3pp.expires = -1;
+		s3pp.cannedAcl = S3CannedAclPrivate;
 
 		S3BucketContext s3bc;
 		s3bc.bucketName = &p_endpoint->bucket[0];
@@ -379,6 +376,8 @@ extern "C" {
 
 S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
 {
+	LogMessage("........................");
+
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
@@ -396,6 +395,8 @@ S3Status response_properties_cb_(const S3ResponseProperties *properties, void *c
 
 void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
 {
+	LogMessage("........................");
+
 	try {
 		app::storage::s3::backend::response_complete_cb(status, error, callbackData);
 	}
@@ -409,6 +410,8 @@ void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *c
 
 int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
 {
+	LogMessage("........................");
+
 	int ret = -1;
 
 	try {

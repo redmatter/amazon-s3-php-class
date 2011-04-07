@@ -227,6 +227,8 @@ int main(int argc, char* argv[]) try
 		app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
 		app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
 
+		app::storage::s3::specific::initialiser libs3_initialiser;
+
 		app::migration_data::channel_t channel_convert("Convert");
 		app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
 		app::migration_data::channel_t channel_copy_to_s3_done("Copy2S3Done");
