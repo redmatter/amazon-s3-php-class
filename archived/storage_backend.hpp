@@ -379,17 +379,49 @@ extern "C" {
 
 S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
 {
-	return app::storage::s3::backend::response_properties_cb(properties, callbackData);
+	S3Status ret = S3StatusErrorUnknown;
+
+	try {
+		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
 }
 
 void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
 {
-	app::storage::s3::backend::response_complete_cb(status, error, callbackData);
+	try {
+		app::storage::s3::backend::response_complete_cb(status, error, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
 }
 
 int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
 {
-	return app::storage::s3::backend::put_object_data_cb(bufferSize, buffer, callbackData);
+	int ret = -1;
+
+	try {
+		ret = app::storage::s3::backend::put_object_data_cb(bufferSize, buffer, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
 }
 
 }
