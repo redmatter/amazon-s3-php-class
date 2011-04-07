@@ -245,8 +245,6 @@ protected:
 	{
 		put_callback_data *data = (put_callback_data *) callbackData;
 
-		LogVerbose("put_object_data_cb: ...");
-
 		int ret = 0;
 
 		if (data->to_be_copied) {
