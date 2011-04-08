@@ -118,7 +118,7 @@ public:
 							query << ") AND ";
 						}
 					}
-					query << "FileState='ok' AND Status='pending' AND Type='recordings'"
+					query << "FileState='ok' AND Status IN ('pending','retry') AND Type='recordings'"
 							"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT 200";
 					query.parse();
 				}

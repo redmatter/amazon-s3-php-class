@@ -215,16 +215,23 @@ protected:
 		{
 		}
 
-		put_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) : p_tmpfs_(p_tmpfs), to_be_copied(p_tmpfs->get_size())
+		put_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) :
+			p_tmpfs_(p_tmpfs),
+			to_be_copied(p_tmpfs->get_size())
 		{
 			p_tmpfs_->seekg(0);
 			CryptoPP::Weak1::MD5 hash;
 			CryptoPP::FileSource f(*p_tmpfs_, true,
 					new CryptoPP::HashFilter(hash,
 							new CryptoPP::Base64Encoder(
-									new CryptoPP::StringSink(base64_md5))));
+									new CryptoPP::StringSink(base64_md5), false)));
+
+			if(!(*p_tmpfs_) && !p_tmpfs_->eof())
+				throw rml::exception("Error while creating md5");
+
 			LogVerbose("Base64(MD5): "<<base64_md5);
 
+			p_tmpfs_->clear(); // clear eof
 			p_tmpfs_->seekg(0);
 		}
 	};
@@ -299,7 +306,7 @@ public:
 //				const std::map<std::string, std::string>& metadata(p_headRes->getMetaData());
 //				std::map<std::string, std::string>::const_iterator itr_is_compressed = metadata.find("file-type-is-compressed");
 //				std::map<std::string, std::string>::const_iterator itr_is_encrypted  = metadata.find("file-type-is-encrypted");
-//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type-content");
+//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type");
 //				std::map<std::string, std::string>::const_iterator itr_end = metadata.end();
 //				types::data_sub_format::data_sub_format_t dsf = types::data_sub_format::binary;
 //				if(itr_filetype != itr_end) {
@@ -369,7 +376,7 @@ public:
 					"file-type-is-encrypted",
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
-					"file-type-content",
+					"file-type",
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 		}
 
