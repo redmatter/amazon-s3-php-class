@@ -17,6 +17,13 @@
 
 #include <libs3.h>
 
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/filters.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/files.h>
+#include <cryptopp/md5.h>
+#include <cryptopp/base64.h>
+
 #include <boost/noncopyable.hpp>
 
 #include <fstream>
@@ -200,6 +207,7 @@ protected:
 		rml::utils::tmp_fstream::pointer p_tmpfs_;
 		std::size_t to_be_copied;
 		S3Status status;
+		std::string base64_md5;
 
 		put_callback_data() : p_tmpfs_(), to_be_copied(0)
 		{
@@ -207,6 +215,14 @@ protected:
 
 		put_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) : p_tmpfs_(p_tmpfs), to_be_copied(p_tmpfs->get_size())
 		{
+			p_tmpfs_->seekg(0);
+			CryptoPP::MD5 hash;
+			CryptoPP::FileSource f(*p_tmpfs_, true,
+					new CryptoPP::HashFilter(hash,
+							new CryptoPP::Base64Encoder(
+									new CryptoPP::StringSink(base64_md5))));
+			LogVerbose("Base64(MD5): "<<base64_md5);
+
 			p_tmpfs_->seekg(0);
 		}
 	};
@@ -370,10 +386,11 @@ public:
 			}
 		}
 
+		put_callback_data data(tmpfs);
+
 		S3PutProperties put_props;
 		put_props.contentType = 0;
-		// TODO XXX FIXME add md5
-		put_props.md5 = 0;
+		put_props.md5 = &data.base64_md5[0];
 		put_props.metaDataCount = s3headers.size();
 		put_props.metaData = metadata;
 		put_props.cacheControl = 0;
@@ -393,8 +410,6 @@ public:
 		put_handler.responseHandler.completeCallback = &response_complete_cb_;
 		put_handler.responseHandler.propertiesCallback = &response_properties_cb_;
 		put_handler.putObjectDataCallback = &put_object_data_cb_;
-
-		put_callback_data data(tmpfs);
 
 		int retry = 2;
 		do {
