@@ -218,7 +218,7 @@ protected:
 		put_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) : p_tmpfs_(p_tmpfs), to_be_copied(p_tmpfs->get_size())
 		{
 			p_tmpfs_->seekg(0);
-			CryptoPP::MD5 hash;
+			CryptoPP::Weak1::MD5 hash;
 			CryptoPP::FileSource f(*p_tmpfs_, true,
 					new CryptoPP::HashFilter(hash,
 							new CryptoPP::Base64Encoder(
