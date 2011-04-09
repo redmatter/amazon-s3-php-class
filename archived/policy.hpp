@@ -13,6 +13,8 @@
 
 #include <rml/exception.h>
 
+#include <pugixml/pugixml.hpp>
+
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -24,6 +26,9 @@
 
 namespace app {
 
+/**
+ * Defines various retention units
+ */
 struct retention_units
 {
 	enum retention_units_t
@@ -148,11 +153,23 @@ struct policy
 
 		const std::string& response = api.get(ostr.str());
 
-		// FIXME run XPath & create definition;
-		(void)response;
+		// run xpath
+		pugi::xml_document doc;
+		if(!doc.load(response.c_str()))
+			throw rml::exception("Unable to load response document");
 
-		return pointer(new policy(org_policy.second, 1, 6, retention_units::months, 1, retention_units::years));
-	};
+		const char* id_str = doc.select_single_node("/Archiving/Policy/ID/text()").node().value();
+		const char* version_str = doc.select_single_node("/Archiving/Policy/Version/text()").node().value();
+		const char* min_retention_period_str = doc.select_single_node("/Archiving/Policy/RetentionMin/text()").node().value();
+		const char* min_retention_period_unit_str = doc.select_single_node("/Archiving/Policy/RetentionMin/@Unit").node().value();
+		const char* max_retention_period_str = doc.select_single_node("/Archiving/Policy/RetentionMax/text()").node().value();
+		const char* max_retention_period_unit_str = doc.select_single_node("/Archiving/Policy/RetentionMax/@Unit").node().value();
+
+		return pointer(new policy(
+				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str),
+				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
+				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str)));
+	}
 
 	typedef cache::result_cache<const std::pair<archiving::org_id, id_type>, pointer> cached_finder_t;
 };
