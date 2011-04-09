@@ -103,7 +103,7 @@ public:
 			else if(str == "cdr")
 				type = cdr;
 			else if(str == "recording")
-				type = call_recording;
+				type = recording;
 			else
 				THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 
