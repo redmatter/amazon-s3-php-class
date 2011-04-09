@@ -75,9 +75,7 @@ public:
 		enum file_type_t {
 			unknown = 0,
 			cdr,
-			call_recording,
-			hold_music,
-			voice_recording,
+			recording,
 
 			n_file_types
 		};
@@ -86,9 +84,7 @@ public:
 			static const char* types_str[] = {
 				"unknown",
 				"cdr",
-				"call_recording",
-				"hold_music",
-				"voice_recording",
+				"recording",
 
 				"invalid-file-type"
 			};
@@ -106,12 +102,8 @@ public:
 				type = unknown;
 			else if(str == "cdr")
 				type = cdr;
-			else if(str == "call_recording")
+			else if(str == "recording")
 				type = call_recording;
-			else if(str == "hold_music")
-				type = hold_music;
-			else if(str == "voice_recording")
-				type = voice_recording;
 			else
 				THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 
