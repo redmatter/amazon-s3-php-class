@@ -160,10 +160,14 @@ struct policy
 
 		const char* id_str = doc.select_single_node("/Archiving/Policy/ID/text()").node().value();
 		const char* version_str = doc.select_single_node("/Archiving/Policy/Version/text()").node().value();
-		const char* min_retention_period_str = doc.select_single_node("/Archiving/Policy/RetentionMin/text()").node().value();
-		const char* min_retention_period_unit_str = doc.select_single_node("/Archiving/Policy/RetentionMin/@Unit").node().value();
-		const char* max_retention_period_str = doc.select_single_node("/Archiving/Policy/RetentionMax/text()").node().value();
-		const char* max_retention_period_unit_str = doc.select_single_node("/Archiving/Policy/RetentionMax/@Unit").node().value();
+
+	    pugi::xpath_node min_retention_period_node = doc.select_single_node("/Archiving/Policy/RetentionMin");
+	    const char* min_retention_period_str = min_retention_period_node.node().select_single_node("text()").node().value();
+	    const char* min_retention_period_unit_str = min_retention_period_node.node().attribute("Unit").value();
+
+	    pugi::xpath_node max_retention_period_node = doc.select_single_node("/Archiving/Policy/RetentionMax");
+	    const char* max_retention_period_str = max_retention_period_node.node().select_single_node("text()").node().value();
+	    const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
 
 		return pointer(new policy(
 				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str),
