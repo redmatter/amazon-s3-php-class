@@ -11,7 +11,8 @@ pid_file=/var/run/archiving/${program_name}_safe.pid
 
 __log() {
 	level=$1; shift;
-	/usr/bin/logger -t "$syslog_tag" -p "local0.$level" -- "[safe] $@";
+	[ -z "$0" ] &&
+		/usr/bin/logger -t "$syslog_tag" -p "local0.$level" -- "[safe] $@";
 }
 
 npipe=/tmp/${program_name}_safe_$$.tmp
@@ -104,6 +105,8 @@ while true; do
 	
 	__run $program "$@"
 	exit_status=$?
+
+	echo $'\n'
 
 	__log debug "${program_name} ended with exit status $exit_status";
 	
