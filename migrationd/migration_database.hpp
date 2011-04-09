@@ -100,7 +100,7 @@ public:
 				rml::MySQLConnection conn(pool_);
 				mysqlpp::Query query = conn->query();
 				{
-					query << "SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, Path, OrgID, CreateEpoch "
+					query << "SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, Path, OrgID, UserID, CreateEpoch "
 					"FROM Migration "
 					"WHERE ";
 					if(!orgs_enabled_.empty()) {
@@ -136,9 +136,10 @@ public:
 									row[2].c_str(),
 									org,
 									rml::utils::strtoull(row[4].c_str()),
+									rml::utils::strtoull(row[5].c_str()),
 									cached_s3endpoint_finder_(org),
 									app::types::file_format::encrypted_compressed_wav,
-									archiving::archivable::file_type::call_recording));
+									archiving::archivable::file_type::recording));
 				}
 			}
 			catch(const std::exception& e) {
@@ -245,7 +246,7 @@ public:
 						database::retention::data retention;
 						retention.file_format = data.target_format;
 						retention.org = data.org;
-						retention.user = 0;
+						retention.user = data.user;
 						retention.uuid = data.uuid;
 						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
 						retention.endpoint_id = data.p_endpoint->identifier;

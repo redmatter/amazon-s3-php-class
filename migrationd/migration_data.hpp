@@ -39,6 +39,7 @@ struct migration_data
 	std::string path;
 	rml::utils::tmp_fstream::pointer p_fstream;
 	archiving::org_id org;
+	archiving::user_id user;
 	app::types::file_format::file_format_t target_format;
 	std::string identifier;
 	time_t create_time;
@@ -48,7 +49,7 @@ struct migration_data
 	state_t state;
 
 	migration_data(
-			uint64_t id, std::string uuid, const std::string& path, const archiving::org_id& org, const time_t& create_time,
+			uint64_t id, std::string uuid, const std::string& path, const archiving::org_id& org, const archiving::user_id& user, const time_t& create_time,
 			storage::s3::endpoint::pointer p_endpoint,
 			const app::types::file_format::file_format_t& target_format = app::types::file_format::encrypted_compressed_wav,
 			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording) :
