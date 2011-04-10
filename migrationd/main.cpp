@@ -286,18 +286,23 @@ int main(int argc, char* argv[]) try
 
 		threads.join_all();
 
+		LogMessage("Program terminated normally");
+
 		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {
 		LogError("exception: "<<e.what());
+		LogMessage("Abnormal program termination");
 		exit(initialized? rml::utils::exit_codes::failure: rml::utils::exit_codes::initialization_error);
 	}
 }
 catch(const std::exception& e) {
 	LogError("Exception: "<<e.what());
+	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }
 catch(...) {
 	LogError("Unexpected exception");
+	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }
