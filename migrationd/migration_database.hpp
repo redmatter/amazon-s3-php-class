@@ -268,7 +268,7 @@ public:
 					database::retention::data retention;
 					retention.file_format = itr->target_format;
 					retention.org = itr->org;
-					retention.user = 0;
+					retention.user = itr->user;
 					retention.uuid = itr->uuid;
 					retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
 					retention.endpoint_id = itr->p_endpoint->identifier;
