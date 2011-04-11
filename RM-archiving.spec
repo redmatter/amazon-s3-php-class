@@ -26,6 +26,11 @@ Summary: Archiving CollectD
 Group: RedMatter/Archiving
 Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
 
+%package convert
+Summary: Archiving Convert Utility
+Group: RedMatter/Archiving
+Requires: boost >= 1.45.0, cryptopp
+
 %description
 Archiving daemon ( ArchiveD )
 
@@ -35,6 +40,9 @@ It also makes sense of archiving policy and passes that on to ArchiveD.
 
 %description migrationd
 Archiving MigrationD
+
+%description convert
+Archiving Convert Utility; used by core-api to fetch files from S3
 
 %prep
 %setup -q 
@@ -83,6 +91,9 @@ cp migrationd/rmmigrationd_migration_database.conf %{buildroot}/etc/archiving/rm
 cp migrationd/rmmigrationd_retention_database.conf %{buildroot}/etc/archiving/rmmigrationd_retention_database.conf.sample
 cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
 cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
+
+# Convert
+cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 %pre
 if grep ^cdrmunch: /etc/group &>/dev/null; then
@@ -175,6 +186,9 @@ fi
 %dir /usr/share/archiving/migration-scripts
 /usr/share/archiving/migration-scripts/*
 
+%files convert
+%defattr(-,root,root) 
+/usr/bin/archiving-convert
 
 %clean
 rm -fR %{buildroot}
