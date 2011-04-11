@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) try
 			iter = 2;
 		}
 		else {
-			LogVerbose("Unknown file format");
+			LogError("Unknown file format");
 			exit(rml::utils::exit_codes::failure);
 		}
 	}
