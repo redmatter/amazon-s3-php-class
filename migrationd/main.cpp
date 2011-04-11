@@ -240,7 +240,6 @@ int main(int argc, char* argv[]) try
 		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
 				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
-
 		app::database::migration migration_db(app::confMap, channel_convert, channel_copy_to_s3_done, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
 		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
 		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_copy_to_s3_done, app::quit);
@@ -285,6 +284,8 @@ int main(int argc, char* argv[]) try
 		channel_save_retention.set_finishing();
 
 		threads.join_all();
+
+		libs3_initialiser.destroy();
 
 		LogMessage("Program terminated normally");
 
