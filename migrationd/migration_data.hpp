@@ -43,6 +43,7 @@ struct migration_data
 	app::types::file_format::file_format_t target_format;
 	std::string identifier;
 	time_t create_time;
+	archiving::archivable::file_type::file_type_t filetype;
 
 	storage::s3::endpoint::pointer p_endpoint;
 
@@ -54,7 +55,7 @@ struct migration_data
 			const app::types::file_format::file_format_t& target_format = app::types::file_format::encrypted_compressed_wav,
 			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording) :
 
-			id(id), uuid(uuid), path(path), org(org), target_format(target_format), create_time(create_time), p_endpoint(p_endpoint)
+			id(id), uuid(uuid), path(path), org(org), target_format(target_format), create_time(create_time), filetype(filetype), p_endpoint(p_endpoint)
 	{
 		if(!p_endpoint)
 			throw rml::exception("Storage endpoint not found");

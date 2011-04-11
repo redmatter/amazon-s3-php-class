@@ -245,6 +245,7 @@ public:
 
 						database::retention::data retention;
 						retention.file_format = data.target_format;
+						retention.file_type = data.filetype;
 						retention.org = data.org;
 						retention.user = data.user;
 						retention.uuid = data.uuid;
@@ -267,6 +268,7 @@ public:
 				for(migration_data::channel_t::item_set::const_iterator itr = data_set.begin(); itr != end; ++itr) {
 					database::retention::data retention;
 					retention.file_format = itr->target_format;
+					retention.file_type = itr->filetype;
 					retention.org = itr->org;
 					retention.user = itr->user;
 					retention.uuid = itr->uuid;

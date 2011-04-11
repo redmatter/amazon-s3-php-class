@@ -59,6 +59,7 @@ public:
 		std::string uuid;
 		applied_policy retention;
 		types::file_format::file_format_t file_format;
+		archiving::archivable::file_type::file_type_t file_type;
 		uint64_t endpoint_id;
 
 		struct compare
@@ -140,19 +141,19 @@ public:
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` "
 					"("
-						" UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID "
+						" UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, Type "
 					")"
 					" VALUES"
 					;
 			int values_count = 0;
 			for(data_multiset::iterator itr = range.first; itr != range.second; ++itr) {
-				query << (values_count? ',': ' ') << "( UNHEX(REPLACE(%"<<(values_count*16+0)<<"q:UUID_"<<values_count<<", '-', '')), %"<<(values_count*16+1)<<":Format_"<<values_count<<", "
-				"%"<<(values_count*16+2)<<":OrgID_"<<values_count<<", %"<<(values_count*16+3)<<":UserID_"<<values_count<<", "
-				"%"<<(values_count*16+4)<<":PolicyID_"<<values_count<<", %"<<(values_count*16+5)<<":PolicyVersion_"<<values_count<<", "
-				"'%"<<(values_count*16+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count*16+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count*16+8)<<":CreationDateDay_"<<values_count<<"', "
-				"'%"<<(values_count*16+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count*16+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count*16+11)<<":RetentionMinDateDay_"<<values_count<<"', "
-				"'%"<<(values_count*16+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count*16+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count*16+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
-				"%"<<(values_count*16+15)<<":EndpointID_"<<values_count<<" )";
+				query << (values_count? ',': ' ') << "( UNHEX(REPLACE(%"<<(values_count*17+0)<<"q:UUID_"<<values_count<<", '-', '')), %"<<(values_count*17+1)<<":Format_"<<values_count<<", "
+				"%"<<(values_count*17+2)<<":OrgID_"<<values_count<<", %"<<(values_count*17+3)<<":UserID_"<<values_count<<", "
+				"%"<<(values_count*17+4)<<":PolicyID_"<<values_count<<", %"<<(values_count*17+5)<<":PolicyVersion_"<<values_count<<", "
+				"'%"<<(values_count*17+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count*17+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count*17+8)<<":CreationDateDay_"<<values_count<<"', "
+				"'%"<<(values_count*17+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count*17+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count*17+11)<<":RetentionMinDateDay_"<<values_count<<"', "
+				"'%"<<(values_count*17+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count*17+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count*17+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
+				"%"<<(values_count*17+15)<<":EndpointID_"<<values_count<<", %"<<(values_count*17+16)<<":Type_"<<values_count<<" )";
 
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
@@ -175,7 +176,7 @@ public:
 						<< applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)
 						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)
 
-						<< itr->endpoint_id;
+						<< itr->endpoint_id << itr->file_type;
 
 				values_count++;
 			}
