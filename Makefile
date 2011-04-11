@@ -1,5 +1,5 @@
-COMPONENTS=collectd archived migrationd
-COMPONENTS=migrationd
+COMPONENTS=collectd archived migrationd convert
+COMPONENTS=migrationd convert
 RECENT_COMPONENT=$(shell ls -dt $(COMPONENTS) | head -1 )
 
 all :
