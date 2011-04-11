@@ -78,8 +78,6 @@ class result_cache
 		{
 			boost::unique_lock<boost::mutex> lock(mutex_);
 
-			LogDebug("fun_: empty? "<<fun_.empty());
-
 			iter_type it = cache_.find(arg);
 			if (it != cache_.end()) {
 				time(&it->second.atime);
