@@ -22,6 +22,7 @@
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
 
+#include "file_verify.hpp"
 #include "migration_data.hpp"
 #include "migration_database.hpp"
 #include "convert.hpp"
@@ -109,12 +110,16 @@ int main(int argc, char* argv[]) try
 
 				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/migration")), "migration temp data directory")
 				("rmfs.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/store01")), "rmfs data directory")
+
+				("app.convert_threads", boost::program_options::value<unsigned int>()->default_value(2U), "number of convert threads")
+				("app.storage_threads", boost::program_options::value<unsigned int>()->default_value(2U), "number of storage threads")
 				;
 
 		rml::logger::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
 		app::database::migration::describe_config(optsDesc);
 		app::migration_storage::describe_config(optsDesc);
+		app::file_verify::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -233,6 +238,7 @@ int main(int argc, char* argv[]) try
 		app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
 		app::migration_data::channel_t channel_copy_to_s3_done("Copy2S3Done");
 		app::migration_data::channel_t channel_save_retention("SaveRetention");
+		app::file_verify::data::channel_t verify_data_channel("VerifyData");
 
 		app::coreapi coreapi(app::confMap);
 		app::policy::cached_finder_t cached_policy_finder(
@@ -240,9 +246,10 @@ int main(int argc, char* argv[]) try
 		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
 				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
-		app::database::migration migration_db(app::confMap, channel_convert, channel_copy_to_s3_done, channel_save_retention, cached_policy_finder, cached_endpoint_finder, app::quit);
+		app::database::migration migration_db(app::confMap, channel_convert, channel_copy_to_s3_done, channel_save_retention, verify_data_channel, cached_policy_finder, cached_endpoint_finder, app::quit);
 		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
 		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_copy_to_s3_done, app::quit);
+		app::file_verify file_verify(app::confMap, verify_data_channel, app::quit);
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -251,15 +258,25 @@ int main(int argc, char* argv[]) try
 		{
 			threads.create_thread(boost::bind(&app::database::migration::find_migratables, boost::ref(migration_db)));
 
-			threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
-			threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+			{
+				unsigned int count = app::confMap["app.convert_threads"].as<unsigned int>();
+				LogVerbose("Creating "<<count<<" convert thread(s)");
+				while(count--)
+					threads.create_thread(boost::bind(&app::convert::run, boost::ref(converter)));
+			}
 
-			threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
-			threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+			{
+				unsigned int count = app::confMap["app.storage_threads"].as<unsigned int>();
+				LogVerbose("Creating "<<count<<" storage thread(s)");
+				while(count--)
+					threads.create_thread(boost::bind(&app::migration_storage::run, boost::ref(s3_storage)));
+			}
 
 			threads.create_thread(boost::bind(&app::database::migration::update_status, boost::ref(migration_db)));
 
 			threads.create_thread(boost::bind(&app::database::migration::flush_retention, boost::ref(migration_db)));
+
+			threads.create_thread(boost::bind(&app::file_verify::run, boost::ref(file_verify)));
 		}
 
 		int ticker = 1;

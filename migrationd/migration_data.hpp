@@ -49,6 +49,10 @@ struct migration_data
 
 	state_t state;
 
+	migration_data()
+	{
+	}
+
 	migration_data(
 			uint64_t id, std::string uuid, const std::string& path, const archiving::org_id& org, const archiving::user_id& user, const time_t& create_time,
 			storage::s3::endpoint::pointer p_endpoint,

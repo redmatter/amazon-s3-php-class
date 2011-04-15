@@ -2,6 +2,7 @@
 #define MIGRATION_DATABASE_HPP
 
 #include "migration_data.hpp"
+#include "file_verify.hpp"
 
 #include "../archived/database.hpp"
 #include "../archived/policy.hpp"
@@ -9,6 +10,8 @@
 #include <rml/utils.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/random.hpp>
+#include <boost/generator_iterator.hpp>
 
 namespace app {
 
@@ -16,6 +19,9 @@ extern std::string hostname;
 
 namespace database {
 
+/**
+ * The migration SQLs wrapper
+ */
 class migration : public basic_database< migration >
 {
 	const boost::program_options::variables_map& confMap_;
@@ -23,6 +29,8 @@ class migration : public basic_database< migration >
 	migration_data::channel_t& new_migratables_channel_;
 	migration_data::channel_t& done_migratables_channel_;
 	migration_data::channel_t& retention_channel_;
+
+	file_verify::data::channel_t& verify_channel_;
 
 	const policy::cached_finder_t& cached_policy_finder_;
 	const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder_;
@@ -37,12 +45,22 @@ class migration : public basic_database< migration >
 
 	app::database::retention retention_db_;
 public:
+	/**
+	 * Who am I
+	 *
+	 * @return string as identifier
+	 */
 	static inline const char* get_identifier()
 	{
 		static const char* identifier = "migration";
 		return identifier;
 	}
 
+	/**
+	 * describe configuration
+	 *
+	 * @param optsDesc
+	 */
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		basic_database<migration>::describe_config(optsDesc);
@@ -56,14 +74,19 @@ public:
 				;
 	}
 
+	/**
+	 * Constructor
+	 */
 	migration(
 			const boost::program_options::variables_map& confMap,
 			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& done_migratables_channel, migration_data::channel_t& retention_channel,
+			file_verify::data::channel_t& verify_channel,
 			const policy::cached_finder_t& cached_policy_finder, const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder,
 			volatile bool& quit) :
 
 					basic_database< migration >(confMap), confMap_(confMap),
 					new_migratables_channel_(new_migratables_channel), done_migratables_channel_(done_migratables_channel), retention_channel_(retention_channel),
+					verify_channel_(verify_channel),
 					cached_policy_finder_(cached_policy_finder),
 					cached_s3endpoint_finder_(cached_s3endpoint_finder),
 					quit_(quit),
@@ -85,6 +108,9 @@ public:
 		}
 	}
 
+	/**
+	 * Find items to migrate
+	 */
 	void find_migratables()
 	{
 		int c = -10;
@@ -151,6 +177,10 @@ public:
 		}
 	}
 
+	/**
+	 * Update migration status
+	 * TODO batch flush
+	 */
 	void update_status()
 	{
 		int c = -15;
@@ -225,8 +255,17 @@ public:
 		}
 	}
 
+	/**
+	 * flush_retention
+	 * polls the channel for items to be flushed
+	 */
 	void flush_retention()
 	{
+		boost::mt19937 rng;
+		boost::uniform_int<> one_to_1000( 1, 1000 );
+		boost::variate_generator< boost::mt19937, boost::uniform_int<> > rand_one_to_1000(rng, one_to_1000);
+
+		// start in 20s
 		int c = -20;
 
 		while(!quit_) {
@@ -243,16 +282,26 @@ public:
 					try {
 						const migration_data& data(retention_channel_.consume(1));
 
-						database::retention::data retention;
-						retention.file_format = data.target_format;
-						retention.file_type = data.filetype;
-						retention.org = data.org;
-						retention.user = data.user;
-						retention.uuid = data.uuid;
-						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
-						retention.endpoint_id = data.p_endpoint->identifier;
+						{
+							database::retention::data retention;
+							retention.file_format = data.target_format;
+							retention.file_type = data.filetype;
+							retention.org = data.org;
+							retention.user = data.user;
+							retention.uuid = data.uuid;
+							retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
+							retention.endpoint_id = data.p_endpoint->identifier;
 
-						retention_set.insert(retention);
+							retention_set.insert(retention);
+						}
+
+						{
+							file_verify::data verify_data;
+							verify_data.md = data;
+							verify_data.random = rand_one_to_1000();
+
+							verify_channel_.produce(verify_data);
+						}
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
 						if(!retention_set.empty())

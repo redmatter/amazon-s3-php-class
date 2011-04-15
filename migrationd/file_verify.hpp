@@ -1,0 +1,209 @@
+/*
+ * file_verify.hpp
+ *
+ *  Created on: 13 Apr 2011
+ *      Author: dkorah
+ */
+
+#ifndef FILE_VERIFY_HPP_
+#define FILE_VERIFY_HPP_
+
+#ifndef SYSLOG_APP_NAME
+#define SYSLOG_APP_NAME "rm-migrationd"
+#endif
+
+#include "migration_data.hpp"
+
+#include <rml/pc_channel.h>
+#include <rml/utils.h>
+
+#include <boost/date_time/posix_time/ptime.hpp>
+
+#include <ostream>
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
+
+namespace app {
+
+class file_verify
+{
+
+public:
+	struct data
+	{
+		migration_data md;
+		int random;
+
+		struct compare
+		{
+			bool operator()(const data& lhs, const data& rhs)
+			{
+				return lhs.random < rhs.random;
+			}
+		};
+
+		typedef rml::pc_channel<data> channel_t;
+	};
+
+private:
+	data::channel_t& channel_;
+	unsigned int check_percentage_;
+	volatile bool& quit_;
+
+public:
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		optsDesc.add_options()
+				("file_verify.percentage", boost::program_options::value<unsigned int>()->default_value(100U), "verifiy percentatge")
+				;
+	}
+
+	file_verify(
+			const boost::program_options::variables_map& confMap,
+			data::channel_t& channel,
+			volatile bool& quit) :
+				channel_(channel),
+				check_percentage_(confMap["file_verify.percentage"].as<unsigned int>()),
+				quit_(quit)
+	{
+	}
+
+	void run()
+	{
+		uint8_t tick = 10;
+
+		while(!quit_) {
+
+			if(tick--) { // wait for 10s
+				boost::this_thread::sleep(boost::posix_time::seconds(1));
+				continue;
+			}
+
+			tick = 5; // every 5s from now on
+
+			bool abort = false;
+
+			try {
+				while(!abort) {
+					std::size_t available_items = channel_.count();
+					std::size_t todo_count = 1;
+					if (available_items > 1)
+						todo_count = available_items * ((float)check_percentage_ / 100.0);
+
+					for(std::size_t discard = available_items - todo_count; !quit_ && !abort && discard > 0; discard--)
+						(void)data(channel_.consume(1));
+
+					do {
+						try {
+							const data& data(channel_.consume(1));
+							pid_t pid = fork();
+							if(pid < 0) {
+								LogCritical("Failed to fork");
+								quit_ = true; // die!!!
+								throw rml::exception("Failed to fork");
+							}
+
+							// we are in the child
+							else if(pid == 0) {
+								const std::string& source(data.md.p_fstream->get_filename());
+								std::string target;
+								{
+									std::ostringstream ostr;
+									ostr <<source<<'.'<<boost::this_thread::get_id();
+									target = ostr.str();
+								}
+
+								std::string encryption_key_base64;
+								{
+									const std::vector<uint8_t>& encryption_key(data.md.p_endpoint->encryption_key);
+									CryptoPP::StringSource(&encryption_key[0], encryption_key.size(), true,
+											new CryptoPP::Base64Encoder(
+													new CryptoPP::StringSink(encryption_key_base64), false));
+								}
+
+								char * const argv[16] = {
+										strdup("/usr/bin/archiving-convert"),
+										strdup("--source"), strdup(&source[0]),
+										strdup("--target"), &target[0],
+										strdup("--key"), &encryption_key_base64[0],
+										strdup("--log.file_path"), strdup("syslog"),
+										strdup("--log.level"), strdup("6"),
+										strdup("--log.syslog-tag"), strdup(SYSLOG_APP_NAME),
+										strdup("--temp-dir"), strdup("/tmp"),
+										0
+								};
+
+								char * const env[1] = {0};
+
+								execve(argv[0], argv, env);
+
+								LogError("execve failed; error:"<<strerror(errno));
+
+								_exit(rml::utils::exit_codes::fork_exec_failed);
+								break;
+							}
+
+							// we are in the parent
+							else {
+								int *p_status = 0;
+								if(-1 == waitpid(pid, p_status, 0)) {
+									if( errno != EINTR ) {
+										LogError("waitpid failed: error:"<<strerror(errno));
+										break;
+									}
+									LogError("waitpid: error:"<<strerror(errno));
+								}
+
+								// converted OK ... yay!
+								else if( WIFEXITED(*p_status) ) {
+									LogMessage(data.md.identifier << " verified OK");
+								}
+
+								// convert failed ...
+								else {
+									LogCritical("convert failed: file corruption");
+									quit_ = true;
+									boost::this_thread::sleep(boost::posix_time::seconds(10));
+									exit(rml::utils::exit_codes::failure);
+								}
+							}
+						}
+						catch(const data::channel_t::consume_timed_out_exception& e) {
+							LogMessage(channel_<< ": No data to flush; nap time!");
+						}
+						catch(const std::exception& e) {
+							LogError("Exception: "<<e.what());
+						}
+						catch(...) {
+							LogError("Unexpected exception");
+						}
+
+					} while(!quit_ && !abort && todo_count--);
+				}
+			}
+			catch(const std::exception& e) {
+				LogError("Exception: "<<e.what());
+			}
+			catch(...) {
+				LogError("Unexpected exception");
+			}
+		}
+	}
+};
+
+}  // namespace app
+
+namespace std {
+
+ostream& operator<< (ostream& ostr, const app::file_verify::data& d)
+{
+	return ostr << d.md.identifier << " [random:"<<d.random<<']';
+}
+
+}  // namespace std
+
+#endif /* FILE_VERIFY_HPP_ */
