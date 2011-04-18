@@ -11,7 +11,7 @@ pid_file=/var/run/archiving/${program_name}_safe.pid
 
 __log() {
 	level=$1; shift;
-	[ -z "$0" ] &&
+	[ -n "$0" ] &&
 		/usr/bin/logger -t "$syslog_tag" -p "local0.$level" -- "[safe] $@";
 }
 
