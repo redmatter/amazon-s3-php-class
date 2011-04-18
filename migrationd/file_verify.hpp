@@ -52,6 +52,8 @@ public:
 private:
 	data::channel_t& channel_;
 	unsigned int check_percentage_;
+	std::string log_path_;
+	int log_level_;
 	volatile bool& quit_;
 
 public:
@@ -68,6 +70,8 @@ public:
 			volatile bool& quit) :
 				channel_(channel),
 				check_percentage_(confMap["file_verify.percentage"].as<unsigned int>()),
+				log_path_(confMap["log.file_path"].as<std::string>()),
+				log_level_(confMap["log.level"].as<int>()),
 				quit_(quit)
 	{
 	}
@@ -78,7 +82,7 @@ public:
 
 		while(!quit_) {
 
-			if(tick--) { // wait for 10s
+			if(tick--) { // wait for 10s initially and 5s from then on
 				boost::this_thread::sleep(boost::posix_time::seconds(1));
 				continue;
 			}
@@ -92,23 +96,27 @@ public:
 					std::size_t available_items = channel_.count();
 					std::size_t todo_count = 1;
 					if (available_items > 1)
-						todo_count = available_items * ((float)check_percentage_ / 100.0);
+						todo_count = (size_t)((float)available_items * ((float)check_percentage_ / 100.0));
+					else if(available_items == 0) {
+						LogVerbose("No items available to verify");
+						break;
+					}
 
 					for(std::size_t discard = available_items - todo_count; !quit_ && !abort && discard > 0; discard--)
-						(void)data(channel_.consume(1));
+						(void)channel_.consume(1);
 
 					do {
 						try {
 							const data& data(channel_.consume(1));
 							pid_t pid = fork();
 							if(pid < 0) {
-								LogCritical("Failed to fork");
+								LogCritical("Failed to vfork; error:"<<strerror(errno));
 								quit_ = true; // die!!!
 								throw rml::exception("Failed to fork");
 							}
 
-							// we are in the child
-							else if(pid == 0) {
+							if(pid == 0) {
+								// we are in the child
 								const std::string& source(data.md.p_fstream->get_filename());
 								std::string target;
 								{
@@ -125,55 +133,78 @@ public:
 													new CryptoPP::StringSink(encryption_key_base64), false));
 								}
 
-								char * const argv[16] = {
-										strdup("/usr/bin/archiving-convert"),
-										strdup("--source"), strdup(&source[0]),
-										strdup("--target"), &target[0],
-										strdup("--key"), &encryption_key_base64[0],
-										strdup("--log.file_path"), strdup("syslog"),
-										strdup("--log.level"), strdup("6"),
-										strdup("--log.syslog-tag"), strdup(SYSLOG_APP_NAME),
-										strdup("--temp-dir"), strdup("/tmp"),
+								char * const env[1] = {0};
+								const char * argv[16] = {
+										"/usr/bin/archiving-convert",
+										"--source", &source[0],
+										"--target", &target[0],
+										"--key", &encryption_key_base64[0],
+										"--log.file_path", &log_path_[0],
+										"--log.level", "6", //TODO use config
+										"--log.syslog-tag", SYSLOG_APP_NAME,
+										"--temp-dir", "/tmp", // ignored as we have full paths already!
 										0
 								};
 
-								char * const env[1] = {0};
-
-								execve(argv[0], argv, env);
+								execve(argv[0], (char* const*)argv, env);
 
 								LogError("execve failed; error:"<<strerror(errno));
-
 								_exit(rml::utils::exit_codes::fork_exec_failed);
 								break;
 							}
 
-							// we are in the parent
 							else {
-								int *p_status = 0;
-								if(-1 == waitpid(pid, p_status, 0)) {
-									if( errno != EINTR ) {
-										LogError("waitpid failed: error:"<<strerror(errno));
-										break;
+								// we are in the parent
+								int status = 0;
+								int timeout_u_s = 10000000; /*10x1000x1000 micro seconds*/
+								bool check_ok = false;
+								while(true) {
+									pid_t waited_pid = waitpid(pid, &status, WNOHANG);
+									if(-1 == waited_pid) {
+										if( errno != EINTR ) {
+											LogError("waitpid failed: error:"<<strerror(errno));
+											break;
+										}
+										LogError("waitpid: error:"<<strerror(errno));
 									}
-									LogError("waitpid: error:"<<strerror(errno));
+									else if(0 == waited_pid) {
+										LogVerbose("waitpid pid:"<<pid);
+										if(timeout_u_s) {
+											usleep(10);
+											timeout_u_s -= 10;
+											continue;
+										}
+										else {
+											LogWarning("Convert timed-out; killing pid:"<<pid);
+											if(-1 == kill(pid, SIGKILL))
+												LogError("Failed to kill pid("<<pid<<") err:"<<strerror(errno));
+											break;
+										}
+									}
+									else if( waited_pid == pid ) {
+										if( WIFEXITED(status) ) {
+											if( 0 == WEXITSTATUS(status) ) {
+												check_ok = true;
+											}
+											break;
+										}
+									}
+									else
+										LogMessage("Unexpected: pid:"<<waited_pid<<" finished");
 								}
 
-								// converted OK ... yay!
-								else if( WIFEXITED(*p_status) ) {
-									LogMessage(data.md.identifier << " verified OK");
-								}
-
-								// convert failed ...
-								else {
-									LogCritical("convert failed: file corruption");
+								if(!check_ok) {
+									LogCritical(data.md.identifier << " convert failed: file corruption");
 									quit_ = true;
-									boost::this_thread::sleep(boost::posix_time::seconds(10));
+									boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 									exit(rml::utils::exit_codes::failure);
 								}
+								else
+									LogMessage(data.md.identifier << " verified OK");
 							}
 						}
 						catch(const data::channel_t::consume_timed_out_exception& e) {
-							LogMessage(channel_<< ": No data to flush; nap time!");
+							LogMessage(channel_<< ": No file to verify; sleep ...");
 						}
 						catch(const std::exception& e) {
 							LogError("Exception: "<<e.what());
