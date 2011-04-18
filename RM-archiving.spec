@@ -14,7 +14,7 @@ Buildroot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
 Requires: boost >= 1.45.0, mysql++ >= 3.1.0, cryptopp
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-11589, libs3-devel, cryptopp-devel, pugixml
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-11681, libs3-devel, cryptopp-devel, pugixml
 
 %package collectd
 Summary: Archiving CollectD
@@ -24,7 +24,7 @@ Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
 %package migrationd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp, %{appname}-convert = %{version}-%{release}
 
 %package convert
 Summary: Archiving Convert Utility
