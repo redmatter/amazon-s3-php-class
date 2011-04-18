@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <math.h>
 
 namespace app {
 
@@ -96,7 +97,7 @@ public:
 					std::size_t available_items = channel_.count();
 					std::size_t todo_count = 1;
 					if (available_items > 1)
-						todo_count = (size_t)((float)available_items * ((float)check_percentage_ / 100.0));
+						todo_count = (size_t)ceilf((float)available_items * ((float)check_percentage_ / 100.0));
 					else if(available_items == 0) {
 						LogVerbose("No items available to verify");
 						break;
@@ -105,7 +106,9 @@ public:
 					for(std::size_t discard = available_items - todo_count; !quit_ && !abort && discard > 0; discard--)
 						(void)channel_.consume(1);
 
-					do {
+					while(!quit_ && !abort && todo_count--) {
+						LogVerbose("todo_count: "<<todo_count);
+
 						try {
 							const data& data(channel_.consume(1));
 							pid_t pid = fork();
@@ -170,8 +173,8 @@ public:
 									else if(0 == waited_pid) {
 										LogVerbose("waitpid pid:"<<pid);
 										if(timeout_u_s) {
-											usleep(10);
-											timeout_u_s -= 10;
+											usleep(100);
+											timeout_u_s -= 100;
 											continue;
 										}
 										else {
@@ -212,8 +215,7 @@ public:
 						catch(...) {
 							LogError("Unexpected exception");
 						}
-
-					} while(!quit_ && !abort && todo_count--);
+					}
 				}
 			}
 			catch(const std::exception& e) {

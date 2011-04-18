@@ -141,6 +141,8 @@ int main(int argc, char* argv[])
 
 				p_target->set_persistent(true);
 				LogMessage("Successfully converted");
+				iter--;
+				break;
 			}
 
 			case 2:
