@@ -181,6 +181,8 @@ public:
 				values_count++;
 			}
 
+			LogVerbose("SQL (not parsed): "<<query.str());
+
 			query.parse();
 			LogVerbose("SQL: "<<query.str(qp));
 			mysqlpp::SimpleResult res = query.execute(qp);

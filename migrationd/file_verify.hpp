@@ -30,17 +30,34 @@
 
 namespace app {
 
+/**
+ * file verify runnable
+ */
 class file_verify
 {
 
 public:
+	/**
+	 * channel data for file-verify
+	 */
 	struct data
 	{
 		migration_data md;
 		int random;
 
+		/**
+		 * Comparator for data
+		 */
 		struct compare
 		{
+			/**
+			 * () compare!
+			 *
+			 * @param lhs
+			 * @param rhs
+			 *
+			 * @return bool
+			 */
 			bool operator()(const data& lhs, const data& rhs)
 			{
 				return lhs.random < rhs.random;

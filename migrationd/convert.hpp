@@ -23,6 +23,9 @@ namespace app {
 extern std::string temp_files_base_directory;
 extern std::string rmfs_base_directory;
 
+/**
+ * Convert file
+ */
 class convert
 {
 	migration_data::channel_t& inward_channel_;
@@ -32,11 +35,21 @@ class convert
 	app::impl::crypto crypto_;
 
 public:
+	/**
+	 * The convert runnable
+	 *
+	 * @param inward_channel
+	 * @param outward_channel
+	 * @param quit
+	 */
 	convert(migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
 			inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
 	{
 	}
 
+	/**
+	 * run() thread invoked from here
+	 */
 	void run()
 	{
 		try {
