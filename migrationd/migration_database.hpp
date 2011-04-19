@@ -113,7 +113,7 @@ public:
 	 */
 	void find_migratables()
 	{
-		int c = -10;
+		int c = -5;
 
 		while(!quit_) {
 
@@ -123,6 +123,12 @@ public:
 			}
 
 			try {
+				const std::size_t& channel_count(new_migratables_channel_.count());
+				if(channel_count >= 200) {
+					LogMessage(channel_count<<" unprocessed items; not loading any more");
+					continue;
+				}
+
 				rml::MySQLConnection conn(pool_);
 				mysqlpp::Query query = conn->query();
 				{
@@ -145,7 +151,7 @@ public:
 						}
 					}
 					query << "FileState='ok' AND Status IN ('pending','retry') AND Type='recordings'"
-							"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT 200";
+							"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT "<<(200 - channel_count);
 					query.parse();
 				}
 				mysqlpp::SQLQueryParms qp;
