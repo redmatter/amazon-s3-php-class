@@ -101,7 +101,9 @@ echo $$ > $pid_file
 
 while true; do
 	
-	__log debug Under safe wrapper - $program "$@"
+	__log info "+------------------------------------------------------------+"
+	__log info Starting $program_name under safe wrapper - $program "$@"
+	__log info "+------------------------------------------------------------+"
 	
 	__run $program "$@"
 	exit_status=$?
