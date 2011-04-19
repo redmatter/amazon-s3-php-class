@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
 				app::utils::crypto crypto;
 				crypto.decrypt(*p_source, *p_tmp, enc_key);
 				p_source = p_tmp;
-				p_tmp.reset(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+				p_tmp.reset(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
 				iter--;
 				break;
 			}
