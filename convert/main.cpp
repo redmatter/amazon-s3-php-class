@@ -50,6 +50,7 @@ int main(int argc, char* argv[])
 			cli_optsDesc.add_options()
 					("source", boost::program_options::value<std::string>(), "Read from file")
 					("target", boost::program_options::value<std::string>(), "Write to file")
+					("verify", "Verify the source file by converting it to plain format and comparing checksum")
 					("key", boost::program_options::value<std::string>(), "Encryption key")
 					("log.file_path", boost::program_options::value<std::string>()->default_value("console"), "Logging goes to a file or syslog or console")
 					("log.level", boost::program_options::value<int>()->default_value(4), "Logging level")
@@ -76,7 +77,7 @@ int main(int argc, char* argv[])
 		if(1 != cli_confMap.count("source"))
 			throw rml::exception("Source path not given");
 
-		if(1 != cli_confMap.count("target"))
+		if( (1 != cli_confMap.count("target")) && (0 == cli_confMap.count("verify")) )
 			throw rml::exception("Target path not given");
 
 	//	app::operation_data::temp_files_base_directory = cli_confMap["temp-dir"].as<std::string>();
@@ -111,8 +112,13 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		rml::utils::tmp_fstream::pointer p_target(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
-		rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+		rml::utils::tmp_fstream::pointer p_target;
+		if(cli_confMap.count("target"))
+			p_target.reset(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
+		else if(cli_confMap.count("verify"))
+			p_target.reset(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+
+		rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
 
 		while(iter) {
 			p_source->seekg(0);
@@ -139,8 +145,11 @@ int main(int argc, char* argv[])
 						throw rml::exception("CRC mismatch");
 				}
 
-				p_target->set_persistent(true);
-				LogMessage("Successfully converted");
+				if(cli_confMap.count("target"))
+					LogMessage("Successfully converted");
+				else
+					LogMessage("File verified; CRC32 checked OK");
+
 				iter--;
 				break;
 			}

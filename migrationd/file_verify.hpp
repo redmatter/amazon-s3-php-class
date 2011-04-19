@@ -30,6 +30,8 @@
 
 namespace app {
 
+extern std::string temp_files_base_directory;
+
 /**
  * file verify runnable
  */
@@ -138,12 +140,6 @@ public:
 							if(pid == 0) {
 								// we are in the child
 								const std::string& source(data.md.p_fstream->get_filename());
-								std::string target;
-								{
-									std::ostringstream ostr;
-									ostr <<source<<'.'<<boost::this_thread::get_id();
-									target = ostr.str();
-								}
 
 								std::string encryption_key_base64;
 								{
@@ -157,12 +153,12 @@ public:
 								const char * argv[16] = {
 										"/usr/bin/archiving-convert",
 										"--source", &source[0],
-										"--target", &target[0],
+										"--verify",
 										"--key", &encryption_key_base64[0],
 										"--log.file_path", &log_path_[0],
 										"--log.level", "6", //TODO use config
 										"--log.syslog-tag", SYSLOG_APP_NAME,
-										"--temp-dir", "/tmp", // ignored as we have full paths already!
+										"--temp-dir", &temp_files_base_directory[0],
 										0
 								};
 
