@@ -137,7 +137,6 @@ public:
 			const archiving::org_id& org(b_itr->org);
 
 			rml::MySQLConnection conn(pool_); // scoped connection
-			mysqlpp::SQLQueryParms qp;
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` "
 					"("
@@ -147,46 +146,26 @@ public:
 					;
 			int values_count = 0;
 			for(data_multiset::iterator itr = range.first; itr != range.second; ++itr) {
-				query << (values_count? ',': '\n') << "( UNHEX(REPLACE(%"<<(values_count*17+0)<<"q, '-', '')), %"<<(values_count*17+1)<<", "
-				"%"<<(values_count*17+2)<<", %"<<(values_count*17+3)<<", "
-				"%"<<(values_count*17+4)<<", %"<<(values_count*17+5)<<", "
-				"'%"<<(values_count*17+6)<<"-%"<<(values_count*17+7)<<"-%"<<(values_count*17+8)<<"', "
-				"'%"<<(values_count*17+9)<<"-%"<<(values_count*17+10)<<"-%"<<(values_count*17+11)<<"', "
-				"'%"<<(values_count*17+12)<<"-%"<<(values_count*17+13)<<"-%"<<(values_count*17+14)<<"', "
-				"%"<<(values_count*17+15)<<", %"<<(values_count*17+16)<<" )\n";
-
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
 				const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
 
-				qp << itr->uuid << itr->file_format
+				query << (values_count? ',': '\n')
+						<<"( UNHEX(REPLACE( '"<<itr->uuid<<"' )), "<<itr->file_format<<", "
+						<<itr->org<<", "<<itr->user<<", "
+						<<itr->retention.p_policy->id<<", "<<itr->retention.p_policy->version<<", "
 
-						<< itr->org << itr->user
-						<< itr->retention.p_policy->id << itr->retention.p_policy->version
+						<<'\''<<applied_policy::ymd_t::year_type::value_type(creation_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(creation_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(creation_ymd.day)<<"', "
+						<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
+						<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
 
-						<< applied_policy::ymd_t::year_type::value_type(creation_ymd.year)
-						<< applied_policy::ymd_t::month_type::value_type(creation_ymd.month)
-						<< applied_policy::ymd_t::day_type::value_type(creation_ymd.day)
-
-						<< applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)
-						<< applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)
-						<< applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)
-
-						<< applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)
-						<< applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)
-						<< applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)
-
-						<< itr->endpoint_id << itr->file_type;
+						<<itr->endpoint_id<<", "<<itr->file_type<<" )";
 
 				values_count++;
 			}
 
-std::cout << "SQL (not parsed): "<<query.str() << std::endl;
-
-			query.parse();
-std::cout << "SQL (parsed)" << std::endl;
-			LogVerbose("SQL: "<<query.str(qp));
-			mysqlpp::SimpleResult res = query.execute(qp);
+std::cout << "SQL: "<<query.str() << std::endl;
+			mysqlpp::SimpleResult res = query.execute();
 			LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
 			data.erase(range.first, range.second);
