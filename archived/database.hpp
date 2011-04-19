@@ -21,6 +21,8 @@
 
 #include <set>
 
+#include <time.h>
+
 namespace app {
 
 namespace database {
@@ -69,9 +71,28 @@ public:
 				return lhs.org < rhs.org;
 			}
 		};
+
+		typedef std::multiset<data, data::compare> multiset_t;
 	};
 
-	typedef std::multiset<data, data::compare> data_multiset;
+	struct usage_data
+	{
+		archiving::org_id org;
+		std::size_t real_size;
+		std::size_t clear_size;
+		time_t create_time;
+		archiving::archivable::file_type::file_type_t filetype;
+
+		struct compare
+		{
+			inline bool operator()(const usage_data& lhs, const usage_data& rhs) const
+			{
+				return lhs.org < rhs.org;
+			}
+		};
+
+		typedef std::multiset<usage_data, usage_data::compare> multiset_t;
+	};
 
 	static inline const char* get_identifier()
 	{
@@ -128,11 +149,12 @@ public:
 		return std::make_pair(false, app::retention());
 	}
 
-	void save(data_multiset& data)
+	void save(data::multiset_t& data, usage_data::multiset_t& usage_data)
 	{
+		// Retention Data
 		while(data.begin() != data.end()) {
-			data_multiset::iterator b_itr = data.begin();
-			std::pair< data_multiset::iterator, data_multiset::iterator > range = data.equal_range(*b_itr);
+			data::multiset_t::iterator b_itr = data.begin();
+			std::pair< data::multiset_t::iterator, data::multiset_t::iterator > range = data.equal_range(*b_itr);
 
 			const archiving::org_id& org(b_itr->org);
 
@@ -142,7 +164,7 @@ public:
 					"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, Type )"
 					" VALUES ";
 			int values_count = 0;
-			for(data_multiset::iterator itr = range.first; itr != range.second; ++itr) {
+			for(data::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
 				const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
@@ -170,6 +192,49 @@ public:
 			LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
 			data.erase(range.first, range.second);
+		}
+
+		// Usage Data
+		while(usage_data.begin() != usage_data.end()) {
+			usage_data::multiset_t::iterator b_itr = usage_data.begin();
+			std::pair< usage_data::multiset_t::iterator, usage_data::multiset_t::iterator > range = usage_data.equal_range(*b_itr);
+
+			const archiving::org_id& org(b_itr->org);
+
+			rml::MySQLConnection conn(pool_); // scoped connection
+			mysqlpp::Query query = conn->query();
+			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
+					"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage` )"
+					" VALUES ";
+			int values_count = 0;
+			for(usage_data::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
+				char hour_res_date[255];
+				{
+					tm tm_;
+					gmtime_r(&itr->create_time, &tm_);
+					strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+				}
+
+				query << (values_count? ',': '\n')
+						<<"( "
+						<<'\''<<hour_res_date<<"', "
+						<<'\''<<itr->filetype<<"', "
+						<<itr->org<<", "
+						<<"1, "
+						<<itr->clear_size<<", "
+						<<itr->real_size<<", "
+						<<" )\n";
+				values_count++;
+			}
+			query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+					"\n";
+
+			std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
+
+			mysqlpp::SimpleResult res = query.execute();
+			LogMessage("Usage data added for Org:"<<org);
+
+			usage_data.erase(range.first, range.second);
 		}
 	}
 

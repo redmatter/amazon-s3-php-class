@@ -222,7 +222,20 @@ public:
 						}
 
 						{
-							std::string new_status = ((data.state == migration_data::copied)? "migrated" : ((cur_status == "retry")? "migration_error": "retry"));
+							std::string new_status;
+							switch(data.state) {
+							case migration_data::copied:
+								new_status = "migrated";
+								break;
+
+							case migration_data::error:
+								new_status = "migration_error";
+								break;
+
+							default:
+								new_status = ((cur_status == "retry")? "migration_error": "retry");
+								break;
+							}
 
 							mysqlpp::Query query = conn->query();
 							query << "UPDATE Migration SET Status=%0q:Status WHERE ID=%1:ID";
@@ -285,7 +298,8 @@ public:
 				continue;
 			}
 
-			database::retention::data_multiset retention_set;
+			database::retention::data::multiset_t retention_set;
+			database::retention::usage_data::multiset_t usage_data_set;
 
 			try {
 				while(retention_set.size() < 1024) {
@@ -303,6 +317,17 @@ public:
 							retention.endpoint_id = data.p_endpoint->identifier;
 
 							retention_set.insert(retention);
+						}
+
+						{
+							database::retention::usage_data usage;
+							usage.org = data.org;
+							usage.filetype = data.filetype;
+							usage.create_time = data.create_time;
+							usage.clear_size = data.clear_size;
+							usage.real_size = data.real_size;
+
+							usage_data_set.insert(usage);
 						}
 
 						busied_set_.remove(data);
@@ -327,16 +352,29 @@ public:
 				const migration_data::channel_t::item_set& data_set(retention_channel_.consume_remaining());
 				migration_data::channel_t::item_set::const_iterator end = data_set.end();
 				for(migration_data::channel_t::item_set::const_iterator itr = data_set.begin(); itr != end; ++itr) {
-					database::retention::data retention;
-					retention.file_format = itr->target_format;
-					retention.file_type = itr->filetype;
-					retention.org = itr->org;
-					retention.user = itr->user;
-					retention.uuid = itr->uuid;
-					retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
-					retention.endpoint_id = itr->p_endpoint->identifier;
+					{
+						database::retention::data retention;
+						retention.file_format = itr->target_format;
+						retention.file_type = itr->filetype;
+						retention.org = itr->org;
+						retention.user = itr->user;
+						retention.uuid = itr->uuid;
+						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
+						retention.endpoint_id = itr->p_endpoint->identifier;
 
-					retention_set.insert(retention);
+						retention_set.insert(retention);
+					}
+
+					{
+						database::retention::usage_data usage;
+						usage.org = itr->org;
+						usage.filetype = itr->filetype;
+						usage.create_time = itr->create_time;
+						usage.clear_size = itr->clear_size;
+						usage.real_size = itr->real_size;
+
+						usage_data_set.insert(usage);
+					}
 				}
 				break;
 			}
@@ -347,7 +385,7 @@ public:
 				LogError("Unexpected exception");
 			}
 
-			retention_db_.save(retention_set);
+			retention_db_.save(retention_set, usage_data_set);
 		}
 
 		LogMessage("flush_retention(): thread ending");

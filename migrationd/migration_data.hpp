@@ -31,7 +31,8 @@ struct migration_data
 	{
 		init = 0,
 		converted,
-		copied
+		copied,
+		error
 	};
 
 	uint64_t id;
@@ -44,6 +45,9 @@ struct migration_data
 	std::string identifier;
 	time_t create_time;
 	archiving::archivable::file_type::file_type_t filetype;
+
+	std::size_t clear_size;
+	std::size_t real_size;
 
 	storage::s3::endpoint::pointer p_endpoint;
 

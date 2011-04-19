@@ -34,13 +34,15 @@ public:
 				migration_data data = inward_channel_.consume();
 //				const std::string& tmp_prefix(data.identifier+'.');
 
-				try {
-					put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
-					LogMessage(data.identifier<<": copied to S3");
-					data.state = migration_data::copied;
-				}
-				catch(const std::exception& e) {
-					LogError(data.identifier<<": Error saving to S3; "<<e.what());
+				if(data.state != migration_data::error) {
+					try {
+						put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
+						LogMessage(data.identifier<<": copied to S3");
+						data.state = migration_data::copied;
+					}
+					catch(const std::exception& e) {
+						LogError(data.identifier<<": Error saving to S3; "<<e.what());
+					}
 				}
 
 				outward_channel_.produce(data);
