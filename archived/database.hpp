@@ -147,13 +147,13 @@ public:
 					;
 			int values_count = 0;
 			for(data_multiset::iterator itr = range.first; itr != range.second; ++itr) {
-				query << (values_count? ',': '\n') << "( UNHEX(REPLACE(%"<<(values_count*17+0)<<"q:UUID_"<<values_count<<", '-', '')), %"<<(values_count*17+1)<<":Format_"<<values_count<<", "
-				"%"<<(values_count*17+2)<<":OrgID_"<<values_count<<", %"<<(values_count*17+3)<<":UserID_"<<values_count<<", "
-				"%"<<(values_count*17+4)<<":PolicyID_"<<values_count<<", %"<<(values_count*17+5)<<":PolicyVersion_"<<values_count<<", "
-				"'%"<<(values_count*17+6)<<":CreationDateYear_"<<values_count<<"-%"<<(values_count*17+7)<<":CreationDateMonth_"<<values_count<<"-%"<<(values_count*17+8)<<":CreationDateDay_"<<values_count<<"', "
-				"'%"<<(values_count*17+9)<<":RetentionMinDateYear_"<<values_count<<"-%"<<(values_count*17+10)<<":RetentionMinDateMonth_"<<values_count<<"-%"<<(values_count*17+11)<<":RetentionMinDateDay_"<<values_count<<"', "
-				"'%"<<(values_count*17+12)<<":RetentionMaxDateYear_"<<values_count<<"-%"<<(values_count*17+13)<<":RetentionMaxDateMonth_"<<values_count<<"-%"<<(values_count*17+14)<<":RetentionMaxDateDay_"<<values_count<<"', "
-				"%"<<(values_count*17+15)<<":EndpointID_"<<values_count<<", %"<<(values_count*17+16)<<":Type_"<<values_count<<" )\n";
+				query << (values_count? ',': '\n') << "( UNHEX(REPLACE(%"<<(values_count*17+0)<<"q, '-', '')), %"<<(values_count*17+1)<<", "
+				"%"<<(values_count*17+2)<<", %"<<(values_count*17+3)<<", "
+				"%"<<(values_count*17+4)<<", %"<<(values_count*17+5)<<", "
+				"'%"<<(values_count*17+6)<<"-%"<<(values_count*17+7)<<"-%"<<(values_count*17+8)<<"', "
+				"'%"<<(values_count*17+9)<<"-%"<<(values_count*17+10)<<"-%"<<(values_count*17+11)<<"', "
+				"'%"<<(values_count*17+12)<<"-%"<<(values_count*17+13)<<"-%"<<(values_count*17+14)<<"', "
+				"%"<<(values_count*17+15)<<", %"<<(values_count*17+16)<<" )\n";
 
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
