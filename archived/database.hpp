@@ -181,9 +181,10 @@ public:
 				values_count++;
 			}
 
-			std::cout << "SQL (not parsed): "<<query.str() << std::endl;
+std::cout << "SQL (not parsed): "<<query.str() << std::endl;
 
 			query.parse();
+std::cout << "SQL (parsed)" << std::endl;
 			LogVerbose("SQL: "<<query.str(qp));
 			mysqlpp::SimpleResult res = query.execute(qp);
 			LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
