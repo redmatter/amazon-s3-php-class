@@ -161,8 +161,8 @@ while true; do
 
 	_crash_count=$(( $_crash_count + 1 ))
 	
-	__log info    "+                                                            +"
+	__log info    "+------------------------------------------------------------+"
 	__log warning "${program_name} died ( status: $exit_status ) Restarting..."
-	__log info    "+                                                            +"
+	__log info    "+------------------------------------------------------------+"
 done;
 
