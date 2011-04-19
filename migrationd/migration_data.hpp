@@ -84,6 +84,7 @@ struct migration_data
 	};
 
 	typedef rml::pc_channel<migration_data> channel_t;
+	typedef rml::busy_set<migration_data> busy_set_t;
 
 	friend std::ostream& std::operator<<(std::ostream& ostr, const migration_data& md);
 };

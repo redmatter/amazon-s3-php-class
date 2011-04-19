@@ -185,7 +185,7 @@ public:
 									}
 									else if(0 == waited_pid) {
 										LogVerbose("waitpid pid:"<<pid);
-										if(timeout_u_s) {
+										if(timeout_u_s && !quit_) {
 											usleep(100);
 											timeout_u_s -= 100;
 											continue;

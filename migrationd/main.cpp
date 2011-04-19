@@ -234,7 +234,9 @@ int main(int argc, char* argv[]) try
 
 		app::storage::s3::specific::initialiser libs3_initialiser;
 
-		app::migration_data::channel_t channel_convert("Convert");
+		app::migration_data::busy_set_t busied_set;
+
+		app::migration_data::channel_t channel_convert(boost::bind(&app::migration_data::busy_set_t::is_busied, boost::ref(busied_set), _1), 0, "Convert");
 		app::migration_data::channel_t channel_copy_to_s3("Copy2S3");
 		app::migration_data::channel_t channel_copy_to_s3_done("Copy2S3Done");
 		app::migration_data::channel_t channel_save_retention("SaveRetention");
@@ -246,8 +248,8 @@ int main(int argc, char* argv[]) try
 		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
 				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
 
-		app::database::migration migration_db(app::confMap, channel_convert, channel_copy_to_s3_done, channel_save_retention, channel_verify_data, cached_policy_finder, cached_endpoint_finder, app::quit);
-		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
+		app::database::migration migration_db(app::confMap, busied_set, channel_convert, channel_copy_to_s3_done, channel_save_retention, channel_verify_data, cached_policy_finder, cached_endpoint_finder, app::quit);
+		app::convert converter(busied_set, channel_convert, channel_copy_to_s3, app::quit);
 		app::migration_storage s3_storage(app::confMap, channel_copy_to_s3, channel_copy_to_s3_done, app::quit);
 		app::file_verify file_verify(app::confMap, channel_verify_data, app::quit);
 

@@ -28,6 +28,8 @@ extern std::string rmfs_base_directory;
  */
 class convert
 {
+	migration_data::busy_set_t& busied_set_;
+
 	migration_data::channel_t& inward_channel_;
 	migration_data::channel_t& outward_channel_;
 	volatile bool& quit_;
@@ -42,8 +44,8 @@ public:
 	 * @param outward_channel
 	 * @param quit
 	 */
-	convert(migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
-			inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
+	convert(migration_data::busy_set_t& busied_set, migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
+			busied_set_(busied_set), inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
 	{
 	}
 
@@ -55,6 +57,9 @@ public:
 		try {
 			while(!app::quit) {
 				migration_data data = inward_channel_.consume();
+
+				// busy it here; we will unbusy this once we have done updating Migration.State
+				busied_set_.add(data);
 
 				const std::string& tmp_prefix(data.identifier+'.');
 

@@ -26,6 +26,8 @@ class migration : public basic_database< migration >
 {
 	const boost::program_options::variables_map& confMap_;
 
+	migration_data::busy_set_t& busied_set_;
+
 	migration_data::channel_t& new_migratables_channel_;
 	migration_data::channel_t& done_migratables_channel_;
 	migration_data::channel_t& retention_channel_;
@@ -79,12 +81,14 @@ public:
 	 */
 	migration(
 			const boost::program_options::variables_map& confMap,
+			migration_data::busy_set_t& busied_set,
 			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& done_migratables_channel, migration_data::channel_t& retention_channel,
 			file_verify::data::channel_t& verify_channel,
 			const policy::cached_finder_t& cached_policy_finder, const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder,
 			volatile bool& quit) :
 
 					basic_database< migration >(confMap), confMap_(confMap),
+					busied_set_(busied_set),
 					new_migratables_channel_(new_migratables_channel), done_migratables_channel_(done_migratables_channel), retention_channel_(retention_channel),
 					verify_channel_(verify_channel),
 					cached_policy_finder_(cached_policy_finder),
@@ -301,6 +305,8 @@ public:
 							retention_set.insert(retention);
 						}
 
+						busied_set_.remove(data);
+
 						{
 							file_verify::data verify_data;
 							verify_data.md = data;
@@ -311,7 +317,7 @@ public:
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
 						if(!retention_set.empty())
-							LogVerbose("consume timed-out; flush items we already have...");
+							LogVerbose("consume timed-out; flush items we might already have...");
 						break;
 					}
 				}
