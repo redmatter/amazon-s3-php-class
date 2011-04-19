@@ -151,7 +151,7 @@ public:
 				const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
 
 				query << (values_count? ',': '\n')
-						<<"( UNHEX(REPLACE( '"<<itr->uuid<<"' )), "<<itr->file_format<<", "
+						<<"( UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), "<<itr->file_format<<", "
 						<<itr->org<<", "<<itr->user<<", "
 						<<itr->retention.p_policy->id<<", "<<itr->retention.p_policy->version<<", "
 
@@ -159,7 +159,7 @@ public:
 						<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
 						<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
 
-						<<itr->endpoint_id<<", "<<itr->file_type<<" )";
+						<<itr->endpoint_id<<", "<<(int)(itr->file_type)<<" )";
 
 				values_count++;
 			}
