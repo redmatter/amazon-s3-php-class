@@ -222,7 +222,7 @@ public:
 						<<itr->org<<", "
 						<<"1, "
 						<<itr->clear_size<<", "
-						<<itr->real_size<<", "
+						<<itr->real_size
 						<<" )\n";
 				values_count++;
 			}
