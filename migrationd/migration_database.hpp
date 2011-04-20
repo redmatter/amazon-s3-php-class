@@ -187,6 +187,27 @@ public:
 		}
 	}
 
+
+	struct status_update
+	{
+		uint64_t id;
+		migration_data::state_t state;
+
+		struct compare
+		{
+			bool operator()(const status_update& lhs, const status_update& rhs)
+			{
+				return lhs.state < rhs.state;
+			}
+		};
+
+		status_update(const migration_data& md) : id(md.id), state(md.state)
+		{
+		}
+
+		typedef std::multiset<status_update, status_update::compare> multiset_t;
+	};
+
 	/**
 	 * Update migration status
 	 * TODO batch flush
@@ -202,72 +223,66 @@ public:
 				continue;
 			}
 
+			unsigned int batch_max = 1024;
+			status_update::multiset_t status_updates;
 			try {
-				while(true) {
+				while(batch_max--) {
 					const migration_data& data(done_migratables_channel_.consume(1));
-
-					try {
-						rml::MySQLConnection conn(pool_);
-
-						mysqlpp::Transaction transaction(*conn, false);
-						std::string cur_status;
-						{
-							mysqlpp::Query query = conn->query();
-							query << "SELECT ID, Status FROM Migration WHERE ID=%0:ID FOR UPDATE";
-							query.parse();
-							mysqlpp::SQLQueryParms qp;
-							qp << data.id;
-							mysqlpp::StoreQueryResult res = query.store(qp);
-							cur_status = res[0][1].c_str();
-						}
-
-						{
-							std::string new_status;
-							switch(data.state) {
-							case migration_data::copied:
-								new_status = "migrated";
-								break;
-
-							case migration_data::error:
-								new_status = "migration_error";
-								break;
-
-							default:
-								new_status = ((cur_status == "retry")? "migration_error": "retry");
-								break;
-							}
-
-							mysqlpp::Query query = conn->query();
-							query << "UPDATE Migration SET Status=%0q:Status WHERE ID=%1:ID";
-							query.parse();
-							mysqlpp::SQLQueryParms qp;
-							qp << new_status << data.id;
-							mysqlpp::SimpleResult res = query.execute(qp);
-							if(res.rows())
-								LogMessage(data.identifier<<" [id:"<<data.id<<"] marked as "<<new_status);
-						}
-
-						transaction.commit();
-
-						if(data.state == migration_data::copied)
-							// add to retention queue
-							retention_channel_.produce(data);
-					}
-					catch(const mysqlpp::Exception& e) {
-						LogCritical("Database Error: "<<e.what());
-						LogWarning("Raising quit flag due to database error!!");
-						quit_ = true;
-					}
-					catch(const std::exception& e) {
-						LogError("Exception: "<<e.what());
-					}
-					catch(...) {
-						LogError("Unexpected exception");
-					}
+					status_updates.insert(status_update(data));
 				}
 			}
 			catch(const migration_data::channel_t::consume_timed_out_exception& e) {
-				LogMessage(done_migratables_channel_<< ": No data to flush; nap time!");
+				LogMessage(done_migratables_channel_<< ": "<<e.what()<<"; flusing any status updates collected");
+			}
+			catch(const std::exception& e) {
+				LogError("Exception: "<<e.what());
+			}
+			catch(...) {
+				LogError("Unexpected exception");
+			}
+
+			try {
+				rml::MySQLConnection conn(pool_);
+				while(status_updates.begin() != status_updates.end()) {
+					mysqlpp::Transaction transaction(*conn, false);
+					status_update::multiset_t::iterator b_itr = status_updates.begin();
+					std::pair< status_update::multiset_t::iterator, status_update::multiset_t::iterator > range = status_updates.equal_range(*b_itr);
+
+					mysqlpp::Query query = conn->query();
+					const migration_data::state_t& state_batch(b_itr->state);
+					switch(state_batch) {
+					case migration_data::copied:
+						query << "UPDATE Migration SET Status='migrated' WHERE ID IN (";
+						break;
+
+					case migration_data::error:
+						query << "UPDATE Migration SET Status='migration_error' WHERE ID IN (";
+						break;
+
+					default:
+						query << "UPDATE Migration SET Status=IF(Status='retry', 'migration_error', 'retry') WHERE ID IN (";
+						break;
+					}
+
+					int values_count = 0;
+					for(status_update::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
+						query << (values_count? ',': ' ')<<itr->id;
+						values_count++;
+					}
+					query << ')';
+					std::cout << "SQL: "<<query.str() << std::endl;
+					mysqlpp::SimpleResult res = query.execute();
+					LogMessage("Status updates : "<<res.rows()<<" rows updated");
+
+					status_updates.erase(range.first, range.second);
+
+					transaction.commit();
+				}
+			}
+			catch(const mysqlpp::Exception& e) {
+				LogCritical("Database Error: "<<e.what());
+				LogWarning("Raising quit flag due to database error!!");
+				quit_ = true;
 			}
 			catch(const std::exception& e) {
 				LogError("Exception: "<<e.what());
