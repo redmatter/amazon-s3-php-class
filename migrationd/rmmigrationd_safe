@@ -162,7 +162,9 @@ while true; do
 	fi
 
 	_crash_count=$(( $_crash_count + 1 ))
-	
-	__log warning "${program_name} died ( status: $exit_status ) Restarting..."
-done;
 
+	if [ "$__DISABLE_RESTART" = "true" ]; then
+		exit $exit_status;
+	else
+		__log warning "${program_name} died ( status: $exit_status ) Restarting..."
+done;

@@ -127,6 +127,8 @@ export __VALGRIND_TRACK_FDS="$( get_conf $config_file debug.valgrind_track_file_
 export __VALGRIND_TOOL="$( get_conf $config_file debug.valgrind_tool 1 memcheck )"
 export __MALLOC_CHECK="$( get_conf $config_file debug.malloc_check 0 false )"
 
+export __DISABLE_RESTART="$( get_conf $config_file debug.disable_restart 0 false )"
+
 case "$1" in
   start)
     action $"Starting $prog: " _start
