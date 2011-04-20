@@ -223,11 +223,11 @@ public:
 				continue;
 			}
 
-			unsigned int batch_max = 1024;
+			unsigned int batch_max = 200;
 			status_update::multiset_t status_updates;
 			try {
 				while(batch_max--) {
-					const migration_data& data(done_migratables_channel_.consume(1));
+					const migration_data& data(done_migratables_channel_.consume(0, 1000)); // give it 1ms
 					status_updates.insert(status_update(data));
 					if(data.state == migration_data::copied)
 						// add to retention queue
@@ -320,9 +320,10 @@ public:
 			database::retention::usage_data::multiset_t usage_data_set;
 
 			try {
-				while(retention_set.size() < 1024) {
+				unsigned int batch_max = 500;
+				while(batch_max--) {
 					try {
-						const migration_data& data(retention_channel_.consume(1));
+						const migration_data& data(retention_channel_.consume(0, 1000)); // give it 1ms
 
 						{
 							database::retention::data retention;

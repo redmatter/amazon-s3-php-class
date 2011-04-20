@@ -123,16 +123,16 @@ public:
 					}
 
 					for(std::size_t discard = available_items - todo_count; !quit_ && !abort && discard > 0; discard--)
-						(void)channel_.consume(1);
+						(void)channel_.consume(0, 1000);
 
 					while(!quit_ && !abort && todo_count--) {
 						LogVerbose("todo_count: "<<todo_count);
 
 						try {
-							const data& data(channel_.consume(1));
+							const data& data(channel_.consume(0, 1000));
 							pid_t pid = fork();
 							if(pid < 0) {
-								LogCritical("Failed to vfork; error:"<<strerror(errno));
+								LogCritical("Failed to fork; error:"<<strerror(errno));
 								quit_ = true; // die!!!
 								throw rml::exception("Failed to fork");
 							}
@@ -211,6 +211,7 @@ public:
 
 								if(!check_ok) {
 									LogCritical(data.md.identifier << " convert failed: file corruption");
+									abort = true;
 									quit_ = true;
 									boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 									exit(rml::utils::exit_codes::failure);
