@@ -166,5 +166,6 @@ while true; do
 	if [ "$__DISABLE_RESTART" = "true" ]; then
 		exit $exit_status;
 	else
-		__log warning "${program_name} died ( status: $exit_status ) Restarting..."
+		__log warning "${program_name} died ( status: $exit_status ) Restarting...";
+	fi
 done;
