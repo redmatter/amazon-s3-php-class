@@ -229,6 +229,9 @@ public:
 				while(batch_max--) {
 					const migration_data& data(done_migratables_channel_.consume(1));
 					status_updates.insert(status_update(data));
+					if(data.state == migration_data::copied)
+						// add to retention queue
+						retention_channel_.produce(data);
 				}
 			}
 			catch(const migration_data::channel_t::consume_timed_out_exception& e) {
