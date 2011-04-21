@@ -332,6 +332,8 @@ public:
 					try {
 						const migration_data& data(retention_channel_.consume(0, 1000)); // give it 1ms
 
+						LogDebug("ToRetention: "<<data);
+
 						{
 							database::retention::data retention;
 							retention.file_format = data.target_format;
