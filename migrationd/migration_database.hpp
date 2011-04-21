@@ -136,7 +136,13 @@ public:
 				rml::MySQLConnection conn(pool_);
 				mysqlpp::Query query = conn->query();
 				{
-					query << "SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, Path, OrgID, UserID, CreateEpoch "
+					query << "SELECT "
+							/*0*/"ID, "
+							/*1*/"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, "
+							/*2*/"Path, "
+							/*3*/"OrgID, "
+							/*4*/"UserID, "
+							/*5*/"CreateEpoch "
 					"FROM Migration "
 					"WHERE ";
 					if(!orgs_enabled_.empty()) {
@@ -165,17 +171,18 @@ public:
 				while(mysqlpp::Row row = res.fetch_row()) {
 					// make migration_data
 					archiving::org_id org = rml::utils::strtoull(row[3].c_str());
-					new_migratables_channel_.produce(
-							migration_data(
-									rml::utils::strtoull(row[0].c_str()),
-									row[1].c_str(),
-									row[2].c_str(),
-									org,
-									rml::utils::strtoull(row[4].c_str()),
-									rml::utils::strtoull(row[5].c_str()),
-									cached_s3endpoint_finder_(org),
-									app::types::file_format::encrypted_compressed_wav,
-									archiving::archivable::file_type::recording));
+					migration_data data(
+							rml::utils::strtoull(row[0].c_str()),
+							row[1].c_str(),
+							row[2].c_str(),
+							org,
+							rml::utils::strtoull(row[4].c_str()),
+							rml::utils::strtoull(row[5].c_str()),
+							cached_s3endpoint_finder_(org),
+							app::types::file_format::encrypted_compressed_wav,
+							archiving::archivable::file_type::recording);
+					LogDebug("Migratable: "<<data);
+					new_migratables_channel_.produce(data);
 				}
 			}
 			catch(const std::exception& e) {

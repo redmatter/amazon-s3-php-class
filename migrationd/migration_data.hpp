@@ -97,7 +97,11 @@ struct migration_data
 
 namespace std {
 ostream& operator<<(ostream& ostr, const app::migration_data& md) {
+#if 0
 	return ostr << md.identifier;
+#else
+	return ostr << '{'<<md.identifier<<", org:"<<md.org<<", user:"<<md.user<<", filetype:"<<md.filetype<<", create_time:"<<md.create_time<<", uuid:"<<md.uuid<<'}';
+#endif
 }
 }
 
