@@ -133,6 +133,7 @@ public:
 							pid_t pid = fork();
 							if(pid < 0) {
 								LogCritical("Failed to fork; error:"<<strerror(errno));
+								LogMessage("Raising Quit flag due to fork failure");
 								quit_ = true; // die!!!
 								throw rml::exception("Failed to fork");
 							}
@@ -212,6 +213,7 @@ public:
 								if(!check_ok) {
 									LogCritical(data.md.identifier << " convert failed: file corruption");
 									abort = true;
+									LogMessage("Raising Quit flag due to file corruption");
 									quit_ = true;
 									boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 									exit(rml::utils::exit_codes::failure);

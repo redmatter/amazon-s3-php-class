@@ -297,6 +297,8 @@ int main(int argc, char* argv[]) try
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
+		LogMessage("Quit flagged ... stopping channels");
+
 		channel_convert.set_finishing();
 		channel_copy_to_s3.set_finishing();
 		channel_copy_to_s3_done.set_finishing();
