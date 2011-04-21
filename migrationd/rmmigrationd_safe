@@ -115,7 +115,7 @@ if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
 		__log err "Invalid niceness given in config file";
 		exit 3;
 	fi
-	__nice="/usr/bin/nice -n $__NICENESS"
+	__nice="/bin/nice -n $__NICENESS"
 fi
 
 while true; do
