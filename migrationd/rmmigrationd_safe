@@ -9,6 +9,11 @@ syslog_tag=rm-migrationd
 
 pid_file=/var/run/archiving/${program_name}_safe.pid
 
+__is_numeric() {
+	[ -z "$@" ] && return 1
+	echo "$@" | grep -q -v "[^0-9]"
+} 
+
 __log() {
 	level=$1; shift;
 	[ -n "$0" ] &&
@@ -105,13 +110,21 @@ if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
 	echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
 fi
 
+if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
+	if ! __is_numeric "$__NICENESS" || [ "$__NICENESS" -lt 0 ] || [ "$__NICENESS" -gt 19 ]; then
+		__log err "Invalid niceness given in config file";
+		exit 3;
+	fi
+	__nice="/usr/bin/nice -n $__NICENESS"
+fi
+
 while true; do
 	
 	__log info "+------------------------------------------------------------+"
 	__log info Starting $program_name under safe wrapper - $program "$@"
 	__log info "+------------------------------------------------------------+"
 	
-	__run $program "$@"
+	__run $__nice $program "$@"
 	exit_status=$?
 
 	echo $'\n'
