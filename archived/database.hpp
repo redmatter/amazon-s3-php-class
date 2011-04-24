@@ -152,13 +152,15 @@ public:
 	void save(data::multiset_t& data, usage_data::multiset_t& usage_data)
 	{
 		// Retention Data
+		rml::MySQLConnection conn(pool_);
+		mysqlpp::Transaction transaction(*conn, false);
+
 		while(data.begin() != data.end()) {
 			data::multiset_t::iterator b_itr = data.begin();
 			std::pair< data::multiset_t::iterator, data::multiset_t::iterator > range = data.equal_range(*b_itr);
 
 			const archiving::org_id& org(b_itr->org);
 
-			rml::MySQLConnection conn(pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
 					"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, Type )"
@@ -201,7 +203,6 @@ public:
 
 			const archiving::org_id& org(b_itr->org);
 
-			rml::MySQLConnection conn(pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
 					"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage` )"
@@ -236,6 +237,8 @@ public:
 
 			usage_data.erase(range.first, range.second);
 		}
+
+		transaction.commit();
 	}
 
 	void save(const archiving::org_id& org, const archiving::user_id& user, const std::string& identifier, const applied_policy& retention)
