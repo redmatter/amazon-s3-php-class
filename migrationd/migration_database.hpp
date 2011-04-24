@@ -134,56 +134,79 @@ public:
 				}
 
 				rml::MySQLConnection conn(pool_);
-				mysqlpp::Query query = conn->query();
+				mysqlpp::Transaction transaction(*conn, false);
+
+				std::vector<uint64_t> ids;
 				{
-					query << "SELECT "
-							/*0*/"ID, "
-							/*1*/"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, "
-							/*2*/"Path, "
-							/*3*/"OrgID, "
-							/*4*/"UserID, "
-							/*5*/"CreateEpoch "
-					"FROM Migration "
-					"WHERE ";
-					if(!orgs_enabled_.empty()) {
-						if(1 == orgs_enabled_.size()) {
-							query << "OrgID="<<orgs_enabled_[0]<<" AND ";
-						}
-						else {
-							int c = 0;
-							std::vector<archiving::org_id>::const_iterator end = orgs_enabled_.end();
-							query << "OrgID IN (";
-							for(std::vector<archiving::org_id>::const_iterator itr = orgs_enabled_.begin(); itr != end; ++itr) {
-								query << (c? ',': ' ')<<*itr;
-								c++;
+					mysqlpp::Query query = conn->query();
+					{
+						query << "SELECT "
+								/*0*/"ID, "
+								/*1*/"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, "
+								/*2*/"Path, "
+								/*3*/"OrgID, "
+								/*4*/"UserID, "
+								/*5*/"CreateEpoch "
+						"FROM Migration "
+						"WHERE ";
+						if(!orgs_enabled_.empty()) {
+							if(1 == orgs_enabled_.size()) {
+								query << "OrgID="<<orgs_enabled_[0]<<" AND ";
 							}
-							query << ") AND ";
+							else {
+								int c = 0;
+								std::vector<archiving::org_id>::const_iterator end = orgs_enabled_.end();
+								query << "OrgID IN (";
+								for(std::vector<archiving::org_id>::const_iterator itr = orgs_enabled_.begin(); itr != end; ++itr) {
+									query << (c? ',': ' ')<<*itr;
+									c++;
+								}
+								query << ") AND ";
+							}
 						}
+						query << "FileState='ok' AND Status IN ('pending','retry') AND ( ISNULL(NextAttempt) OR ( NextAttempt <= NOW() ) ) AND Type='recordings'"
+								"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT "<<(200 - channel_count)
+								<<" FOR UPDATE";
+						query.parse();
 					}
-					query << "FileState='ok' AND Status IN ('pending','retry') AND Type='recordings'"
-							"AND ( GoodHost=%0q:HostName OR ( ISNULL(GoodHost) AND ( ( ID % %1:HostCount ) = %2:HostIndex) ) ) LIMIT "<<(200 - channel_count);
-					query.parse();
+
+					mysqlpp::SQLQueryParms qp;
+					qp << app::hostname << host_count_ << host_index_;
+
+					LogDebug("SQL: "<<query.str(qp));
+
+					mysqlpp::UseQueryResult res = query.use(qp);
+					while(mysqlpp::Row row = res.fetch_row()) {
+						// make migration_data
+						archiving::org_id org = rml::utils::strtoull(row[3].c_str());
+						const uint64_t& id(rml::utils::strtoull(row[0].c_str()));
+						migration_data data(
+								id,
+								row[1].c_str(),
+								row[2].c_str(),
+								org,
+								rml::utils::strtoull(row[4].c_str()),
+								rml::utils::strtoull(row[5].c_str()),
+								cached_s3endpoint_finder_(org),
+								app::types::file_format::encrypted_compressed_wav,
+								archiving::archivable::file_type::recording);
+						LogDebug("Migratable: "<<data);
+						new_migratables_channel_.produce(data);
+						ids.push_back(id);
+					}
 				}
-				mysqlpp::SQLQueryParms qp;
-				qp << app::hostname << host_count_ << host_index_;
-				LogDebug("SQL: "<<query.str(qp));
-				mysqlpp::UseQueryResult res = query.use(qp);
-				while(mysqlpp::Row row = res.fetch_row()) {
-					// make migration_data
-					archiving::org_id org = rml::utils::strtoull(row[3].c_str());
-					migration_data data(
-							rml::utils::strtoull(row[0].c_str()),
-							row[1].c_str(),
-							row[2].c_str(),
-							org,
-							rml::utils::strtoull(row[4].c_str()),
-							rml::utils::strtoull(row[5].c_str()),
-							cached_s3endpoint_finder_(org),
-							app::types::file_format::encrypted_compressed_wav,
-							archiving::archivable::file_type::recording);
-					LogDebug("Migratable: "<<data);
-					new_migratables_channel_.produce(data);
+
+				{
+					mysqlpp::Query query = conn->query();
+					query << "UPDATE Migration SET NextAttempt=DATE_ADD(NOW(), INTERVAL 5 MINUTE) WHERE ID IN (";
+					for(std::vector<uint64_t>::const_iterator itr = ids.begin(); itr != ids.end(); ++itr)
+						query << (itr == ids.begin()? ' ': ',') << *itr;
+					query << ')';
+
+					(void)query.execute();
 				}
+
+				transaction.commit();
 			}
 			catch(const std::exception& e) {
 				LogError("Exception: "<<e.what());
