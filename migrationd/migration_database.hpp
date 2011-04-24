@@ -29,8 +29,8 @@ class migration : public basic_database< migration >
 	migration_data::busy_set_t& busied_set_;
 
 	migration_data::channel_t& new_migratables_channel_;
-	migration_data::channel_t& done_migratables_channel_;
-	migration_data::channel_t& retention_channel_;
+	migration_data::channel_t& channel_copy_to_s3_done_;
+	migration_data::channel_t& channel_save_status_;
 
 	file_verify::data::channel_t& verify_channel_;
 
@@ -82,14 +82,14 @@ public:
 	migration(
 			const boost::program_options::variables_map& confMap,
 			migration_data::busy_set_t& busied_set,
-			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& done_migratables_channel, migration_data::channel_t& retention_channel,
+			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& channel_copy_to_s3_done, migration_data::channel_t& channel_save_status,
 			file_verify::data::channel_t& verify_channel,
 			const policy::cached_finder_t& cached_policy_finder, const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder,
 			volatile bool& quit) :
 
 					basic_database< migration >(confMap), confMap_(confMap),
 					busied_set_(busied_set),
-					new_migratables_channel_(new_migratables_channel), done_migratables_channel_(done_migratables_channel), retention_channel_(retention_channel),
+					new_migratables_channel_(new_migratables_channel), channel_copy_to_s3_done_(channel_copy_to_s3_done), channel_save_status_(channel_save_status),
 					verify_channel_(verify_channel),
 					cached_policy_finder_(cached_policy_finder),
 					cached_s3endpoint_finder_(cached_s3endpoint_finder),
@@ -221,6 +221,10 @@ public:
 	 */
 	void update_status()
 	{
+		boost::mt19937 rng;
+		boost::uniform_int<> one_to_1000( 1, 1000 );
+		boost::variate_generator< boost::mt19937, boost::uniform_int<> > rand_one_to_1000(rng, one_to_1000);
+
 		int c = -15;
 
 		while(!quit_) {
@@ -234,15 +238,33 @@ public:
 			status_update::multiset_t status_updates;
 			try {
 				while(batch_max--) {
-					const migration_data& data(done_migratables_channel_.consume(0, 1000)); // give it 1ms
+					const migration_data& data(channel_save_status_.consume(0, 1000)); // give it 1ms
 					status_updates.insert(status_update(data));
-					if(data.state == migration_data::copied)
-						// add to retention queue
-						retention_channel_.produce(data);
+					if(data.state == migration_data::copied) {
+
+						busied_set_.remove(data);
+
+						{
+							file_verify::data verify_data;
+							verify_data.md = data;
+							verify_data.random = rand_one_to_1000();
+
+							verify_channel_.produce(verify_data);
+						}
+					}
 				}
 			}
 			catch(const migration_data::channel_t::consume_timed_out_exception& e) {
-				LogMessage(done_migratables_channel_<< ": "<<e.what()<<"; flusing any status updates collected");
+				LogMessage(channel_save_status_<< ": "<<e.what()<<"; flusing any status updates collected");
+			}
+			catch(const migration_data::channel_t::finishing_exception& e) {
+				LogMessage(channel_save_status_<<": finishing; flushing any remaining");
+				const migration_data::channel_t::item_set& data_set(channel_save_status_.consume_remaining());
+				migration_data::channel_t::item_set::const_iterator end = data_set.end();
+				for(migration_data::channel_t::item_set::const_iterator itr = data_set.begin(); itr != end; ++itr)
+					status_updates.insert(status_update(*itr));
+
+				break;
 			}
 			catch(const std::exception& e) {
 				LogError("Exception: "<<e.what());
@@ -261,7 +283,7 @@ public:
 					mysqlpp::Query query = conn->query();
 					const migration_data::state_t& state_batch(b_itr->state);
 					switch(state_batch) {
-					case migration_data::copied:
+					case migration_data::retention_info_saved:
 						query << "UPDATE Migration SET Status='migrated' WHERE ID IN (";
 						break;
 
@@ -309,10 +331,6 @@ public:
 	 */
 	void flush_retention()
 	{
-		boost::mt19937 rng;
-		boost::uniform_int<> one_to_1000( 1, 1000 );
-		boost::variate_generator< boost::mt19937, boost::uniform_int<> > rand_one_to_1000(rng, one_to_1000);
-
 		// start in 20s
 		int c = -20;
 
@@ -328,82 +346,55 @@ public:
 
 			try {
 				unsigned int batch_max = 500;
-				while(batch_max--) {
+				while(!quit_ && batch_max--) {
 					try {
-						const migration_data& data(retention_channel_.consume(0, 1000)); // give it 1ms
+						migration_data data = channel_copy_to_s3_done_.consume(0, 1000);
+						if(data.state == migration_data::copied) {
+							LogDebug("ToRetention: "<<data);
+							{
+								database::retention::data retention;
+								retention.file_format = data.target_format;
+								retention.file_type = data.filetype;
+								retention.org = data.org;
+								retention.user = data.user;
+								retention.uuid = data.uuid;
+								retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
+								retention.endpoint_id = data.p_endpoint->identifier;
 
-						LogDebug("ToRetention: "<<data);
+								retention_set.insert(retention);
+							}
 
-						{
-							database::retention::data retention;
-							retention.file_format = data.target_format;
-							retention.file_type = data.filetype;
-							retention.org = data.org;
-							retention.user = data.user;
-							retention.uuid = data.uuid;
-							retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
-							retention.endpoint_id = data.p_endpoint->identifier;
+							{
+								database::retention::usage_data usage;
+								usage.org = data.org;
+								usage.filetype = data.filetype;
+								usage.create_time = data.create_time;
+								usage.clear_size = data.clear_size;
+								usage.real_size = data.real_size;
 
-							retention_set.insert(retention);
+								usage_data_set.insert(usage);
+							}
+
+							data.state = migration_data::retention_info_saved;
 						}
 
-						{
-							database::retention::usage_data usage;
-							usage.org = data.org;
-							usage.filetype = data.filetype;
-							usage.create_time = data.create_time;
-							usage.clear_size = data.clear_size;
-							usage.real_size = data.real_size;
-
-							usage_data_set.insert(usage);
-						}
-
-						busied_set_.remove(data);
-
-						{
-							file_verify::data verify_data;
-							verify_data.md = data;
-							verify_data.random = rand_one_to_1000();
-
-							verify_channel_.produce(verify_data);
-						}
+						channel_save_status_.produce(data);
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
-						if(!retention_set.empty())
-							LogVerbose("consume timed-out; flush items we might already have...");
 						break;
 					}
 				}
+
+				try {
+					retention_db_.save(retention_set, usage_data_set);
+				}
+				catch(const mysqlpp::Exception& e) {
+					LogCritical("Database Error: "<<e.what());
+					LogWarning("Raising quit flag due to database error!!");
+					quit_ = true;
+				}
 			}
 			catch(const migration_data::channel_t::finishing_exception& e) {
-				LogMessage(retention_channel_<<": finishing; flushing any remaining");
-				const migration_data::channel_t::item_set& data_set(retention_channel_.consume_remaining());
-				migration_data::channel_t::item_set::const_iterator end = data_set.end();
-				for(migration_data::channel_t::item_set::const_iterator itr = data_set.begin(); itr != end; ++itr) {
-					{
-						database::retention::data retention;
-						retention.file_format = itr->target_format;
-						retention.file_type = itr->filetype;
-						retention.org = itr->org;
-						retention.user = itr->user;
-						retention.uuid = itr->uuid;
-						retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(itr->org, policy::id_type(0))), itr->create_time);
-						retention.endpoint_id = itr->p_endpoint->identifier;
-
-						retention_set.insert(retention);
-					}
-
-					{
-						database::retention::usage_data usage;
-						usage.org = itr->org;
-						usage.filetype = itr->filetype;
-						usage.create_time = itr->create_time;
-						usage.clear_size = itr->clear_size;
-						usage.real_size = itr->real_size;
-
-						usage_data_set.insert(usage);
-					}
-				}
 				break;
 			}
 			catch(const std::exception& e) {
@@ -412,8 +403,6 @@ public:
 			catch(...) {
 				LogError("Unexpected exception");
 			}
-
-			retention_db_.save(retention_set, usage_data_set);
 		}
 
 		LogMessage("flush_retention(): thread ending");

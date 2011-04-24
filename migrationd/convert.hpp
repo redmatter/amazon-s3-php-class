@@ -28,10 +28,8 @@ extern std::string rmfs_base_directory;
  */
 class convert
 {
-	migration_data::busy_set_t& busied_set_;
-
-	migration_data::channel_t& inward_channel_;
-	migration_data::channel_t& outward_channel_;
+	migration_data::channel_t& channel_convert_;
+	migration_data::channel_t& channel_copy_to_s3_;
 	volatile bool& quit_;
 
 	app::impl::crypto crypto_;
@@ -44,8 +42,8 @@ public:
 	 * @param outward_channel
 	 * @param quit
 	 */
-	convert(migration_data::busy_set_t& busied_set, migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
-			busied_set_(busied_set), inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
+	convert(migration_data::channel_t& channel_convert, migration_data::channel_t& channel_copy_to_s3, volatile bool& quit) :
+			channel_convert_(channel_convert), channel_copy_to_s3_(channel_copy_to_s3), quit_(quit)
 	{
 	}
 
@@ -56,10 +54,7 @@ public:
 	{
 		try {
 			while(!app::quit) {
-				migration_data data = inward_channel_.consume();
-
-				// busy it here; we will unbusy this once we have done updating Migration.State
-				busied_set_.add(data);
+				migration_data data = channel_convert_.consume();
 
 				const std::string& tmp_prefix(data.identifier+'.');
 
@@ -119,11 +114,11 @@ public:
 						iter--;
 					}
 				}
-				outward_channel_.produce(data);
+				channel_copy_to_s3_.produce(data);
 			}
 		}
 		catch(const migration_data::channel_t::finishing_exception& e) {
-			LogVerbose(inward_channel_ << e.what());
+			LogVerbose(channel_convert_ << e.what());
 			return;
 		}
 	}

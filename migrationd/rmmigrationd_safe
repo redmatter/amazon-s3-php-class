@@ -111,11 +111,16 @@ if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
 fi
 
 if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
+	if [ -z "$__NICE" ]; then
+		__log err "nice not found in PATH ( you can set NICE variable in rc script )";
+		exit 1;
+	fi
+
 	if ! __is_numeric "$__NICENESS" || [ "$__NICENESS" -lt 0 ] || [ "$__NICENESS" -gt 19 ]; then
 		__log err "Invalid niceness given in config file";
 		exit 3;
 	fi
-	__nice="/bin/nice -n $__NICENESS"
+	__nice="$__NICE -n $__NICENESS"
 fi
 
 while true; do

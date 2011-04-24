@@ -32,6 +32,7 @@ struct migration_data
 		init = 0,
 		converted,
 		copied,
+		retention_info_saved,
 		error
 	};
 

@@ -9,14 +9,14 @@ namespace app {
 
 class migration_storage : public storage::s3::backend
 {
-	migration_data::channel_t& inward_channel_;
-	migration_data::channel_t& outward_channel_;
+	migration_data::channel_t& channel_copy_to_s3_;
+	migration_data::channel_t& channel_copy_to_s3_done_;
 
 	volatile bool& quit_;
 
 public:
-	migration_storage(const boost::program_options::variables_map& confMap, migration_data::channel_t& inward_channel, migration_data::channel_t& outward_channel, volatile bool& quit) :
-			storage::s3::backend(confMap), inward_channel_(inward_channel), outward_channel_(outward_channel), quit_(quit)
+	migration_storage(const boost::program_options::variables_map& confMap, migration_data::channel_t& channel_copy_to_s3, migration_data::channel_t& channel_copy_to_s3_done, volatile bool& quit) :
+			storage::s3::backend(confMap), channel_copy_to_s3_(channel_copy_to_s3), channel_copy_to_s3_done_(channel_copy_to_s3_done), quit_(quit)
 	{
 	}
 
@@ -31,7 +31,7 @@ public:
 	{
 		try {
 			while(!app::quit) {
-				migration_data data = inward_channel_.consume();
+				migration_data data = channel_copy_to_s3_.consume();
 //				const std::string& tmp_prefix(data.identifier+'.');
 
 				if(data.state != migration_data::error) {
@@ -45,11 +45,11 @@ public:
 					}
 				}
 
-				outward_channel_.produce(data);
+				channel_copy_to_s3_done_.produce(data);
 			}
 		}
 		catch(const migration_data::channel_t::finishing_exception& e) {
-			LogVerbose(inward_channel_ << e.what());
+			LogVerbose(channel_copy_to_s3_ << e.what());
 			return;
 		}
 	}
