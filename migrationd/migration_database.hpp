@@ -240,10 +240,8 @@ public:
 				while(batch_max--) {
 					const migration_data& data(channel_save_status_.consume(0, 1000)); // give it 1ms
 					status_updates.insert(status_update(data));
-					if(data.state == migration_data::copied) {
-
-						busied_set_.remove(data);
-
+					busied_set_.remove(data);
+					if(data.state == migration_data::retention_info_saved) {
 						{
 							file_verify::data verify_data;
 							verify_data.md = data;

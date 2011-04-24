@@ -122,6 +122,9 @@ public:
 						break;
 					}
 
+					LogDebug("             Verify:Available : "<<available_items);
+					LogDebug("             Verify:ToDo      : "<<todo_count);
+
 					for(std::size_t discard = available_items - todo_count; !quit_ && !abort && discard > 0; discard--)
 						(void)channel_.consume(0, 1000);
 
