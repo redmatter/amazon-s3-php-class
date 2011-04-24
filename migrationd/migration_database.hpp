@@ -196,7 +196,7 @@ public:
 					}
 				}
 
-				{
+				if(!ids.empty()) {
 					mysqlpp::Query query = conn->query();
 					query << "UPDATE Migration SET NextAttempt=DATE_ADD(NOW(), INTERVAL 5 MINUTE) WHERE ID IN (";
 					for(std::vector<uint64_t>::const_iterator itr = ids.begin(); itr != ids.end(); ++itr)
