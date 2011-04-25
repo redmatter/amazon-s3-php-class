@@ -64,10 +64,9 @@ struct migration_data
 
 	migration_data(
 			uint64_t id, std::string uuid, const std::string& path, const archiving::org_id& org, const archiving::user_id& user, const time_t& create_time,
-			storage::s3::endpoint::pointer p_endpoint,
+			storage::s3::endpoint::pointer p_endpoint, const time_t& next_attempt,
 			const app::types::file_format::file_format_t& target_format = app::types::file_format::encrypted_compressed_wav,
-			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording,
-			const time_t& next_attempt) :
+			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording) :
 
 			id(id), uuid(uuid), path(path), org(org), user(user), target_format(target_format), create_time(create_time), filetype(filetype), p_endpoint(p_endpoint), next_attempt(next_attempt)
 	{

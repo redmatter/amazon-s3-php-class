@@ -189,9 +189,9 @@ public:
 								rml::utils::strtoull(row[4].c_str()),
 								rml::utils::strtoull(row[5].c_str()),
 								cached_s3endpoint_finder_(org),
+								rml::utils::strtoull(row[6].c_str()),
 								app::types::file_format::encrypted_compressed_wav,
-								archiving::archivable::file_type::recording,
-								rml::utils::strtoull(row[6].c_str()));
+								archiving::archivable::file_type::recording);
 						LogDebug("Migratable: "<<data);
 						new_migratables_channel_.produce(data);
 						ids.push_back(id);
