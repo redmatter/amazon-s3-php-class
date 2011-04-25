@@ -146,7 +146,8 @@ public:
 								/*2*/"Path, "
 								/*3*/"OrgID, "
 								/*4*/"UserID, "
-								/*5*/"CreateEpoch "
+								/*5*/"CreateEpoch, "
+								/*6*/"UNIX_TIMESTAMP(IF(ISNULL(NextAttempt), NOW(), NextAttempt))"
 						"FROM Migration "
 						"WHERE ";
 						if(!orgs_enabled_.empty()) {
@@ -189,7 +190,8 @@ public:
 								rml::utils::strtoull(row[5].c_str()),
 								cached_s3endpoint_finder_(org),
 								app::types::file_format::encrypted_compressed_wav,
-								archiving::archivable::file_type::recording);
+								archiving::archivable::file_type::recording,
+								rml::utils::strtoull(row[6].c_str()));
 						LogDebug("Migratable: "<<data);
 						new_migratables_channel_.produce(data);
 						ids.push_back(id);
