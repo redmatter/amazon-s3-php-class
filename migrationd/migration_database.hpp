@@ -203,7 +203,7 @@ public:
 						query << (itr == ids.begin()? ' ': ',') << *itr;
 					query << ')';
 
-					LogDebug("SQL: "<<query.str(qp));
+					LogDebug("SQL: "<<query.str());
 
 					(void)query.execute();
 				}
