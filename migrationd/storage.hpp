@@ -35,6 +35,9 @@ public:
 //				const std::string& tmp_prefix(data.identifier+'.');
 
 				if(data.state != migration_data::error) {
+
+					data.p_fstream->re_open();
+
 					try {
 						put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
 						LogMessage(data.identifier<<": copied to S3");
@@ -43,6 +46,8 @@ public:
 					catch(const std::exception& e) {
 						LogError(data.identifier<<": Error saving to S3; "<<e.what());
 					}
+
+					data.p_fstream->close();
 				}
 
 				channel_copy_to_s3_done_.produce(data);

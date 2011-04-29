@@ -103,6 +103,7 @@ public:
 						{
 							data.state = migration_data::converted;
 							data.real_size = data.p_fstream->get_size();
+							data.p_fstream->close();
 							break;
 						}
 
