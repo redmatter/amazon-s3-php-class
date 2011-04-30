@@ -102,9 +102,11 @@ class result_cache
 
 			time_t newer = time(0) - diff;
 			iter_type cache_end = cache_.end();
-			for(iter_type it = cache_.begin(); it != cache_end; ++it) {
+			for(iter_type it = cache_.begin(); it != cache_end; ) {
 				if(it->second.atime < newer)
-					cache_.erase(it);
+					cache_.erase(it++);
+				else
+					++it;
 			}
 		}
 };
