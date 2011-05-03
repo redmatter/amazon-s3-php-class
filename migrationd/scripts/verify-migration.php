@@ -40,7 +40,7 @@ class VerifyMigrationApp extends BaseApp
 	{
 		if (isset($message))
 			echo "$message\n\n";
-		echo "Usage:\n"
+		echo "Usage:\n";
 		echo "verify-migration.php --s3-access-key=<S3AccessKey> --s3-secret-key=<S3SecretKey> [--s3-bucket=<S3Bucket>] --conf=<ConfFile default:verify-migration.conf> [--check-orgs=<OrgList>]\n";
 		
 		exit($exit_status);
@@ -109,3 +109,4 @@ class VerifyMigrationApp extends BaseApp
 
 
 VerifyMigrationApp::getInstance(cli::get('--conf', CONF_FILE))->run();
+
