@@ -41,7 +41,7 @@ class VerifyMigrationApp extends BaseApp
 		if (isset($message))
 			echo "$message\n\n";
 		echo "Usage:\n";
-		echo "verify-migration.php --s3-access-key=<S3AccessKey> --s3-secret-key=<S3SecretKey> [--s3-bucket=<S3Bucket>] --conf=<ConfFile default:verify-migration.conf> [--check-orgs=<OrgList>]\n";
+		echo "verify-migration.php --s3-access-key=<S3AccessKey> --s3-secret-key=<S3SecretKey> [--s3-bucket=<S3Bucket>] --conf=<ConfFile default:verify-migration.conf> [--check-orgs=<OrgList>] [--log-level=<LogLevel>]\n";
 		
 		exit($exit_status);
 	}
@@ -70,41 +70,69 @@ class VerifyMigrationApp extends BaseApp
 		
 		$lastID = 0;
 		
-		while ($res = $migDb->Execute("SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, HEX(UUID) `UUID_HEX`, OrgID FROM Migration WHERE Status='migrated' AND ID > {$lastID} ".(isset($checkOrgs)? " AND OrgID IN ({$checkOrgs})": '')." LIMIT 100"))
+		while ($res = $migDb->Execute("SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, HEX(UUID) `UUID_HEX`, OrgID, Status FROM Migration WHERE Status IN ('migrated', 'pending') AND ID > {$lastID} ".(isset($checkOrgs)? " AND OrgID IN ({$checkOrgs})": '')." LIMIT 100"))
 		{
 			if (!$res->RecordCount())
 				break;
 				
 			$redoIDs = array();
-				
+			$redoOrgUUIDs = array();
+			$setDoneIDs = array();
+			
 			while ($row = $res->FetchRow())
 			{
 				$s3Key = "recording/{$row[3]}/{$row[1]}";
-				if (false !== $s3->getObjectInfo($s3Bucket, $s3Key, false))
+				
+				$savedToS3 = ( false !== $s3->getObjectInfo($s3Bucket, $s3Key, false) );
+
+				$retRes = $retDb->Execute("SELECT ID FROM Retention_{$row[3]} WHERE UUID=0x{$row[2]}");
+				$retentionSaved = ( 0 != $retRes->RecordCount() );
+				$retRes->Close();
+				
+				LogDebug($savedToS3, "Org:{$row[3]} UUID:{$row[1]} - SavedToS3");
+				LogDebug($retentionSaved, "Org:{$row[3]} UUID:{$row[1]} - RetentionSaved");
+				
+				if ($savedToS3 && $retentionSaved && ($row[4] !== 'migrated'))
 				{
-					if($retRes = $retDb->Execute("SELECT ID FROM Retention_{$row[3]} WHERE UUID=0x{$row[2]}"))
-					{
-						if (!$retRes->RecordCount())
-						{
-							LogMessage('Found Retention Record NOT found', "Org:{$row[3]} UUID:{$row[1]}");
-							$redoIDs[] = $row[0];
-						}
-						else
-							LogMessage('Found Retention Record', "Org:{$row[3]} UUID:{$row[1]}");
-					}
+					LogVerbose('SetDone', "Org:{$row[3]} UUID:{$row[1]}");
+					$setDoneIDs[] = $row[0];
+				}
+				else
+				{
+					LogVerbose('ReDo', "Org:{$row[3]} UUID:{$row[1]}");
+					if(!isset($redoOrgUUIDs[$row[3]]))
+						$redoOrgUUIDs[$row[3]] = array();
+						
+					$redoOrgUUIDs[$row[3]][] = $row[2]; // UUID_HEX
 					
-					$retRes->Close();
+					$redoIDs[] = $row[0]; // ID
 				}
 				
 				$lastID = $row[0];
 			}
 			
+			if (isset($setDoneIDs[0]))
+			{
+				if ('no' === cli::get('--readonly', 'yes'))
+					$migDb->Execute("UPDATE Migration SET Status='migrated' WHERE ID IN (".implode(',', $setDoneIDs).")");
+				else
+					LogMessage("UPDATE Migration SET Status='migrated' WHERE ID IN (".implode(',', $setDoneIDs).")");
+			}
+
 			if (isset($redoIDs[0]))
 			{
 				if ('no' === cli::get('--readonly', 'yes'))
 					$migDb->Execute("UPDATE Migration SET Status='pending' WHERE ID IN (".implode(',', $redoIDs).")");
 				else
 					LogMessage("UPDATE Migration SET Status='pending' WHERE ID IN (".implode(',', $redoIDs).")");
+					
+				foreach ($redoOrgUUIDs as $org => $uuids)
+				{
+					if ('no' === cli::get('--readonly', 'yes'))
+						$retDb->Execute("DELETE FROM Retention_{$org} WHERE UUID IN (0x".implode(', 0x', $uuids).")");
+					else
+						LogMessage("DELETE FROM Retention_{$org} WHERE UUID IN (0x".implode(', 0x', $uuids).")");
+				}
 			}
 			
 			$this->dbPingReconnect('migration');
