@@ -94,8 +94,8 @@ class VerifyMigrationApp extends BaseApp
 				$retentionSaved = ( 0 != $retRes->RecordCount() );
 				$retRes->Close();
 				
-				LogDebug($savedToS3, "Org:{$row[3]} UUID:{$row[1]} - SavedToS3");
-				LogDebug($retentionSaved, "Org:{$row[3]} UUID:{$row[1]} - RetentionSaved");
+				LogVerbose($savedToS3, "Org:{$row[3]} UUID:{$row[1]} - SavedToS3");
+				LogVerbose($retentionSaved, "Org:{$row[3]} UUID:{$row[1]} - RetentionSaved");
 				
 				if ($savedToS3 && $retentionSaved && ($row[4] === 'migrated'))
 				{
