@@ -24,7 +24,7 @@ Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp
 %package migrationd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp, RM-%{appname}-convert = %{version}-%{release}
+Requires: boost >= 1.45.0, mysql++ >= 3.1.0, libs3, cryptopp, php-s3, RM-php-rmapp >= 0.0.1-11853, RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
 Summary: Archiving Convert Utility
