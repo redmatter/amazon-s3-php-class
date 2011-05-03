@@ -41,7 +41,7 @@ class VerifyMigrationApp extends BaseApp
 		if (isset($message))
 			echo "$message\n\n";
 		echo "Usage:\n";
-		echo "verify-migration.php --s3-access-key=<S3AccessKey> --s3-secret-key=<S3SecretKey> [--s3-bucket=<S3Bucket>] --conf=<ConfFile default:verify-migration.conf> [--check-orgs=<OrgList>] [--log-level=<LogLevel>]\n";
+		echo "verify-migration.php --s3-access-key=<S3AccessKey> --s3-secret-key=<S3SecretKey> [--s3-bucket=<S3Bucket>] --conf=<ConfFile default:verify-migration.conf> [--check-orgs=<OrgList>] [--log-level=<LogLevel>] [--host-index=<HostIndex>]\n";
 		
 		exit($exit_status);
 	}
@@ -58,6 +58,11 @@ class VerifyMigrationApp extends BaseApp
 		
 		$conf = $this->getConf();
 		
+		$hostCount = $conf->get('host_count', 4);;
+		$hostIndex = cli::get('--host-index', $conf->get('host_index'));
+		if (!isset($hostIndex))
+			$this->showUsage(1, "HostIndex NOT given");
+		
 		$s3AccessKey = cli::get('--s3-access-key');
 		$s3SecretKey = cli::get('--s3-secret-key');
 		$s3Bucket = cli::get('--s3-bucket', $conf->get('s3.bucket', 'rm-archiving'));
@@ -70,7 +75,7 @@ class VerifyMigrationApp extends BaseApp
 		
 		$lastID = 0;
 		
-		while ($res = $migDb->Execute("SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, HEX(UUID) `UUID_HEX`, OrgID, Status FROM Migration WHERE Status IN ('migrated', 'pending') AND ID > {$lastID} ".(isset($checkOrgs)? " AND OrgID IN ({$checkOrgs})": '')." LIMIT 100"))
+		while ($res = $migDb->Execute("SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, HEX(UUID) `UUID_HEX`, OrgID, Status FROM Migration WHERE Status IN ('migrated', 'pending') AND ID > {$lastID} ".(isset($checkOrgs)? " AND OrgID IN ({$checkOrgs})": '')." AND (( ID % {$hostCount} ) = {$hostIndex}) LIMIT 100"))
 		{
 			if (!$res->RecordCount())
 				break;
@@ -92,7 +97,11 @@ class VerifyMigrationApp extends BaseApp
 				LogDebug($savedToS3, "Org:{$row[3]} UUID:{$row[1]} - SavedToS3");
 				LogDebug($retentionSaved, "Org:{$row[3]} UUID:{$row[1]} - RetentionSaved");
 				
-				if ($savedToS3 && $retentionSaved && ($row[4] !== 'migrated'))
+				if ($savedToS3 && $retentionSaved && ($row[4] === 'migrated'))
+				{
+					LogVerbose('OK', "Org:{$row[3]} UUID:{$row[1]}");
+				}
+				elseif ($savedToS3 && $retentionSaved && ($row[4] !== 'migrated'))
 				{
 					LogVerbose('SetDone', "Org:{$row[3]} UUID:{$row[1]}");
 					$setDoneIDs[] = $row[0];
