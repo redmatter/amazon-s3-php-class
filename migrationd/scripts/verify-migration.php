@@ -99,7 +99,13 @@ class VerifyMigrationApp extends BaseApp
 				$lastID = $row[0];
 			}
 			
-			$migDb->Execute("UPDATE Migration SET Status='pending' WHERE ID IN (".implode(',', $redoIDs).")");
+			if (isset($redoIDs[0]))
+			{
+				if ('no' === cli::get('--readonly', 'yes'))
+					$migDb->Execute("UPDATE Migration SET Status='pending' WHERE ID IN (".implode(',', $redoIDs).")");
+				else
+					LogMessage("UPDATE Migration SET Status='pending' WHERE ID IN (".implode(',', $redoIDs).")");
+			}
 			
 			$this->dbPingReconnect('migration');
 			$this->dbPingReconnect('retention');
