@@ -74,6 +74,9 @@ class VerifyMigrationApp extends BaseApp
 		$s3 = new S3($s3AccessKey, $s3SecretKey);
 		
 		$lastID = 0;
+
+		$count_redoIDs = 0;
+		$count_setDoneIDs = 0;
 		
 		while ($res = $migDb->Execute("SELECT ID, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, HEX(UUID) `UUID_HEX`, OrgID, Status FROM Migration WHERE Status IN ('migrated', 'pending') AND ID > {$lastID} ".(isset($checkOrgs)? " AND OrgID IN ({$checkOrgs})": '')." AND (( ID % {$hostCount} ) = {$hostIndex}) LIMIT 100"))
 		{
@@ -126,6 +129,8 @@ class VerifyMigrationApp extends BaseApp
 					$migDb->Execute("UPDATE Migration SET Status='migrated' WHERE ID IN (".implode(',', $setDoneIDs).")");
 				else
 					LogMessage("UPDATE Migration SET Status='migrated' WHERE ID IN (".implode(',', $setDoneIDs).")");
+
+				$count_setDoneIDs += count($setDoneIDs);
 			}
 
 			if (isset($redoIDs[0]))
@@ -142,12 +147,19 @@ class VerifyMigrationApp extends BaseApp
 					else
 						LogMessage("DELETE FROM Retention_{$org} WHERE UUID IN (0x".implode(', 0x', $uuids).")");
 				}
+
+				$count_redoIDs += count($redoIDs);
 			}
 			
 			$this->dbPingReconnect('migration');
 			$this->dbPingReconnect('retention');
+			LogMessage($lastID, '------------------------------------ LastID');
 		}
-	}	
+
+		LogMessage($count_redoIDs, 'COUNT(redoIDs)');
+		LogMessage($count_setDoneIDs, 'COUNT(setDoneIDs)');
+		LogMessage('Done................................');
+	}
 }
 
 
