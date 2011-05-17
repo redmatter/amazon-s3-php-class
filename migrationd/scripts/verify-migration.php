@@ -73,7 +73,7 @@ class VerifyMigrationApp extends BaseApp
 			
 		$s3 = new S3($s3AccessKey, $s3SecretKey);
 		
-		$lastID = 0;
+		$lastID = cli::get('--start-id', 0);
 
 		$count_redoIDs = 0;
 		$count_setDoneIDs = 0;
