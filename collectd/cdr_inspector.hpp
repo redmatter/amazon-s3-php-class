@@ -226,7 +226,7 @@ public:
 							{
 								owners.reset(new archiving::owner_info(rmOrgID));
 								owners->addUser(rmUserID);
-								archivable_cdr->set_owners(*owners);
+								archivable_cdr->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
 							}
 						}
 

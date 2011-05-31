@@ -5,7 +5,7 @@
 #include "file_verify.hpp"
 
 #include "../archived/database.hpp"
-#include "../archived/policy.hpp"
+#include "../common/policy.hpp"
 
 #include <rml/utils.h>
 

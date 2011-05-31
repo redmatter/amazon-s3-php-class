@@ -1,7 +1,7 @@
 #include "../archived/types.hpp"
 #include "../archived/compress.hpp"
 #include "../archived/crypto.hpp"
-#include "../archived/coreapi.hpp"
+#include "../common/coreapi.hpp"
 
 #include <rml/logger.h>
 #include <rml/config.h>

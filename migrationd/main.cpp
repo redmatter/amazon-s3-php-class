@@ -28,8 +28,8 @@
 #include "convert.hpp"
 #include "storage.hpp"
 
-#include "../archived/coreapi.hpp"
-#include "../archived/policy.hpp"
+#include "../common/coreapi.hpp"
+#include "../common/policy.hpp"
 
 #include <rml/config.h>
 #include <rml/logger.h>

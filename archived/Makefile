@@ -66,8 +66,8 @@ include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
 ../common/$(TMP)/libarchiving_common.a :
-	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
 
 clean_extra:
-	@$(MAKE) -C ../common $(MAKEFLAGS) BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
 
