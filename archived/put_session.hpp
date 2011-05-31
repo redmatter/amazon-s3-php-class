@@ -10,9 +10,14 @@
 
 #include "globals.h"
 #include "types.hpp"
+#include "operation_data.hpp"
+#include "storage_endpoint.hpp"
+#include "clear_cache.hpp"
+#include "database.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
+#include "../common/policy.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -61,6 +66,13 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	boost::program_options::variables_map& confMap_;
 
 	boost::asio::io_service& io_service_;
+
+	policy::cached_finder_t& cached_policy_finder_;
+	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
+
+	database::internal& internal_db_;
+	clear_cache& clear_cache_;
+
 	boost::asio::ip::tcp::socket socket_;
 
 	boost::asio::streambuf recv_buffer_;
@@ -68,21 +80,41 @@ class put_session : public boost::enable_shared_from_this<put_session>
 
 	states::state_t current_state_;
 
-	boost::shared_ptr<std::fstream> ofs_;
+	rml::utils::tmp_fstream::pointer ofs_;
 	archiving::hash_vector md5_;
+	std::string resource_id_;
+	std::string uuid_;
 	archiving::org_id orgID_;
 	types::metadata::pointer metadata_;
+	types::data_sub_format::data_sub_format_t data_type_;
+	policy::id_type policy_id_;
+	time_t creation_time_;
 	archiving::archivable::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
 	bool xfrd_ok_;
 
-	archiving::archivable_channel_t& channel_;
+	operation_data::channel_t& channel_;
 
 public:
 	typedef boost::shared_ptr<put_session> pointer;
 
-	put_session( boost::program_options::variables_map& confMap, archiving::archivable_channel_t& channel, boost::asio::io_service& io_service )
-	: confMap_(confMap), io_service_(io_service), socket_(io_service), current_state_(states::accepting), channel_(channel)
+	put_session(
+			boost::program_options::variables_map& confMap,
+			operation_data::channel_t& channel,
+			policy::cached_finder_t& cached_policy_finder,
+			storage::s3::endpoint::cached_finder_t& cached_endpoint_finder,
+			database::internal& internal_db,
+			clear_cache& clear_cache,
+			boost::asio::io_service& io_service ) :
+				confMap_(confMap),
+				io_service_(io_service),
+				cached_policy_finder_(cached_policy_finder),
+				cached_endpoint_finder_(cached_endpoint_finder),
+				internal_db_(internal_db),
+				clear_cache_(clear_cache),
+				socket_(io_service),
+				current_state_(states::accepting),
+				channel_(channel)
 	{
 		//ctor
 	}
@@ -200,10 +232,15 @@ private:
 		{
 			ofs_.reset();
 			md5_.clear();
+			resource_id_.clear();
+			uuid_.clear();
 			orgID_ = 0;
 			metadata_.reset();
+			data_type_ = types::data_sub_format::unknown;
 			file_type_ = archiving::archivable::file_type::unknown;
 			content_length_ = 0;
+			policy_id_ = 0;
+			creation_time_ = 0;
 			xfrd_content_length_ = 0;
 			xfrd_ok_ = false;
 
@@ -218,9 +255,9 @@ private:
 		{
 			std::string PUT;
 			archiving::archivable::file_type::file_type_t file_type;
-			archiving::hash_vector md5;
 			archiving::org_id orgID;
 			std::size_t content_length;
+			std::string uuid;
 			char sp1, sp2, sp3, sp4, cr, lf;
 
 			std::istream istr(&recv_buffer_);
@@ -228,9 +265,10 @@ private:
 
 			std::ostream ostr(&send_buffer_);
 
-			istr >> PUT >> sp1 >> orgID >> sp2 >> file_type >> sp3 >> md5 >> sp4 >> content_length >> cr >> lf;
-			LogMessage("PUT received for Org:"<<orgID<<" file_type:"<<file_type<<" md5:"<<md5<<" content-length:"<<content_length);
-			if(!((PUT == "PUT") && ( sp1 == sp2 == sp3 == ' ') && (16 == md5.size()) && (cr == '\r') && (lf == '\n'))) {
+
+			istr >> PUT >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
+			LogMessage("PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
+			if(!((PUT == "PUT") && ( sp1 == sp2 == sp3 == sp4 == ' ') && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
 				LogError("Invalid PUT request");
 				current_state_ = states::put_received_ack_err;
 				ostr << "ERR PUT invalid PUT request\r\n";
@@ -239,39 +277,84 @@ private:
 				if(content_length <= 0) {
 					LogError("Invalid content length:"<<content_length);
 					current_state_ = states::put_received_ack_err;
-					ostr << "ERR PUT "<<orgID<<' '<<md5<<" invalid content length\r\n";
+					ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid content length\r\n";
 				}
 				else if(orgID <= 0) {
 					LogError("Invalid Org ID:"<<orgID);
 					current_state_ = states::put_received_ack_err;
-					ostr << "ERR PUT "<<orgID<<' '<<md5<<" invalid Org ID\r\n";
+					ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
 				}
 				else {
-					std::ostringstream os;
-					os << "put_org:"<<orgID<<"_md5:"<<md5<<".tmp.";
-					rml::utils::tmp_fstream::pointer ofs;
 					try {
-						ofs = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(os.str(), content_length, confMap_["archived.cache_dir"].as<std::string>()));
-						ofs_ = boost::static_pointer_cast<std::fstream, rml::utils::tmp_fstream>(ofs);
-						md5_ = md5;
+
+						// Get resource ID
+						{
+							std::ostringstream os;
+							os << file_type<<'/'<<orgID<<'/'<<uuid;
+							resource_id_ = os.str();
+						}
+
+						// read metadata from stream
+						metadata_.reset(new types::metadata(istr));
+
+						// open the file
+						ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
+
+						// make sure we have MD5 in headers
+						{
+							types::metadata::const_iterator itr = metadata_->find("MD5");
+							if(itr == metadata_->end())
+								throw rml::exception("No MD5 given");
+
+							std::istringstream istr(itr->second);
+							istr >> md5_;
+						}
+
+						// make sure we have PolicyID in headers
+						{
+							types::metadata::const_iterator itr = metadata_->find("RetentionPolicyID");
+							if(itr == metadata_->end())
+								throw rml::exception("No RetentionPolicyID given");
+
+							policy_id_ = rml::utils::strtoull(itr->second.c_str());
+						}
+
+						// make sure we have CreateTime in headers
+						{
+							types::metadata::const_iterator itr = metadata_->find("CreateTime");
+							if(itr == metadata_->end())
+								throw rml::exception("No CreateTime given");
+
+							creation_time_ = rml::utils::strtoull(itr->second.c_str());
+						}
+
+						// make sure we have CreateTime in headers
+						{
+							types::metadata::const_iterator itr = metadata_->find("DataFormat");
+							if(itr == metadata_->end())
+								throw rml::exception("No DataFormat given");
+
+							data_type_ = types::data_sub_format::from_string(itr->second);
+						}
+
+						uuid_ = uuid;
 						orgID_ = orgID;
-						metadata_.reset(new types::metadata(istr)); // read it from stream
 						file_type_ = file_type;
 						content_length_ = content_length;
 						xfrd_content_length_ = 0;
 						xfrd_ok_ = false;
 						current_state_ = states::put_received_ack_ok;
-						ostr << "OK PUT "<<orgID<<' '<<md5<<"\r\n";
+						ostr << "OK PUT "<<file_type<<' '<<orgID<<' '<<uuid<<"\r\n";
 					}
 					catch(const rml::exception& e) {
-						LogError("states::put_received: rml::exception: "<<e.what());
+						LogError(resource_id_<<": states::put_received: rml::exception: "<<e.what());
 						current_state_ = states::put_received_ack_err;
-						ostr << "ERR PUT "<<orgID<<' '<<md5<<" "<<e.what()<<"\r\n";
+						ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
 					}
 					catch(const std::exception& e) {
-						LogError("states::put_received: std::exception: "<<e.what());
+						LogError(resource_id_<<": states::put_received: std::exception: "<<e.what());
 						current_state_ = states::put_received_ack_err;
-						ostr << "ERR PUT "<<orgID<<' '<<md5<<" "<<e.what()<<"\r\n";
+						ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
 					}
 				}
 			}
@@ -300,19 +383,44 @@ private:
 		{
 			std::ostream ostr(&send_buffer_);
 			if(xfrd_ok_) {
-				rml::utils::tmp_fstream::pointer ofs = boost::static_pointer_cast<rml::utils::tmp_fstream, std::fstream>(ofs_);
-				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*(ofs.get()));
+				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
 				if(md5 == md5_) {
-					ostr << "OK RECV "<<orgID_<<' '<<md5_<<"\r\n";
-					current_state_ = states::put_check_received_file_ack_ok;
-					ofs->set_persistent();
 
-					channel_.produce(archiving::archivable::pointer(
-							new archiving::archivable(ofs->get_filename(), file_type_)));
+					LogMessage(resource_id_<<": PUT received OK");
+
+					// create operation_data
+					operation_data::pointer opdata(new operation_data());
+					opdata->p_detail.reset(new operation_data::detail());
+					opdata->p_detail->identifier = archiving::archivable::identifier(file_type_, orgID_, uuid_);
+					opdata->p_detail->policy = applied_policy(cached_policy_finder_(std::make_pair(orgID_, policy_id_)), creation_time_);
+					opdata->p_detail->p_endpoint = cached_endpoint_finder_(orgID_);
+					opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
+					opdata->p_detail->current_file_format = types::file_format::make(false, false, data_type_);
+					opdata->p_detail->files_map.insert(std::make_pair(opdata->p_detail->current_file_format, ofs_));
+					opdata->p_detail->clear_size = content_length_;
+					opdata->p_detail->real_size = 0;
+					opdata->p_detail->retry = 0;
+
+					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
+
+					// Looks like we have the file intact; lets make it temporarily not temporary
+					ofs_->set_persistent();
+					ofs_->close(); // no need to keep it open till we can process it
+
+					// lets add the file to clear cache for the sake of optimization
+					// otherwise we will have to pull it back from storage
+					clear_cache_.put(opdata->p_detail->identifier, opdata->p_detail->current_file_format, ofs_);
+
+					current_state_ = states::put_check_received_file_ack_ok;
+
+					// save the state of operation data
+					internal_db_.save(opdata);
+
+					channel_.produce(opdata);
 				}
 				else {
-					LogError("PUT failed with MD5 mismatch");
-					ostr << "ERR RECV "<<orgID_<<' '<<md5_<<" md5 mismatch\r\n";
+					LogError(resource_id_<<": PUT failed with MD5 mismatch");
+					ostr << "ERR RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<" md5 mismatch\r\n";
 					current_state_ = states::put_check_received_file_ack_err;
 					xfrd_ok_ = false;
 				}
@@ -324,9 +432,14 @@ private:
 
 			ofs_.reset();
 			md5_.clear();
+			resource_id_.clear();
+			uuid_.clear();
 			orgID_ = 0;
+			data_type_ = types::data_sub_format::unknown;
 			file_type_ = archiving::archivable::file_type::unknown;
 			content_length_ = 0;
+			policy_id_ = 0;
+			creation_time_ = 0;
 			xfrd_content_length_ = 0;
 			xfrd_ok_ = false;
 

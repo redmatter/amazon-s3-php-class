@@ -29,7 +29,8 @@ typedef std::vector<unsigned char> hash_vector;
 
 namespace std {
 
-std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash) {
+std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
+{
 	static const char* hex = "0123456789abcdef";
 	archiving::hash_vector::const_iterator hash_end = hash.end();
 	for(archiving::hash_vector::const_iterator itr = hash.begin(); itr != hash_end; ++itr) {
@@ -40,7 +41,8 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 	return ostr;
 }
 
-std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv) {
+std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
+{
 	bool ok = true;
 
 	archiving::hash_vector hv_(16);
@@ -76,29 +78,34 @@ std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv) {
 
 namespace archiving {
 
-class md5hasher : public boost::noncopyable {
+class md5hasher : public boost::noncopyable
+{
 
 public:
 
-	enum {
+	enum
+	{
 		max_buf_size = 40960,
 		hash_bytes_size = 16
 	};
 
 	typedef boost::shared_ptr< md5hasher > pointer;
 
-	inline md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false) {
+	inline md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false)
+	{
 		MD5Open(handle);
 	}
 
-	inline void digest(const char* const data, const unsigned int len) {
+	inline void digest(const char* const data, const unsigned int len)
+	{
 		if(closed)
 			throw rml::exception("md5hash: already closed");
 
 		MD5Digest(handle, data, len);
 	}
 
-	inline void close() {
+	inline void close()
+	{
 		if(handle) {
 			MD5Close(handle, &hash_[0]);
 			delete handle; handle = 0;
@@ -107,31 +114,35 @@ public:
 		closed = true;
 	}
 
-	inline const hash_vector& get_hash() const {
+	inline const hash_vector& get_hash() const
+	{
 		if(!closed)
 			LogWarning("hash not complete");
 
 		return hash_;
 	}
 
-	inline ~md5hasher() {
+	inline ~md5hasher()
+	{
 		if(handle) {
 			delete handle; handle = 0;
 		}
 	}
 
-	static inline hash_vector hash(boost::shared_ptr<std::fstream>& fstr_ptr, const size_t& file_length_ = 0) {
+	static inline hash_vector hash(rml::utils::tmp_fstream::pointer fstr_ptr, const size_t& file_length_ = 0)
+	{
 		assert(fstr_ptr.get());
-		return hash(*fstr_ptr, file_length_);
+		return hash(*fstr_ptr, file_length_? file_length_: fstr_ptr->get_size());
 	}
 
-	static hash_vector hash(std::fstream& fstr, const size_t& file_length_ = 0) {
+	static hash_vector hash(std::fstream& fstr, const size_t& file_length_ = 0)
+	{
 		md5hasher hasher;
 		size_t fLength, md5edLength;
 
 		std::filebuf *pbuf = fstr.rdbuf();
 
-
+		pbuf->pubseekpos(0,std::ios::in); // make sure we are at begining
 		if(!file_length_) {
 			fLength = 0;
 			fLength = pbuf->pubseekoff(0,std::ios::end,std::ios::in);

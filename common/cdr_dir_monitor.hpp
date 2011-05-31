@@ -37,7 +37,8 @@ public:
 			}
 			else if(ev.type & (dir_monitor::event::closed | dir_monitor::event::moved_to)) {
 				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close.find(file_path) != files_created_waiting_close.end()) ) {
-					channel.produce(archivable::pointer(new archivable(file_path, archiving::archivable::file_type::cdr)));
+					std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.xml*/), 36);
+					channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml")));
 					files_created_waiting_close.erase(file_path);
 				}
 			}

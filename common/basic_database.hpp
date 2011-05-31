@@ -1,0 +1,48 @@
+/*
+ * basic_database.hpp
+ *
+ *  Created on: 23 May 2011
+ *      Author: dkorah
+ */
+
+#ifndef BASIC_DATABASE_HPP_
+#define BASIC_DATABASE_HPP_
+
+#include <rml/DBConnectionPool.h>
+#include <rml/logger.h>
+
+#include <boost/program_options.hpp>
+#include <boost/noncopyable.hpp>
+
+namespace app {
+
+namespace database {
+
+template < typename database_type >
+class basic_database : public boost::noncopyable
+{
+protected:
+	const boost::program_options::variables_map& confMap_;
+	rml::DBConnectionPool pool_;
+
+public:
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		rml::DBConnectionPool::describe_config(optsDesc, database_type::get_identifier());
+	}
+
+	basic_database(const boost::program_options::variables_map& confMap) :
+		confMap_(confMap), pool_(confMap_, database_type::get_identifier())
+	{
+	}
+
+	virtual ~basic_database()
+	{
+		LogMessage("database['"<<database_type::get_identifier() << "] destroyed");
+	}
+};
+
+} // namespace database
+} // namespace app
+
+#endif /* BASIC_DATABASE_HPP_ */

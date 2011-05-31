@@ -4,6 +4,11 @@
 #include "storage.hpp"
 #include "storage_operation.hpp"
 #include "storage_runner.hpp"
+#include "converter.hpp"
+#include "dispatcher.hpp"
+#include "database.hpp"
+#include "clear_cache.hpp"
+#include "operation_data.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -14,8 +19,6 @@
 #include <rml/thread_adapter.h>
 #include <rml/config.h>
 #include <rml/siginit.h>
-
-#include <libaws/aws.h>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -64,6 +67,8 @@
 
 namespace app {
 
+std::string hostname;
+
 // the configuration map
 boost::program_options::variables_map confMap;
 
@@ -73,11 +78,38 @@ volatile bool quit = false;
 // was HUPed
 volatile bool wasHUPed = false;
 
+
+std::string operation_data::temp_files_base_directory;
+
 }
 
-int main(int argc, char **argv)
+int main(int argc, char **argv) try
 {
+	bool initialized = false;
+
+	// default initialization to catch any initialization error
+	rml::logger::configure();
+
 	{
+		boost::program_options::variables_map cli_confMap;
+		boost::program_options::options_description cli_optsDesc(
+					boost::str(boost::format(
+							DEFAULT_APP_LONG_NAME" v%1%"
+							"\n%2%\n\nOptions"
+							) % version_number_string % copyright_string));
+		cli_optsDesc.add_options()
+				("hostname", boost::program_options::value<std::string>(), "this hostname")
+				("help-conf", "conf file help")
+				("help", "this help")
+				;
+		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
+		boost::program_options::notify(cli_confMap);
+
+		if (cli_confMap.count("help")) {
+			std::cout << cli_optsDesc << "\n";
+			return 1;
+		}
+
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
 				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
@@ -92,6 +124,21 @@ int main(int argc, char **argv)
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
 		app::storage::s3::backend::describe_config(optsDesc);
+		app::coreapi::describe_config(optsDesc);
+		app::database::internal::describe_config(optsDesc);
+		app::database::retention::describe_config(optsDesc);
+		app::clear_cache::describe_config(optsDesc);
+		app::operation_data::describe_config(optsDesc);
+
+		if(cli_confMap.count("help-conf")) {
+			std::cout << optsDesc << "\n";
+			return 1;
+		}
+
+		if(1 != cli_confMap.count("hostname"))
+			throw rml::exception("hostname not given");
+
+		app::hostname = cli_confMap["hostname"].as<std::string>();
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -190,18 +237,39 @@ int main(int argc, char **argv)
 	}
 
 	try {
-		archiving::archivable_channel_t put_channel("->PUT");
-		archiving::archivable_channel_t to_s3_channel("PUT->S3");
+		app::operation_data::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
 
-		app::storage::s3::operation_channel_t s3_operation_channel("s3ops");
+		app::operation_data::channel_t convert_channel("Convert");
+		app::operation_data::channel_t convert_done_channel("ConvertDone");
+		app::storage::s3::operation_channel_t s3_operation_channel("S3Ops");
+		app::operation_data::channel_t retention_data_channel("RetentionData");
+		app::operation_data::channel_t usage_data_channel("UsageData");
 
-		boost::thread_group threads;
+		app::database::internal internal_db(app::confMap);
+		app::database::retention retention_db(app::confMap);
+
+		app::clear_cache clear_cache(app::confMap, internal_db);
+
+		app::coreapi coreapi(app::confMap);
+		app::policy::cached_finder_t cached_policy_finder(
+				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
+		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
+				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
+
 		boost::asio::io_service io_service;
 
-		app::put_server put_server(app::confMap, put_channel, to_s3_channel, io_service);
+		app::put_server put_server(app::confMap, convert_channel, cached_policy_finder, cached_endpoint_finder, internal_db, clear_cache, io_service);
+		app::converter converter(convert_channel, convert_done_channel, internal_db, app::quit);
+		app::dispatcher dispatcher(convert_done_channel, s3_operation_channel, retention_data_channel, internal_db, app::quit);
 
 		app::storage::s3::storage s3storage(app::confMap);
+
 		app::storage::s3::runner s3runner(s3storage, s3_operation_channel, app::quit);
+
+		initialized = true;
+		LogMessage("Initialisation complete");
+
+		boost::thread_group threads;
 
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );
@@ -217,13 +285,30 @@ int main(int argc, char **argv)
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
 
+		unsigned int ticker = 1;
 		while(!app::quit) {
-			LogVerbose(((time(0)%2) ? "tik": "tok"));
+			LogDebug(((ticker%2) ? "tik": "tok"));
+
+			//TODO monitoring stuff goes in here
+
+			if(0 == (ticker % 20)) {
+				cached_endpoint_finder.clear_unused(300);
+				cached_policy_finder.clear_unused(300);
+				ticker = 0;
+			}
+
+			ticker++;
+
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
-		put_channel.set_finishing();
-		to_s3_channel.set_finishing();
+		LogMessage("Quit flagged ... stopping channels");
+
+		convert_channel.set_finishing();
+		convert_done_channel.set_finishing();
+		s3_operation_channel.set_finishing();
+		retention_data_channel.set_finishing();
+		usage_data_channel.set_finishing();
 
 		io_service.stop();
 
@@ -236,9 +321,18 @@ int main(int argc, char **argv)
 		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {
-		LogCritical( e.what() );
+		LogError("exception: "<<e.what());
+		LogMessage("Abnormal program termination");
+		exit(initialized? rml::utils::exit_codes::failure: rml::utils::exit_codes::initialization_error);
 	}
-
-	LogCritical( "terminated with failure" );
+}
+catch(const std::exception& e) {
+	LogError("Exception: "<<e.what());
+	LogMessage("Abnormal program termination");
+	exit(rml::utils::exit_codes::failure);
+}
+catch(...) {
+	LogError("Unexpected exception");
+	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }

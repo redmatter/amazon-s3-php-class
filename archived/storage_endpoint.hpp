@@ -8,10 +8,10 @@
 #ifndef STORAGE_ENDPOINT_HPP_
 #define STORAGE_ENDPOINT_HPP_
 
-#include "coreapi.hpp"
-#include "cache.hpp"
 
+#include "../common/coreapi.hpp"
 #include "../common/archivable.hpp"
+#include "../common/cache.hpp"
 
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/filters.h>

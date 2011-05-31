@@ -52,13 +52,13 @@ public:
 
 			switch(opdata->state) {
 
-			case operation_states::init:
+			case operation_state::init:
 			{
 				throw rml::exception("Invalid state 'init'");
 				break;
 			}
 
-			case operation_states::put_received:
+			case operation_state::put_received:
 			{
 				assert(opdata->p_detail->p_metadata.get());
 				assert(opdata->p_detail->org_id);

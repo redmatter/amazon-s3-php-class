@@ -10,6 +10,8 @@
 
 #include "database.hpp"
 
+#include "../common/archivable.hpp"
+
 #include <rml/logger.h>
 #include <rml/utils.h>
 
@@ -48,17 +50,16 @@ public:
 	/// @param file_format
 	/// @return
 	rml::utils::tmp_fstream::pointer get(
-			const archiving::org_id org_id,
-			const std::string& identifier,
+			const archiving::archivable::identifier& identifier,
 			const types::file_format::file_format_t& file_format)
 	{
-		LogVerbose("Org:"<<org_id<<'/'<<identifier<<" file_format:"<<RML_HEX(5, file_format));
+		LogVerbose(identifier<<": Get file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
 
 		try {
-			const std::string& path(db_.clear_cache_get_path(org_id, identifier, file_format));
-			LogVerbose("Got from DB path:"<<path<<"; opening it...");
+			const std::string& path(db_.clear_cache_get_path(identifier.org, identifier.uuid, file_format));
+			LogVerbose(identifier<<": Got from DB path:"<<path<<"; opening it...");
 
 			return rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(path, std::ios_base::in | std::ios_base::binary));
 		}
@@ -76,22 +77,20 @@ public:
 	/// @param file_format one of the "clear" formats
 	/// @param file        the temporary file that is to be cached
 	void put(
-			const archiving::org_id org_id,
-			const std::string& identifier,
+			const archiving::archivable::identifier& identifier,
 			const types::file_format::file_format_t& file_format,
 			rml::utils::tmp_fstream::pointer file)
 	{
-		LogVerbose("Org:"<<org_id<<':'<<identifier<<" format:"<<RML_HEX(5, file_format));
+		LogVerbose(identifier<<": Put file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
 
 		try {
-
 			const std::string& cache_path(
 						boost::str(
-							boost::format("%1%/%2%.%3%") % base_directory_ % identifier % types::file_format::to_extension(file_format)));
+							boost::format("%1%/%2%.%3%") % base_directory_ % archiving::archivable::identifier::to_string(identifier) % types::file_format::to_extension(file_format)));
 
-			LogVerbose("clear cache path: "<<cache_path);
+			LogVerbose(identifier<<": clear cache path: "<<cache_path);
 
 			bool is_linked = false;
 			bool path_exists = false;
@@ -136,7 +135,7 @@ public:
 				}
 			}
 
-			db_.clear_cache_put_path(org_id, identifier, file_format, cache_path, is_hardlink);
+			db_.clear_cache_put_path(identifier.org, identifier.uuid, file_format, cache_path, is_hardlink);
 		}
 		catch(const std::exception& e) {
 			LogMessage("Failed to add file to clear cache err:"<<e.what());

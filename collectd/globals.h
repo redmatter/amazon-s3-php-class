@@ -14,9 +14,10 @@
 
 namespace app {
 
-extern bool quit;
+extern std::string hostname;
 
-extern bool wasHUPed;
+extern volatile bool quit;
+extern volatile bool wasHUPed;
 
 }  // namespace app
 

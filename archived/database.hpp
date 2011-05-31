@@ -10,14 +10,20 @@
 
 #include "operation_data.hpp"
 #include "types.hpp"
-#include "policy.hpp"
 #include "retention.hpp"
+
+#include "../common/policy.hpp"
+#include "../common/basic_database.hpp"
 
 #include <rml/DBConnectionPool.h>
 #include <rml/exception.h>
 #include <rml/logger.h>
 
+#include <mysql/mysqld_error.h>
+
 #include <boost/program_options.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <set>
 
@@ -26,30 +32,6 @@
 namespace app {
 
 namespace database {
-
-template < typename database_type >
-class basic_database : public boost::noncopyable
-{
-protected:
-	const boost::program_options::variables_map& confMap_;
-	rml::DBConnectionPool pool_;
-
-public:
-	static void describe_config(boost::program_options::options_description& optsDesc)
-	{
-		rml::DBConnectionPool::describe_config(optsDesc, database_type::get_identifier());
-	}
-
-	basic_database(const boost::program_options::variables_map& confMap) :
-		confMap_(confMap), pool_(confMap_, database_type::get_identifier())
-	{
-	}
-
-	virtual ~basic_database()
-	{
-		LogMessage("database['"<<database_type::get_identifier() << "] destroyed");
-	}
-};
 
 class retention : public basic_database< retention >
 {
@@ -241,10 +223,9 @@ public:
 		transaction.commit();
 	}
 
+	/*
 	void save(const archiving::org_id& org, const archiving::user_id& user, const std::string& identifier, const applied_policy& retention)
 	{
-		// TODO batch these queries! (with the danger of data loss in the event of a crash; but we still have this info in meta data)
-
 		rml::MySQLConnection conn(pool_); // scoped connection
 		mysqlpp::Query query = conn->query();
 		query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` "
@@ -287,6 +268,7 @@ public:
 		LogVerbose("SQL: "<<query.str(qp));
 		query.execute(qp);
 	}
+	*/
 };
 
 class internal : public basic_database< internal >
@@ -330,10 +312,10 @@ public:
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << opdetail.identifier
+			qp << std::string(opdetail.identifier)
 					<< opdetail.p_metadata->to_string()
-					<< opdetail.file_type
-					<< opdetail.org_id
+					<< opdetail.identifier.filetype
+					<< opdetail.identifier.org
 					<< opdetail.policy.p_policy->id
 					<< opdetail.policy.p_policy->version
 					<< opdetail.target_file_format
@@ -366,68 +348,76 @@ public:
 					<< opdetail.retry
 					<< opdata->state
 					<< opdata->database_id
-					<< opdetail.identifier;
+					<< std::string(opdetail.identifier);
 
 			LogVerbose("SQL: "<<query.str(qp));
 			query.execute(qp);
 		}
 	}
 
-	std::string clear_cache_get_path(const archiving::org_id org_id, const std::string& identifier, const types::file_format::file_format_t& file_format)
+	std::string clear_cache_get_path(const archiving::org_id org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
 		rml::MySQLConnection conn(pool_); // scoped connection
-		try {
-			mysqlpp::Transaction trans(*conn);
+		unsigned int retry = 3;
+		while(retry--) {
+			try {
+				mysqlpp::Transaction trans(*conn);
 
-			std::string path;
-			uint64_t id;
+				std::string path;
+				uint64_t id;
 
-			{
-				mysqlpp::Query query = conn->query();
-				query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
-						"WHERE OrgID=%0:OrgID AND ReversedIdentifier=REVERSE(%1q:Identifier) AND FileFormat=%2:FileFormat "
-						"FOR UPDATE";
-				query.parse();
+				{
+					mysqlpp::Query query = conn->query();
+					query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
+							"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat "
+							"FOR UPDATE";
+					query.parse();
 
-				mysqlpp::SQLQueryParms qp;
-				qp << org_id << identifier << file_format;
+					mysqlpp::SQLQueryParms qp;
+					qp << org_id << uuid << file_format;
 
-				LogVerbose("SQL: "<<query.str(qp));
+					LogVerbose("SQL: "<<query.str(qp));
 
-				mysqlpp::UseQueryResult res = query.use(qp);
+					mysqlpp::UseQueryResult res = query.use(qp);
 
-				if(mysqlpp::Row row = res.fetch_row()) {
-					path = row[1].c_str();
-					id = rml::utils::strtoull(row[0].c_str());
+					if(mysqlpp::Row row = res.fetch_row()) {
+						path = row[1].c_str();
+						id = rml::utils::strtoull(row[0].c_str());
+					}
 				}
+
+				if(!path.empty() && id) {
+					mysqlpp::Query query = conn->query();
+					query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
+					LogMessage("SQL: "<<query.str());
+					query.execute();
+
+					return path;
+				}
+
+				throw rml::exception("No path found in clear cache");
 			}
+			catch(const mysqlpp::BadQuery& e) {
+				if(e.errnum() == ER_LOCK_DEADLOCK || e.errnum() == ER_LOCK_WAIT_TIMEOUT) {
+					LogWarning("Bad Query: "<<e.what());
+					LogMessage("Transaction failed with locking failure; retrying ...");
+					boost::this_thread::sleep(boost::posix_time::seconds(1));
+					continue;
+				}
 
-			if(!path.empty() && id) {
-				mysqlpp::Query query = conn->query();
-				query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
-				LogMessage("SQL: "<<query.str());
-				query.execute();
-
-				return path;
+				LogError("Bad Query: "<<e.what());
+				throw;
 			}
-
-			LogMessage("No path found in clear cache");
-
-			throw rml::exception("No path found in clear cache");
-		}
-		catch(const mysqlpp::BadQuery& e) {
-			LogCritical("Bad Query: "<<e.what());
-			throw;
-		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("Exception: "<<e.what());
-			throw;
+			catch(const mysqlpp::Exception& e) {
+				LogError("Exception: "<<e.what());
+				throw;
+			}
 		}
 	}
 
 	void clear_cache_put_path(
 			const archiving::org_id org_id,
-			const std::string& identifier,
+			const std::string& uuid,
 			const types::file_format::file_format_t& file_format,
 			const std::string& path,
 			const bool is_hardlink=true)
@@ -437,7 +427,7 @@ public:
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingInternal`.`ArchiveDClearCache` "
 					"SET OrgID=%0:OrgID,"
-					" ReversedIdentifier=REVERSE(%1q:Identifier),"
+					" UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')),"
 					" FileFormat=%2:FileFormat,"
 					" Path=%3q:Path,"
 					" HardLink=%4q:HardLink,"
@@ -452,7 +442,7 @@ public:
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << org_id << identifier << file_format << path << (is_hardlink? "yes": "no");
+			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no");
 			query.execute(qp);
 		}
 		catch(const mysqlpp::BadQuery& e) {

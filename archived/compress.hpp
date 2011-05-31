@@ -99,6 +99,7 @@ public:
 				opdata->p_detail->current_file_format,
 				opdata->p_detail->identifier);
 
+		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = compressed_format;
 	}
 
@@ -251,6 +252,7 @@ public:
 		if(crc32 != precrypt_hdr.crc32)
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch");
 
+		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = decompressed_format;
 	}
 
@@ -270,7 +272,7 @@ public:
 			try {
 				operation_data::pointer opdata = compress_channel_.consume();
 
-				if(opdata->state != operation_states::get_file_convert || opdata->state != operation_states::put_file_convert);
+				if(opdata->state != operation_state::get_file_convert || opdata->state != operation_state::put_file_convert);
 					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
 
 				const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
@@ -294,7 +296,7 @@ public:
 							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
 
 					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
-						opdata->state = operation_states::operation_states_t(opdata->state + 1); // let it move on from "convert"
+						opdata->state = operation_state::operation_state_t(opdata->state + 1); // let it move on from "convert"
 				}
 
 				// put it back to the main channel

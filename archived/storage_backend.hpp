@@ -346,7 +346,7 @@ public:
 
 	void put(operation_data::pointer opdata)
 	{
-		if(opdata->state != operation_states::put_file_save && opdata->p_detail->retry > 0)
+		if(opdata->state != operation_state::put_file_save && opdata->p_detail->retry > 0)
 			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
 
 		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
@@ -357,7 +357,7 @@ public:
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
-		put(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, tmpfs, opdata->p_detail->target_file_format, headers);
+		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
 	}
 
 	inline void put(
@@ -382,14 +382,14 @@ public:
 
 
 		S3NameValue metadata[s3headers.size()];
-		LogVerbose("Adding "<<s3headers.size()<<" metadata headers");
+		LogVerbose(identifier<<": Adding "<<s3headers.size()<<" metadata headers");
 		int i = 0;
 		for(types::caseless_key_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
 			if(!itr->first.empty() && !itr->second.empty()) {
 				metadata[i].name = &(*itr).first[0];
 				metadata[i].value = &(*itr).second[0];
 
-				LogVerbose("Metadata["<<i<<"] - name: "<<metadata[i].name<<" value: "<< metadata[i].value);
+				LogVerbose(identifier<<": Metadata["<<i<<"] - name: "<<metadata[i].name<<" value: "<< metadata[i].value);
 
 				i++;
 			}
@@ -425,7 +425,7 @@ public:
 			S3_put_object(&bucket_context, &identifier[0], data.to_be_copied, &put_props, 0, &put_handler, &data);
 		} while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
-		LogVerbose("PUT Result Status: "<<S3_get_status_name(data.status));
+		LogVerbose(identifier<<": PUT Result Status: "<<S3_get_status_name(data.status));
 
 		if(data.status != S3StatusOK)
 			throw rml::exception("S3 PUT failed");

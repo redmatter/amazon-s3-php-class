@@ -20,11 +20,14 @@ namespace app {
 
 using boost::asio::ip::tcp;
 
-class archived_client {
+class archived_client
+{
 private:
 	//TODO optimize with masks for quicker switch case
-	struct states {
-		enum state {
+	struct states
+	{
+		enum state
+		{
 			connecting,
 			reconnecting,
 //			connected,
@@ -72,7 +75,8 @@ private:
 	size_t put_file_size_, put_sent_size_;
 
 public:
-	static void describe_config(boost::program_options::options_description& optsDesc) {
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
 		optsDesc.add_options()
 				("archived_client.server_port", boost::program_options::value<std::string>()->default_value(ARCHIVED_LISTEN_PORT), "ArchiveD listen port")
 				("archived_client.server_host", boost::program_options::value<std::string>()->default_value("archived.redmatter.com"), "ArchiveD host name")
@@ -88,12 +92,14 @@ public:
 						boost::asio::placeholders::error, ++endpoint_iterator));
 	}
 
-	void close() {
+	void close()
+	{
 		io_service_.post(boost::bind(&archived_client::do_close, this));
 	}
 
 private:
-	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator) {
+	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
+	{
 		if (!error) {
 			run_statemachine(error);
 		}
@@ -110,8 +116,8 @@ private:
 		}
 	}
 
-	void run_statemachine(const boost::system::error_code& error) {
-
+	void run_statemachine(const boost::system::error_code& error)
+	{
 		if(error) {
 			//TODO reconnection & reset logic
 			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
@@ -245,10 +251,11 @@ private:
 				LogMessage("PUT OK; Sending file");
 
 				current_state_ = states::put_sending_file;
-				archiving::archivable::fstream_ptr ifs = put_archivable_ptr_->get_file_ifstream_ptr();
+				rml::utils::tmp_fstream::pointer ifs = put_archivable_ptr_->get_fstream_ptr();
+				ifs->re_open();
 				ifs->rdbuf()->pubseekpos(0,std::ios::in);
 
-				put_file_size_ = put_archivable_ptr_->get_file_size();
+				put_file_size_ = ifs->get_size();
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
 					LogWarning("send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
@@ -265,10 +272,10 @@ private:
 				std::streamsize n = std::min<std::streamsize>((std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096) - send_buffer_.size();
 
 				std::vector<char> buf(n+1);
-				n = put_archivable_ptr_->get_file_ifstream_ptr()->rdbuf()->sgetn(&buf[0], n);
+				n = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], n);
 
 				// TODO finetune memory usage here; now we double up unnecessarily!
-				// we could read directly into allocated stream stream space [ after send_buffer_.prepare(n) ]
+				// we could read directly into allocated stream space [ after send_buffer_.prepare(n) ]
 				send_buffer_.sputn(&buf[0], n);
 				send_buffer_.commit(n);
 
@@ -345,7 +352,8 @@ private:
 		} // switch
 	}
 
-	void get_archivable_for_put() {
+	void get_archivable_for_put()
+	{
 		try {
 			if(!(current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok) || put_archivable_ptr_.get()) {
 
@@ -364,7 +372,11 @@ private:
 			LogMessage("Got from "<<channel_<<" archivable: "<<*(put_archivable_ptr_.get()));
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
-			ostr << "PUT " << put_archivable_ptr_->get_org_id() << ' ' << put_archivable_ptr_->get_md5() << ' ' << put_archivable_ptr_->get_file_size() << "\r\n";
+
+			// ostr << "PUT " << put_archivable_ptr_->get_org_id() << ' ' << put_archivable_ptr_->get_md5() << ' ' << put_archivable_ptr_->get_fstream_ptr()->get_size() << "\r\n";
+
+			put_archivable_ptr_->shove_put_request(ostr);
+
 			current_state_ = states::put_sent;
 			boost::asio::async_write(socket_, send_buffer_,
 					boost::bind(&archived_client::run_statemachine, this,

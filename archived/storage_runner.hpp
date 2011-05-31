@@ -20,8 +20,8 @@ namespace storage {
 template < typename storage_t, typename channel_t >
 class basic_runner
 {
-	typedef channel_t::item_t operation_ex_t;
-	typedef channel_t::item_t::object_identifier_t object_identifier_t;
+	typedef typename channel_t::item_t operation_ex_t;
+	typedef typename channel_t::item_t::object_identifier_t object_identifier_t;
 
 	storage_t& storage_;
 	channel_t& channel_;
@@ -42,19 +42,21 @@ public:
 		while(!quit_) {
 			try {
 				operation_ex_t op_obj = channel_.consume();
-				bool result = false;
+				storage::operation_result::operation_result_t result = storage::operation_result::failure;
 				try {
-					switch(op_obj.operation) {
+					switch(op_obj.op) {
 					case operation::put_object_commit:
-						result = storage_.commit_put(*(op_obj.obj.get()));
+						result = storage_.commit_put(op_obj.p_obj)?
+								storage::operation_result::success:
+								storage::operation_result::failure;
 						break;
 
-					case operation::get_object:
-						(void)storage_.open_for_get(*(op_obj.obj.get()));
-						break;
+//					case operation::get_object:
+//						(void)storage_.open_for_get(op_obj.p_obj);
+//						break;
 
 					default:
-						THROW_RML_EXCEPTION("Invalid operation ["<<op_obj.operation<<']');
+						THROW_RML_EXCEPTION("Invalid operation ["<<op_obj.op<<']');
 					}
 				}
 				catch(const std::exception& e) {
@@ -63,8 +65,11 @@ public:
 				catch(...) {
 					LogCritical("unexpected exception");
 				}
+
+				// do call back to handle result
+				op_obj.callback(op_obj.p_obj, result);
 			}
-			catch(const channel_t::finishing_exception& e) {
+			catch(const typename channel_t::finishing_exception& e) {
 				LogVerbose(e.what());
 				break;
 			}
@@ -80,13 +85,13 @@ public:
 
 namespace s3 {
 
-class runner : public basic_runner<storage, operation_channel_t>
+class runner : public basic_runner<s3::storage, operation_channel_t>
 {
 public:
 	enum { min_threads = 2 };
 
-	runner(storage_t& storage, channel_t& channel, volatile bool& quit) :
-		basic_runner<storage, operation_channel_t>(storage, channel, quit)
+	runner(s3::storage& storage, operation_channel_t& channel, volatile bool& quit) :
+		basic_runner<s3::storage, operation_channel_t>(storage, channel, quit)
 	{
 		LogMessage("S3 Runner created");
 	}

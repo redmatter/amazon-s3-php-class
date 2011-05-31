@@ -1,3 +1,6 @@
+# default; override from commandline
+BUILD_MODE=DEBUG
+
 include ../version_info
 include /usr/share/librml/Makefile.macros
 
@@ -24,20 +27,24 @@ CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 DEFAULT_APP_LONG_NAME=Archiving collect-d
 CPPFLAGS += -DDEFAULT_APP_LONG_NAME='"$(DEFAULT_APP_LONG_NAME)"'
 
-CONFIG_FILE_PATH=/etc/rm$(TARGET).conf
+CONFIG_FILE_PATH=/etc/archiving/$(DEFAULT_APP_NAME).conf
 CPPFLAGS += -DCONFIG_FILE_PATH='"$(CONFIG_FILE_PATH)"'
 
 DEFAULT_LOG_FILE_PATH=syslog
 CPPFLAGS += -DDEFAULT_LOG_FILE_PATH='"$(DEFAULT_LOG_FILE_PATH)"'
 
-SYSLOG_APP_NAME=rm-collectd
+SYSLOG_APP_NAME=rm-$(TARGET)
 CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 
-PID_FILE_PATH=/var/run/archiving/rm$(TARGET).pid
+PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
 ARCHIVED_LISTEN_PORT=10100
 CPPFLAGS += -DARCHIVED_LISTEN_PORT='"$(ARCHIVED_LISTEN_PORT)"'
+MYSQLPP_MYSQL_HEADERS_BURIED=YES
+ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
+CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
+endif
 
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
@@ -47,15 +54,14 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcrypt -luuid -lfreeswitch \
-	-lrml -lpugixml -larchiving_common
+	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common
+
+# -lcrypt -luuid \
 
 CXX_SRCS += \
 	main.cpp
 
 C_SRCS += \
-
-BUILD_MODE=DEBUG
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target

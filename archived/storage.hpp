@@ -33,6 +33,7 @@ public:
 		(void)Backend::get_instance(confMap_);
 	}
 
+	/*
 	boost::shared_ptr<std::fstream> open_for_put(
 			object_identifier_t& obj,
 			const std::ios_base::openmode& mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary | std::ios_base::trunc
@@ -40,24 +41,34 @@ public:
 	{
 		return Backend::get_instance()->open(obj, operation::put_object_init, mode);
 	}
+	*/
 
 	bool commit_put(object_identifier_t& obj)
 	{
-		return Backend::get_instance()->commit_put(obj);
+		try {
+			Backend::get_instance()->put(obj);
+			return true;
+		}
+		catch(const std::exception& e) {
+			LogError(obj<<": Failed commit to storage; err:"<<e.what());
+		}
+		return false;
 	}
 
-	boost::shared_ptr<std::fstream> open_for_get(
-			object_identifier_t& obj,
-			const std::ios_base::openmode& mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary | std::ios_base::trunc
-			)
-	{
-		return Backend::get_instance()->open(obj, operation::get_object, mode);
-	}
+//	boost::shared_ptr<std::fstream> open_for_get(
+//			object_identifier_t& obj,
+//			const std::ios_base::openmode& mode = std::ios_base::in | std::ios_base::out | std::ios_base::binary | std::ios_base::trunc
+//			)
+//	{
+//		Backend::get_instance()->get(obj);
+//		return false;
+////		return Backend::get_instance()->get(obj, operation::get_object, mode);
+//	}
 };
 
 namespace s3 {
 
-typedef basic_storage<s3::backend, s3::object_identifier> storage;
+typedef basic_storage<s3::backend, operation_data::pointer> storage;
 
 }  // namespace s3
 

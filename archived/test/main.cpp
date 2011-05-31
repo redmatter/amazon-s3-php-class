@@ -105,7 +105,7 @@ LogDebug("xxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 				rml::utils::tmp_fstream::pointer(
 						new rml::utils::tmp_fstream("/home/dkorah/svn_root/trunk/system/archiving/archived/test/recording.wav",
 								std::ios_base::in | std::ios_base::binary))));
-		opdata->state = app::operation_states::put_received;
+		opdata->state = app::operation_state::put_received;
 
 		internal_db.save(opdata);
 		clear_cache.put(1, opdata->p_detail->identifier, opdata->p_detail->current_file_format, rml::utils::tmp_fstream::pointer(

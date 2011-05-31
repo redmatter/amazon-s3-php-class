@@ -62,7 +62,7 @@ public:
 
 			types::header_encrypted header;
 
-#if DEBUG >= 1
+#ifndef NDEBUG
 			assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv));
 #endif
 			memcpy(header.iv, iv, CryptoPP::Blowfish::BLOCKSIZE);
@@ -95,7 +95,7 @@ public:
 
 			types::header_encrypted header;
 			types::header_encrypted blank_header;
-#if DEBUG >= 1
+#ifndef NDEBUG
 			assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv));
 #endif
 			istr.read((char*)&header, sizeof(types::header_encrypted));
@@ -134,6 +134,7 @@ public:
 				opdata->p_detail->identifier,
 				opdata->p_detail->p_endpoint->encryption_key);
 
+		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = encrypted_format;
 	}
 
@@ -233,6 +234,7 @@ public:
 				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch");
 		}
 
+		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = decrypted_format;
 	}
 };
@@ -256,7 +258,7 @@ public:
 			try {
 				operation_data::pointer opdata = crypto_channel_.consume();
 
-				if(opdata->state != operation_states::get_file_convert || opdata->state != operation_states::put_file_convert);
+				if(opdata->state != operation_state::get_file_convert || opdata->state != operation_state::put_file_convert);
 					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
 
 				const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
@@ -280,7 +282,7 @@ public:
 							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
 
 					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
-						opdata->state = operation_states::operation_states_t(opdata->state + 1); // let it move on from "convert"
+						opdata->state = operation_state::operation_state_t(opdata->state + 1); // let it move on from "convert"
 				}
 
 				// put it back to the main channel

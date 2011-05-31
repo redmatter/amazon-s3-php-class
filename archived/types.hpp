@@ -311,6 +311,23 @@ struct file_format
 			uncompress,
 			transcode /* wav -> mp3 OR mp3 -> wav */
 		};
+
+		static inline const char* to_string(const convert_action_t& convert_action)
+		{
+			static const char* str[] = {
+					"nothing",
+					"compress",
+					"encrypt",
+					"decrypt",
+					"uncompress",
+					"transcode",
+			};
+
+			if(convert_action >= nothing && convert_action <= transcode)
+				return str[convert_action];
+
+			return "unknown";
+		}
 	};
 
 	/**
@@ -353,7 +370,7 @@ struct file_format
 	{
 		LogDebug("from  : " << RML_HEX(4, from));
 		LogDebug("to    : " << RML_HEX(4, to));
-#if DEBUG >= 1
+#ifndef NDEBUG
 #define verbose_return( ret_action, ret_format ) \
 	do { \
 		LogDebug("result: [" << RML_HEX(4, ret_action) << ", " << RML_HEX(4, (ret_format) ) << ']'); \
@@ -430,13 +447,13 @@ class metadata : public std::multimap<std::string, std::string>
 		// a way to make sure we do not allow certain keys to occur more than one time.
 
 		static const char* single_occurance_keys[] = {
-				"md5",
+				"MD5",
 				"CreateTime",
 				"RetentionPolicyID",
 				"LegUUID",
-				"ResourceID",
+				"OriginatorUUID",
 				"OrgID",
-				"UserID",
+				"UserIDs",
 				"FileType",
 				"ContentLength"
 		};

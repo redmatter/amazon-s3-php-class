@@ -9,9 +9,13 @@
 #define SERVER_HPP_
 
 #include "put_session.hpp"
+#include "operation_data.hpp"
+#include "storage_endpoint.hpp"
+#include "clear_cache.hpp"
 
 #include "../common/types.hpp"
 #include "../common/defines.h"
+#include "../common/policy.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -22,7 +26,11 @@ namespace app {
 class put_server
 {
 	boost::program_options::variables_map& confMap_;
-	archiving::archivable_channel_t& channel_;
+	operation_data::channel_t& channel_;
+	policy::cached_finder_t& cached_policy_finder_;
+	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
+	database::internal& internal_db_;
+	clear_cache& clear_cache_;
 	boost::asio::io_service& io_service_;
 	boost::asio::ip::tcp::acceptor acceptor_;
 
@@ -36,11 +44,22 @@ public:
 				;
 	}
 
-	put_server(boost::program_options::variables_map& confMap, archiving::archivable_channel_t& channel, boost::asio::io_service& io_service)
-		: confMap_(confMap),
-		  channel_(channel),
-		  io_service_(io_service),
-		  acceptor_(io_service)
+	put_server(
+			boost::program_options::variables_map& confMap,
+			operation_data::channel_t& channel,
+			policy::cached_finder_t& cached_policy_finder,
+			storage::s3::endpoint::cached_finder_t& cached_endpoint_finder,
+			database::internal& internal_db,
+			clear_cache& clear_cache,
+			boost::asio::io_service& io_service ) :
+				confMap_(confMap),
+				channel_(channel),
+				cached_policy_finder_(cached_policy_finder),
+				cached_endpoint_finder_(cached_endpoint_finder),
+				internal_db_(internal_db),
+				clear_cache_(clear_cache),
+				io_service_(io_service),
+				acceptor_(io_service)
 	{
 		const unsigned short& put_port = confMap_["archived.put_port"].as<unsigned short>();
 
@@ -56,7 +75,7 @@ public:
 
 		LogMessage("Listening on PUT port ["<<put_port<<']');
 
-		put_session::pointer new_session(new put_session(confMap_, channel_, io_service_));
+		put_session::pointer new_session(new put_session(confMap_, channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, clear_cache_, io_service_));
 		acceptor_.async_accept(new_session->socket(),
 				boost::bind(&put_server::handle_accept, this, new_session,
 						boost::asio::placeholders::error));
@@ -66,7 +85,7 @@ public:
 	{
 		if (!error) {
 			session->start();
-			put_session::pointer new_session(new put_session(confMap_, channel_, io_service_));
+			put_session::pointer new_session(new put_session(confMap_, channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, clear_cache_, io_service_));
 			acceptor_.async_accept(new_session->socket(),
 					boost::bind(&put_server::handle_accept, this, new_session,
 							boost::asio::placeholders::error));

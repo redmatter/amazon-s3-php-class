@@ -62,7 +62,8 @@
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
 
-extern "C" {
+extern "C"
+{
 	extern int version_number[3];
 	extern const char *version_number_string;
 	extern const char *version_date;
@@ -72,28 +73,51 @@ extern "C" {
 
 namespace app {
 
-// the configuration map
+std::string temp_files_base_directory;
+std::string hostname;
+
 boost::program_options::variables_map confMap;
-
-// time to quit?
-bool quit = false;
-
-bool wasHUPed = false;
+volatile bool quit = false;
+volatile bool wasHUPed = false;
 
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char* argv[]) try
+{
+	bool initialized = false;
+
+	// default initialization to catch any initialization error
+	rml::logger::configure();
+
+	boost::program_options::variables_map cli_confMap;
+	{
+		boost::program_options::options_description cli_optsDesc(
+					boost::str(boost::format(
+							DEFAULT_APP_LONG_NAME" v%1%"
+							"\n%2%\n\nOptions"
+							) % version_number_string % copyright_string));
+		cli_optsDesc.add_options()
+				("hostname", boost::program_options::value<std::string>(), "this hostname")
+				("help-conf", "conf file help")
+				("help", "this help")
+				;
+		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
+		boost::program_options::notify(cli_confMap);
+
+		if (cli_confMap.count("help")) {
+			std::cout << cli_optsDesc << "\n";
+			return 1;
+		}
+	}
 
 	{
-		namespace bopts = boost::program_options;
-
-		bopts::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
+		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
-				("app.run_as_user", bopts::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
-				("app.run_as_group", bopts::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
-				("app.max_core_size_mega_bytes", bopts::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-				("app.data_dir", bopts::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("cdr.directory", bopts::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
+				("app.run_as_group", boost::program_options::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
+				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
+				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
+				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
 
 				;
 
@@ -101,6 +125,16 @@ int main(int argc, char **argv) {
 
 		app::cdr_inspector::describe_config(optsDesc);
 		app::archived_client::describe_config(optsDesc);
+
+		if(cli_confMap.count("help-conf")) {
+			std::cout << optsDesc << "\n";
+			return 1;
+		}
+
+		if(1 != cli_confMap.count("hostname"))
+			throw rml::exception("hostname not given");
+
+		app::hostname = cli_confMap["hostname"].as<std::string>();
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -206,6 +240,9 @@ int main(int argc, char **argv) {
 		archiving::archivable_channel_t in_channel("IN");
 		archiving::archivable_channel_t out_channel("OUT");
 
+		initialized = true;
+		LogMessage("Initialisation complete");
+
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
@@ -239,16 +276,24 @@ int main(int argc, char **argv) {
 
 		threads.join_all();
 
-		LogAlways("terminated normally");
 
-		rml::logger::deconfigure();
+		LogMessage("Program terminated normally");
 
 		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {
-		LogCritical( e.what() );
+		LogError("exception: "<<e.what());
+		LogMessage("Abnormal program termination");
+		exit(initialized? rml::utils::exit_codes::failure: rml::utils::exit_codes::initialization_error);
 	}
-
-	LogCritical( "terminated with failure" );
+}
+catch(const std::exception& e) {
+	LogError("Exception: "<<e.what());
+	LogMessage("Abnormal program termination");
+	exit(rml::utils::exit_codes::failure);
+}
+catch(...) {
+	LogError("Unexpected exception");
+	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }
