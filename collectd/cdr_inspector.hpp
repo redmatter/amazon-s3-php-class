@@ -30,6 +30,8 @@ class cdr_inspector : public boost::noncopyable
 	archiving::archivable_channel_t& out_channel;
 	const boost::program_options::variables_map& confMap;
 
+	std::vector<archiving::org_id> orgs_enabled_;
+
 	bool was_HUPed;
 
 	struct leg
@@ -53,6 +55,7 @@ public:
 				("cdr_handler.honour_cdr_variable_rmCDRDiscard", boost::program_options::value<std::string>()->default_value("false"), "honour variable rmCDRDiscard in CDRs")
 				("cdr_handler.filtered_xpaths", boost::program_options::value<std::string>()->default_value(""), "filtered xpaths in CDRs")
 				("cdr_handler.number_of_threads", boost::program_options::value<unsigned int>()->default_value(2), "number of cdr inspector threads")
+				("cdr_handler.archiving_enabled_orgs", boost::program_options::value<std::string>()->default_value("1"), "archiving enabled orgs; for phased rollout")
 
 				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/collectd")), "collectd temp data directory")
 				;
@@ -72,6 +75,17 @@ public:
 		, confMap(confMap)
 		, was_HUPed(false)
 	{
+		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
+			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
+			if(!orgs_enabled.empty()) {
+				std::vector<std::string> orgs_enabled_str;
+				boost::algorithm::split(orgs_enabled_str, orgs_enabled, boost::is_any_of(", \t"));
+				std::vector<std::string>::const_iterator end = orgs_enabled_str.end();
+				for(std::vector<std::string>::const_iterator itr = orgs_enabled_str.begin(); itr != end; ++itr)
+					orgs_enabled_.push_back(rml::utils::strtoull(itr->c_str()));
+			}
+		}
+
 	}
 
 	/**
@@ -119,7 +133,6 @@ public:
 					LogMessage("HUPed; configuration reloaded");
 					was_HUPed = false;
 				}
-
 			}
 
 			while(!was_HUPed && !app::quit) {
@@ -254,53 +267,55 @@ public:
 						// still the ifs and doc are intact; lets inspect it before we modify it
 						// saves another XML parsing!
 
+						if(orgs_enabled_.empty() || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
 
-						// switch between the new variables and old
-						// if rmCallRecordingCount set, we are in the new scheme
-						pugi::xpath_node node;
-						if((node = doc.select_single_node("/cdr/variables/rmCallRecordingCount/text()"))) {
-							archiving::archivable::pointer archivable_recording;
-							pugi::xpath_node recording_node;
-							pugi::xpath_node policy_node;
+							// switch between the new variables and old
+							// if rmCallRecordingCount set, we are in the new scheme
+							pugi::xpath_node node;
+							if((node = doc.select_single_node("/cdr/variables/rmCallRecordingCount/text()"))) {
+								archiving::archivable::pointer archivable_recording;
+								pugi::xpath_node recording_node;
+								pugi::xpath_node policy_node;
 
-							unsigned int recording_count( rml::utils::strtoull(node.node().value()) );
-							for(; recording_count; recording_count--) {
-								const std::string recording_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingLoc_%1%") % recording_count));
-								const std::string policy_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingPolicy_%1%") % recording_count));
-								if((recording_node = doc.select_single_node(recording_xpath_str.c_str())) && (policy_node = doc.select_single_node(policy_xpath_str.c_str()))) {
-									std::string file_path(recording_node.node().value());
-									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-									app::policy::id_type policy_id(rml::utils::strtoull(policy_node.node().value()));
-									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, policy_id));
+								unsigned int recording_count( rml::utils::strtoull(node.node().value()) );
+								for(; recording_count; recording_count--) {
+									const std::string recording_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingLoc_%1%") % recording_count));
+									const std::string policy_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingPolicy_%1%") % recording_count));
+									if((recording_node = doc.select_single_node(recording_xpath_str.c_str())) && (policy_node = doc.select_single_node(policy_xpath_str.c_str()))) {
+										std::string file_path(recording_node.node().value());
+										std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
+										app::policy::id_type policy_id(rml::utils::strtoull(policy_node.node().value()));
+										archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, policy_id));
 
-									archivable_recording->set_owners(*owners);
+										archivable_recording->set_owners(*owners);
 
-									LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+										LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
-									out_channel.produce(archivable_recording);
+										out_channel.produce(archivable_recording);
+									}
 								}
 							}
-						}
-						else if((node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]/rmLocalRecordLocation/text()"))) {
-							// ( $cdr/variables/rmDispRecordRetain = 'true' or $cdr/variables/rmDispPersonalRecordRetain = 'true' )
-							// and $cdr/variables/rmDispSessionRecorded = 'true'
+							else if((node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]/rmLocalRecordLocation/text()"))) {
+								// ( $cdr/variables/rmDispRecordRetain = 'true' or $cdr/variables/rmDispPersonalRecordRetain = 'true' )
+								// and $cdr/variables/rmDispSessionRecorded = 'true'
 
-							// $cdr/variables/rmLocalRecordLocation
-							// Pick the file from the /var/spool location NOT rmfs
+								// $cdr/variables/rmLocalRecordLocation
+								// Pick the file from the /var/spool location NOT rmfs
 
-							archiving::archivable::pointer archivable_recording;
+								archiving::archivable::pointer archivable_recording;
 
-							LogMessage(*archivable_cdr<<" - Archivable recording found.");
+								LogMessage(*archivable_cdr<<" - Archivable recording found.");
 
-							std::string file_path(node.node().value());
-							std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-							archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, 0));
+								std::string file_path(node.node().value());
+								std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
+								archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, 0));
 
-							archivable_recording->set_owners(*owners);
+								archivable_recording->set_owners(*owners);
 
-							LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+								LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
-							out_channel.produce(archivable_recording);
+								out_channel.produce(archivable_recording);
+							}
 						}
 
 						// We need to strip out any unwanted tags using filtered_xpaths[]

@@ -10,7 +10,6 @@
 
 #include "types.hpp"
 #include "storage_operation.hpp"
-#include "storage_object_type.hpp"
 #include "storage_endpoint.hpp"
 
 #include <rml/exception.h>
