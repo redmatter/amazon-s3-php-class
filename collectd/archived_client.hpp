@@ -14,6 +14,10 @@
 
 #include "globals.h"
 
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/bind.hpp>
+#include <boost/asio.hpp>
+
 namespace app {
 
 // TODO timeouts
@@ -28,6 +32,7 @@ private:
 	{
 		enum state
 		{
+			initialised,
 			connecting,
 			reconnecting,
 //			connected,
@@ -60,12 +65,16 @@ private:
 	};
 
 	boost::asio::io_service& io_service_;
+	boost::asio::ip::tcp::resolver resolver_;
 	tcp::socket socket_;
+
+	boost::asio::deadline_timer timer_;
 
 	boost::asio::streambuf recv_buffer_;
 	boost::asio::streambuf send_buffer_;
 
-	tcp::endpoint endpoint_;
+	const std::string archived_host_;
+	const std::string archived_port_;
 
 	bool connected_;
 	states::state current_state_;
@@ -83,13 +92,29 @@ public:
 				;
 	}
 
-	archived_client(boost::asio::io_service& io_service, archiving::archivable_channel_t& channel, tcp::resolver::iterator endpoint_iterator)
-		: io_service_(io_service), socket_(io_service), connected_(false), current_state_(states::connecting), channel_(channel)
+	archived_client(
+			boost::asio::io_service& io_service,
+			archiving::archivable_channel_t& channel,
+			const std::string& archived_host,
+			const std::string& archived_port) :
+				io_service_(io_service),
+				resolver_(io_service_),
+				socket_(io_service_),
+				timer_(io_service_),
+				archived_host_(archived_host),
+				archived_port_(archived_port),
+				connected_(false),
+				current_state_(states::initialised),
+				channel_(channel)
 	{
-		endpoint_ = *endpoint_iterator;
-		socket_.async_connect(endpoint_,
-				boost::bind(&archived_client::handle_connect, this,
-						boost::asio::placeholders::error, ++endpoint_iterator));
+		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
+	    resolver_.async_resolve(query,
+	    		boost::bind(&archived_client::handle_resolve, this,
+	    				boost::asio::placeholders::error,
+	    				boost::asio::placeholders::iterator));
+
+	    timer_.expires_from_now(boost::posix_time::seconds(10));
+	    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
 	}
 
 	void close()
@@ -98,28 +123,68 @@ public:
 	}
 
 private:
+	void connect_archived(const bool& force_reconnect = false)
+	{
+		if(connected_ && force_reconnect) {
+			do_close();
+		}
+		else if(!connected_ && (current_state_ == states::initialised)) {
+			resolver_.cancel();
+			socket_.cancel();
+			socket_.close();
+			connected_ = false;
+			current_state_ = states::initialised;
+			LogWarning("Archived connection failed; retrying...");
+		}
+
+		if(!connected_) {
+			boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
+		    resolver_.async_resolve(query,
+		    		boost::bind(&archived_client::handle_resolve, this,
+		    				boost::asio::placeholders::error,
+		    				boost::asio::placeholders::iterator));
+
+		    timer_.expires_from_now(boost::posix_time::seconds(10));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
+		}
+	}
+
+	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
+	{
+		if (!err) {
+			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
+			socket_.async_connect(endpoint,
+					boost::bind(&archived_client::handle_connect, this,
+							boost::asio::placeholders::error, ++endpoint_iterator));
+		}
+		else {
+			LogWarning("Error resolving archived host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
+		}
+	}
+
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
+			current_state_ = states::connecting;
+			timer_.cancel();
+
 			run_statemachine(error);
 		}
 		else if (endpoint_iterator != tcp::resolver::iterator()) {
 			socket_.close();
 
-			endpoint_ = *endpoint_iterator;
-			socket_.async_connect(endpoint_,
+			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
+			socket_.async_connect(endpoint,
 					boost::bind(&archived_client::handle_connect, this,
 							boost::asio::placeholders::error, ++endpoint_iterator));
 		}
-		else {
-			LogCritical("Unable to connect to ArchiveD");
-		}
+		else
+			LogError("Unable to connect to ArchiveD");
 	}
 
 	void run_statemachine(const boost::system::error_code& error)
 	{
 		if(error) {
-			//TODO reconnection & reset logic
 			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
 			current_state_ = states::general_err;
 		}
@@ -182,7 +247,7 @@ private:
 		case states::handshake_err:
 		{
 			current_state_ = states::closing;
-			io_service_.post(boost::bind(&archived_client::do_close, this));
+			io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			break;
 		}
 
@@ -205,7 +270,7 @@ private:
 				is >> sp; std::getline(is, message, '\r'); is >> lf;
 				LogError("handshake_ack_waiting: error: "<<message);
 				current_state_ = states::handshake_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this));
+				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			}
 			else {
 				is >> cr >> lf;
@@ -244,7 +309,7 @@ private:
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError("put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = states::put_sent_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this));
+				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			}
 			else {
 				is >> cr >> lf;
@@ -303,7 +368,6 @@ private:
 			else {
 				LogError("put_sent_size_ > put_file_size_ : invalid call sequence");
 				current_state_ = states::general_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this));
 			}
 			break;
 		}
@@ -328,7 +392,7 @@ private:
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError("put_sent_file_ack_waiting: PUT Error: "<<message);
 				current_state_ = states::put_sent_file_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this));
+				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			}
 			else {
 				is >> cr >> lf;
@@ -342,10 +406,11 @@ private:
 
 		default:
 			LogError("State NOT implemented OR Invalid!");
+
 		case states::general_err:
 		{
-			io_service_.post(boost::bind(&archived_client::do_close, this));
 			current_state_ = states::closing;
+			io_service_.post(boost::bind(&archived_client::connect_archived, this, true));
 			break;
 		}
 
@@ -363,8 +428,8 @@ private:
 				if(put_archivable_ptr_.get())
 					LogError("Invalid call sequence; put_archivable_ptr_ != NULL");
 
-				io_service_.post(boost::bind(&archived_client::do_close, this));
 				current_state_ = states::closing;
+				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 				return;
 			}
 
@@ -393,9 +458,29 @@ private:
 		}
 	}
 
-	void do_close() {
+	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {
 		current_state_ = states::closed;
+		connected_ = false;
+
+		socket_.cancel();
 		socket_.close();
+		resolver_.cancel();
+		timer_.cancel();
+
+		if(reconnect) {
+		    timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
+		}
+	}
+
+	// instead of default params; to keep boost::bind errors at bay
+	inline void do_close(const bool& reconnect) {
+		do_close(reconnect, 5);
+	}
+
+	// instead of default params; to keep boost::bind errors at bay
+	inline void do_close() {
+		do_close(false);
 	}
 };
 
