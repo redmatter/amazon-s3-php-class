@@ -16,14 +16,22 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/array.hpp>
+
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/filters.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/files.h>
+#include <cryptopp/md5.h>
+#include <cryptopp/base64.h>
+#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <rml/exception.h>
 
-#include "md5.h"
-
 namespace archiving {
 
-typedef std::vector<unsigned char> hash_vector;
+typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 
 }
 
@@ -31,23 +39,27 @@ namespace std {
 
 std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 {
-	static const char* hex = "0123456789abcdef";
-	archiving::hash_vector::const_iterator hash_end = hash.end();
-	for(archiving::hash_vector::const_iterator itr = hash.begin(); itr != hash_end; ++itr) {
-		ostr << hex[*itr >> 4];
-		ostr << hex[*itr & 0x0f];
+	string ret;
+
+	CryptoPP::HexEncoder encoder;
+	encoder.Put(&hash[0], hash.size());
+
+	size_t size = encoder.MaxRetrievable();
+	if(size) {
+	    ret.resize(size);
+	    encoder.Get(&ret[0], ret.size());
 	}
 
-	return ostr;
+	return ostr << ret;
 }
 
 std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 {
 	bool ok = true;
 
-	archiving::hash_vector hv_(16);
+	archiving::hash_vector hv_;
 
-	for(int i = 0; ok && (i < 16); ++i) {
+	for(int i = 0; ok && (i < CryptoPP::Weak1::MD5::DIGESTSIZE); ++i) {
 		hv_[i] = '\0';
 		for(int j = 0; ok && (j < 2); ++j) {
 			char c; istr >> c;
@@ -85,51 +97,7 @@ class md5hasher : public boost::noncopyable
 
 public:
 
-	enum
-	{
-		max_buf_size = 40960,
-		hash_bytes_size = 16
-	};
-
 	typedef boost::shared_ptr< md5hasher > pointer;
-
-	inline md5hasher() : handle(new MD5()), hash_(hash_bytes_size), closed(false)
-	{
-		MD5Open(handle);
-	}
-
-	inline void digest(const char* const data, const unsigned int len)
-	{
-		if(closed)
-			throw rml::exception("md5hash: already closed");
-
-		MD5Digest(handle, data, len);
-	}
-
-	inline void close()
-	{
-		if(handle) {
-			MD5Close(handle, &hash_[0]);
-			delete handle; handle = 0;
-		}
-
-		closed = true;
-	}
-
-	inline const hash_vector& get_hash() const
-	{
-		if(!closed)
-			LogWarning("hash not complete");
-
-		return hash_;
-	}
-
-	inline ~md5hasher()
-	{
-		if(handle) {
-			delete handle; handle = 0;
-		}
-	}
 
 	static inline hash_vector hash(rml::utils::tmp_fstream::pointer fstr_ptr, const size_t& file_length_ = 0)
 	{
@@ -139,44 +107,15 @@ public:
 
 	static hash_vector hash(std::fstream& fstr, const size_t& file_length_ = 0)
 	{
-		md5hasher hasher;
-		size_t fLength, md5edLength;
+		hash_vector ret;
 
-		std::filebuf *pbuf = fstr.rdbuf();
+		CryptoPP::Weak1::MD5 hash;
+		CryptoPP::FileSource f(fstr, true,
+				new CryptoPP::HashFilter(hash,
+						new CryptoPP::ArraySink(&ret[0], ret.size())));
 
-		pbuf->pubseekpos(0,std::ios::in); // make sure we are at begining
-		if(!file_length_) {
-			fLength = 0;
-			fLength = pbuf->pubseekoff(0,std::ios::end,std::ios::in);
-			pbuf->pubseekpos(0,std::ios::in);
-		}
-		else
-			fLength = file_length_;
-
-		md5edLength = 0;
-
-		char md5buf[max_buf_size];
-		while(md5edLength < fLength) {
-			std::streamsize blockSize = std::min<std::streamsize>((std::streamsize)max_buf_size, (std::streamsize)(fLength - md5edLength));
-			blockSize = pbuf->sgetn(md5buf, blockSize);
-			md5edLength += blockSize;
-			hasher.digest(md5buf, blockSize);
-		}
-
-		if(md5edLength == fLength)
-			hasher.close();
-		else if(md5edLength > fLength)
-			throw rml::exception("more than expected data MD5ed");
-
-		return hash_vector(hasher.get_hash());
+		return ret;
 	}
-
-private:
-	MD5* handle;
-	hash_vector hash_;
-
-protected:
-	bool closed;
 };
 
 } // namespace app
