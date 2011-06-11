@@ -25,7 +25,7 @@
 #include <cryptopp/files.h>
 #include <cryptopp/md5.h>
 #include <cryptopp/base64.h>
-#include <hex.h>
+#include <cryptopp/hex.h>
 #undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <rml/exception.h>
@@ -48,7 +48,7 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 	size_t size = encoder.MaxRetrievable();
 	if(size) {
 	    ret.resize(size);
-	    encoder.Get(&ret[0], ret.size());
+	    encoder.Get((byte*)&ret[0], ret.size());
 	}
 
 	return ostr << ret;

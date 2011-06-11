@@ -232,7 +232,7 @@ private:
 		case states::put_check_received_file_ack_ok:
 		{
 			ofs_.reset();
-			md5_.clear();
+			md5_.assign((byte)0);
 			resource_id_.clear();
 			uuid_.clear();
 			orgID_ = 0;
@@ -399,7 +399,7 @@ ofs_->set_persistent();
 			current_state_ = states::put_check_received_file_ack_err;
 
 			ofs_.reset();
-			md5_.clear();
+			md5_.assign((byte)0);
 			resource_id_.clear();
 			uuid_.clear();
 			orgID_ = 0;
@@ -472,7 +472,7 @@ ofs_->set_persistent();
 			}
 
 			ofs_.reset();
-			md5_.clear();
+			md5_.assign((byte)0);
 			resource_id_.clear();
 			uuid_.clear();
 			orgID_ = 0;

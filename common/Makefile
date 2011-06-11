@@ -19,7 +19,6 @@ CXX_SRCS += \
 		defines.cpp
 
 C_SRCS += \
-		md5.c
 
 BUILD_MODE=DEBUG
 
@@ -34,8 +33,6 @@ MKDIR=mkdir -p
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.lib_target
-
-$(TMP)/md5.o : md5.h
 
 install: $(TMP)/$(TARGET)
 	$(MKDIR) $(DESTDIR_LIB) $(DESTDIR_INCLUDE) $(DESTDIR_DATA)
