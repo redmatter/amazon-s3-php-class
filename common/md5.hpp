@@ -56,37 +56,21 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 
 std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 {
-	bool ok = true;
+	string encoded;
+	istr >> encoded;
 
-	archiving::hash_vector hv_;
+	assert(archiving::hash_vector::static_size*2 == encoded.length());
 
-	for(int i = 0; ok && (i < CryptoPP::Weak1::MD5::DIGESTSIZE); ++i) {
-		hv_[i] = '\0';
-		for(int j = 0; ok && (j < 2); ++j) {
-			char c; istr >> c;
+	CryptoPP::HexDecoder decoder;
 
-			unsigned char uc;
+	decoder.Put( (byte*)&encoded[0], encoded.length() );
+	decoder.MessageEnd();
 
-			if(c >= '0' && c <= '9')
-				uc = (unsigned char)(c - '0');
-			else if(c >= 'a' && c <= 'f')
-				uc = (unsigned char)(9 + c - 'a');
-			else if(c >= 'A' && c <= 'F')
-				uc = (unsigned char)(9 + c - 'A');
-			else
-				ok = false;
+	size_t size = decoder.MaxRetrievable();
+	if(size)
+	    decoder.Get(&hv[0], archiving::hash_vector::static_size);
 
-			if(ok)
-				hv_[i] |= uc << (j == 0? 4 : 0);
-		}
-	}
-
-	if(!ok)
-		throw rml::exception("invalid hash");
-	
-	hv = hv_;
-
-    return istr;
+	return istr;
 }
 
 }
