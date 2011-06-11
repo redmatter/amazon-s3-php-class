@@ -25,6 +25,7 @@
 #include <cryptopp/files.h>
 #include <cryptopp/md5.h>
 #include <cryptopp/base64.h>
+#include <hex.h>
 #undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <rml/exception.h>
