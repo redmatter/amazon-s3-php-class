@@ -124,6 +124,7 @@ int main(int argc, char **argv) try
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
 		app::storage::s3::backend::describe_config(optsDesc);
+		app::storage::s3::runner::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 		app::database::retention::describe_config(optsDesc);

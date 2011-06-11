@@ -52,7 +52,9 @@ private:
 			put_sent_ack_ok,
 			put_sent_ack_err,
 			put_sending_file,
-			put_sent_file,
+//			put_sent_file,
+			put_sent_file_ok,
+			put_sent_file_err,
 			put_sent_file_ack_waiting,
 			put_sent_file_ack_ok,
 			put_sent_file_ack_err,
@@ -126,6 +128,7 @@ private:
 	void connect_archived(const bool& force_reconnect = false)
 	{
 		if(connected_ && force_reconnect) {
+			LogMessage("Reconnecting...");
 			do_close();
 		}
 		else if(!connected_ && (current_state_ == states::initialised)) {
@@ -158,7 +161,7 @@ private:
 							boost::asio::placeholders::error, ++endpoint_iterator));
 		}
 		else {
-			LogWarning("Error resolving archived host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
+			LogWarning("Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
 		}
 	}
 
@@ -170,16 +173,17 @@ private:
 
 			run_statemachine(error);
 		}
-		else if (endpoint_iterator != tcp::resolver::iterator()) {
-			socket_.close();
+		else {
+			LogWarning("Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
+			if (endpoint_iterator != tcp::resolver::iterator()) {
+				socket_.close();
 
-			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
-			socket_.async_connect(endpoint,
-					boost::bind(&archived_client::handle_connect, this,
-							boost::asio::placeholders::error, ++endpoint_iterator));
+				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
+				socket_.async_connect(endpoint,
+						boost::bind(&archived_client::handle_connect, this,
+								boost::asio::placeholders::error, ++endpoint_iterator));
+			}
 		}
-		else
-			LogError("Unable to connect to ArchiveD");
 	}
 
 	void run_statemachine(const boost::system::error_code& error)
@@ -282,8 +286,11 @@ private:
 			break;
 		}
 
-		case states::ready_to_put:
 		case states::put_sent_file_ack_ok:
+		{
+			put_archivable_ptr_.reset();
+		}
+		case states::ready_to_put:
 		{
 			io_service_.post(boost::bind(&archived_client::get_archivable_for_put, this));
 			break;
@@ -333,18 +340,23 @@ private:
 
 		case states::put_sending_file:
 		{
+			/*
+			LogVerbose("-------------------------");
+			LogVerbose("put_sent_size_: "<<put_sent_size_);
+			LogVerbose("put_file_size_: "<<put_file_size_);
 			if(put_sent_size_ < put_file_size_) {
-				std::streamsize n = std::min<std::streamsize>((std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096) - send_buffer_.size();
+				LogVerbose("send_buffer_.size(): "<<send_buffer_.size());
+				std::streamsize buf_length = std::min<std::streamsize>( (std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096 ) - send_buffer_.size();
 
-				std::vector<char> buf(n+1);
-				n = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], n);
+				std::vector<char> buf(buf_length + 1);
+				buf_length = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], buf_length);
 
 				// TODO finetune memory usage here; now we double up unnecessarily!
-				// we could read directly into allocated stream space [ after send_buffer_.prepare(n) ]
-				send_buffer_.sputn(&buf[0], n);
-				send_buffer_.commit(n);
+				// we could read directly into allocated stream space [ after send_buffer_.prepare(buf_length) ]
+				send_buffer_.sputn(&buf[0], buf_length);
+				send_buffer_.commit(buf_length);
 
-				put_sent_size_ += n;
+				put_sent_size_ += buf_length;
 
 				if(put_sent_size_ == put_file_size_)
 					send_buffer_.sputc('\x1a'); // add EOF
@@ -361,6 +373,7 @@ private:
 									boost::asio::placeholders::error));
 				}
 				else {
+					put_archivable_ptr_->get_fstream_ptr()->close();
 					current_state_ = states::put_sent_file;
 					run_statemachine(error);
 				}
@@ -369,10 +382,20 @@ private:
 				LogError("put_sent_size_ > put_file_size_ : invalid call sequence");
 				current_state_ = states::general_err;
 			}
+			*/
+
+			io_service_.post(boost::bind(&archived_client::put_send_file, this, error, 0));
 			break;
 		}
 
-		case states::put_sent_file:
+		case states::put_sent_file_err:
+		{
+			current_state_ = states::closing;
+			io_service_.post(boost::bind(&archived_client::connect_archived, this, true));
+			break;
+		}
+
+		case states::put_sent_file_ok:
 		{
 			current_state_ = states::put_sent_file_ack_waiting;
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
@@ -388,7 +411,8 @@ private:
 			archiving::org_id OrgID;
 			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
 			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> OrgID >> sp[2] >> md5;
-			if(OK_or_ERR == "ERR") {
+			LogDebug("OK_or_ERR: "<<OK_or_ERR);
+			if(OK_or_ERR != "OK") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError("put_sent_file_ack_waiting: PUT Error: "<<message);
 				current_state_ = states::put_sent_file_ack_err;
@@ -425,7 +449,7 @@ private:
 				if(!(current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok))
 					LogError("Invalid call sequence; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok");
 
-				if(put_archivable_ptr_.get())
+				if(put_archivable_ptr_)
 					LogError("Invalid call sequence; put_archivable_ptr_ != NULL");
 
 				current_state_ = states::closing;
@@ -456,6 +480,64 @@ private:
 			io_service_.post(boost::bind(&archived_client::do_close, this));
 			current_state_ = states::closing;
 		}
+	}
+
+	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred)
+	{
+		LogVerbose("-------------------------");
+		LogVerbose("put_sent_size_: "<<put_sent_size_);
+		LogVerbose("bytes_transferred: "<<bytes_transferred);
+		LogVerbose("error: "<<error);
+
+		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
+			if (!error && (put_sent_size_ == put_file_size_)) {
+				{
+					std::string eof("\x1a");
+					boost::asio::write(socket_, boost::asio::buffer(eof, 1));
+				}
+				LogMessage("PUT send file completed OK");
+				current_state_ = states::put_sent_file_ok;
+			}
+			else {
+				LogError("PUT send file completed with error; err:"<<error.message());
+				current_state_ = states::put_sent_file_err;
+			}
+			io_service_.post(boost::bind(&archived_client::run_statemachine, this, error));
+			return;
+		}
+
+		if (put_sent_size_ == put_file_size_) {
+			LogMessage("PUT send file completed OK");
+			current_state_ = states::put_sent_file_ok;
+
+		}
+
+		std::streamsize buf_length = std::min<std::streamsize>( (std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096 );
+		LogDebug("1. buf_length: "<<buf_length);
+
+		// TODO finetune memory usage here; now we double up unnecessarily!
+		// we could read directly into allocated stream space [ after send_buffer_.prepare(buf_length) ]
+
+		std::vector<char> buf(buf_length + 1);
+		buf_length = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], buf_length);
+
+		LogDebug("2. buf_length: "<<buf_length);
+		put_sent_size_ += buf_length;
+
+		/*
+		if(put_sent_size_ == put_file_size_) {
+			buf[++buf_length] = '\t'; // add EOF
+			LogDebug("3. buf_length: "<<buf_length);
+		}
+		*/
+
+		std::ostream ostr(&send_buffer_); ostr.clear();
+		ostr.write(&buf[0], buf_length);
+
+		boost::asio::async_write(socket_, send_buffer_,
+				boost::bind(&archived_client::put_send_file, this,
+						boost::asio::placeholders::error,
+						boost::asio::placeholders::bytes_transferred));
 	}
 
 	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {

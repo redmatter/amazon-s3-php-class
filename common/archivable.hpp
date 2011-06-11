@@ -142,6 +142,11 @@ public:
 
 			return type;
 		}
+
+		friend std::ostream& operator << (std::ostream& ostr, const file_type_t& type)
+		{
+			return ostr << file_type::to_string(type);
+		}
 	};
 
 	struct identifier
@@ -260,6 +265,11 @@ public:
 
 	inline std::ostream& shove_put_request(std::ostream& ostr) const
 	{
+#ifndef NDEBUG
+		std::string put_request;
+		{
+			std::ostringstream ostr;
+#endif
 		// if this NOT a CDR usual ownership applies
 		if(type_ != file_type::cdr) {
 			ostr << "PUT "<<type_<<' '<<owners_.orgID<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
@@ -303,7 +313,12 @@ public:
 				<< "LegUUID: "<<uuid<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
 				<< "DataFormat: "<<data_format<<"\r\n";
-
+#ifndef NDEBUG
+			put_request = ostr.str();
+		}
+		LogDebug("ToArchiveD: "<<put_request);
+		ostr << put_request;
+#endif
 		return ostr << "\r\n";
 	}
 
@@ -403,11 +418,6 @@ namespace std {
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
 	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " md5:" << a.get_md5();
-}
-
-inline ostream& operator<<(ostream& ostr, const archiving::archivable::file_type::file_type_t& t)
-{
-	return ostr << archiving::archivable::file_type::to_string(t);
 }
 
 inline istream& operator>>(istream& istr, archiving::archivable::file_type::file_type_t& t)

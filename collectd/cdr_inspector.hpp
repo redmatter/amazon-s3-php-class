@@ -143,21 +143,39 @@ public:
 					// inspect and cleanup CDR
 					{
 						rml::utils::tmp_fstream::pointer ifs = archivable_cdr->get_fstream_ptr();
-						ifs->rdbuf()->pubseekpos(0,std::ios::in);
+						ifs->re_open();
 
 						bool modified = false;
 						bool isDiscardable = false;
 						leg::type_t leg;
 
 						pugi::xml_document doc;
-						if(!doc.load(*ifs))
-							throw rml::exception("Unable to load CDR for filtering");
+						{
+							pugi::xml_parse_result res = doc.load(*ifs);
+							if(!res)
+								THROW_RML_EXCEPTION("Unable to load CDR for filtering; error:"<<res.description());
+						}
 
 						const char* cdr_uuid = doc.select_single_node("/cdr/variables/uuid/text()").node().value();
+						LogDebug("cdr_uuid: "<<cdr_uuid);
 
 						{
 							pugi::xpath_node direction_node = doc.select_single_node("/cdr/channel_data/direction/text()");
+#ifndef NDEBUG
+							if(!direction_node)
+								LogVerbose("/cdr/channel_data/direction NOT found");
+							else
+								LogVerbose("/cdr/channel_data/direction = "<<direction_node.node().value());
+#endif
+
 							pugi::xpath_node rmAssumeALeg_node = doc.select_single_node("/cdr/variables/rmAssumeALeg/text()");
+#ifndef NDEBUG
+							if(!rmAssumeALeg_node)
+								LogVerbose("/cdr/channel_data/rmAssumeALeg NOT found");
+							else
+								LogVerbose("/cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
+#endif
+
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
 
@@ -342,18 +360,18 @@ public:
 					}
 				}
 				catch(const archiving::archivable_channel_t::finishing_exception& e) {
-					LogVerbose("cdr_inspector::run - "<<e.what());
+					LogVerbose(e.what());
 					break;
 				}
 				catch(const std::exception& e) {
-					LogError("cdr_inspector::run - exception:"<<e.what());
+					LogWarning("exception:"<<e.what());
 				}
 				catch(...) {
-					LogCritical("cdr_inspector::run - unexpected exception");
+					LogCritical("unexpected exception");
 				}
 			}
 		}
-		LogMessage("cdr_inspector::run - finishing");
+		LogMessage("finishing");
 	}
 };
 

@@ -455,11 +455,18 @@ class metadata : public std::multimap<std::string, std::string>
 				"OrgID",
 				"UserIDs",
 				"FileType",
-				"ContentLength"
+				"ContentLength",
+				"CallOwnerOrg",
+				"CallOwnerUserIDs",
+
+				"\0"
 		};
 
+		LogDebug("sizeof(single_occurance_keys)  "<<sizeof(single_occurance_keys));
+		LogDebug("key: "<<key);
+
 		bool validate_single_occurance = false;
-		for(unsigned int i = 0; i < sizeof(single_occurance_keys); ++i) {
+		for(unsigned int i = 0; '\0' != single_occurance_keys[i][0]; ++i) {
 			if(key == single_occurance_keys[i]) {
 				validate_single_occurance = true;
 				break;

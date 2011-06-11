@@ -51,7 +51,8 @@ class put_session : public boost::enable_shared_from_this<put_session>
 			put_received_ack_ok,
 			put_received_ack_err,
 			put_receiving_file,
-//			put_receiving_file_complete,
+			put_receiving_file_ok,
+			put_receiving_file_err,
 //			put_check_received_file,
 			put_check_received_file_ack_ok,
 			put_check_received_file_ack_err,
@@ -268,7 +269,7 @@ private:
 
 			istr >> PUT >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
 			LogMessage("PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
-			if(!((PUT == "PUT") && ( sp1 == sp2 == sp3 == sp4 == ' ') && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
+			if(!((PUT == "PUT") && ( sp1 == ' ' ) && ( sp2 == ' ' ) && ( sp3 == ' ' ) && ( sp4 == ' ' ) && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
 				LogError("Invalid PUT request");
 				current_state_ = states::put_received_ack_err;
 				ostr << "ERR PUT invalid PUT request\r\n";
@@ -299,6 +300,7 @@ private:
 
 						// open the file
 						ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
+ofs_->set_persistent();
 
 						// make sure we have MD5 in headers
 						{
@@ -370,20 +372,58 @@ private:
 			assert(recv_buffer_.size() == 0);
 
 			current_state_ = states::put_receiving_file;
+			/*
 			boost::asio::async_read(socket_, recv_buffer_,
 					boost::bind(&put_session::put_receiving_file_is_complete, shared_from_this(),
 							boost::asio::placeholders::error,
 							boost::asio::placeholders::bytes_transferred),
 					boost::bind(&put_session::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error));
+			*/
+			boost::asio::async_read(socket_, recv_buffer_,
+					boost::asio::transfer_at_least(1),
+					boost::bind(&put_session::put_receive_file, shared_from_this(),
+							boost::asio::placeholders::error,
+							boost::asio::placeholders::bytes_transferred));
+
 			break;
 		}
 
 		case states::put_receiving_file:
+			LogError(resource_id_<<": Invalid/Unexpected state states::put_receiving_file");
+		case states::put_receiving_file_err:
+		{
+			std::ostream ostr(&send_buffer_);
+			LogError(resource_id_<<": PUT failed; general failure during transfer");
+			ostr << "ERR RECV "<<orgID_<<' '<<md5_<<" general failure during transfer\r\n";
+			current_state_ = states::put_check_received_file_ack_err;
+
+			ofs_.reset();
+			md5_.clear();
+			resource_id_.clear();
+			uuid_.clear();
+			orgID_ = 0;
+			data_type_ = types::data_sub_format::unknown;
+			file_type_ = archiving::archivable::file_type::unknown;
+			content_length_ = 0;
+			policy_id_ = 0;
+			creation_time_ = 0;
+			xfrd_content_length_ = 0;
+			xfrd_ok_ = false;
+
+			boost::asio::async_write(socket_, send_buffer_,
+					boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error));
+			break;
+		}
+
+		case states::put_receiving_file_ok:
 		{
 			std::ostream ostr(&send_buffer_);
 			if(xfrd_ok_) {
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
+				LogVerbose("Original MD5: "<<md5_);
+				LogVerbose("Computed MD5: "<<md5);
 				if(md5 == md5_) {
 
 					LogMessage(resource_id_<<": PUT received OK");
@@ -426,6 +466,7 @@ private:
 				}
 			}
 			else {
+				LogError(resource_id_<<": PUT failed; general failure during transfer");
 				ostr << "ERR RECV "<<orgID_<<' '<<md5_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
 			}
@@ -454,38 +495,45 @@ private:
 
 	bool put_receiving_file_is_complete(const boost::system::error_code& error, std::size_t bytes_transferred)
 	{
-		LogVerbose("error: "<<error);
+		LogVerbose("error: "<<error<<" ---------------------------------------");
 		LogVerbose("bytes_transferred: "<<bytes_transferred);
+		LogVerbose("content_length_: "<<content_length_);
 
 		if(!error) {
+			while(bytes_transferred < (content_length_ + 1)) {
+				LogVerbose("xfrd_content_length_: "<<xfrd_content_length_);
 
-			LogVerbose("content_length_: "<<content_length_);
-			LogVerbose("xfrd_content_length_: "<<xfrd_content_length_);
+				std::size_t buf_length = std::min<std::size_t>(4096, bytes_transferred - xfrd_content_length_);
+				if(!buf_length)
+					break;
 
-			std::size_t ofs_transferred = 0;
-
-			while(ofs_transferred < bytes_transferred) {
-				std::size_t buf_length = std::min<std::size_t>(4096, bytes_transferred - ofs_transferred);
 				std::vector<char> buf(buf_length);
 
 				if(content_length_ >= (xfrd_content_length_ + buf_length)) {
 					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
+					LogVerbose("Received: "<<buf_length<<" bytes");
+					if(!buf_length)
+						break;
+
 					ofs_->rdbuf()->sputn(&buf[0], buf_length);
 					xfrd_content_length_ += buf_length;
-					ofs_transferred += buf_length;
 				}
 				else {
 					std::size_t xfr_remaining = content_length_ - xfrd_content_length_;
 					if(xfr_remaining) {
 						xfr_remaining = recv_buffer_.sgetn(&buf[0], xfr_remaining);
+						LogVerbose("Received: "<<xfr_remaining<<" bytes");
+						if(!xfr_remaining)
+							break;
 						ofs_->rdbuf()->sputn(&buf[0], xfr_remaining);
 						xfrd_content_length_ += xfr_remaining;
-						ofs_transferred += xfr_remaining;
 					}
 
 					char eof = recv_buffer_.sgetc();
+					LogVerbose("Received: 1 bytes (last)"<<RML_HEX(4, int(eof))<<RML_HEX_RESET);
 					xfrd_ok_ = (eof == '\x1a');
-					ofs_transferred += 1;
+
+					LogDebug("PUT; File transfer complete");
 
 					return true;
 				}
@@ -496,6 +544,81 @@ private:
 
 		LogError("Error while receiving PUT data: "<<error.message());
 		return true;
+	}
+
+	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
+	{
+		LogVerbose("error: "<<error<<" ---------------------------------------");
+		LogVerbose("bytes_transferred: "<<bytes_transferred);
+		LogVerbose("content_length_: "<<content_length_);
+
+		std::size_t chunk_remaining = bytes_transferred;
+
+		if(!error) {
+			while(chunk_remaining) {
+				LogVerbose("xfrd_content_length_: "<<xfrd_content_length_);
+
+				std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
+				if(buf_length) {
+					std::vector<char> buf(buf_length);
+					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
+					LogVerbose("Received: "<<buf_length<<" bytes");
+					ofs_->rdbuf()->sputn(&buf[0], buf_length);
+					xfrd_content_length_ += buf_length;
+					chunk_remaining -= buf_length;
+				}
+				else {
+					if ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_)) {
+
+						char eof[4];
+						std::streamsize eof_len = recv_buffer_.sgetn(eof, 4);
+
+						LogDebug("eof_len: "<<eof_len);
+						//LogDebug("eof: {0x"<<RML_HEX(4, int(eof[0]))<<", 0x"<<RML_HEX(4, int(eof[1]))<<", 0x"<<RML_HEX(4, int(eof[2]))<<", 0x"<<RML_HEX(4, int(eof[3]))<<RML_HEX_RESET<<'}');
+						LogDebug("eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
+
+						if((1 == eof_len) && (eof[0] == '\x1a')) {
+							xfrd_ok_ = true;
+							chunk_remaining = 0;
+							LogDebug("PUT; File transfer completed ok");
+						}
+						else {
+							LogError("Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
+							break;
+						}
+					}
+					else {
+						LogVerbose("chunk_remaining:"<<chunk_remaining);
+						LogVerbose("content_length_:"<<content_length_);
+						LogVerbose("xfrd_content_length_:"<<xfrd_content_length_);
+						LogError("Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
+						break;
+					}
+				}
+			}
+
+			if((xfrd_content_length_ == content_length_) && xfrd_ok_) {
+				current_state_ = states::put_receiving_file_ok;
+				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+			}
+			else if(chunk_remaining != 0) {
+				LogError("Invalid state; chunk_remaining != 0");
+				current_state_ = states::put_receiving_file_err;
+				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+			}
+			else {
+				boost::asio::async_read(socket_, recv_buffer_,
+						boost::asio::transfer_at_least(1),
+						boost::bind(&put_session::put_receive_file, shared_from_this(),
+								boost::asio::placeholders::error,
+								boost::asio::placeholders::bytes_transferred));
+			}
+		}
+		else {
+			LogError("Error while receiving PUT data: "<<error.message());
+			current_state_ = states::put_receiving_file_err;
+			io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+		}
 	}
 
 	void do_close()

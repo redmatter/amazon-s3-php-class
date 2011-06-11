@@ -68,8 +68,10 @@ std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 		}
 	}
 
-	if(ok)
-		std::copy(hv_.begin(), hv_.end(), hv.begin());
+	if(!ok)
+		throw rml::exception("invalid hash");
+	
+	hv = hv_;
 
     return istr;
 }
