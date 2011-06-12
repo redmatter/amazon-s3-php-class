@@ -262,7 +262,8 @@ private:
 
 			std::ostream ostr(&send_buffer_);
 
-			SetupRecvStream("CollectD", istr, recv_buffer_);
+			std::istream istr(&recv_buffer_);
+			istr.unsetf(std::ios_base::skipws);
 
 			istr >> PUT >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
 			LogMessage("PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
