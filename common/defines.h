@@ -24,4 +24,27 @@ struct ports {
 
 }  // namespace archiving
 
+
+#ifndef NDEBUG
+
+#define SetupRecvStream(from, istr, recv_buffer) \
+	std::string line; \
+	{ \
+		std::istream istr_dup(&recv_buffer); \
+		std::getline(istr_dup, line, '\n'); \
+		LogDebug(from" -> "<<line); \
+	} \
+	\
+	std::istringstream istr(line+'\n'); \
+	istr.unsetf(std::ios_base::skipws)
+
+#else
+
+#define SetupRecvStream(istr, recv_buffer) \
+	std::istream istr(&recv_buffer); \
+	istr.unsetf(std::ios_base::skipws)
+
+#endif
+
+
 #endif /* DEFINES_H_ */

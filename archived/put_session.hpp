@@ -168,8 +168,7 @@ private:
 			std::string OK_or_ERR, CollectD, version_number, protocol, protocol_version_number, message;
 			char sp1, sp2, sp3, sp4, v, cr, lf;
 
-			std::istream istr(&recv_buffer_);
-			istr.unsetf(std::ios_base::skipws);
+			SetupRecvStream("CollectD", istr, recv_buffer_);
 
 			std::ostream ostr(&send_buffer_);
 
@@ -261,11 +260,9 @@ private:
 			std::string uuid;
 			char sp1, sp2, sp3, sp4, cr, lf;
 
-			std::istream istr(&recv_buffer_);
-			istr.unsetf(std::ios_base::skipws);
-
 			std::ostream ostr(&send_buffer_);
 
+			SetupRecvStream("CollectD", istr, recv_buffer_);
 
 			istr >> PUT >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
 			LogMessage("PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
@@ -300,8 +297,9 @@ private:
 
 						// open the file
 						ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
-ofs_->set_persistent();
-
+#ifndef NDEBUG
+						ofs_->set_persistent();
+#endif
 						// make sure we have MD5 in headers
 						{
 							types::metadata::const_iterator itr = metadata_->find("MD5");

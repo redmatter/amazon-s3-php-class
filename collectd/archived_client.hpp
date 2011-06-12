@@ -215,8 +215,9 @@ private:
 		{
 			std::string ArchiveD, version_number, protocol, protocol_version_number;
 			char v, sp[3], cr, lf;
-			std::istream is(&recv_buffer_);
-			is.unsetf(std::ios_base::skipws);
+
+			SetupRecvStream("ArchiveD", is, recv_buffer_);
+
 			is >> ArchiveD >> sp[0] >> v >> version_number >> sp[1] >> protocol >> sp[2] >> protocol_version_number >> cr >> lf;
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
@@ -268,7 +269,9 @@ private:
 		{
 			std::string OK_or_ERR, message;
 			char sp, cr, lf;
-			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
+
+			SetupRecvStream("ArchiveD", is, recv_buffer_);
+
 			is >> OK_or_ERR;
 			if(OK_or_ERR == "ERR") {
 				is >> sp; std::getline(is, message, '\r'); is >> lf;
@@ -310,7 +313,9 @@ private:
 			std::string OK_or_ERR, PUT, md5, message;
 			char sp[4], cr, lf;
 			archiving::org_id OrgID;
-			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
+
+			SetupRecvStream("ArchiveD", is, recv_buffer_);
+
 			is >> OK_or_ERR >> sp[0] >> PUT >> sp[1] >> OrgID >> sp[2] >> md5;
 			if(OK_or_ERR == "ERR") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
@@ -409,7 +414,9 @@ private:
 			std::string OK_or_ERR, RECV, md5, message;
 			char sp[4], cr, lf;
 			archiving::org_id OrgID;
-			std::istream is(&recv_buffer_); is.unsetf(std::ios_base::skipws);
+
+			SetupRecvStream("ArchiveD", is, recv_buffer_);
+
 			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> OrgID >> sp[2] >> md5;
 			LogDebug("OK_or_ERR: "<<OK_or_ERR);
 			if(OK_or_ERR != "OK") {
