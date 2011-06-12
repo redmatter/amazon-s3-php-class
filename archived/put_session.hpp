@@ -421,6 +421,7 @@ ofs_->set_persistent();
 		{
 			std::ostream ostr(&send_buffer_);
 			if(xfrd_ok_) {
+				ofs_->re_open();
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
 				LogVerbose("Original MD5: "<<md5_);
 				LogVerbose("Computed MD5: "<<md5);
