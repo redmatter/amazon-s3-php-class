@@ -196,6 +196,9 @@ private:
 
 	void run_statemachine(const boost::system::error_code& error)
 	{
+		// reset any timer in progress; if we loop through, we are alive and kicking
+		timer_.cancel();
+
 		if(error) {
 			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
 			current_state_ = states::general_err;
@@ -275,6 +278,11 @@ private:
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
 					boost::bind(&archived_client::run_statemachine, this,
 							boost::asio::placeholders::error));
+
+			timer_.expires_from_now(boost::posix_time::seconds(2));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		true, boost::asio::placeholders::error));
+
 			break;
 		}
 
@@ -318,7 +326,12 @@ private:
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
 					boost::bind(&archived_client::run_statemachine, this,
 							boost::asio::placeholders::error));
-			break;
+
+			timer_.expires_from_now(boost::posix_time::seconds(10));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		true, boost::asio::placeholders::error));
+
+		    break;
 		}
 
 		case states::put_sent_ack_waiting:
@@ -420,7 +433,12 @@ private:
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
 					boost::bind(&archived_client::run_statemachine, this,
 							boost::asio::placeholders::error));
-			break;
+
+			timer_.expires_from_now(boost::posix_time::seconds(10));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		true, boost::asio::placeholders::error));
+
+		    break;
 		}
 
 		case states::put_sent_file_ack_waiting:
