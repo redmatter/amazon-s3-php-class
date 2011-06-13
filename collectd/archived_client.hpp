@@ -410,7 +410,7 @@ private:
 		{
 			current_state_ = states::closing;
 			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, boost::asio::placeholders::error));
+					true, error));
 			break;
 		}
 
@@ -456,7 +456,7 @@ private:
 		{
 			current_state_ = states::closing;
 			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, boost::asio::placeholders::error));
+					true, error));
 			break;
 		}
 
