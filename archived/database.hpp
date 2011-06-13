@@ -353,8 +353,9 @@ public:
 			query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
 					" SET CurrentFileFormat=%0:CurrentFileFormat,"
 					" RetryCount=%1:RetryCount,"
-					" OpState=%2:OpState,"
-					" WHERE ID=%3:ID AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
+					" OpState=%2:OpState"
+					" WHERE ID=%3:ID "
+					"  AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
 					;
 			query.parse();
 
