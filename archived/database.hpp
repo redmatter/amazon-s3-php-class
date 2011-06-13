@@ -295,34 +295,49 @@ public:
 			LogVerbose("Insert: "<<opdetail.identifier);
 
 			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingInternal`.`ArchiveDProcessing`"
-					" SET ReversedIdentifier=REVERSE(%0q:Identifier),"
-					" MetaData=%1q:MetaData,"
-					" FileType=%2:FileType,"
-					" OrgID=%3:OrgID,"
-					" PolicyID=%4:PolicyID,"
-					" PolicyVersion=%5:PolicyVersion,"
-					" TargetFileFormat=%6:TargetFileFormat,"
-					" EndPointID=%7:EndPointID,"
-					" CurrentFileFormat=%8:CurrentFileFormat,"
-					" RetryCount=%9:RetryCount,"
-					" OpState=%10:OpState,"
-					" CreateTimeEpoch=%11:CreateTimeEpoch"
+			query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueue`"
+
+					" SET HostName=%0q:HostName,"
+
+					" FileType=%1:FileType,"
+					" OrgID=%2:OrgID,"
+					" UUID=UNHEX(REPLACE(%q3:UUID, '-', '')),"
+
+					" MetaData=%4q:MetaData,"
+
+					" PolicyID=%5:PolicyID,"
+					" PolicyVersion=%6:PolicyVersion,"
+
+					" TargetFileFormat=%7:TargetFileFormat,"
+					" EndPointID=%8:EndPointID,"
+
+					" CurrentFileFormat=%9:CurrentFileFormat,"
+					" RetryCount=%10:RetryCount,"
+					" OpState=%11:OpState,"
+
+					" CreateTimeEpoch=%12:CreateTimeEpoch"
 					;
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << std::string(opdetail.identifier)
-					<< opdetail.p_metadata->to_string()
+			qp 		<< app::hostname
+
 					<< opdetail.identifier.filetype
 					<< opdetail.identifier.org
+					<< opdetail.identifier.uuid
+
+					<< opdetail.p_metadata->to_string()
+
 					<< opdetail.policy.p_policy->id
 					<< opdetail.policy.p_policy->version
+
 					<< opdetail.target_file_format
 					<< opdetail.p_endpoint->identifier
+
 					<< opdetail.current_file_format
 					<< opdetail.retry
 					<< opdata->state
+
 					<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
 					;
 
@@ -335,11 +350,11 @@ public:
 			LogVerbose("Update "<<opdetail.identifier);
 
 			mysqlpp::Query query = conn->query();
-			query << "UPDATE `ArchivingInternal`.`ArchiveDProcessing`"
+			query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
 					" SET CurrentFileFormat=%0:CurrentFileFormat,"
 					" RetryCount=%1:RetryCount,"
 					" OpState=%2:OpState,"
-					" WHERE ID=%3:ID AND ReversedIdentifier=REVERSE(%4q:Identifier)"
+					" WHERE ID=%3:ID AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
 					;
 			query.parse();
 
@@ -351,6 +366,32 @@ public:
 					<< std::string(opdetail.identifier);
 
 			LogVerbose("SQL: "<<query.str(qp));
+			query.execute(qp);
+		}
+
+		// save files list
+		if(!opdata->p_detail->files_map.empty()) {
+			mysqlpp::SQLQueryParms qp;
+			mysqlpp::Query query = conn->query();
+			query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueueFiles`"
+					" (ArchiveDQueueID, FileFormat, Path) VALUES"
+					;
+
+			const files_map_t::iterator& end = opdata->p_detail->files_map.end();
+			files_map_t::iterator itr = opdata->p_detail->files_map.begin();
+			bool first = true;
+			unsigned int c = 0;
+			for(; itr != end; ++itr) {
+				query << (!first? ',': ' ') << "( %"<<c++<<":ArchiveDQueueID, %"<<c++<<":FileFormat, %"<<c++<<"q:Path )";
+				qp << opdata->database_id << itr->first << itr->second;
+				first = false;
+			}
+
+			query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
+
+			query.parse();
+			LogVerbose("SQL: "<<query.str(qp));
+
 			query.execute(qp);
 		}
 	}
