@@ -123,6 +123,7 @@ int main(int argc, char **argv) try
 
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
+		app::converter::describe_config(optsDesc);
 		app::storage::s3::backend::describe_config(optsDesc);
 		app::storage::s3::runner::describe_config(optsDesc);
 		app::coreapi::describe_config(optsDesc);
@@ -271,6 +272,13 @@ int main(int argc, char **argv) try
 		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
+
+		{
+			unsigned int n_threads = std::max<unsigned int>( app::confMap["converter.threads"].as<unsigned int>(), app::converter::min_threads );
+			LogMessage("Starting "<<n_threads<<" converter threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&app::converter::run, boost::ref(converter)));
+		}
 
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );

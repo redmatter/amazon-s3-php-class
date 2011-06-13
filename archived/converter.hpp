@@ -24,6 +24,15 @@ class converter
 	volatile bool& quit_flag_;
 
 public:
+	enum { min_threads = 1 };
+
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		optsDesc.add_options()
+				("converter.threads",  boost::program_options::value<unsigned short>()->default_value(2), "Number of converter threads")
+				;
+	}
+
 	converter(
 			app::operation_data::channel_t& convert_channel,
 			app::operation_data::channel_t& convert_done_channel,
