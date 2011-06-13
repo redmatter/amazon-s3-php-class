@@ -303,7 +303,7 @@ public:
 
 					" FileType=%1:FileType,"
 					" OrgID=%2:OrgID,"
-					" UUID=UNHEX(REPLACE(%q3:UUID, '-', '')),"
+					" UUID=UNHEX(REPLACE(%3q:UUID, '-', '')),"
 
 					" MetaData=%4q:MetaData,"
 
