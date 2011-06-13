@@ -175,9 +175,11 @@ private:
 
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
 	{
+		// reset the timer
+		timer_.cancel();
+
 		if (!error) {
 			current_state_ = states::connecting;
-			timer_.cancel();
 
 			run_statemachine(error);
 		}
