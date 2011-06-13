@@ -29,7 +29,7 @@ public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("converter.threads",  boost::program_options::value<unsigned short>()->default_value(min_threads), "Number of converter threads")
+				("converter.threads",  boost::program_options::value<unsigned int>()->default_value(min_threads), "Number of converter threads")
 				;
 	}
 
