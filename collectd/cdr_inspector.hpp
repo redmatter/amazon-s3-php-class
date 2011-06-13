@@ -32,6 +32,8 @@ class cdr_inspector : public boost::noncopyable
 
 	std::vector<archiving::org_id> orgs_enabled_;
 
+	const std::string& pbx_hostname_;
+
 	bool was_HUPed;
 
 	struct leg
@@ -69,11 +71,12 @@ public:
 	 * @param confMap
 	 * @return
 	 */
-	cdr_inspector(archiving::archivable_channel_t& in_channel, archiving::archivable_channel_t& out_channel, const boost::program_options::variables_map& confMap) :
-		in_channel(in_channel)
-		, out_channel(out_channel)
-		, confMap(confMap)
-		, was_HUPed(false)
+	cdr_inspector(archiving::archivable_channel_t& in_channel, archiving::archivable_channel_t& out_channel, const boost::program_options::variables_map& confMap, const std::string& pbx_hostname) :
+		in_channel(in_channel),
+		out_channel(out_channel),
+		confMap(confMap),
+		pbx_hostname_(pbx_hostname),
+		was_HUPed(false)
 	{
 		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
 			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
@@ -303,7 +306,7 @@ public:
 										std::string file_path(recording_node.node().value());
 										std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 										app::policy::id_type policy_id(rml::utils::strtoull(policy_node.node().value()));
-										archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, policy_id));
+										archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy_id));
 
 										archivable_recording->set_owners(*owners);
 
@@ -326,7 +329,7 @@ public:
 
 								std::string file_path(node.node().value());
 								std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-								archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", archivable_cdr, 0));
+								archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, 0));
 
 								archivable_recording->set_owners(*owners);
 

@@ -21,10 +21,11 @@ class cdr_dir_monitor {
 	typedef std::set<std::string> string_set;
 
 	archivable_channel_t& channel;
+	const std::string& pbx_hostname;
 	string_set files_created_waiting_close;
 
 public:
-	cdr_dir_monitor(archivable_channel_t& channel) : channel(channel) { }
+	cdr_dir_monitor(archivable_channel_t& channel, const std::string& pbx_hostname) : channel(channel), pbx_hostname(pbx_hostname) { }
 
 	void operator() (dir_monitor::event ev, boost::system::error_code e) {
 	    if (!e) {
@@ -39,7 +40,7 @@ public:
 				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close.find(file_path) != files_created_waiting_close.end()) ) {
 					try {
 						std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
-						channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml")));
+						channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname)));
 						files_created_waiting_close.erase(file_path);
 					}
 					catch(const std::exception& e) {

@@ -246,12 +246,12 @@ int main(int argc, char* argv[]) try
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel);
+		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, app::hostname);
 		archiving::dir_monitor dir_monitor(io_service);
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap);
+		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 

@@ -201,10 +201,11 @@ public:
 
 
 protected:
-	std::string uuid;
+	const std::string uuid;
 	std::string originator_uuid;
 	time_t start_epoch;
 	std::string data_format;
+	const std::string& pbx_hostname;
 
 private:
 	rml::utils::tmp_fstream::pointer p_fstream_;
@@ -236,11 +237,22 @@ public:
 	 * @param policy_id
 	 * @return
 	 */
-	archivable(const std::string& uuid, const std::string& originator_uuid, const time_t& start_epoch, const std::string& file_path, const file_type::file_type_t& type, const std::string& data_format, const pointer& parent = pointer(), const app::policy::id_type& policy_id = app::policy::id_type(0))
+	archivable(
+			const std::string& uuid,
+			const std::string& originator_uuid,
+			const time_t& start_epoch,
+			const std::string& file_path,
+			const file_type::file_type_t& type,
+			const std::string& data_format,
+			const std::string& pbx_hostname,
+			const pointer& parent = pointer(),
+			const app::policy::id_type& policy_id = app::policy::id_type(0)
+	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
 	  start_epoch(start_epoch),
 	  data_format(data_format),
+	  pbx_hostname(pbx_hostname),
 	  p_fstream_(new rml::utils::tmp_fstream(file_path, std::fstream::in | std::fstream::out | std::fstream::binary)),
 	  type_(type),
 	  n_children_(0),
@@ -312,7 +324,9 @@ public:
 				<< "RetentionPolicyID: "<<policy_id_<<"\r\n"
 				<< "LegUUID: "<<uuid<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
-				<< "DataFormat: "<<data_format<<"\r\n";
+				<< "DataFormat: "<<data_format<<"\r\n"
+				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
+				;
 #ifndef NDEBUG
 			put_request = ostr.str();
 		}
