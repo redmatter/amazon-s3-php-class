@@ -117,7 +117,7 @@ public:
 
 	    timer_.expires_from_now(boost::posix_time::seconds(10));
 	    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-	    		false, _1));
+	    		false, boost::asio::placeholders::error));
 	}
 
 	void close()
@@ -156,7 +156,7 @@ private:
 
 		    timer_.expires_from_now(boost::posix_time::seconds(10));
 		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-		    		false, _1));
+		    		false, boost::asio::placeholders::error));
 		}
 	}
 
@@ -219,7 +219,7 @@ private:
 
 			timer_.expires_from_now(boost::posix_time::seconds(2));
 		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-		    		true, _1));
+		    		true, boost::asio::placeholders::error));
 
 			break;
 		}
@@ -410,7 +410,7 @@ private:
 		{
 			current_state_ = states::closing;
 			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, _1));
+					true, boost::asio::placeholders::error));
 			break;
 		}
 
@@ -456,7 +456,7 @@ private:
 		{
 			current_state_ = states::closing;
 			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, _1));
+					true, boost::asio::placeholders::error));
 			break;
 		}
 
@@ -568,7 +568,7 @@ private:
 		if(reconnect) {
 		    timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
 		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-		    		false, _1));
+		    		false, boost::asio::placeholders::error));
 		}
 	}
 
