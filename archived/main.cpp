@@ -280,6 +280,8 @@ int main(int argc, char **argv) try
 				threads.create_thread(boost::bind(&app::converter::run, boost::ref(converter)));
 		}
 
+		threads.create_thread(boost::bind(&app::dispatcher::run, boost::ref(dispatcher)));
+
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );
 			LogMessage("Starting "<<n_threads<<" s3 threads");
