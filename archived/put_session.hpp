@@ -435,6 +435,7 @@ private:
 					opdata->p_detail->retry = 0;
 					opdata->database_id = 0;
 					opdata->p_detail->p_metadata = metadata_;
+					opdata->state = operation_state::put_received;
 
 					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
