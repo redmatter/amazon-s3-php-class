@@ -40,7 +40,7 @@ struct ports {
 
 #else
 
-#define SetupRecvStream(istr, recv_buffer) \
+#define SetupRecvStream(from, istr, recv_buffer) \
 	std::istream istr(&recv_buffer); \
 	istr.unsetf(std::ios_base::skipws)
 
