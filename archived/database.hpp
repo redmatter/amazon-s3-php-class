@@ -326,7 +326,7 @@ public:
 					<< opdetail.identifier.org
 					<< opdetail.identifier.uuid
 
-					<< opdetail.p_metadata->to_string()
+					<< std::string(*(opdetail.p_metadata))
 
 					<< opdetail.policy.p_policy->id
 					<< opdetail.policy.p_policy->version

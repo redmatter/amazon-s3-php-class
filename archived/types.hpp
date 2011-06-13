@@ -555,6 +555,11 @@ public:
 		return ostr.str();
 	}
 
+	inline operator std::string () const
+	{
+		return to_string();
+	}
+
 private:
 	void read_data(std::istream& istr)
 	{
