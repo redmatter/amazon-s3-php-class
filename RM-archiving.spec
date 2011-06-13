@@ -31,6 +31,12 @@ Summary: Archiving Convert Utility
 Group: RedMatter/Archiving
 Requires: boost >= 1.45.0, cryptopp
 
+%package common
+Summary: Archiving Common files
+Group: RedMatter/Archiving
+
+# ------------ description---------------
+
 %description
 Archiving daemon ( ArchiveD )
 
@@ -43,6 +49,11 @@ It also makes sense of archiving policy and passes that on to ArchiveD.
 
 %description convert
 Archiving Convert Utility; used by core-api to fetch files from S3
+
+%description common
+Archiving common config files, etc.
+
+# ----------
 
 %prep
 %setup -q 
@@ -87,13 +98,18 @@ cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 #cp migrationd/rmmigrationd.supp %{buildroot}/usr/share/archiving/
 #cp migrationd/scripts/* %{buildroot}/usr/share/archiving/migration-scripts/.
 #cp migrationd/rmmigrationd.conf %{buildroot}/etc/archiving/
-#cp migrationd/rmmigrationd_migration_database.conf %{buildroot}/etc/archiving/rmmigrationd_migration_database.conf.sample
-#cp migrationd/rmmigrationd_retention_database.conf %{buildroot}/etc/archiving/rmmigrationd_retention_database.conf.sample
 #cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
 #cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
 
 # Convert
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
+
+# Common
+#cp internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
+#cp retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
+#cp migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
+
+# ----------
 
 %pre
 if grep ^cdrmunch: /etc/group &>/dev/null; then
@@ -128,6 +144,10 @@ fi
 #	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
 #fi
 
+#%pre common
+
+# ----------
+
 %post
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
@@ -143,8 +163,14 @@ fi
 #/sbin/chkconfig rmmigrationd on
 #[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
 
+#%post common
+
+# ----------
+
 %postun
 [ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || /bin/true
+
+# ----------
 
 %files
 %defattr(-,root,root) 
@@ -177,8 +203,6 @@ fi
 #/usr/share/archiving/rmmigrationd.supp
 #/etc/rc.d/init.d/rmmigrationd
 #%config(noreplace) /etc/archiving/rmmigrationd.conf
-#/etc/archiving/rmmigrationd_migration_database.conf.sample
-#/etc/archiving/rmmigrationd_retention_database.conf.sample
 #%dir /var/lib/archiving
 #%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 #/etc/logrotate.d/rmmigrationd
@@ -189,6 +213,13 @@ fi
 %files convert
 %defattr(-,root,root) 
 /usr/bin/archiving-convert
+
+%files common
+#/etc/archiving/internal_database.conf.sample
+#/etc/archiving/retention_database.conf.sample
+#/etc/archiving/migration_database.conf.sample
+
+# ----------
 
 %clean
 rm -fR %{buildroot}
