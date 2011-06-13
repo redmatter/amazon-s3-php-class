@@ -105,9 +105,9 @@ cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 # Common
-#cp internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
-#cp retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
-#cp migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
+cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
+cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
+cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
 
 # ----------
 
@@ -215,9 +215,9 @@ fi
 /usr/bin/archiving-convert
 
 %files common
-#/etc/archiving/internal_database.conf.sample
-#/etc/archiving/retention_database.conf.sample
-#/etc/archiving/migration_database.conf.sample
+/etc/archiving/internal_database.conf.sample
+/etc/archiving/retention_database.conf.sample
+/etc/archiving/migration_database.conf.sample
 
 # ----------
 
