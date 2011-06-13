@@ -371,14 +371,6 @@ private:
 			assert(recv_buffer_.size() == 0);
 
 			current_state_ = states::put_receiving_file;
-			/*
-			boost::asio::async_read(socket_, recv_buffer_,
-					boost::bind(&put_session::put_receiving_file_is_complete, shared_from_this(),
-							boost::asio::placeholders::error,
-							boost::asio::placeholders::bytes_transferred),
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
-			*/
 			boost::asio::async_read(socket_, recv_buffer_,
 					boost::asio::transfer_at_least(1),
 					boost::bind(&put_session::put_receive_file, shared_from_this(),
@@ -491,59 +483,6 @@ private:
 		}
 
 		}
-	}
-
-	bool put_receiving_file_is_complete(const boost::system::error_code& error, std::size_t bytes_transferred)
-	{
-		LogVerbose("error: "<<error<<" ---------------------------------------");
-		LogVerbose("bytes_transferred: "<<bytes_transferred);
-		LogVerbose("content_length_: "<<content_length_);
-
-		if(!error) {
-			while(bytes_transferred < (content_length_ + 1)) {
-				LogVerbose("xfrd_content_length_: "<<xfrd_content_length_);
-
-				std::size_t buf_length = std::min<std::size_t>(4096, bytes_transferred - xfrd_content_length_);
-				if(!buf_length)
-					break;
-
-				std::vector<char> buf(buf_length);
-
-				if(content_length_ >= (xfrd_content_length_ + buf_length)) {
-					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
-					LogVerbose("Received: "<<buf_length<<" bytes");
-					if(!buf_length)
-						break;
-
-					ofs_->rdbuf()->sputn(&buf[0], buf_length);
-					xfrd_content_length_ += buf_length;
-				}
-				else {
-					std::size_t xfr_remaining = content_length_ - xfrd_content_length_;
-					if(xfr_remaining) {
-						xfr_remaining = recv_buffer_.sgetn(&buf[0], xfr_remaining);
-						LogVerbose("Received: "<<xfr_remaining<<" bytes");
-						if(!xfr_remaining)
-							break;
-						ofs_->rdbuf()->sputn(&buf[0], xfr_remaining);
-						xfrd_content_length_ += xfr_remaining;
-					}
-
-					char eof = recv_buffer_.sgetc();
-					LogVerbose("Received: 1 bytes (last)"<<RML_HEX(4, int(eof))<<RML_HEX_RESET);
-					xfrd_ok_ = (eof == '\x1a');
-
-					LogDebug("PUT; File transfer complete");
-
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		LogError("Error while receiving PUT data: "<<error.message());
-		return true;
 	}
 
 	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
