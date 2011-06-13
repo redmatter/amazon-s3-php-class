@@ -394,6 +394,7 @@ private:
 			resource_id_.clear();
 			uuid_.clear();
 			orgID_ = 0;
+			metadata_.reset();
 			data_type_ = types::data_sub_format::unknown;
 			file_type_ = archiving::archivable::file_type::unknown;
 			content_length_ = 0;
@@ -433,6 +434,7 @@ private:
 					opdata->p_detail->real_size = 0;
 					opdata->p_detail->retry = 0;
 					opdata->database_id = 0;
+					opdata->p_detail->p_metadata = metadata_;
 
 					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
@@ -469,6 +471,7 @@ private:
 			resource_id_.clear();
 			uuid_.clear();
 			orgID_ = 0;
+			metadata_.reset();
 			data_type_ = types::data_sub_format::unknown;
 			file_type_ = archiving::archivable::file_type::unknown;
 			content_length_ = 0;

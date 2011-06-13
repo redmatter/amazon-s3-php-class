@@ -31,8 +31,6 @@
 
 namespace app {
 
-extern std::string hostname;
-
 namespace database {
 
 class retention : public basic_database< retention >
@@ -328,7 +326,7 @@ public:
 					<< opdetail.identifier.org
 					<< opdetail.identifier.uuid
 
-					<< std::string(*(opdetail.p_metadata))
+					<< opdetail.p_metadata->to_string()
 
 					<< opdetail.policy.p_policy->id
 					<< opdetail.policy.p_policy->version
@@ -366,10 +364,7 @@ public:
 					<< opdetail.retry
 					<< opdata->state
 					<< opdata->database_id
-					<< opdetail.identifier.filetype
-					<< opdetail.identifier.org
-					<< opdetail.identifier.uuid
-					;
+					<< std::string(opdetail.identifier);
 
 			LogVerbose("SQL: "<<query.str(qp));
 			query.execute(qp);
@@ -386,9 +381,10 @@ public:
 			const files_map_t::iterator& end = opdata->p_detail->files_map.end();
 			files_map_t::iterator itr = opdata->p_detail->files_map.begin();
 			bool first = true;
-			for(int c = 0; itr != end; ++itr, c+=3) {
-				query << (!first? ',': ' ') << "( %"<< (c+0) <<":ArchiveDQueueID, %"<< (c+1) <<":FileFormat, %"<< (c+2) <<"q:Path )";
-				qp << opdata->database_id << itr->first << itr->second->get_filename();
+			unsigned int c = 0;
+			for(; itr != end; ++itr) {
+				query << (!first? ',': ' ') << "( %"<<c++<<":ArchiveDQueueID, %"<<c++<<":FileFormat, %"<<c++<<"q:Path )";
+				qp << opdata->database_id << itr->first << itr->second;
 				first = false;
 			}
 
