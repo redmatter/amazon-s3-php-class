@@ -435,7 +435,7 @@ private:
 					opdata->p_detail->retry = 0;
 					opdata->database_id = 0;
 					opdata->p_detail->p_metadata = metadata_;
-					opdata->state = operation_state::put_received;
+					opdata->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
 
 					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
