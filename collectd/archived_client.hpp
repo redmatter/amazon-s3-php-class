@@ -128,15 +128,17 @@ public:
 private:
 	inline void connect_archived(const bool& force_reconnect, const boost::system::error_code& error)
 	{
-		if(error != boost::asio::error::operation_aborted)
+		if(error != boost::asio::error::operation_aborted) {
+			LogMessage("Timeout; reconnecting...");
 			connect_archived(force_reconnect);
+		}
 	}
 
 	inline void connect_archived(const bool& force_reconnect = false)
 	{
 		if(connected_ && force_reconnect) {
 			LogMessage("Reconnecting...");
-			do_close();
+			do_close(true);
 		}
 		else if(!connected_ && (current_state_ == states::initialised)) {
 			resolver_.cancel();
