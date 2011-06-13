@@ -366,7 +366,10 @@ public:
 					<< opdetail.retry
 					<< opdata->state
 					<< opdata->database_id
-					<< std::string(opdetail.identifier);
+					<< opdetail.identifier.filetype
+					<< opdetail.identifier.org
+					<< opdetail.identifier.uuid
+					;
 
 			LogVerbose("SQL: "<<query.str(qp));
 			query.execute(qp);
