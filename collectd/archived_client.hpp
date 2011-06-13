@@ -116,7 +116,8 @@ public:
 	    				boost::asio::placeholders::iterator));
 
 	    timer_.expires_from_now(boost::posix_time::seconds(10));
-	    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
+	    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+	    		false, _1));
 	}
 
 	void close()
@@ -125,7 +126,13 @@ public:
 	}
 
 private:
-	void connect_archived(const bool& force_reconnect = false)
+	inline void connect_archived(const bool& force_reconnect, const boost::system::error_code& error)
+	{
+		if(error != boost::asio::error::operation_aborted)
+			connect_archived(force_reconnect);
+	}
+
+	inline void connect_archived(const bool& force_reconnect = false)
 	{
 		if(connected_ && force_reconnect) {
 			LogMessage("Reconnecting...");
@@ -148,7 +155,8 @@ private:
 		    				boost::asio::placeholders::iterator));
 
 		    timer_.expires_from_now(boost::posix_time::seconds(10));
-		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		false, _1));
 		}
 	}
 
@@ -204,9 +212,14 @@ private:
 			}
 
 			current_state_ = states::handshake_recv;
+
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
 					boost::bind(&archived_client::run_statemachine, this,
 							boost::asio::placeholders::error));
+
+			timer_.expires_from_now(boost::posix_time::seconds(2));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		true, _1));
 
 			break;
 		}
@@ -396,7 +409,8 @@ private:
 		case states::put_sent_file_err:
 		{
 			current_state_ = states::closing;
-			io_service_.post(boost::bind(&archived_client::connect_archived, this, true));
+			io_service_.post(boost::bind(&archived_client::connect_archived, this,
+					true, _1));
 			break;
 		}
 
@@ -441,7 +455,8 @@ private:
 		case states::general_err:
 		{
 			current_state_ = states::closing;
-			io_service_.post(boost::bind(&archived_client::connect_archived, this, true));
+			io_service_.post(boost::bind(&archived_client::connect_archived, this,
+					true, _1));
 			break;
 		}
 
@@ -513,12 +528,6 @@ private:
 			return;
 		}
 
-		if (put_sent_size_ == put_file_size_) {
-			LogMessage("PUT send file completed OK");
-			current_state_ = states::put_sent_file_ok;
-
-		}
-
 		std::streamsize buf_length = std::min<std::streamsize>( (std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096 );
 		LogDebug("1. buf_length: "<<buf_length);
 
@@ -558,7 +567,8 @@ private:
 
 		if(reconnect) {
 		    timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
-		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this, false));
+		    timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
+		    		false, _1));
 		}
 	}
 
