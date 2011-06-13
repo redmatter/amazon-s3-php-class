@@ -432,6 +432,7 @@ private:
 					opdata->p_detail->clear_size = content_length_;
 					opdata->p_detail->real_size = 0;
 					opdata->p_detail->retry = 0;
+					opdata->database_id = 0;
 
 					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
