@@ -42,7 +42,7 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 {
 	string ret;
 
-	CryptoPP::HexEncoder encoder;
+	CryptoPP::HexEncoder encoder(0, false);
 	encoder.Put(&hash[0], hash.size());
 
 	size_t size = encoder.MaxRetrievable();
