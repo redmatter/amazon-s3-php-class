@@ -385,7 +385,7 @@ public:
 			bool first = true;
 			for(unsigned int c = 0; itr != end; ++itr, c += 3) {
 				query << (!first? ',': ' ') << "( %"<<(c+0)<<":ArchiveDQueueID, %"<<(c+1)<<":FileFormat, %"<<(c+2)<<"q:Path )";
-				qp << opdata->database_id << itr->first << itr->second;
+				qp << opdata->database_id << itr->first << itr->second->get_filename();
 				first = false;
 			}
 
