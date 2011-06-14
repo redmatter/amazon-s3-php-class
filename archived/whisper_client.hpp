@@ -194,7 +194,7 @@ private:
 		}
 	}
 
-	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
+	void handle_connect(const boost::system::error_code& error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
 			current_state_ = state::connecting;
@@ -204,7 +204,7 @@ private:
 		}
 		else {
 			LogWarning("Error connecting to Distiller host "<<distiller_host_<<" ( port "<<distiller_port_<<" ) - error:"<<error.message());
-			if (endpoint_iterator != tcp::resolver::iterator()) {
+			if (endpoint_iterator != boost::asio::ip::tcp::resolver::iterator()) {
 				socket_.close();
 
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
