@@ -29,6 +29,7 @@ class put_server
 {
 	boost::program_options::variables_map& confMap_;
 	operation_data::channel_t& channel_;
+	whisper::channel_t& whisper_channel_;
 	policy::cached_finder_t& cached_policy_finder_;
 	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
 	database::internal& internal_db_;
@@ -36,7 +37,6 @@ class put_server
 	clear_cache& clear_cache_;
 	boost::asio::io_service& io_service_;
 	boost::asio::ip::tcp::acceptor acceptor_;
-	whisper::channel_t& whisper_channel_;
 
 public:
 	typedef boost::shared_ptr<put_server> pointer;

@@ -360,7 +360,7 @@ private:
 
 		current_state_ = state::reconnecting;
 		io_service_.post(boost::bind(&whisper_client::reconnect, this,
-				true, boost::asio::placeholders::error));
+				true, error));
 	}
 
 	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {
