@@ -509,7 +509,7 @@ private:
 							}
 
 							// we do not need to store the AddToCDRMunchCache header
-							opdata->p_detail->p_metadata->erase(itr);
+							opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
 						}
 					}
 
