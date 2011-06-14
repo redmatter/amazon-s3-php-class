@@ -356,7 +356,7 @@ private:
 			LogWarning("Invalid current_state:"<<current_state_);
 		}
 		else
-			LogErro("Socket IO error: "<<error.message());
+			LogError("Socket IO error: "<<error.message());
 
 		current_state_ = state::reconnecting;
 		io_service_.post(boost::bind(&whisper_cli::reconnect, this,
