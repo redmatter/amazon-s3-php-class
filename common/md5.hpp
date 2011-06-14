@@ -8,15 +8,8 @@
 #ifndef MD5_HPP_
 #define MD5_HPP_
 
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-#include <fstream>
-#include <iomanip>
-
-#include <boost/noncopyable.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/array.hpp>
+#include <rml/exception.h>
+#include <rml/utils.h>
 
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 #include <cryptopp/cryptlib.h>
@@ -28,7 +21,15 @@
 #include <cryptopp/hex.h>
 #undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
-#include <rml/exception.h>
+#include <boost/noncopyable.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/array.hpp>
+
+#include <algorithm>
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <iomanip>
 
 namespace archiving {
 
