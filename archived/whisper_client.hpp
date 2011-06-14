@@ -359,7 +359,7 @@ private:
 			LogError("Socket IO error: "<<error.message());
 
 		current_state_ = state::reconnecting;
-		io_service_.post(boost::bind(&whisper_cli::reconnect, this,
+		io_service_.post(boost::bind(&whisper_client::reconnect, this,
 				true, boost::asio::placeholders::error));
 	}
 
