@@ -222,7 +222,7 @@ private:
 
 		if(error) {
 			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
-			current_state_ = state::general_err;
+			current_state_ = state::closing;
 		}
 
 		switch(current_state_) {
