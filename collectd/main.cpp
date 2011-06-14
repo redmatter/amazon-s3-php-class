@@ -5,11 +5,28 @@
  *      Author: dkorah
  */
 
+#include "archived_client.hpp"
+#include "cdr_inspector.hpp"
+
+#include "../common/types.hpp"
+#include "../common/cdr_dir_monitor.hpp"
+#include "../common/dir_monitor.hpp"
+
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
 #include <rml/config.h>
 #include <rml/siginit.h>
+
+#include <boost/asio.hpp>
+#include <boost/program_options.hpp>
+#include <boost/format.hpp>
+#include <boost/thread.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/ref.hpp>
+
+#include <iostream>
+#include <fstream>
 
 #include <sys/types.h>
 #include <grp.h>
@@ -20,23 +37,6 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
-
-#include <iostream>
-#include <fstream>
-
-#include <boost/asio.hpp>
-#include <boost/program_options.hpp>
-#include <boost/format.hpp>
-#include <boost/thread.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/ref.hpp>
-
-#include "../common/types.hpp"
-#include "../common/cdr_dir_monitor.hpp"
-#include "../common/dir_monitor.hpp"
-
-#include "archived_client.hpp"
-#include "cdr_inspector.hpp"
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-collectd"

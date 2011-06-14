@@ -34,6 +34,7 @@ public:
 	basic_database(const boost::program_options::variables_map& confMap) :
 		confMap_(confMap), pool_(confMap_, database_type::get_identifier())
 	{
+		LogVerbose(database_type::get_identifier()<<" database connection pool created");
 	}
 
 	virtual ~basic_database()

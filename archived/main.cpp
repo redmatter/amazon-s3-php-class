@@ -7,8 +7,10 @@
 #include "converter.hpp"
 #include "dispatcher.hpp"
 #include "database.hpp"
+#include "cdrmunch_database.hpp"
 #include "clear_cache.hpp"
 #include "operation_data.hpp"
+#include "whisper_client.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -129,8 +131,10 @@ int main(int argc, char **argv) try
 		app::coreapi::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 		app::database::retention::describe_config(optsDesc);
+		app::database::cdrmunch::describe_config(optsDesc);
 		app::clear_cache::describe_config(optsDesc);
 		app::operation_data::describe_config(optsDesc);
+		app::whisper_client::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -246,9 +250,11 @@ int main(int argc, char **argv) try
 		app::storage::s3::operation_channel_t s3_operation_channel("S3Ops");
 		app::operation_data::channel_t retention_data_channel("RetentionData");
 		app::operation_data::channel_t usage_data_channel("UsageData");
+		app::whisper::channel_t whisper_channel("Whisper");
 
 		app::database::internal internal_db(app::confMap);
 		app::database::retention retention_db(app::confMap);
+		app::database::cdrmunch cdrmunch_db(app::confMap);
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
@@ -260,13 +266,19 @@ int main(int argc, char **argv) try
 
 		boost::asio::io_service io_service;
 
-		app::put_server put_server(app::confMap, convert_channel, cached_policy_finder, cached_endpoint_finder, internal_db, clear_cache, io_service);
+		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
+				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
 		app::converter converter(convert_channel, convert_done_channel, internal_db, app::quit);
-		app::dispatcher dispatcher(convert_done_channel, s3_operation_channel, retention_data_channel, internal_db, app::quit);
+		app::dispatcher dispatcher(convert_done_channel, s3_operation_channel, retention_data_channel,
+				internal_db, app::quit);
 
 		app::storage::s3::storage s3storage(app::confMap);
 
 		app::storage::s3::runner s3runner(s3storage, s3_operation_channel, app::quit);
+
+		app::whisper_client whisper_client(io_service, whisper_channel,
+				app::confMap["distiller_client.server_host"].as<std::string>(),
+				app::confMap["distiller_client.server_host"].as<std::string>());
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -320,6 +332,7 @@ int main(int argc, char **argv) try
 		s3_operation_channel.set_finishing();
 		retention_data_channel.set_finishing();
 		usage_data_channel.set_finishing();
+		whisper_channel.set_finishing();
 
 		io_service.stop();
 

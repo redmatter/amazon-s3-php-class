@@ -107,7 +107,8 @@ cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 # Common
 cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
 cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
-cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
+cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf.sample
+#cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
 
 # ----------
 
@@ -217,7 +218,8 @@ fi
 %files common
 /etc/archiving/internal_database.conf.sample
 /etc/archiving/retention_database.conf.sample
-/etc/archiving/migration_database.conf.sample
+/etc/archiving/cdrmunch_database.conf.sample
+# /etc/archiving/migration_database.conf.sample
 
 # ----------
 

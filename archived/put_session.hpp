@@ -14,6 +14,8 @@
 #include "storage_endpoint.hpp"
 #include "clear_cache.hpp"
 #include "database.hpp"
+#include "cdrmunch_database.hpp"
+#include "whisper_client.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
@@ -22,8 +24,13 @@
 #include <rml/logger.h>
 #include <rml/utils.h>
 
+#include <istream>
+#include <iterator>
+#include <map>
+
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/asio.hpp>
+#include <boost/format.hpp>
 
 namespace app {
 
@@ -72,6 +79,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
 
 	database::internal& internal_db_;
+	database::cdrmunch& cdrmunch_db_;
 	clear_cache& clear_cache_;
 
 	boost::asio::ip::tcp::socket socket_;
@@ -96,15 +104,19 @@ class put_session : public boost::enable_shared_from_this<put_session>
 
 	operation_data::channel_t& channel_;
 
+	whisper::channel_t& whisper_channel_;
+
 public:
 	typedef boost::shared_ptr<put_session> pointer;
 
 	put_session(
 			boost::program_options::variables_map& confMap,
 			operation_data::channel_t& channel,
+			whisper::channel_t& whisper_channel,
 			policy::cached_finder_t& cached_policy_finder,
 			storage::s3::endpoint::cached_finder_t& cached_endpoint_finder,
 			database::internal& internal_db,
+			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
 			boost::asio::io_service& io_service ) :
 				confMap_(confMap),
@@ -112,10 +124,12 @@ public:
 				cached_policy_finder_(cached_policy_finder),
 				cached_endpoint_finder_(cached_endpoint_finder),
 				internal_db_(internal_db),
+				cdrmunch_db_(cdrmunch_db),
 				clear_cache_(clear_cache),
 				socket_(io_service),
 				current_state_(states::accepting),
-				channel_(channel)
+				channel_(channel),
+				whisper_channel_(whisper_channel)
 	{
 		//ctor
 	}
@@ -441,7 +455,6 @@ private:
 
 					// Looks like we have the file intact; lets make it temporarily not temporary
 					ofs_->set_persistent();
-					ofs_->close(); // no need to keep it open till we can process it
 
 					// lets add the file to clear cache for the sake of optimization
 					// otherwise we will have to pull it back from storage
@@ -449,9 +462,64 @@ private:
 
 					current_state_ = states::put_check_received_file_ack_ok;
 
+
+					// Put CDRs and those recordings needed for CDR processing on to GlusterFS
+					// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
+					{
+						std::string pbx_hostname;
+						{
+							types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("PBXHostName");
+							if(itr == opdata->p_detail->p_metadata->end()) {
+								LogWarning("No PBXHostName found in metadata; substituting with 'default-rmpbx'");
+								pbx_hostname = "default-rmpbx";
+							}
+							else
+								pbx_hostname = itr->second;
+						}
+
+						// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
+						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
+						if(itr != opdata->p_detail->p_metadata->end()) {
+							if( itr->second == "true" ) {
+								std::string whisper_path = boost::str(
+										boost::format("%1%/%2%_%3%_%4%")
+												% confMap_["distiller_client.base_dir"].as<std::string>()
+												% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
+												% opdata->p_detail->identifier.org
+												% opdata->p_detail->identifier.uuid);
+
+								rml::utils::directory_ready(whisper_path);
+								std::ofstream whisper_ofs(whisper_path.c_str(), std::ios_base::out | std::ios_base::binary);
+								if(whisper_ofs) {
+									whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
+
+									ofs_->seekg(0);
+									std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
+
+									LogMessage("Whisper file created; file:"<<whisper_path);
+
+									whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
+									whisper_channel_.produce(p_whisper);
+
+									// TODO Change distiller to respect full-paths in CDR queue
+									cdrmunch_db_.save(p_whisper);
+								}
+								else
+									LogError("Failed to create whisper! error:"<<strerror(errno));
+							}
+
+							// we do not need to store the AddToCDRMunchCache header
+							opdata->p_detail->p_metadata->erase(itr);
+						}
+					}
+
 					// save the state of operation data
 					internal_db_.save(opdata);
 
+					// no need to keep the file open till we can process it
+					ofs_->close();
+
+					// do not produce till we are done whispering as we might endup sharing the same tmp_fstream object across threads... bad!
 					channel_.produce(opdata);
 				}
 				else {
