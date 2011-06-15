@@ -331,7 +331,7 @@ private:
 							if(itr == metadata_->end())
 								throw rml::exception("No RetentionPolicyID given");
 
-							policy_id_ = rml::utils::strtoull(itr->second.c_str());
+							policy_id_ = rml::utils::strtoll(itr->second.c_str());
 						}
 
 						// make sure we have CreateTime in headers
@@ -512,7 +512,7 @@ private:
 							}
 
 							// we do not need to store the AddToCDRMunchCache header
-							opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
+							// opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
 						}
 					}
 
@@ -523,7 +523,10 @@ private:
 					ofs_->close();
 
 					// do not produce till we are done whispering as we might endup sharing the same tmp_fstream object across threads... bad!
-					channel_.produce(opdata);
+					if(policy_id_ >= 0) // if PolicyID < 0; it only needs to be local cached
+						channel_.produce(opdata);
+					else
+						LogMessage(opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 				}
 				else {
 					LogError(resource_id_<<": PUT failed with MD5 mismatch");
