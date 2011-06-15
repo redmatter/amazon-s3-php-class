@@ -10,7 +10,7 @@ CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
-CPPFLAGS += -Wsign-promo
+# CPPFLAGS += -Wsign-promo
 
 TARGET=collectd
 

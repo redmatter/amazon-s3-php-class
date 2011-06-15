@@ -2,7 +2,7 @@ include ../version_info
 include /usr/share/librml/Makefile.macros
 
 LIBS += -L../common/$(TMP)
-CPPFLAGS += -Wsign-promo
+# CPPFLAGS += -Wsign-promo
 
 TARGET=archived
 
