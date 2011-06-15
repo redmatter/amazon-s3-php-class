@@ -278,7 +278,7 @@ int main(int argc, char **argv) try
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
-				app::confMap["distiller_client.server_host"].as<std::string>());
+				app::confMap["distiller_client.server_port"].as<std::string>());
 
 		initialized = true;
 		LogMessage("Initialisation complete");
