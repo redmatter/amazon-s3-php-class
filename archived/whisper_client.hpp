@@ -161,8 +161,10 @@ private:
 		}
 		else if(!connected_ && (current_state_ == state::initialised)) {
 			resolver_.cancel();
-			socket_.cancel();
-			socket_.close();
+			if(socket_.is_open()) {
+				socket_.cancel();
+				socket_.close();
+			}
 			connected_ = false;
 			current_state_ = state::initialised;
 			LogWarning("Distiller connection failed; retrying...");
