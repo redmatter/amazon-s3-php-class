@@ -20,6 +20,35 @@
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
+
+namespace {
+
+inline const char* get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const char* default_value)
+{
+	pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
+	if(xpath_node)
+		return xpath_node.node().value();
+
+	return default_value;
+}
+
+inline std::string get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const std::string& default_value = "")
+{
+	return get_xpath_single_value(doc, xpath, default_value.c_str());
+}
+
+inline unsigned long long get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
+{
+	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
+}
+
+inline long long get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const long long default_value = 0LL)
+{
+	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
+}
+
+}
 
 namespace app {
 
@@ -159,6 +188,8 @@ public:
 								THROW_RML_EXCEPTION("Unable to load CDR for filtering; error:"<<res.description());
 						}
 
+//						fn_xpath_t xpath = boost::bind(get_xpath_single_value, boost::ref(doc), _1, _2);
+
 						const char* cdr_uuid = doc.select_single_node("/cdr/variables/uuid/text()").node().value();
 						LogDebug("cdr_uuid: "<<cdr_uuid);
 
@@ -295,47 +326,70 @@ public:
 							pugi::xpath_node node;
 							if((node = doc.select_single_node("/cdr/variables/rmCallRecordingCount/text()"))) {
 								archiving::archivable::pointer archivable_recording;
-								pugi::xpath_node recording_node;
-								pugi::xpath_node policy_node;
 
 								unsigned int recording_count( rml::utils::strtoull(node.node().value()) );
 								for(; recording_count; recording_count--) {
-									const std::string recording_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingLoc_%1%") % recording_count));
-									const std::string policy_xpath_str(boost::str(boost::format("/cdr/variables/rmCallRecordingPolicy_%1%") % recording_count));
-									if((recording_node = doc.select_single_node(recording_xpath_str.c_str())) && (policy_node = doc.select_single_node(policy_xpath_str.c_str()))) {
-										std::string file_path(recording_node.node().value());
-										std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-										app::policy::id_type policy_id(rml::utils::strtoull(policy_node.node().value()));
-										archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy_id));
 
-										archivable_recording->set_owners(*owners);
+									const std::string& recording_location( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingLoc_%1%") % recording_count), std::string()));
+									const app::policy::id_type& recording_policy( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingPolicy_%1%") % recording_count), 0LL) );
 
-										LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+									const bool& recording_send_email( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingEmail_%1%") % recording_count), std::string()) == "true" );
+									const char* recording_send_email_to_recips = get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingToRecips_%1%") % recording_count), (const char*)0);
 
-										out_channel.produce(archivable_recording);
+									if(!recording_location.empty()) {
+										try {
+											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
+											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
+
+											archivable_recording->set_owners(*owners);
+
+											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+
+											if(recording_policy < 0 || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
+												archivable_cdr->set_add_to_cdrmunch_cache(true);
+
+											out_channel.produce(archivable_recording);
+										}
+										catch(const std::exception& e) {
+											LogWarning("Failed producing archivable item; error: "<<e.what());
+										}
 									}
 								}
 							}
-							else if((node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]/rmLocalRecordLocation/text()"))) {
-								// ( $cdr/variables/rmDispRecordRetain = 'true' or $cdr/variables/rmDispPersonalRecordRetain = 'true' )
-								// and $cdr/variables/rmDispSessionRecorded = 'true'
+							else if((node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' or rmDispRecordEmailSend = 'true' or rmDispPersonalRecordEmailSend = 'true' ]/rmLocalRecordLocation/text()"))) {
+								try {
+									archiving::archivable::pointer archivable_recording;
 
-								// $cdr/variables/rmLocalRecordLocation
-								// Pick the file from the /var/spool location NOT rmfs
+									LogMessage(*archivable_cdr<<" - Archivable recording found.");
 
-								archiving::archivable::pointer archivable_recording;
+									const app::policy::id_type recording_policy( doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]")? 0: -1);
 
-								LogMessage(*archivable_cdr<<" - Archivable recording found.");
+									std::string file_path(node.node().value());
+									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
+									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
-								std::string file_path(node.node().value());
-								std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-								archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, 0));
+									{
+										// should we add this to CDRMunch Cache ?
+										const bool rmDispRecordEmailSend( "false" != get_xpath_single_value(doc, "/cdr/variables/rmDispRecordEmailSend/text()", std::string("false")) );
+										const bool rmDispPersonalRecordEmailSend( "false" != get_xpath_single_value(doc, "/cdr/variables/rmDispPersonalRecordEmailSend/text()", std::string("false")) );
+										const bool rmDispRecordToRecips(get_xpath_single_value(doc, "/cdr/variables/rmDispRecordToRecips/text()", std::string()).empty());
+										const bool rmDispPersonalRecordToRecips(get_xpath_single_value(doc, "/cdr/variables/rmDispPersonalRecordToRecips/text()", std::string()).empty());
 
-								archivable_recording->set_owners(*owners);
+										if((rmDispRecordEmailSend && rmDispRecordToRecips) || (rmDispPersonalRecordEmailSend && rmDispPersonalRecordToRecips))
+											archivable_cdr->set_add_to_cdrmunch_cache(true);
+										else if(recording_policy == -1)
+											throw rml::exception("NO recipients specified and NOT requested to retain");
+									}
 
-								LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+									archivable_recording->set_owners(*owners);
 
-								out_channel.produce(archivable_recording);
+									LogWarning(*archivable_cdr<<" - Archivable recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
+
+									out_channel.produce(archivable_recording);
+								}
+								catch(const std::exception& e) {
+									LogWarning("Failed producing archivable item; error: "<<e.what());
+								}
 							}
 						}
 
@@ -359,6 +413,8 @@ public:
 
 						archivable_cdr->set_originator_uuid(originator_uuid);
 						archivable_cdr->set_start_epoch(start_epoch);
+						archivable_cdr->set_add_to_cdrmunch_cache(true);
+
 						out_channel.produce(archivable_cdr);
 					}
 				}

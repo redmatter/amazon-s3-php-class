@@ -400,7 +400,7 @@ private:
 		{
 			std::ostream ostr(&send_buffer_);
 			LogError(resource_id_<<": PUT failed; general failure during transfer");
-			ostr << "ERR RECV "<<orgID_<<' '<<md5_<<" general failure during transfer\r\n";
+			ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 			current_state_ = states::put_check_received_file_ack_err;
 
 			ofs_.reset();
@@ -481,6 +481,7 @@ private:
 						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
 						if(itr != opdata->p_detail->p_metadata->end()) {
 							if( itr->second == "true" ) {
+								LogVerbose("AddToCDRMunchCache requested");
 								std::string whisper_path = boost::str(
 										boost::format("%1%/%2%_%3%_%4%")
 												% confMap_["distiller_client.base_dir"].as<std::string>()
@@ -498,11 +499,13 @@ private:
 
 									LogMessage("Whisper file created; file:"<<whisper_path);
 
-									whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
-									whisper_channel_.produce(p_whisper);
+									if(file_type_ == archiving::archivable::file_type::cdr) {
+										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
+										whisper_channel_.produce(p_whisper);
 
-									// TODO Change distiller to respect full-paths in CDR queue
-									cdrmunch_db_.save(p_whisper);
+										// TODO Change distiller to respect full-paths in CDR queue
+										cdrmunch_db_.save(p_whisper);
+									}
 								}
 								else
 									LogError("Failed to create whisper! error:"<<strerror(errno));
@@ -531,7 +534,7 @@ private:
 			}
 			else {
 				LogError(resource_id_<<": PUT failed; general failure during transfer");
-				ostr << "ERR RECV "<<orgID_<<' '<<md5_<<" general failure during transfer\r\n";
+				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
 			}
 

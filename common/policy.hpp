@@ -125,7 +125,7 @@ typedef std::set<archiving::user_id> users_t;
 
 struct policy
 {
-	typedef uint64_t id_type;
+	typedef int64_t id_type; // making it signed to accomodate the negative IDs passed in from FreeSwitch to denote NOT to archive
 	typedef uint16_t version_type;
 
 	id_type id;

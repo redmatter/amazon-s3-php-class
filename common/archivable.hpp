@@ -206,6 +206,7 @@ protected:
 	time_t start_epoch;
 	std::string data_format;
 	const std::string& pbx_hostname;
+	bool add_to_cdrmunch_cache;
 
 private:
 	rml::utils::tmp_fstream::pointer p_fstream_;
@@ -246,13 +247,15 @@ public:
 			const std::string& data_format,
 			const std::string& pbx_hostname,
 			const pointer& parent = pointer(),
-			const app::policy::id_type& policy_id = app::policy::id_type(0)
+			const app::policy::id_type& policy_id = app::policy::id_type(0),
+			const bool& add_to_cdrmunch_cache = false
 	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
 	  start_epoch(start_epoch),
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
+	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
 	  p_fstream_(new rml::utils::tmp_fstream(file_path, std::fstream::in | std::fstream::out | std::fstream::binary)),
 	  type_(type),
 	  n_children_(0),
@@ -326,6 +329,7 @@ public:
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
 				<< "DataFormat: "<<data_format<<"\r\n"
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
+				<< "AddToCDRMunchCache: "<<(add_to_cdrmunch_cache? "true": "false")<<"\r\n"
 				;
 #ifndef NDEBUG
 			put_request = ostr.str();
@@ -359,6 +363,11 @@ public:
 	inline const time_t get_start_epoch() const
 	{
 		return start_epoch;
+	}
+
+	inline void set_add_to_cdrmunch_cache(const bool& add_it = true)
+	{
+		add_to_cdrmunch_cache = add_it;
 	}
 
 	void set_owners(const owner_info& o)
