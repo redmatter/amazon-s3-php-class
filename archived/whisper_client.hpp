@@ -300,12 +300,12 @@ private:
 
 		case state::nop_ack_wait:
 		{
-			std::string OK_or_ERR, NOP;
+			std::string OK_or_ERR;
 			char sp, cr, lf;
 
 			SetupRecvStream("Distiller", is, recv_buffer_);
 
-			is >> OK_or_ERR >> sp >> NOP >> cr >> lf;
+			is >> OK_or_ERR >> cr >> lf;
 			if(OK_or_ERR == "ERR") {
 				LogError("NOP acked ERR");
 				current_state_ = state::nop_ack_err;
