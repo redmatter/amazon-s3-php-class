@@ -337,8 +337,10 @@ public:
 								archiving::archivable::pointer archivable_recording;
 
 								unsigned int recording_count( rml::utils::strtoull(node.node().value()) );
-								if(recording_count)
+								if(recording_count) {
 									variables_node.append_child("rmArchivingEnabled").set_value("true");
+									modified = true;
+								}
 
 								for(; recording_count; recording_count--) {
 
@@ -354,6 +356,7 @@ public:
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).set_value(uuid.c_str());
+											modified = true;
 
 											archivable_recording->set_owners(*owners);
 
@@ -387,6 +390,7 @@ public:
 									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 									variables_node.append_child("rmCallRecordingUUID").set_value(uuid.c_str());
+									modified = true;
 
 									{
 										// should we add this to CDRMunch Cache ?
