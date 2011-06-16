@@ -301,7 +301,7 @@ private:
 		case state::nop_ack_wait:
 		{
 			std::string OK_or_ERR;
-			char sp, cr, lf;
+			char cr, lf;
 
 			SetupRecvStream("Distiller", is, recv_buffer_);
 
