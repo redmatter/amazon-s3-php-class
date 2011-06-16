@@ -24,7 +24,7 @@
 
 namespace {
 
-inline const char* get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const char* default_value)
+inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
 {
 	pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
 	if(xpath_node)
@@ -33,17 +33,17 @@ inline const char* get_xpath_single_value(pugi::xml_document& doc, const std::st
 	return default_value;
 }
 
-inline std::string get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const std::string& default_value = "")
+inline std::string get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const std::string& default_value = "")
 {
 	return get_xpath_single_value(doc, xpath, default_value.c_str());
 }
 
-inline unsigned long long get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
+inline unsigned long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
 {
 	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
 }
 
-inline long long get_xpath_single_value(pugi::xml_document& doc, const std::string& xpath, const long long default_value = 0LL)
+inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const long long default_value = 0LL)
 {
 	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
 }
@@ -182,15 +182,22 @@ public:
 						leg::type_t leg;
 
 						pugi::xml_document doc;
+						pugi::xml_node variables_node;
 						{
 							pugi::xml_parse_result res = doc.load(*ifs);
 							if(!res)
 								THROW_RML_EXCEPTION("Unable to load CDR for filtering; error:"<<res.description());
+
+							pugi::xpath_node variables_xpath_node;
+							if(!(variables_xpath_node = doc.select_single_node("/cdr/variables")))
+								throw rml::exception("/cdr/variables NOT found");
+
+							variables_node = variables_xpath_node.node();
 						}
 
 //						fn_xpath_t xpath = boost::bind(get_xpath_single_value, boost::ref(doc), _1, _2);
 
-						const char* cdr_uuid = doc.select_single_node("/cdr/variables/uuid/text()").node().value();
+						const char* cdr_uuid = variables_node.select_single_node("uuid/text()").node().value();
 						LogDebug("cdr_uuid: "<<cdr_uuid);
 
 						{
@@ -202,7 +209,7 @@ public:
 								LogVerbose("/cdr/channel_data/direction = "<<direction_node.node().value());
 #endif
 
-							pugi::xpath_node rmAssumeALeg_node = doc.select_single_node("/cdr/variables/rmAssumeALeg/text()");
+							pugi::xpath_node rmAssumeALeg_node = variables_node.select_single_node("rmAssumeALeg/text()");
 #ifndef NDEBUG
 							if(!rmAssumeALeg_node)
 								LogVerbose("/cdr/channel_data/rmAssumeALeg NOT found");
@@ -215,7 +222,7 @@ public:
 
 						time_t start_epoch = 0;
 						{
-							pugi::xpath_node start_epoch_node = doc.select_single_node("/cdr/variables/start_epoch/text()");
+							pugi::xpath_node start_epoch_node = variables_node.select_single_node("start_epoch/text()");
 							if(start_epoch_node) {
 								start_epoch = rml::utils::strtoull(start_epoch_node.node().value());
 							}
@@ -231,12 +238,12 @@ public:
 								originator_uuid = cdr_uuid;
 							}
 							else {
-								pugi::xpath_node OriginatorUUID_node = doc.select_single_node("/cdr/variables/rmOriginatorUUID/text()");
+								pugi::xpath_node OriginatorUUID_node = variables_node.select_single_node("rmOriginatorUUID/text()");
 								if(OriginatorUUID_node) {
 									originator_uuid = OriginatorUUID_node.node().value();
 									LogVerbose("OriginatorUUID from /cdr/variables/rmOriginatorUUID "<<originator_uuid);
 								}
-								else if(pugi::xpath_node originator_node = doc.select_single_node("/cdr/variables/originator/text()")) {
+								else if(pugi::xpath_node originator_node = variables_node.select_single_node("originator/text()")) {
 									originator_uuid = originator_node.node().value();
 									LogVerbose("OriginatorUUID from /cdr/variables/originator "<<originator_uuid);
 								}
@@ -252,11 +259,13 @@ public:
 						{
 							archiving::org_id rmOrgID = 0;
 							{
-								pugi::xpath_node rmOrgID_node = doc.select_single_node(leg == leg::A? "/cdr/variables/rmOrgID/text()": "/cdr/variables/rmOrgID/text()");
+								pugi::xpath_node rmOrgID_node = variables_node.select_single_node(leg == leg::A? "rmOrgID/text()": "rmOriginatorOrgId/text()");
 								if(rmOrgID_node) {
 									rmOrgID = (archiving::org_id)rml::utils::strtoull(( rmOrgID_str = rmOrgID_node.node().value() ), 0);
 									LogVerbose("cdr:"<<cdr_uuid<<" - rmOrgID: "<<rmOrgID);
 								}
+								else
+									LogWarning("No rmOrgId/rmOriginatorOrgId found; using 0");
 							}
 
 							if(!rmOrgID) {
@@ -268,7 +277,7 @@ public:
 
 							archiving::user_id rmUserID = 0;
 							{
-								pugi::xpath_node rmUserID_node = doc.select_single_node("/cdr/variables/rmUserID/text()");
+								pugi::xpath_node rmUserID_node = variables_node.select_single_node("rmUserID/text()");
 								if(rmUserID_node) {
 									rmUserID = (archiving::user_id)rml::utils::strtoll(rmUserID_node.node().value(), 0);
 									LogVerbose("cdr:"<<cdr_uuid<<" - rmUserID: "<<rmUserID);
@@ -286,7 +295,7 @@ public:
 
 							try {
 								if(enable_rmCDRDiscard) {
-									pugi::xpath_node rmCDRDiscard_node = doc.select_single_node("/cdr/variables/rmCDRDiscard/text()");
+									pugi::xpath_node rmCDRDiscard_node = variables_node.select_single_node("rmCDRDiscard/text()");
 									if((isDiscardable = (0 == strncasecmp("true", rmCDRDiscard_node.node().value(), 4))))
 										LogMessage("cdr:"<<cdr_uuid<<" - rmCDRDiscard=true marked discardable");
 								}
@@ -294,7 +303,7 @@ public:
 								if(!isDiscardable) {
 									if((leg == leg::B) && (filter_orgs_all || (filter_orgs.end() != std::find(filter_orgs.begin(), filter_orgs.end(), rmOrgID_str)))) {
 
-										const bool& isLegAnswered(0 == strncasecmp("ANSWER", doc.select_single_node("/cdr/variables/endpoint_disposition/text()").node().value(), 6));
+										const bool& isLegAnswered(0 == strncasecmp("ANSWER", variables_node.select_single_node("endpoint_disposition/text()").node().value(), 6));
 										LogVerbose("cdr:"<<cdr_uuid<<" - isLegAnswered:"<<std::iostream::boolalpha<<isLegAnswered);
 
 										if(!isLegAnswered) {
@@ -324,34 +333,43 @@ public:
 							// switch between the new variables and old
 							// if rmCallRecordingCount set, we are in the new scheme
 							pugi::xpath_node node;
-							if((node = doc.select_single_node("/cdr/variables/rmCallRecordingCount/text()"))) {
+							if((node = variables_node.select_single_node("rmCallRecordingCount/text()"))) {
 								archiving::archivable::pointer archivable_recording;
 
 								unsigned int recording_count( rml::utils::strtoull(node.node().value()) );
+								if(recording_count)
+									variables_node.append_child("rmArchivingEnabled").set_value("true");
+
 								for(; recording_count; recording_count--) {
 
-									const std::string& recording_location( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingLoc_%1%") % recording_count), std::string()));
-									const app::policy::id_type& recording_policy( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingPolicy_%1%") % recording_count), 0LL) );
+									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%") % recording_count), std::string()));
+									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%") % recording_count), 0LL) );
 
-									const bool& recording_send_email( get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingEmail_%1%") % recording_count), std::string()) == "true" );
-									const char* recording_send_email_to_recips = get_xpath_single_value(doc, boost::str(boost::format("/cdr/variables/rmCallRecordingToRecips_%1%") % recording_count), (const char*)0);
+									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%") % recording_count), std::string()) == "true" );
+									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%") % recording_count), (const char*)0);
 
 									if(!recording_location.empty()) {
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).set_value(uuid.c_str());
+
 											archivable_recording->set_owners(*owners);
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
 											if(recording_policy < 0 || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
-												archivable_cdr->set_add_to_cdrmunch_cache(true);
+												archivable_recording->set_add_to_cdrmunch_cache(true);
 
 											out_channel.produce(archivable_recording);
 										}
 										catch(const std::exception& e) {
 											LogWarning("Failed producing archivable item; error: "<<e.what());
+											// add a flag to signal this
+
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).set_value("true");
+											modified = true;
 										}
 									}
 								}
@@ -368,15 +386,17 @@ public:
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
+									variables_node.append_child("rmCallRecordingUUID").set_value(uuid.c_str());
+
 									{
 										// should we add this to CDRMunch Cache ?
-										const bool rmDispRecordEmailSend( "false" != get_xpath_single_value(doc, "/cdr/variables/rmDispRecordEmailSend/text()", std::string("false")) );
-										const bool rmDispPersonalRecordEmailSend( "false" != get_xpath_single_value(doc, "/cdr/variables/rmDispPersonalRecordEmailSend/text()", std::string("false")) );
-										const bool rmDispRecordToRecips(get_xpath_single_value(doc, "/cdr/variables/rmDispRecordToRecips/text()", std::string()).empty());
-										const bool rmDispPersonalRecordToRecips(get_xpath_single_value(doc, "/cdr/variables/rmDispPersonalRecordToRecips/text()", std::string()).empty());
+										const bool rmDispRecordEmailSend( "false" != get_xpath_single_value(variables_node, "rmDispRecordEmailSend/text()", std::string("false")) );
+										const bool rmDispPersonalRecordEmailSend( "false" != get_xpath_single_value(variables_node, "rmDispPersonalRecordEmailSend/text()", std::string("false")) );
+										const bool rmDispRecordToRecips(get_xpath_single_value(variables_node, "rmDispRecordToRecips/text()", std::string()).empty());
+										const bool rmDispPersonalRecordToRecips(get_xpath_single_value(variables_node, "rmDispPersonalRecordToRecips/text()", std::string()).empty());
 
 										if((rmDispRecordEmailSend && rmDispRecordToRecips) || (rmDispPersonalRecordEmailSend && rmDispPersonalRecordToRecips))
-											archivable_cdr->set_add_to_cdrmunch_cache(true);
+											archivable_recording->set_add_to_cdrmunch_cache(true);
 										else if(recording_policy == -1)
 											throw rml::exception("NO recipients specified and NOT requested to retain");
 									}
@@ -389,6 +409,9 @@ public:
 								}
 								catch(const std::exception& e) {
 									LogWarning("Failed producing archivable item; error: "<<e.what());
+
+									variables_node.append_child("rmCallRecordingUnavailable").set_value("true");
+									modified = true;
 								}
 							}
 						}
