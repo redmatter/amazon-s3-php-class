@@ -494,7 +494,7 @@ private:
 								if(whisper_ofs) {
 									whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
 
-									ofs_->seekg(0);
+									ofs_->re_open();
 									std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
 
 									LogMessage("Whisper file created; file:"<<whisper_path);
