@@ -74,7 +74,6 @@ make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 
 %install
 mkdir -p %{buildroot}/usr/bin/
-mkdir -p %{buildroot}/etc/archiving/conf.d/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
@@ -114,6 +113,7 @@ cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 # Common
+mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
 cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf.sample
@@ -225,6 +225,7 @@ fi
 /usr/bin/archiving-convert
 
 %files common
+%dir /etc/archiving/conf.d/
 /etc/archiving/internal_database.conf.sample
 /etc/archiving/retention_database.conf.sample
 /etc/archiving/cdrmunch_database.conf.sample
