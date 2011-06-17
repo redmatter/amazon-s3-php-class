@@ -74,6 +74,7 @@ make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 
 %install
 mkdir -p %{buildroot}/usr/bin/
+mkdir -p %{buildroot}/etc/archiving/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
