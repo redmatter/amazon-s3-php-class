@@ -28,6 +28,7 @@ Requires: cryptopp
 Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Obsoletes: RM-cdrmunch-cdrpostd
+Provides: RM-cdrmunch-cdrpostd
 
 #%package migrationd
 #Summary: Archiving CollectD
