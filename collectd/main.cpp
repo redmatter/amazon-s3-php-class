@@ -118,6 +118,7 @@ int main(int argc, char* argv[]) try
 				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "CollectD service threads")
 
 				;
 
@@ -261,8 +262,12 @@ int main(int argc, char* argv[]) try
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
 	    		app::confMap["archived_client.server_port"].as<std::string>());
 
-		// TODO do we need more io_service threads here??
-		threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		{
+			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
+			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		}
 
 		while(!app::quit) {
 			LogVerbose(((time(0)%2) ? "tik": "tok"));
