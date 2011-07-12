@@ -119,6 +119,7 @@ int main(int argc, char **argv) try
 				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
+				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
 
 		rml::logger::describe_config(optsDesc);
@@ -310,7 +311,8 @@ int main(int argc, char **argv) try
 
 		unsigned int ticker = 1;
 		while(!app::quit) {
-			LogDebug(((ticker%2) ? "tik": "tok"));
+			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
+				LogDebug(((ticker%2) ? "tik": "tok"));
 
 			//TODO monitoring stuff goes in here
 

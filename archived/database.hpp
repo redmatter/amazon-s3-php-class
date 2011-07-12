@@ -330,11 +330,11 @@ public:
 
 					<< opdetail.p_metadata->to_string()
 
-					<< opdetail.policy.p_policy->id
-					<< opdetail.policy.p_policy->version
+					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->id: -1)
+					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->version: 0)
 
-					<< opdetail.target_file_format
-					<< opdetail.p_endpoint->identifier
+					<< (opdetail.p_endpoint? opdetail.target_file_format: 0) // bodge! no target file format if there is no endpoint!
+					<< (opdetail.p_endpoint? opdetail.p_endpoint->identifier: 0)
 
 					<< opdetail.current_file_format
 					<< opdetail.retry

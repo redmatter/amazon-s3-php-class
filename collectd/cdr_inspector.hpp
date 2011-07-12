@@ -20,32 +20,57 @@
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
 
 namespace {
 
 inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
 {
+#ifndef NDEBUG
+	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
+#endif
 	pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
-	if(xpath_node)
+	if(xpath_node) {
+#ifndef NDEBUG
+		LogDebug(xpath<<'='<<xpath_node.node().value());
+#endif
 		return xpath_node.node().value();
+	}
+
+#ifndef NDEBUG
+	if (default_value)
+		LogDebug(xpath<<'='<<default_value);
+	else
+		LogDebug(xpath<<"=NULL");
+#endif
 
 	return default_value;
 }
 
 inline std::string get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const std::string& default_value = "")
 {
+#ifndef NDEBUG
+	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
+#endif
+
 	return get_xpath_single_value(doc, xpath, default_value.c_str());
 }
 
 inline unsigned long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
 {
-	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
+#ifndef NDEBUG
+	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
+#endif
+
+	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
 inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const long long default_value = 0LL)
 {
-	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, boost::lexical_cast<std::string>(default_value)).c_str());
+#ifndef NDEBUG
+	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
+#endif
+
+	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
 }
@@ -348,13 +373,15 @@ public:
 									modified = true;
 								}
 
+								LogVerbose("cdr:"<<cdr_uuid<<" - rmCallRecordingCount: "<<recording_count);
+
 								for(; recording_count; recording_count--) {
 
-									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%") % recording_count), std::string()));
-									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%") % recording_count), 0LL) );
+									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
+									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), 0LL) );
 
 									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%") % recording_count), std::string()) == "true" );
-									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%") % recording_count), (const char*)0);
+									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
 
 									if(!recording_location.empty()) {
 										try {

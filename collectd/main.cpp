@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) try
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "CollectD service threads")
-
+				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
 
 		rml::logger::describe_config(optsDesc);
@@ -270,7 +270,9 @@ int main(int argc, char* argv[]) try
 		}
 
 		while(!app::quit) {
-			LogVerbose(((time(0)%2) ? "tik": "tok"));
+			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
+				LogDebug(((time(0)%2) ? "tik": "tok"));
+
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 

@@ -438,10 +438,14 @@ private:
 					// create operation_data
 					operation_data::pointer opdata(new operation_data());
 					opdata->p_detail.reset(new operation_data::detail());
+
+					if( policy_id_ >= 0 ) {
+						opdata->p_detail->policy = applied_policy(cached_policy_finder_(std::make_pair(orgID_, policy_id_)), creation_time_);
+						opdata->p_detail->p_endpoint = cached_endpoint_finder_(orgID_);
+						opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
+					}
+
 					opdata->p_detail->identifier = archiving::archivable::identifier(file_type_, orgID_, uuid_);
-					opdata->p_detail->policy = applied_policy(cached_policy_finder_(std::make_pair(orgID_, policy_id_)), creation_time_);
-					opdata->p_detail->p_endpoint = cached_endpoint_finder_(orgID_);
-					opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
 					opdata->p_detail->current_file_format = types::file_format::make(false, false, data_type_);
 					opdata->p_detail->files_map.insert(std::make_pair(opdata->p_detail->current_file_format, ofs_));
 					opdata->p_detail->clear_size = content_length_;
@@ -503,7 +507,6 @@ private:
 										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
 										whisper_channel_.produce(p_whisper);
 
-										// TODO Change distiller to respect full-paths in CDR queue
 										cdrmunch_db_.save(p_whisper);
 									}
 								}
