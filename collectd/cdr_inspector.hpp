@@ -342,7 +342,7 @@ public:
 							if((node = variables_node.select_single_node("rmCallRecordingCount/text()"))) {
 								archiving::archivable::pointer archivable_recording;
 
-								unsigned int recording_count( rml::utils::strtoull(node.node().value()), 0 );
+								unsigned int recording_count( rml::utils::strtoull(node.node().value(), 0) );
 								if(recording_count) {
 									variables_node.append_child("rmArchivingEnabled").set_value("true");
 									modified = true;
