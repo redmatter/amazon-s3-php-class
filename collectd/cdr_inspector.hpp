@@ -328,6 +328,12 @@ public:
 						// still the ifs and doc are intact; lets inspect it before we modify it
 						// saves another XML parsing!
 
+#ifndef NDEBUG
+						LogDebug("owners->orgID: " << owners->orgID);
+						LogDebug("orgs_enabled_.empty(): "<<RML_YES_NO(orgs_enabled_.empty()));
+						LogDebug("orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)): " << (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)));
+#endif
+
 						if(orgs_enabled_.empty() || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
 
 							// switch between the new variables and old
