@@ -138,8 +138,10 @@ public:
 				std::vector<std::string> orgs_enabled_str;
 				boost::algorithm::split(orgs_enabled_str, orgs_enabled, boost::is_any_of(", \t"));
 				std::vector<std::string>::const_iterator end = orgs_enabled_str.end();
-				for(std::vector<std::string>::const_iterator itr = orgs_enabled_str.begin(); itr != end; ++itr)
+				for(std::vector<std::string>::const_iterator itr = orgs_enabled_str.begin(); itr != end; ++itr) {
+					LogVerbose("cdr_handler.archiving_enabled_orgs: "<<*itr);
 					orgs_enabled_.push_back(rml::utils::strtoull(itr->c_str()));
+				}
 			}
 		}
 
