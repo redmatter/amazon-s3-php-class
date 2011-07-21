@@ -51,24 +51,18 @@ struct whisper
 
 class whisper_client
 {
+	enum constants
+	{
+		reconnect_delay_seconds = 5
+	};
+
 	struct state
 	{
 		enum state_t
 		{
 			initialised,
-			connecting,
-			reconnecting,
-			/*
-			connected,
-			disconnected,
 
-			handshake_recv,
-			handshake_sent,
-			handshake_err,
-			handshake_ack_waiting,
-			handshake_ack_ok,
-			handshake_ack_err,
-			*/
+			connecting,
 
 			ready_to_whisper,
 
@@ -80,9 +74,47 @@ class whisper_client
 			nop_ack_ok,
 			nop_ack_err,
 
+			reconnect_init,
+			reconnecting,
+
 			closing,
-			closed
+			closing_bye_wait,
+
+			closed,
+
+			n_states
 		};
+
+		static const char* to_string(const state_t& s)
+		{
+			static const char* str[n_states+1] = {
+					"initialised",
+
+					"connecting",
+
+					"ready_to_whisper",
+
+					"whisper_ack_wait",
+					"whisper_ack_ok",
+					"whisper_ack_err",
+
+					"nop_ack_wait",
+					"nop_ack_ok",
+					"nop_ack_err",
+
+					"reconnect_init",
+					"reconnecting",
+
+					"closing",
+					"closing_bye_wait",
+
+					"closed",
+
+					"unknown"
+			};
+
+			return str[(s < 0 || s >= n_states)? n_states: s];
+		}
 	};
 
 	boost::asio::io_service& io_service_;
@@ -141,7 +173,14 @@ public:
 
 	void close()
 	{
-		io_service_.post(boost::bind(&whisper_client::do_close, this));
+		current_state_ = state::closing_bye_wait;
+
+		std::ostream ostr(&send_buffer_); ostr.clear();
+		ostr << "BYE\r\n";
+		boost::asio::async_write(socket_, send_buffer_,
+				boost::bind(&whisper_client::handle_write, this,
+						boost::asio::placeholders::error,
+						boost::asio::placeholders::bytes_transferred));
 	}
 
 private:
@@ -165,12 +204,11 @@ private:
 				socket_.cancel();
 				socket_.close();
 			}
-			connected_ = false;
-			current_state_ = state::initialised;
 			LogWarning("Distiller connection failed; retrying...");
 		}
 
 		if(!connected_) {
+			LogMessage("Connecting to "<<distiller_host_<<':'<<distiller_port_);
 			boost::asio::ip::tcp::resolver::query query(distiller_host_, distiller_port_);
 		    resolver_.async_resolve(query,
 		    		boost::bind(&whisper_client::handle_resolve, this,
@@ -186,6 +224,7 @@ private:
 	void handle_resolve(const boost::system::error_code& error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
+			LogMessage("Resolved "<<distiller_host_<<':'<<distiller_port_<<"; opening connection");
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			socket_.async_connect(endpoint,
 					boost::bind(&whisper_client::handle_connect, this,
@@ -199,6 +238,7 @@ private:
 	void handle_connect(const boost::system::error_code& error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
+			LogMessage("Connected to "<<distiller_host_<<':'<<distiller_port_<<"; handshaking...");
 			current_state_ = state::connecting;
 			timer_.cancel();
 
@@ -223,8 +263,8 @@ private:
 		timer_.cancel();
 
 		if(error) {
-			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
-			current_state_ = state::closing;
+			LogError("Error; current_state:"<<state::to_string(current_state_)<<": "<<error.message());
+			current_state_ = (current_state_ < state::closing)? state::reconnect_init: state::closing;
 		}
 
 		switch(current_state_) {
@@ -255,7 +295,7 @@ private:
 				ostr << *p_whisper << "\r\n";
 			}
 			catch(const whisper::channel_t::consume_timed_out_exception& e) {
-				LogVerbose("timed-out; retrying");
+				LogVerbose("timed-out on whisper-item; retrying...");
 				current_state_ = state::nop_ack_wait;
 
 				ostr << "NOP\r\n";
@@ -330,6 +370,15 @@ private:
 		default:
 		case state::closed:
 			LogError("Invalid state; "<<current_state_);
+
+		case state::reconnect_init:
+		{
+			LogMessage("Reconnecting in "<<(int)reconnect_delay_seconds<<" seconds");
+			io_service_.post(boost::bind(&whisper_client::do_close, this, true, reconnect_delay_seconds));
+			break;
+		}
+
+		case state::closing_bye_wait:
 		case state::closing:
 		{
 			io_service_.post(boost::bind(&whisper_client::do_close, this));
@@ -354,31 +403,57 @@ private:
 
 			    return;
 			}
-
-			LogWarning("Invalid current_state:"<<current_state_);
 		}
+
+		if(current_state_ == state::closing_bye_wait) {
+			if(!error) {
+				boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
+						boost::bind(&whisper_client::run_statemachine, this,
+								boost::asio::placeholders::error));
+
+				timer_.expires_from_now(boost::posix_time::seconds(2));
+				timer_.async_wait(boost::bind(&whisper_client::force_close, this,
+						boost::asio::placeholders::error));
+			}
+			else
+				io_service_.post(boost::bind(&whisper_client::force_close, this, error));
+
+		    return;
+		}
+
+		if(!error)
+			LogWarning("Invalid current_state:"<<current_state_);
 		else
 			LogError("Socket IO error: "<<error.message());
 
-		current_state_ = state::reconnecting;
-		io_service_.post(boost::bind(&whisper_client::reconnect, this,
-				true, error));
+		current_state_ = state::reconnect_init;
+		io_service_.post(boost::bind(&whisper_client::run_statemachine, this, error));
+	}
+
+	void force_close(const boost::system::error_code& error)
+	{
+		if(!error)
+			LogMessage("Force closing whisper connection; error: "<<error.message());
+		do_close();
 	}
 
 	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {
-		current_state_ = state::closed;
-		connected_ = false;
+		if (connected_) {
+			current_state_ = state::closed;
+			connected_ = false;
 
-		socket_.cancel();
-		socket_.close();
-		resolver_.cancel();
-		timer_.cancel();
+			socket_.cancel();
+			socket_.close();
+			resolver_.cancel();
+			timer_.cancel();
+		}
 
 		if(reconnect) {
 			LogMessage("Reconnecting in "<<reconnect_delay_seconds<<" seconds");
-		    timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
-		    timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
-		    		false, boost::asio::placeholders::error));
+			current_state_ = state::reconnecting;
+			timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
+			timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
+					false, boost::asio::placeholders::error));
 		}
 		else
 			LogMessage("Closing... (will NOT reconnect)");
