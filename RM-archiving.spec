@@ -17,7 +17,7 @@ Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0
 Requires: cryptopp
 Requires: RM-%{appname}-common = %{version}-%{release}
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-13984, libs3-devel, cryptopp-devel, pugixml
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0, RM-librml-devel >= 0.0.1-13987, libs3-devel, cryptopp-devel, pugixml
 
 %package collectd
 Summary: Archiving CollectD
