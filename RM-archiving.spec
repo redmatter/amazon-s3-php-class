@@ -27,8 +27,8 @@ Requires: mysql++ >= 3.1.0
 Requires: cryptopp
 Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
-Obsoletes: RM-cdrmunch-cdrpostd
-Provides: RM-cdrmunch-cdrpostd
+Provides: cdrpostd
+Conflicts: RM-cdrmunch-cdrpostd
 
 #%package migrationd
 #Summary: Archiving CollectD
