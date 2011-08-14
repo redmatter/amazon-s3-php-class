@@ -61,7 +61,7 @@ public:
 			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
 				error = true;
 				opdata->state = operation_state::operation_state_t(opdata->state + 2);
-				LogError(opdata->p_detail->identifier<<": Failed convert after "<<opdata->p_detail->retry<<" retry(s)");
+				LogError(opdata->p_detail->identifier<<": Failed store after "<<opdata->p_detail->retry<<" retry(s)");
 			}
 			else
 				opdata->state = operation_state::operation_state_t(opdata->state - 2); // setup retry

@@ -31,7 +31,7 @@ class put_server
 	operation_data::channel_t& channel_;
 	whisper::channel_t& whisper_channel_;
 	policy::cached_finder_t& cached_policy_finder_;
-	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
+	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
 	database::internal& internal_db_;
 	database::cdrmunch& cdrmunch_db_;
 	clear_cache& clear_cache_;
@@ -53,7 +53,7 @@ public:
 			operation_data::channel_t& channel,
 			whisper::channel_t& whisper_channel,
 			policy::cached_finder_t& cached_policy_finder,
-			storage::s3::endpoint::cached_finder_t& cached_endpoint_finder,
+			storage::cached_endpoint_finder_t& cached_endpoint_finder,
 			database::internal& internal_db,
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,

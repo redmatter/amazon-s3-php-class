@@ -26,10 +26,12 @@
 #undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <boost/noncopyable.hpp>
+#include <boost/shared_ptr.hpp>
 
 #include <fstream>
 #include <string>
 #include <map>
+#include <hash_map>
 
 #include <stdint.h>
 #include <strings.h>
@@ -85,105 +87,87 @@ namespace app {
 
 namespace storage {
 
-template < typename Backend >
+typedef std::map< std::string, std::string > string_map_t;
+
 class basic_backend : public boost::noncopyable
 {
-	static Backend* p_backend_;
-
 public:
-	static void destroy()
-	{
-		static bool destroyed = false;
-		if(!destroyed) {
-			delete p_backend_;
-			p_backend_ = 0;
-		}
-	}
-
-	static Backend* get_instance(const boost::program_options::variables_map& confMap = boost::program_options::variables_map())
-	{
-		if(!p_backend_) {
-			assert(!confMap.empty());
-			p_backend_ = new Backend(confMap);
-			std::atexit(destroy);
-		}
-
-		return p_backend_;
-	}
+	typedef boost::shared_ptr< basic_backend > pointer;
 
 	virtual ~basic_backend()
 	{
 		//virtual do nothing!
 	};
 
+	virtual void put(operation_data::pointer) = 0;
+	virtual void get(operation_data::pointer) = 0;
+	virtual void stat(operation_data::pointer, string_map_t&) = 0;
+	virtual void remove(operation_data::pointer) = 0;
 };
-
-template < typename Backend >
-Backend* basic_backend< Backend >::p_backend_(0);
 
 // specialisation
 
 namespace s3 {
 
-namespace specific {
+//namespace specific {
+//
+//class initialiser {
+//	mutable boost::mutex mutex_;
+//	boost::condition_variable cond_initialised_;
+//
+//	struct not_initialised {
+//		const initialiser& initialiser_;
+//
+//		not_initialised(const initialiser& initialiser) : initialiser_(initialiser)
+//		{
+//		}
+//
+//		bool operator() () const {
+//			return !initialiser_.initialised_;
+//		}
+//	};
+//
+//	friend struct not_initialised;
+//
+//protected:
+//	bool initialised_;
+//
+//public:
+//	initialiser() : initialised_(false)
+//	{
+//		boost::unique_lock<boost::mutex> lock(mutex_);
+//		S3Status status = S3_initialize("RedMatterArchive", S3_INIT_ALL);
+//		if(status != S3StatusOK)
+//			throw rml::exception("S3 initialisation failed");
+//
+//		initialised_ = true;
+//		cond_initialised_.notify_all();
+//	}
+//
+//	static void destroy()
+//	{
+//		static bool first = true;
+//		if(first) {
+//			first = false;
+//			S3_deinitialize();
+//		}
+//	}
+//
+//	void wait()
+//	{
+//		boost::unique_lock<boost::mutex> lock(mutex_);
+//		cond_initialised_.wait(lock, not_initialised(*this));
+//	}
+//
+//	~initialiser()
+//	{
+//		destroy();
+//	}
+//};
+//
+//} //namespace specific
 
-class initialiser {
-	mutable boost::mutex mutex_;
-	boost::condition_variable cond_initialised_;
-
-	struct not_initialised {
-		const initialiser& initialiser_;
-
-		not_initialised(const initialiser& initialiser) : initialiser_(initialiser)
-		{
-		}
-
-		bool operator() () const {
-			return !initialiser_.initialised_;
-		}
-	};
-
-	friend struct not_initialised;
-
-protected:
-	bool initialised_;
-
-public:
-	initialiser() : initialised_(false)
-	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
-		S3Status status = S3_initialize("RedMatterArchive", S3_INIT_ALL);
-		if(status != S3StatusOK)
-			throw rml::exception("S3 initialisation failed");
-
-		initialised_ = true;
-		cond_initialised_.notify_all();
-	}
-
-	static void destroy()
-	{
-		static bool first = true;
-		if(first) {
-			first = false;
-			S3_deinitialize();
-		}
-	}
-
-	void wait()
-	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
-		cond_initialised_.wait(lock, not_initialised(*this));
-	}
-
-	~initialiser()
-	{
-		destroy();
-	}
-};
-
-} //namespace specific
-
-class backend : public basic_backend<backend>
+class backend : public basic_backend
 {
 	const boost::program_options::variables_map& confMap_;
 
@@ -237,7 +221,8 @@ protected:
 
 	static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
 	{
-		(void) callbackData;
+		string_map_t& p_str_map(*(string_map_t *)callbackData);
+
 		return S3StatusOK;
 	}
 
@@ -428,6 +413,16 @@ public:
 
 		if(data.status != S3StatusOK)
 			throw rml::exception("S3 PUT failed");
+	}
+
+	void stat(operation_data::pointer opdata, string_map_t& res)
+	{
+
+	}
+
+	void remove(operation_data::pointer opdata)
+	{
+
 	}
 
 };

@@ -76,7 +76,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	boost::asio::io_service& io_service_;
 
 	policy::cached_finder_t& cached_policy_finder_;
-	storage::s3::endpoint::cached_finder_t& cached_endpoint_finder_;
+	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
 
 	database::internal& internal_db_;
 	database::cdrmunch& cdrmunch_db_;
@@ -93,7 +93,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	archiving::hash_vector md5_;
 	std::string resource_id_;
 	std::string uuid_;
-	archiving::org_id orgID_;
+	archiving::org_id_t orgID_;
 	types::metadata::pointer metadata_;
 	types::data_sub_format::data_sub_format_t data_type_;
 	policy::id_type policy_id_;
@@ -114,7 +114,7 @@ public:
 			operation_data::channel_t& channel,
 			whisper::channel_t& whisper_channel,
 			policy::cached_finder_t& cached_policy_finder,
-			storage::s3::endpoint::cached_finder_t& cached_endpoint_finder,
+			storage::cached_endpoint_finder_t& cached_endpoint_finder,
 			database::internal& internal_db,
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
@@ -160,9 +160,11 @@ public:
 private:
 	void run_statemachine(const boost::system::error_code& error)
 	{
+		const boost::asio::ip::tcp::socket::endpoint_type& remote_ep( socket_.remote_endpoint() );
+
 		if(error) {
 			//TODO deduce next action from current state & error
-			LogError("run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
+			LogError(remote_ep<<" run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
 			current_state_ = states::general_err;
 		}
 
@@ -190,18 +192,18 @@ private:
 			if(OK_or_ERR == "OK") {
 				istr >> sp1 >> CollectD >> sp2 >> v >> version_number >> sp3 >> protocol >> sp4 >> protocol_version_number >> cr >> lf;
 				if(!((CollectD == "CollectD") && (v == 'v') && (protocol == "protocol"))) {
-					LogError("Invalid response from client; aborting");
+					LogError(remote_ep<<" Invalid response from client; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR invalid response\r\n";
 				}
 				else if(protocol_version_number != archiving::put_protocol_version_str) {
-					LogError("Client protocol version mismatch; aborting");
+					LogError(remote_ep<<" Client protocol version mismatch; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR protocol mismatch\r\n";
 				}
 				else {
 					if(version_number != version_number_only_string)
-						LogWarning("Warning: Client differs in version from server");
+						LogWarning(remote_ep<<" Warning: Client differs in version from server");
 
 					current_state_ = states::ready_for_put;
 					ostr << "OK\r\n";
@@ -213,7 +215,7 @@ private:
 			}
 			else if(OK_or_ERR == "ERR") {
 				istr >> sp1; std::getline(istr, message, '\r'); istr >> lf;
-				LogError("states::handshake_recv: Handshake aborted with error from client:"<<message);
+				LogError(remote_ep<<" states::handshake_recv: Handshake aborted with error from client:"<<message);
 				current_state_ = states::handshake_recv_err;
 				run_statemachine(error);
 			}
@@ -224,7 +226,7 @@ private:
 		case states::closing:
 		case states::closed:
 		{
-			LogError("Invalid state: states::accepting / states::closed / states::closing (state:"<<current_state_<<')');
+			LogError(remote_ep<<" Invalid state: states::accepting / states::closed / states::closing (state:"<<current_state_<<')');
 			current_state_ = states::general_err;
 			run_statemachine(error);
 			break;
@@ -267,9 +269,9 @@ private:
 
 		case states::put_received:
 		{
-			std::string PUT;
+			std::string verb;
 			archiving::archivable::file_type::file_type_t file_type;
-			archiving::org_id orgID;
+			archiving::org_id_t orgID;
 			std::size_t content_length;
 			std::string uuid;
 			char sp1, sp2, sp3, sp4, cr, lf;
@@ -279,97 +281,119 @@ private:
 			std::istream istr(&recv_buffer_);
 			istr.unsetf(std::ios_base::skipws);
 
-			istr >> PUT >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
-			LogMessage("PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
-			if(!((PUT == "PUT") && ( sp1 == ' ' ) && ( sp2 == ' ' ) && ( sp3 == ' ' ) && ( sp4 == ' ' ) && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
-				LogError("Invalid PUT request");
+			istr >> verb;
+			if(!(verb == "NOP" || verb == "PUT" || verb == "BYE")) {
+				std::string str;
+				std::getline(is, str, '\r'); istr >> lf;
+
+				LogError(remote_ep<<" Invalid request received '"<<verb<<str<<'\'');
 				current_state_ = states::put_received_ack_err;
-				ostr << "ERR PUT invalid PUT request\r\n";
+				ostr << "ERR invalid request\r\n";
 			}
 			else {
-				if(content_length <= 0) {
-					LogError("Invalid content length:"<<content_length);
-					current_state_ = states::put_received_ack_err;
-					ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid content length\r\n";
-				}
-				else if(orgID <= 0) {
-					LogError("Invalid Org ID:"<<orgID);
-					current_state_ = states::put_received_ack_err;
-					ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
+				if(verb == "NOP" || verb == "BYE") {
+					istr >> cr >> lf;
+					LogMessage(remote_ep<<' '<<verb<<" received");
+					ostr << "OK\r\n";
+					if(verb == "BYE") {
+						current_state_ = states::closing;
+						io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
+					}
 				}
 				else {
-					try {
-
-						// Get resource ID
-						{
-							std::ostringstream os;
-							os << file_type<<'/'<<orgID<<'/'<<uuid;
-							resource_id_ = os.str();
-						}
-
-						// read metadata from stream
-						metadata_.reset(new types::metadata(istr));
-
-						// open the file
-						ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
-#ifndef NDEBUG
-						ofs_->set_persistent();
-#endif
-						// make sure we have MD5 in headers
-						{
-							types::metadata::const_iterator itr = metadata_->find("MD5");
-							if(itr == metadata_->end())
-								throw rml::exception("No MD5 given");
-
-							std::istringstream istr(itr->second);
-							istr >> md5_;
-						}
-
-						// make sure we have PolicyID in headers
-						{
-							types::metadata::const_iterator itr = metadata_->find("RetentionPolicyID");
-							if(itr == metadata_->end())
-								throw rml::exception("No RetentionPolicyID given");
-
-							policy_id_ = rml::utils::strtoll(itr->second.c_str());
-						}
-
-						// make sure we have CreateTime in headers
-						{
-							types::metadata::const_iterator itr = metadata_->find("CreateTime");
-							if(itr == metadata_->end())
-								throw rml::exception("No CreateTime given");
-
-							creation_time_ = rml::utils::strtoull(itr->second.c_str());
-						}
-
-						// make sure we have CreateTime in headers
-						{
-							types::metadata::const_iterator itr = metadata_->find("DataFormat");
-							if(itr == metadata_->end())
-								throw rml::exception("No DataFormat given");
-
-							data_type_ = types::data_sub_format::from_string(itr->second);
-						}
-
-						uuid_ = uuid;
-						orgID_ = orgID;
-						file_type_ = file_type;
-						content_length_ = content_length;
-						xfrd_content_length_ = 0;
-						xfrd_ok_ = false;
-						current_state_ = states::put_received_ack_ok;
-						ostr << "OK PUT "<<file_type<<' '<<orgID<<' '<<uuid<<"\r\n";
-					}
-					catch(const rml::exception& e) {
-						LogError(resource_id_<<": states::put_received: rml::exception: "<<e.what());
+					// PUT ....
+					istr >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
+					if(!istr || !(( sp1 == ' ' ) && ( sp2 == ' ' ) && ( sp3 == ' ' ) && ( sp4 == ' ' ) && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
+						LogError(remote_ep<<" Invalid PUT request");
 						current_state_ = states::put_received_ack_err;
-						ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
+						ostr << "ERR PUT invalid PUT request\r\n";
 					}
-					catch(const std::exception& e) {
-						LogError(resource_id_<<": states::put_received: std::exception: "<<e.what());
-						current_state_ = states::put_received_ack_err;
-						ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
+					else {
+						LogMessage(remote_ep<<" PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
+						if(content_length <= 0) {
+							LogError(remote_ep<<" Invalid content length:"<<content_length);
+							current_state_ = states::put_received_ack_err;
+							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid content length\r\n";
+						}
+						else if(orgID <= 0) {
+							LogError(remote_ep<<" Invalid Org ID:"<<orgID);
+							current_state_ = states::put_received_ack_err;
+							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
+						}
+						else {
+							try {
+
+								// Get resource ID
+								{
+									std::ostringstream os;
+									os << file_type<<'/'<<orgID<<'/'<<uuid;
+									resource_id_ = os.str();
+								}
+
+								// read metadata from stream
+								metadata_.reset(new types::metadata(istr));
+
+								// open the file
+								ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
+								RML_DEBUG(ofs_->set_persistent());
+
+								// make sure we have MD5 in headers
+								{
+									types::metadata::const_iterator itr = metadata_->find("MD5");
+									if(itr == metadata_->end())
+										throw rml::exception("No MD5 given");
+
+									std::istringstream istr(itr->second);
+									istr >> md5_;
+								}
+
+								// make sure we have PolicyID in headers
+								{
+									types::metadata::const_iterator itr = metadata_->find("RetentionPolicyID");
+									if(itr == metadata_->end())
+										throw rml::exception("No RetentionPolicyID given");
+
+									policy_id_ = rml::utils::strtoll(itr->second.c_str());
+								}
+
+								// make sure we have CreateTime in headers
+								{
+									types::metadata::const_iterator itr = metadata_->find("CreateTime");
+									if(itr == metadata_->end())
+										throw rml::exception("No CreateTime given");
+
+									creation_time_ = rml::utils::strtoull(itr->second.c_str());
+								}
+
+								// make sure we have CreateTime in headers
+								{
+									types::metadata::const_iterator itr = metadata_->find("DataFormat");
+									if(itr == metadata_->end())
+										throw rml::exception("No DataFormat given");
+
+									data_type_ = types::data_sub_format::from_string(itr->second);
+								}
+
+								uuid_ = uuid;
+								orgID_ = orgID;
+								file_type_ = file_type;
+								content_length_ = content_length;
+								xfrd_content_length_ = 0;
+								xfrd_ok_ = false;
+								current_state_ = states::put_received_ack_ok;
+								ostr << "OK PUT "<<file_type<<' '<<orgID<<' '<<uuid<<"\r\n";
+							}
+							catch(const rml::exception& e) {
+								LogError(remote_ep<<" "<<resource_id_<<": states::put_received: rml::exception: "<<e.what());
+								current_state_ = states::put_received_ack_err;
+								ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
+							}
+							catch(const std::exception& e) {
+								LogError(remote_ep<<" "<<resource_id_<<": states::put_received: std::exception: "<<e.what());
+								current_state_ = states::put_received_ack_err;
+								ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
+							}
+						}
 					}
 				}
 			}
@@ -395,11 +419,11 @@ private:
 		}
 
 		case states::put_receiving_file:
-			LogError(resource_id_<<": Invalid/Unexpected state states::put_receiving_file");
+			LogError(remote_ep<<" "<<resource_id_<<": Invalid/Unexpected state states::put_receiving_file");
 		case states::put_receiving_file_err:
 		{
 			std::ostream ostr(&send_buffer_);
-			LogError(resource_id_<<": PUT failed; general failure during transfer");
+			LogError(remote_ep<<" "<<resource_id_<<": PUT failed; general failure during transfer");
 			ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 			current_state_ = states::put_check_received_file_ack_err;
 
@@ -429,8 +453,8 @@ private:
 			if(xfrd_ok_) {
 				ofs_->re_open();
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
-				LogVerbose("Original MD5: "<<md5_);
-				LogVerbose("Computed MD5: "<<md5);
+				LogVerbose(remote_ep<<" Original MD5: "<<md5_);
+				LogVerbose(remote_ep<<" Computed MD5: "<<md5);
 				if(md5 == md5_) {
 
 					LogMessage(resource_id_<<": PUT received OK");
@@ -451,7 +475,7 @@ private:
 					opdata->p_detail->clear_size = content_length_;
 					opdata->p_detail->real_size = 0;
 					opdata->p_detail->retry = 0;
-					opdata->database_id = 0;
+					opdata->p_detail->database_id = 0;
 					opdata->p_detail->p_metadata = metadata_;
 					opdata->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
 
@@ -474,8 +498,8 @@ private:
 						{
 							types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("PBXHostName");
 							if(itr == opdata->p_detail->p_metadata->end()) {
-								LogWarning("No PBXHostName found in metadata; substituting with 'default-rmpbx'");
-								pbx_hostname = "default-rmpbx";
+								LogWarning(remote_ep<<" No PBXHostName found in metadata; substituting with 'dft-rm-pbx'");
+								pbx_hostname = "dft-rm-pbx";
 							}
 							else
 								pbx_hostname = itr->second;
@@ -485,7 +509,7 @@ private:
 						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
 						if(itr != opdata->p_detail->p_metadata->end()) {
 							if( itr->second == "true" ) {
-								LogVerbose("AddToCDRMunchCache requested");
+								LogVerbose(remote_ep<<" AddToCDRMunchCache requested");
 								std::string whisper_path = boost::str(
 										boost::format("%1%/%2%_%3%_%4%")
 												% confMap_["distiller_client.base_dir"].as<std::string>()
@@ -501,7 +525,7 @@ private:
 									ofs_->re_open();
 									std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
 
-									LogMessage("Whisper file created; file:"<<whisper_path);
+									LogMessage(remote_ep<<" Whisper file created; file:"<<whisper_path);
 
 									if(file_type_ == archiving::archivable::file_type::cdr) {
 										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
@@ -511,7 +535,7 @@ private:
 									}
 								}
 								else
-									LogError("Failed to create whisper! error:"<<strerror(errno));
+									LogError(remote_ep<<" Failed to create whisper! error:"<<strerror(errno));
 							}
 
 							// we do not need to store the AddToCDRMunchCache header
@@ -529,17 +553,17 @@ private:
 					if(policy_id_ >= 0) // if PolicyID < 0; it only needs to be local cached
 						channel_.produce(opdata);
 					else
-						LogMessage(opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
+						LogMessage(remote_ep<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 				}
 				else {
-					LogError(resource_id_<<": PUT failed with MD5 mismatch");
+					LogError(remote_ep<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
 					ostr << "ERR RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<" md5 mismatch\r\n";
 					current_state_ = states::put_check_received_file_ack_err;
 					xfrd_ok_ = false;
 				}
 			}
 			else {
-				LogError(resource_id_<<": PUT failed; general failure during transfer");
+				LogError(remote_ep<<" "<<resource_id_<<": PUT failed; general failure during transfer");
 				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
 			}
@@ -569,15 +593,17 @@ private:
 
 	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
 	{
-		LogVerbose("error: "<<error<<" ---------------------------------------");
-		LogVerbose("bytes_transferred: "<<bytes_transferred);
-		LogVerbose("content_length_: "<<content_length_);
+		const boost::asio::ip::tcp::socket::endpoint_type& remote_ep( socket_.remote_endpoint() );
+
+		LogVerbose(remote_ep<<" error: "<<error<<" ---------------------------------------");
+		LogVerbose(remote_ep<<" bytes_transferred: "<<bytes_transferred);
+		LogVerbose(remote_ep<<" content_length_: "<<content_length_);
 
 		std::size_t chunk_remaining = bytes_transferred;
 
 		if(!error) {
 			while(chunk_remaining) {
-				LogVerbose("xfrd_content_length_: "<<xfrd_content_length_);
+				LogVerbose(remote_ep<<" xfrd_content_length_: "<<xfrd_content_length_);
 
 				std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
 				if(buf_length) {
@@ -594,25 +620,25 @@ private:
 						char eof[4];
 						std::streamsize eof_len = recv_buffer_.sgetn(eof, 4);
 
-						LogDebug("eof_len: "<<eof_len);
+						LogDebug(remote_ep<<" eof_len: "<<eof_len);
 						//LogDebug("eof: {0x"<<RML_HEX(4, int(eof[0]))<<", 0x"<<RML_HEX(4, int(eof[1]))<<", 0x"<<RML_HEX(4, int(eof[2]))<<", 0x"<<RML_HEX(4, int(eof[3]))<<RML_HEX_RESET<<'}');
-						LogDebug("eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
+						LogDebug(remote_ep<<" eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
 
 						if((1 == eof_len) && (eof[0] == '\x1a')) {
 							xfrd_ok_ = true;
 							chunk_remaining = 0;
-							LogDebug("PUT; File transfer completed ok");
+							LogDebug(remote_ep<<" PUT; File transfer completed ok");
 						}
 						else {
-							LogError("Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
+							LogError(remote_ep<<" Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
 							break;
 						}
 					}
 					else {
-						LogVerbose("chunk_remaining:"<<chunk_remaining);
-						LogVerbose("content_length_:"<<content_length_);
-						LogVerbose("xfrd_content_length_:"<<xfrd_content_length_);
-						LogError("Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
+						LogVerbose(remote_ep<<" chunk_remaining:"<<chunk_remaining);
+						LogVerbose(remote_ep<<" content_length_:"<<content_length_);
+						LogVerbose(remote_ep<<" xfrd_content_length_:"<<xfrd_content_length_);
+						LogError(remote_ep<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
 						break;
 					}
 				}
@@ -623,7 +649,7 @@ private:
 				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
 			}
 			else if(chunk_remaining != 0) {
-				LogError("Invalid state; chunk_remaining != 0");
+				LogError(remote_ep<<" Invalid state; chunk_remaining != 0");
 				current_state_ = states::put_receiving_file_err;
 				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
 			}
@@ -636,7 +662,7 @@ private:
 			}
 		}
 		else {
-			LogError("Error while receiving PUT data: "<<error.message());
+			LogError(remote_ep<<" Error while receiving PUT data: "<<error.message());
 			current_state_ = states::put_receiving_file_err;
 			io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
 		}

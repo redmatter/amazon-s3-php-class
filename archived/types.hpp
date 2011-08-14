@@ -370,7 +370,7 @@ struct file_format
 	{
 		LogDebug("from  : " << RML_HEX(4, from));
 		LogDebug("to    : " << RML_HEX(4, to));
-#ifndef NDEBUG
+#ifndef RML_NO_DEBUG
 #define verbose_return( ret_action, ret_format ) \
 	do { \
 		LogDebug("result: [" << RML_HEX(4, ret_action) << ", " << RML_HEX(4, (ret_format) ) << ']'); \

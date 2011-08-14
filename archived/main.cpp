@@ -262,8 +262,8 @@ int main(int argc, char **argv) try
 		app::coreapi coreapi(app::confMap);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
-		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
-				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
+		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
+				boost::bind(&app::storage::endpoint_finder, boost::ref(coreapi), _1));
 
 		boost::asio::io_service io_service;
 

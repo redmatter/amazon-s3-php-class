@@ -40,8 +40,8 @@ class retention : public basic_database< retention >
 public:
 	struct data
 	{
-		archiving::org_id org;
-		archiving::user_id user;
+		archiving::org_id_t org;
+		archiving::user_id_t user;
 		std::string uuid;
 		applied_policy retention;
 		types::file_format::file_format_t file_format;
@@ -61,7 +61,7 @@ public:
 
 	struct usage_data
 	{
-		archiving::org_id org;
+		archiving::org_id_t org;
 		std::size_t real_size;
 		std::size_t clear_size;
 		time_t create_time;
@@ -89,7 +89,7 @@ public:
 	{
 	}
 
-	std::pair< bool, app::retention > get_retention(const archiving::org_id& org, const std::string& identifier)
+	std::pair< bool, app::retention > get_retention(const archiving::org_id_t& org, const std::string& identifier)
 	{
 		rml::MySQLConnection conn(pool_); // scoped connection
 		mysqlpp::Query query = conn->query();
@@ -112,8 +112,8 @@ public:
 		mysqlpp::UseQueryResult res = query.use(qp);
 		if(mysqlpp::Row row = res.fetch_row()) {
 			return std::make_pair(true, app::retention(
-					archiving::org_id(rml::utils::strtoull(row[0].c_str())),    // OrgID
-					archiving::user_id(rml::utils::strtoull(row[1].c_str())),   // UserID
+					archiving::org_id_t(rml::utils::strtoull(row[0].c_str())),    // OrgID
+					archiving::user_id_t(rml::utils::strtoull(row[1].c_str())),   // UserID
 					policy::id_type(rml::utils::strtoull(row[2].c_str())),      // PolicyID
 					policy::version_type(rml::utils::strtoull(row[3].c_str())), // PolicyVersion
 					applied_policy::ymd_t(                                      // CreationDate
@@ -143,7 +143,7 @@ public:
 			data::multiset_t::iterator b_itr = data.begin();
 			std::pair< data::multiset_t::iterator, data::multiset_t::iterator > range = data.equal_range(*b_itr);
 
-			const archiving::org_id& org(b_itr->org);
+			const archiving::org_id_t& org(b_itr->org);
 
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
@@ -185,7 +185,7 @@ public:
 			usage_data::multiset_t::iterator b_itr = usage_data.begin();
 			std::pair< usage_data::multiset_t::iterator, usage_data::multiset_t::iterator > range = usage_data.equal_range(*b_itr);
 
-			const archiving::org_id& org(b_itr->org);
+			const archiving::org_id_t& org(b_itr->org);
 
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
@@ -333,8 +333,8 @@ public:
 					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->id: -1)
 					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->version: 0)
 
-					<< (opdetail.p_endpoint? opdetail.target_file_format: 0) // bodge! no target file format if there is no endpoint!
-					<< (opdetail.p_endpoint? opdetail.p_endpoint->identifier: 0)
+					<< ( opdetail.p_endpoint? opdetail.target_file_format: 0 ) // bodge! no target file format if there is no endpoint!
+					<< ( opdetail.p_endpoint? opdetail.p_endpoint->id: 0 )
 
 					<< opdetail.current_file_format
 					<< opdetail.retry
@@ -401,7 +401,7 @@ public:
 		}
 	}
 
-	std::string clear_cache_get_path(const archiving::org_id org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
+	std::string clear_cache_get_path(const archiving::org_id_t org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
 		rml::MySQLConnection conn(pool_); // scoped connection
 		unsigned int retry = 3;
@@ -462,7 +462,7 @@ public:
 	}
 
 	void clear_cache_put_path(
-			const archiving::org_id org_id,
+			const archiving::org_id_t org_id,
 			const std::string& uuid,
 			const types::file_format::file_format_t& file_format,
 			const std::string& path,

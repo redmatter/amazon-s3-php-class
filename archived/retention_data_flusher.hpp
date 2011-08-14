@@ -76,7 +76,7 @@ class retention_data_flusher
 								retention.org = identifier.org;
 								retention.uuid = identifier.uuid;
 								retention.retention = app::applied_policy(data->p_detail->policy, creation_time);
-								retention.endpoint_id = data->p_detail->p_endpoint->identifier;
+								retention.endpoint_id = data->p_detail->p_endpoint->id;
 								retention.user = 0;
 								{
 									// TODO solve multi user situation

@@ -62,9 +62,7 @@ public:
 
 			types::header_encrypted header;
 
-#ifndef NDEBUG
-			assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv));
-#endif
+			RML_DEBUG( assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv)) );
 			memcpy(header.iv, iv, CryptoPP::Blowfish::BLOCKSIZE);
 
 			ostr.write(reinterpret_cast<char*>(&header), sizeof(app::types::header_encrypted));
@@ -95,9 +93,9 @@ public:
 
 			types::header_encrypted header;
 			types::header_encrypted blank_header;
-#ifndef NDEBUG
-			assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv));
-#endif
+
+			RML_DEBUG( assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv)) );
+
 			istr.read((char*)&header, sizeof(types::header_encrypted));
 			if(0 != memcmp(blank_header.magic, header.magic, sizeof(blank_header.magic)))
 				throw rml::exception("header found corrupt; magic pattern did not match");

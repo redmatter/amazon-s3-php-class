@@ -15,8 +15,8 @@ namespace app {
 
 struct retention
 {
-	archiving::org_id org_id;
-	archiving::user_id user_id;
+	archiving::org_id_t org_id;
+	archiving::user_id_t user_id;
 	policy::id_type policy_id;
 	policy::version_type policy_version;
 	applied_policy::ymd_t creation_date;
@@ -36,8 +36,8 @@ struct retention
 	}
 
 	retention(
-			const archiving::org_id org_id,
-			const archiving::user_id user_id,
+			const archiving::org_id_t org_id,
+			const archiving::user_id_t user_id,
 			const policy::id_type policy_id,
 			const policy::version_type policy_version,
 			const applied_policy::ymd_t creation_date,

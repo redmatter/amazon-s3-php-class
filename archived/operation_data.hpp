@@ -104,14 +104,20 @@ struct operation_data
 		// state info: a map of all intermediate file-formats of this object
 		files_map_t files_map;
 
-		// state info: retry in the current operation_state
-		volatile uint8_t retry;
+		// ----------------- state and DB stuff -----------------
+
+		// Database ID
+		uint64_t database_id;
+
+		// state info: operation state
+		operation_state::operation_state_t state;
+
+		// state info: retry in the current operation state
+		uint8_t retry;
 	};
 
-	uint64_t database_id;
-
+	// Pointer to the detail structure
 	detail::pointer p_detail;
-	volatile operation_state::operation_state_t state;
 
 	// -------------------- statics -----------------
 
@@ -165,8 +171,8 @@ struct operation_data
 			if(lhs->p_detail->retry != rhs->p_detail->retry)
 				return lhs->p_detail->retry > lhs->p_detail->retry; // bigger retry, lesser priority ( > comparison )
 
-			if(lhs->state != rhs->state)
-				return lhs->state < rhs->state; // order of states in the enum dictates the order here
+			if(lhs->p_detail->state != rhs->p_detail->state)
+				return lhs->p_detail->state < rhs->p_detail->state; // order of states in the enum dictates the order here
 
 			return lhs->p_detail->identifier.uuid < rhs->p_detail->identifier.uuid;
 		}
@@ -181,7 +187,7 @@ namespace std {
 
 inline ostream& operator << (ostream& ostr, app::operation_data::pointer p_opdata)
 {
-	return ostr << p_opdata->p_detail->identifier << "#state:" << p_opdata->state;
+	return ostr << p_opdata->p_detail->identifier << "#state:" << p_opdata->p_detail->state;
 }
 
 }  // namespace std
