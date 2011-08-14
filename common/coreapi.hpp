@@ -189,6 +189,26 @@ public:
 	}
 
 	/**
+	 * Get with expectation!
+	 *
+	 * @param uri
+	 * @param expected_status
+	 * @param use_authorization
+	 *
+	 * @return response
+	 */
+	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true) const
+	{
+		const response& r(get(uri, use_authorization));
+		if(expected_status && r.first != expected_status) {
+			LogError("Unexpected response status; status:"<<r.first<<" (expected status:"<<expected_status<<')');
+			throw rml::exception("Unexpected response status");
+		}
+
+		return r;
+	}
+
+	/**
 	 * delete operations
 	 *
 	 * @param uri

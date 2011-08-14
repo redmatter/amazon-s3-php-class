@@ -156,11 +156,11 @@ struct policy
 		std::ostringstream ostr;
 		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
 
-		const std::string& response = api.get(ostr.str());
+		coreapi::response response(api.get(ostr.str(), 200U, true));
 
 		// run xpath
 		pugi::xml_document doc;
-		if(!doc.load(response.c_str()))
+		if(!doc.load(response.second.c_str()))
 			throw rml::exception("Unable to load response document");
 
 		pugi::xml_node policy_node = doc.select_single_node("/Archiving/Policy").node();
@@ -293,7 +293,7 @@ public:
 
 //		policy::pointer p = policy_finder_(id);
 
-		const std::string& response = api_.get(ostr.str());
+		const coreapi::response& response(api_.get(ostr.str(), 200U, true));
 
 		// FIXME run XPath & create definition;
 		(void)response;
