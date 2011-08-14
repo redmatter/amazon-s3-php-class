@@ -89,7 +89,7 @@ struct basic_endpoint
 			const bool is_encrypted,
 			const bool is_compressed,
 			const encryption_key_t& encryption_key) :
-		type(type), id(identifier), org(org), name(name),
+		id(identifier), type(type), org(org), name(name),
 		is_encrypted(is_encrypted), is_compressed(is_compressed),
 		encryption_key(encryption_key)
 	{
@@ -97,7 +97,7 @@ struct basic_endpoint
 	}
 
 	basic_endpoint(const basic_endpoint& t) :
-		type(t.type), id(t.id), org(t.org), name(t.name)
+		id(t.id), type(t.type), org(t.org), name(t.name), is_encrypted(t.is_encrypted), is_compressed(t.is_compressed), encryption_key(t.encryption_key)
 	{
 		//ctor
 	}
@@ -111,7 +111,7 @@ struct basic_endpoint
 				encryption_key == rhs.encryption_key;
 	}
 
-	std::ostream& operator<<(std::ostream& os)
+	friend std::ostream& operator<<(std::ostream& os)
 	{
 		return os << "id:"<<id<<", org:"<<org<<", name:"<<name<<", encrypted:"<<RML_YES_NO(is_encrypted)<<", compressed:"<<RML_YES_NO(is_compressed);
 	}
