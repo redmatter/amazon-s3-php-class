@@ -25,51 +25,38 @@ namespace {
 
 inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
 {
-#ifndef NDEBUG
-	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
-#endif
+	RML_DEBUG( LogDebug("xpath: "<<xpath<<" default_value:"<<default_value) );
 	pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
 	if(xpath_node) {
-#ifndef NDEBUG
-		LogDebug(xpath<<'='<<xpath_node.node().value());
-#endif
+		RML_DEBUG(LogDebug(xpath<<'='<<xpath_node.node().value()));
 		return xpath_node.node().value();
 	}
 
-#ifndef NDEBUG
-	if (default_value)
-		LogDebug(xpath<<'='<<default_value);
-	else
-		LogDebug(xpath<<"=NULL");
-#endif
+	RML_DEBUG(
+		if (default_value)
+			LogDebug(xpath<<'='<<default_value);
+		else
+			LogDebug(xpath<<"=NULL");
+	);
 
 	return default_value;
 }
 
 inline std::string get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const std::string& default_value = "")
 {
-#ifndef NDEBUG
-	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
-#endif
-
+	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return get_xpath_single_value(doc, xpath, default_value.c_str());
 }
 
 inline unsigned long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
 {
-#ifndef NDEBUG
-	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
-#endif
-
+	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
 inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const long long default_value = 0LL)
 {
-#ifndef NDEBUG
-	LogDebug("xpath: "<<xpath<<" default_value:"<<default_value);
-#endif
-
+	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
@@ -84,7 +71,7 @@ class cdr_inspector : public boost::noncopyable
 	archiving::archivable_channel_t& out_channel;
 	const boost::program_options::variables_map& confMap;
 
-	std::vector<archiving::org_id> orgs_enabled_;
+	std::vector<archiving::org_id_t> orgs_enabled_;
 
 	const std::string& pbx_hostname_;
 
@@ -229,20 +216,20 @@ public:
 
 						{
 							pugi::xpath_node direction_node = doc.select_single_node("/cdr/channel_data/direction/text()");
-#ifndef NDEBUG
-							if(!direction_node)
-								LogVerbose("/cdr/channel_data/direction NOT found");
-							else
-								LogVerbose("/cdr/channel_data/direction = "<<direction_node.node().value());
-#endif
+							RML_DEBUG(
+								if(!direction_node)
+									LogVerbose("/cdr/channel_data/direction NOT found");
+								else
+									LogVerbose("/cdr/channel_data/direction = "<<direction_node.node().value());
+							);
 
 							pugi::xpath_node rmAssumeALeg_node = variables_node.select_single_node("rmAssumeALeg/text()");
-#ifndef NDEBUG
-							if(!rmAssumeALeg_node)
-								LogVerbose("/cdr/channel_data/rmAssumeALeg NOT found");
-							else
-								LogVerbose("/cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
-#endif
+							RML_DEBUG(
+								if(!rmAssumeALeg_node)
+									LogVerbose("/cdr/channel_data/rmAssumeALeg NOT found");
+								else
+									LogVerbose("/cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
+							);
 
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
@@ -284,11 +271,11 @@ public:
 						archiving::owner_info::pointer owners;
 						const char* rmOrgID_str = 0;
 						{
-							archiving::org_id rmOrgID = 0;
+							archiving::org_id_t rmOrgID = 0;
 							{
 								pugi::xpath_node rmOrgID_node = variables_node.select_single_node(leg == leg::A? "rmOrgID/text()": "rmOriginatorOrgId/text()");
 								if(rmOrgID_node) {
-									rmOrgID = (archiving::org_id)rml::utils::strtoull(( rmOrgID_str = rmOrgID_node.node().value() ), 0);
+									rmOrgID = (archiving::org_id_t)rml::utils::strtoull(( rmOrgID_str = rmOrgID_node.node().value() ), 0);
 									LogVerbose("cdr:"<<cdr_uuid<<" - rmOrgID: "<<rmOrgID);
 								}
 								else
@@ -302,11 +289,11 @@ public:
 								continue;
 							}
 
-							archiving::user_id rmUserID = 0;
+							archiving::user_id_t rmUserID = 0;
 							{
 								pugi::xpath_node rmUserID_node = variables_node.select_single_node("rmUserID/text()");
 								if(rmUserID_node) {
-									rmUserID = (archiving::user_id)rml::utils::strtoll(rmUserID_node.node().value(), 0);
+									rmUserID = (archiving::user_id_t)rml::utils::strtoll(rmUserID_node.node().value(), 0);
 									LogVerbose("cdr:"<<cdr_uuid<<" - rmUserID: "<<rmUserID);
 								}
 							}
@@ -355,11 +342,11 @@ public:
 						// still the ifs and doc are intact; lets inspect it before we modify it
 						// saves another XML parsing!
 
-#ifndef NDEBUG
-						LogDebug("owners->orgID: " << owners->orgID);
-						LogDebug("orgs_enabled_.empty(): "<<RML_YES_NO(orgs_enabled_.empty()));
-						LogDebug("orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)): " << (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)));
-#endif
+						RML_DEBUG(
+							LogDebug("owners->orgID: " << owners->orgID);
+							LogDebug("orgs_enabled_.empty(): "<<RML_YES_NO(orgs_enabled_.empty()));
+							LogDebug("orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)): " << (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)));
+						);
 
 						if(orgs_enabled_.empty() || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
 
