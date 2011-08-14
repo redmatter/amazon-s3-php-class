@@ -43,7 +43,7 @@ class migration : public basic_database< migration >
 	const unsigned int poll_interval_seconds_;
 	const unsigned int flush_interval_seconds_;
 
-	std::vector<archiving::org_id> orgs_enabled_;
+	std::vector<archiving::org_id_t> orgs_enabled_;
 
 	app::database::retention retention_db_;
 public:
@@ -156,9 +156,9 @@ public:
 							}
 							else {
 								int c = 0;
-								std::vector<archiving::org_id>::const_iterator end = orgs_enabled_.end();
+								std::vector<archiving::org_id_t>::const_iterator end = orgs_enabled_.end();
 								query << "OrgID IN (";
-								for(std::vector<archiving::org_id>::const_iterator itr = orgs_enabled_.begin(); itr != end; ++itr) {
+								for(std::vector<archiving::org_id_t>::const_iterator itr = orgs_enabled_.begin(); itr != end; ++itr) {
 									query << (c? ',': ' ')<<*itr;
 									c++;
 								}
@@ -179,7 +179,7 @@ public:
 					mysqlpp::UseQueryResult res = query.use(qp);
 					while(mysqlpp::Row row = res.fetch_row()) {
 						// make migration_data
-						archiving::org_id org = rml::utils::strtoull(row[3].c_str());
+						archiving::org_id_t org = rml::utils::strtoull(row[3].c_str());
 						const uint64_t& id(rml::utils::strtoull(row[0].c_str()));
 						migration_data data(
 								id,
@@ -384,7 +384,7 @@ public:
 								retention.user = data.user;
 								retention.uuid = data.uuid;
 								retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
-								retention.endpoint_id = data.p_endpoint->identifier;
+								retention.endpoint_id = data.p_endpoint->id;
 
 								retention_set.insert(retention);
 							}
