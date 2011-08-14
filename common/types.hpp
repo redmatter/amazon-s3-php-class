@@ -12,9 +12,11 @@
 
 namespace archiving {
 
-typedef uint32_t org_id;
-typedef int32_t user_id;
-typedef uint32_t group_id;
+typedef uint32_t org_id_t;
+typedef int32_t user_id_t;
+typedef uint32_t group_id_t;
+
+typedef uint64_t endpoint_id_t;
 
 }
 

@@ -39,15 +39,15 @@ struct owner_info
 {
 	typedef boost::shared_ptr<owner_info> pointer;
 
-	org_id orgID;
-	std::vector< user_id > userIDs;
+	org_id_t orgID;
+	std::vector< user_id_t > userIDs;
 
 	owner_info()
 	{
 	}
 
 	// TODO how about users from other legs and if the call gets transferred around
-	owner_info(const org_id& orgID, const std::vector< user_id >& userIDs = std::vector< user_id >())
+	owner_info(const org_id_t& orgID, const std::vector< user_id_t >& userIDs = std::vector< user_id_t >())
 	: orgID(orgID), userIDs(userIDs)
 	{
 	}
@@ -57,7 +57,7 @@ struct owner_info
 	 *
 	 * @param userID
 	 */
-	void addUser(const user_id& userID)
+	void addUser(const user_id_t& userID)
 	{
 		userIDs.push_back(userID);
 	}
@@ -152,7 +152,7 @@ public:
 	struct identifier
 	{
 		file_type::file_type_t filetype;
-		org_id org;
+		org_id_t org;
 		std::string uuid;
 
 		identifier() :
@@ -160,7 +160,7 @@ public:
 		{
 		}
 
-		identifier(const file_type::file_type_t& filetype, const org_id& org, const std::string& uuid) :
+		identifier(const file_type::file_type_t& filetype, const org_id_t& org, const std::string& uuid) :
 			filetype(filetype), org(org), uuid(uuid)
 		{
 		}
@@ -280,7 +280,7 @@ public:
 
 	inline std::ostream& shove_put_request(std::ostream& ostr) const
 	{
-#ifndef NDEBUG
+#ifndef RML_NO_DEBUG
 		std::string put_request;
 		{
 			std::ostringstream ostr;
@@ -291,9 +291,9 @@ public:
 			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
 			if(!owners_.userIDs.empty()) {
 				ostr << "UserIDs: ";
-				std::vector< archiving::user_id >::const_iterator end(owners_.userIDs.end());
+				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
 				bool first = true;
-				for(std::vector< archiving::user_id >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
+				for(std::vector< archiving::user_id_t >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
 					if(!first)
 						ostr << ',';
 					ostr << *itr;
@@ -304,14 +304,14 @@ public:
 		}
 		// Otherwise i.e if CDR; Org 1 owns it all
 		else {
-			ostr << "PUT "<<type_<<' '<<org_id(1)<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
-			ostr << "OrgID: "<<org_id(1)<<"\r\n";
+			ostr << "PUT "<<type_<<' '<<org_id_t(1)<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
+			ostr << "OrgID: "<<org_id_t(1)<<"\r\n";
 			ostr << "CallOwnerOrg: "<<owners_.orgID<<"\r\n"; // custom header
 			if(!owners_.userIDs.empty()) {
 				ostr << "CallOwnerUserIDs: "; // custom header
-				std::vector< archiving::user_id >::const_iterator end(owners_.userIDs.end());
+				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
 				bool first = true;
-				for(std::vector< archiving::user_id >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
+				for(std::vector< archiving::user_id_t >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
 					if(!first)
 						ostr << ',';
 					ostr << *itr;
@@ -331,7 +331,7 @@ public:
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
 				<< "AddToCDRMunchCache: "<<(add_to_cdrmunch_cache? "true": "false")<<"\r\n"
 				;
-#ifndef NDEBUG
+#ifndef RML_NO_DEBUG
 			put_request = ostr.str();
 		}
 		LogDebug("ToArchiveD: "<<put_request);
@@ -374,13 +374,13 @@ public:
 	{
 		owners_.orgID = o.orgID;
 		owners_.userIDs.clear();
-		user_id userID;
+		user_id_t userID;
 		BOOST_FOREACH(userID, o.userIDs) {
 			owners_.addUser(userID);
 		}
 	}
 
-	std::vector< user_id > get_owners() const
+	std::vector< user_id_t > get_owners() const
 	{
 		return owners_.userIDs;
 	}
@@ -390,7 +390,7 @@ public:
 	 *
 	 * @return
 	 */
-	inline const org_id& get_org_id() const
+	inline const org_id_t& get_org_id() const
 	{
 		return owners_.orgID;
 	}

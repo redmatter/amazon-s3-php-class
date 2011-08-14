@@ -25,7 +25,7 @@ struct ports {
 }  // namespace archiving
 
 
-#ifndef NDEBUG
+#ifndef RML_NO_DEBUG
 
 #define SetupRecvStream(from, istr, recv_buffer) \
 	std::string line; \

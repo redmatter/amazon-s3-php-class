@@ -10,6 +10,7 @@
 
 #include "coreapi.hpp"
 #include "cache.hpp"
+#include "types.hpp"
 
 #include <rml/exception.h>
 
@@ -121,7 +122,7 @@ struct retention_period
 	}
 };
 
-typedef std::set<archiving::user_id> users_t;
+typedef std::set<archiving::user_id_t> users_t;
 
 struct policy
 {
@@ -134,19 +135,23 @@ struct policy
 	retention_period min_retention;
 	retention_period max_retention;
 
+	archiving::endpoint_id_t endpoint_id;
+
 	typedef boost::shared_ptr< policy > pointer;
 
 	policy(const id_type& id, const version_type& version,
 			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
-			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit) :
+			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit,
+			const archiving::endpoint_id_t& endpoint_id) :
 				id(id), version(version),
 				min_retention(min_retention_period, min_retention_unit),
-				max_retention(max_retention_period, max_retention_unit)
+				max_retention(max_retention_period, max_retention_unit),
+				endpoint_id(endpoint_id)
 	{
 		//ctor
 	}
 
-	static pointer finder(coreapi& api, const std::pair<archiving::org_id, id_type>& org_policy)
+	static pointer finder(coreapi& api, const std::pair<archiving::org_id_t, id_type>& org_policy)
 	{
 		std::ostringstream ostr;
 		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
@@ -158,24 +163,30 @@ struct policy
 		if(!doc.load(response.c_str()))
 			throw rml::exception("Unable to load response document");
 
-		const char* id_str = doc.select_single_node("/Archiving/Policy/ID/text()").node().value();
-		const char* version_str = doc.select_single_node("/Archiving/Policy/Version/text()").node().value();
+		pugi::xml_node policy_node = doc.select_single_node("/Archiving/Policy").node();
 
-	    pugi::xpath_node min_retention_period_node = doc.select_single_node("/Archiving/Policy/RetentionMin");
+		const char* id_str = policy_node.select_single_node("ID/text()").node().value();
+		const char* version_str = policy_node.select_single_node("Version/text()").node().value();
+
+	    pugi::xpath_node min_retention_period_node = policy_node.select_single_node("RetentionMin");
 	    const char* min_retention_period_str = min_retention_period_node.node().select_single_node("text()").node().value();
 	    const char* min_retention_period_unit_str = min_retention_period_node.node().attribute("Unit").value();
 
-	    pugi::xpath_node max_retention_period_node = doc.select_single_node("/Archiving/Policy/RetentionMax");
+	    pugi::xpath_node max_retention_period_node = policy_node.select_single_node("RetentionMax");
 	    const char* max_retention_period_str = max_retention_period_node.node().select_single_node("text()").node().value();
 	    const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
+
+	    // assign 0 if no endpoint-id set
+	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
 
 		return pointer(new policy(
 				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str),
 				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
-				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str)));
+				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
+				endpoint_id));
 	}
 
-	typedef cache::result_cache<const std::pair<archiving::org_id, id_type>, pointer> cached_finder_t;
+	typedef cache::result_cache<const std::pair<archiving::org_id_t, id_type>, pointer> cached_finder_t;
 };
 
 struct applied_policy
@@ -238,11 +249,11 @@ struct access_control_list
 
 	bool owner_allowed;
 	users_t users;
-	std::map< archiving::group_id, users_t > groups;
+	std::map< archiving::group_id_t, users_t > groups;
 
 	typedef boost::shared_ptr< access_control_list > pointer;
 
-	inline bool allows(const archiving::user_id& user, const bool is_object_owner) const
+	inline bool allows(const archiving::user_id_t& user, const bool is_object_owner) const
 	{
 		if(owner_allowed && is_object_owner)
 			return true;
@@ -254,8 +265,8 @@ struct access_control_list
 		}
 
 		{
-			std::map< archiving::group_id, users_t >::const_iterator end = groups.end();
-			for(std::map< archiving::group_id, users_t >::const_iterator itr = groups.begin(); itr != end; ++itr) {
+			std::map< archiving::group_id_t, users_t >::const_iterator end = groups.end();
+			for(std::map< archiving::group_id_t, users_t >::const_iterator itr = groups.begin(); itr != end; ++itr) {
 				users_t::const_iterator end = itr->second.end();
 				if(end != itr->second.find(user))
 					return true;

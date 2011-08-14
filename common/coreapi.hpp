@@ -17,6 +17,10 @@
 
 #include <boost/thread/mutex.hpp>
 
+#include <utility>
+
+// TODO DELETE auth on deinit
+
 namespace app {
 
 namespace impl {
@@ -24,6 +28,10 @@ namespace impl {
 template < typename Tag >
 class coreapi
 {
+public:
+	typedef std::pair< uint16_t, std::string > response;
+
+private:
 	typedef boost::network::http::basic_client< Tag , 1 , 1 > http_client;
 	typedef typename http_client::request http_client_request;
 	typedef typename http_client::response http_client_response;
@@ -31,6 +39,7 @@ class coreapi
 	std::string base_url_;
 	std::string auth_hash_;
 
+	mutable boost::asio::io_service& io_service_;
 	mutable http_client client_;
 
 	static boost::mutex mutex_;
@@ -52,11 +61,11 @@ class coreapi
 			try {
 				time(&auth_attempt_time_);
 
-				const std::string& response = get(std::string("/auth/")+auth_hash_, false);
+				const response& res( get(std::string("/auth/")+auth_hash_, false) );
 
 				// run xpath
 				pugi::xml_document doc;
-				if(!doc.load(response.c_str()))
+				if(!doc.load(res.second.c_str()))
 					throw rml::exception("Unable to load auth response document");
 
 				const char* authResID = doc.select_single_node("/Success/ResourceID/text()").node().value();
@@ -68,7 +77,7 @@ class coreapi
 				authorization_error_ = false;
 			}
 			catch(const std::exception& e) {
-				LogError("exception: "<<e.what());
+				LogError(boost::this_thread::get_id()<<" exception: "<<e.what());
 				authorization_error_ = true;
 
 				return false;
@@ -78,36 +87,7 @@ class coreapi
 		return true;
 	}
 
-public:
-	static void describe_config(boost::program_options::options_description& optsDesc)
-	{
-		optsDesc.add_options()
-				("coreapi.url", boost::program_options::value<std::string>()->default_value("http://api.redmatter.com"), "CoreAPI hostname")
-				("coreapi.auth_hash", boost::program_options::value<std::string>()->default_value("coreapi.auth_hash not-configured"), "CoreAPI hash for a system user")
-//				("coreapi.pool_size",  boost::program_options::value<unsigned int>()->default_value(5), "CoreAPI connection pool size")
-				;
-	}
-
-	coreapi(const coreapi& copy) :
-		base_url_(copy.base_url_),
-		auth_hash_(copy.auth_hash_),
-		client_(http_client::follow_redirects)
-	{
-		// ctor
-	}
-
-	coreapi(const std::string& base_url, const std::string& auth_hash) :
-		base_url_(base_url),
-		auth_hash_(auth_hash),
-		client_(http_client::follow_redirects)
-	{
-		// ctor
-	}
-
-	coreapi(const boost::program_options::variables_map& confMap) :
-		base_url_(confMap["coreapi.url"].as<std::string>()),
-		auth_hash_(confMap["coreapi.auth_hash"].as<std::string>()),
-		client_(http_client::follow_redirects)
+	inline void init()
 	{
 		int attempts = 3;
 		while(attempts--) {
@@ -121,12 +101,58 @@ public:
 		}
 	}
 
-	std::string get(const std::string& uri, const bool use_authorization = true) const
+public:
+
+	static void describe_config(boost::program_options::options_description& optsDesc)
+	{
+		optsDesc.add_options()
+				("coreapi.url", boost::program_options::value<std::string>()->default_value("http://api.redmatter.com"), "CoreAPI hostname")
+				("coreapi.auth_hash", boost::program_options::value<std::string>()->default_value("coreapi.auth_hash not-configured"), "CoreAPI hash for a system user")
+//				("coreapi.pool_size",  boost::program_options::value<unsigned int>()->default_value(5), "CoreAPI connection pool size")
+				;
+	}
+
+	coreapi(const coreapi& copy) :
+		base_url_(copy.base_url_),
+		auth_hash_(copy.auth_hash_),
+		io_service_(copy.io_service_),
+		client_(io_service_)
+	{
+		init();
+	}
+
+	coreapi(const std::string& base_url, const std::string& auth_hash, boost::asio::io_service& io_service) :
+		base_url_(base_url),
+		auth_hash_(auth_hash),
+		io_service_(io_service),
+		client_(io_service_)
+	{
+		init();
+	}
+
+	coreapi(const boost::program_options::variables_map& confMap, boost::asio::io_service& io_service) :
+		base_url_(confMap["coreapi.url"].as<std::string>()),
+		auth_hash_(confMap["coreapi.auth_hash"].as<std::string>()),
+		io_service_(io_service),
+		client_(io_service_)
+	{
+		init();
+	}
+
+	/**
+	 * GET requests
+	 *
+	 * @param uri
+	 * @param use_authorization
+	 *
+	 * @return pair< status, body >
+	 */
+	response get(const std::string& uri, const bool use_authorization = true) const
 	{
 		int attempts = 2;
 
 		const std::string& url(base_url_+uri);
-		LogVerbose("url: "<<url);
+		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
 
 		while(attempts--) {
 			http_client_request request(url);
@@ -135,6 +161,7 @@ public:
 					throw rml::exception("Not authorized; invalid call sequence");
 
 				request << boost::network::header("Authorization", authorization_);
+				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
 			}
 
 			http_client_response response;
@@ -142,21 +169,140 @@ public:
 				response = client_.get(request);
 			}
 			catch(const std::exception& e) {
-				LogError("Error while performing GET; err:"<<e.what());
+				LogError(boost::this_thread::get_id()<<" Error while performing GET; err:"<<e.what());
 				throw;
 			}
 
 			int status = response.status();
 
-			LogDebug("response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
-			if(status >= 200 && status < 300)
-				return response.body();
+			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
-			if(use_authorization && (status == 401 || status == 403))
+			if(use_authorization && ( status == 401 || status == 403 )) {
 				authorization_error_ = true;
+				continue;
+			}
+
+			return std::make_pair<uint16_t, std::string>(status, response.body());
 		}
 
-		throw rml::exception("coreapi::get failed after retry");
+		throw rml::exception("failed after retry");
+	}
+
+	/**
+	 * delete operations
+	 *
+	 * @param uri
+	 * @param use_authorization
+	 *
+	 * @return pair< status, body >
+	 */
+	response delete_(const std::string& uri, const bool use_authorization = true) const
+	{
+		int attempts = 2;
+
+		const std::string& url(base_url_+uri);
+		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
+
+		while(attempts--) {
+			http_client_request request(url);
+			if(use_authorization) {
+				if(true != get_authorized())
+					throw rml::exception("Not authorized; invalid call sequence");
+
+				request << boost::network::header("Authorization", authorization_);
+				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+			}
+
+			http_client_response response;
+			try {
+				response = client_.delete_(request);
+			}
+			catch(const std::exception& e) {
+				LogError(boost::this_thread::get_id()<<" Error while performing DELETE; err:"<<e.what());
+				throw;
+			}
+
+			int status = response.status();
+
+			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
+
+			if(use_authorization && ( status == 401 || status == 403 )) {
+				if (uri.substr(0, 6) == "/auth/") {
+					LogWarning("DELETE "<<uri<<" failed");
+					throw rml::exception("DELETE failed");
+				}
+
+				authorization_error_ = true;
+				continue;
+			}
+
+			return std::make_pair<uint16_t, std::string>(status, response.body());
+		}
+
+		throw rml::exception("failed after retry");
+	}
+
+	/**
+	 * POST requests
+	 *
+	 * @param uri
+	 * @param body
+	 * @param content_type
+	 * @param use_authorization
+	 *
+	 * @return pair< status, body >
+	 */
+	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true) const
+	{
+		int attempts = 2;
+
+		const std::string& url(base_url_+uri);
+		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
+
+		while(attempts--) {
+			http_client_request request(url);
+			if(use_authorization) {
+				if(true != get_authorized())
+					throw rml::exception("Not authorized; invalid call sequence");
+
+				request << boost::network::header("Authorization", authorization_);
+				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+			}
+
+			LogDebug(boost::this_thread::get_id()<<" Content-Type: "<<content_type);
+			LogDebug(boost::this_thread::get_id()<<" Content-Length: "<<body.length());
+			LogDebug(boost::this_thread::get_id()<<" body: "<<body);
+
+			request << boost::network::header("Content-Type", content_type);
+			{
+				std::ostringstream ostr;
+				ostr << body.length();
+				request << boost::network::header("Content-Length", ostr.str());
+			}
+			request << boost::network::body(body);
+
+			http_client_response response;
+			try {
+				response = client_.post(request);
+			}
+			catch(const std::exception& e) {
+				LogError(boost::this_thread::get_id()<<" Error while performing POST; err:"<<e.what());
+				throw;
+			}
+
+			int status = response.status();
+
+			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
+
+			if(use_authorization && ( status == 401 || status == 403 )) {
+				authorization_error_ = true;
+				continue;
+			}
+
+			return std::make_pair<uint16_t, std::string>(status, response.body());
+		}
+
+		throw rml::exception("failed after retry");
 	}
 };
 
