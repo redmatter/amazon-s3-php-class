@@ -6,7 +6,7 @@ include /usr/share/librml/Makefile.macros
 
 FREESWITCH_DIR=/opt/freeswitch
 
-CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
+CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I/usr/include/cpp-netlib
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
