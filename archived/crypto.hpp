@@ -10,6 +10,7 @@
 
 #include "types.hpp"
 #include "operation_data.hpp"
+#include "storage_endpoint.hpp"
 
 #include <rml/utils.h>
 
@@ -84,7 +85,7 @@ public:
 		decrypt(istr, ostr, detail->p_endpoint->encryption_key);
 	}
 
-	void decrypt(std::istream& istr, std::ostream& ostr, const std::vector<uint8_t>& encryption_key)
+	void decrypt(std::istream& istr, std::ostream& ostr, const storage::basic_endpoint::encryption_key_t& encryption_key)
 	{
 		try {
 			CryptoPP::CBC_Mode< CryptoPP::Blowfish >::Decryption blowfish_dec;
@@ -141,7 +142,7 @@ public:
 			rml::utils::tmp_fstream::pointer encrypted_fstream,
 			const types::file_format::file_format_t& current_file_format,
 			const std::string& identifier,
-			const std::vector<uint8_t>& encryption_key)
+			const storage::basic_endpoint::encryption_key_t& encryption_key)
 	{
 		if(types::file_format::is_encrypted(current_file_format))
 			THROW_RML_EXCEPTION(identifier << " already encrypted");
