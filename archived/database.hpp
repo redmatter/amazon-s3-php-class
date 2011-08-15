@@ -91,7 +91,7 @@ public:
 
 	std::pair< bool, app::retention > get_retention(const archiving::org_id_t& org, const std::string& identifier)
 	{
-		rml::MySQLConnection conn(pool_); // scoped connection
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		mysqlpp::Query query = conn->query();
 		query << "SELECT"
 				" OrgID,"
@@ -136,7 +136,7 @@ public:
 	void save(data::multiset_t& data, usage_data::multiset_t& usage_data)
 	{
 		// Retention Data
-		rml::MySQLConnection conn(pool_);
+		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction transaction(*conn, false);
 
 		while(data.begin() != data.end()) {
@@ -228,7 +228,7 @@ public:
 	/*
 	void save(const archiving::org_id& org, const archiving::user_id& user, const std::string& identifier, const applied_policy& retention)
 	{
-		rml::MySQLConnection conn(pool_); // scoped connection
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		mysqlpp::Query query = conn->query();
 		query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` "
 				"SET Identifier=%0q:Identifier, ReversedIdentifier=REVERSE(%0q:Identifier)"
@@ -289,11 +289,11 @@ public:
 
 	void save(operation_data::pointer& opdata)
 	{
-		rml::MySQLConnection conn(pool_); // scoped connection
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
 
 		const operation_data::detail& opdetail(*(opdata->p_detail));
 
-		if(!opdata->database_id) {
+		if(!opdetail.database_id) {
 			LogVerbose("Insert: "<<opdetail.identifier);
 
 			mysqlpp::Query query = conn->query();
@@ -338,7 +338,7 @@ public:
 
 					<< opdetail.current_file_format
 					<< opdetail.retry
-					<< opdata->state
+					<< opdetail.state
 
 					<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
 					;
@@ -346,7 +346,7 @@ public:
 			LogVerbose("SQL: "<<query.str(qp));
 			query.execute(qp);
 
-			opdata->database_id = query.insert_id();
+			opdata->p_detail->database_id = query.insert_id();
 		}
 		else {
 			LogVerbose("Update "<<opdetail.identifier);
@@ -364,8 +364,8 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << opdetail.current_file_format
 					<< opdetail.retry
-					<< opdata->state
-					<< opdata->database_id
+					<< opdetail.state
+					<< opdetail.database_id
 					<< opdetail.identifier.filetype
 					<< opdetail.identifier.org
 					<< opdetail.identifier.uuid
@@ -388,7 +388,7 @@ public:
 			bool first = true;
 			for(unsigned int c = 0; itr != end; ++itr, c += 3) {
 				query << (!first? ',': ' ') << "( %"<<(c+0)<<":ArchiveDQueueID, %"<<(c+1)<<":FileFormat, %"<<(c+2)<<"q:Path )";
-				qp << opdata->database_id << itr->first << itr->second->get_filename();
+				qp << opdetail.database_id << itr->first << itr->second->get_filename();
 				first = false;
 			}
 
@@ -403,7 +403,7 @@ public:
 
 	std::string clear_cache_get_path(const archiving::org_id_t org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
-		rml::MySQLConnection conn(pool_); // scoped connection
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		unsigned int retry = 3;
 		while(retry--) {
 			try {
@@ -468,7 +468,7 @@ public:
 			const std::string& path,
 			const bool is_hardlink=true)
 	{
-		rml::MySQLConnection conn(pool_);
+		rml::MySQLConnection conn(*p_pool_);
 		try {
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingInternal`.`ArchiveDClearCache` "

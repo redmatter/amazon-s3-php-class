@@ -111,9 +111,9 @@ struct basic_endpoint
 				encryption_key == rhs.encryption_key;
 	}
 
-	friend std::ostream& operator<<(std::ostream& os)
+	friend std::ostream& operator<<(std::ostream& os, const basic_endpoint& be)
 	{
-		return os << "id:"<<id<<", org:"<<org<<", name:"<<name<<", encrypted:"<<RML_YES_NO(is_encrypted)<<", compressed:"<<RML_YES_NO(is_compressed);
+		return os << "id:"<<be.id<<", org:"<<be.org<<", name:"<<be.name<<", encrypted:"<<RML_YES_NO(be.is_encrypted)<<", compressed:"<<RML_YES_NO(be.is_compressed);
 	}
 };
 
@@ -270,11 +270,11 @@ static basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 
 	ostr << "/archiving/endpoint/" << org_id << '/' << endpoint_id;
 
-	const std::string& response = api.get(ostr.str());
+	const coreapi::response& response(api.get(ostr.str(), 200, true));
 
 	// run xpath
 	pugi::xml_document doc;
-	if(!doc.load(response.c_str()))
+	if(!doc.load(response.second.c_str()))
 		throw rml::exception("Unable to load response document");
 
 	pugi::xml_node endpoint_node;
@@ -373,7 +373,7 @@ static basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 			}
 		}
 
-		ret.reset(((basic_endpoint*)new s3::endpoint(
+		ret.reset(((basic_endpoint*)new s3_compatible::endpoint(
 				rml::utils::strtoull(id_str),
 				org_id_xml,
 				name_str,

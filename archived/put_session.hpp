@@ -284,7 +284,7 @@ private:
 			istr >> verb;
 			if(!(verb == "NOP" || verb == "PUT" || verb == "BYE")) {
 				std::string str;
-				std::getline(is, str, '\r'); istr >> lf;
+				std::getline(istr, str, '\r'); istr >> lf;
 
 				LogError(remote_ep<<" Invalid request received '"<<verb<<str<<'\'');
 				current_state_ = states::put_received_ack_err;

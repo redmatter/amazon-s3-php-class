@@ -31,7 +31,6 @@
 #include <fstream>
 #include <string>
 #include <map>
-#include <hash_map>
 
 #include <stdint.h>
 #include <strings.h>

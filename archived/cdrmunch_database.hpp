@@ -46,7 +46,7 @@ public:
 
 	void save(whisper::pointer p_whisper)
 	{
-		rml::MySQLConnection conn(pool_); // scoped connection
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
 
 		mysqlpp::Query query = conn->query();
 		query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
