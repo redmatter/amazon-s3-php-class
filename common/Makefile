@@ -3,6 +3,8 @@ include ../version_info
 
 TARGET=libarchiving_common.a
 
+CXX_INCLUDES += -I/usr/include/cpp-netlib
+
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
 	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
