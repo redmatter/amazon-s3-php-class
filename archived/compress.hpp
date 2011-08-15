@@ -272,7 +272,7 @@ public:
 			try {
 				operation_data::pointer opdata = compress_channel_.consume();
 
-				if(opdata->state != operation_state::get_file_convert || opdata->state != operation_state::put_file_convert);
+				if(opdata->p_detail->state != operation_state::get_file_convert || opdata->p_detail->state != operation_state::put_file_convert);
 					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
 
 				const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
@@ -296,7 +296,7 @@ public:
 							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
 
 					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
-						opdata->state = operation_state::operation_state_t(opdata->state + 1); // let it move on from "convert"
+						opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1); // let it move on from "convert"
 				}
 
 				// put it back to the main channel

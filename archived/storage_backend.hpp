@@ -267,7 +267,7 @@ protected:
 
 public:
 
-	friend class basic_backend<backend>;
+	friend class basic_backend;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -329,7 +329,7 @@ public:
 
 	void put(operation_data::pointer opdata)
 	{
-		if(opdata->state != operation_state::put_file_save && opdata->p_detail->retry > 0)
+		if(opdata->p_detail->state != operation_state::put_file_save && opdata->p_detail->retry > 0)
 			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
 
 		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);

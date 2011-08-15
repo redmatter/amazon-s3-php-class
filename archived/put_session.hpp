@@ -465,7 +465,7 @@ private:
 
 					if( policy_id_ >= 0 ) {
 						opdata->p_detail->policy = applied_policy(cached_policy_finder_(std::make_pair(orgID_, policy_id_)), creation_time_);
-						opdata->p_detail->p_endpoint = cached_endpoint_finder_(orgID_);
+						opdata->p_detail->p_endpoint = cached_endpoint_finder_(orgID_, opdata->p_detail->policy.p_policy->endpoint_id);
 						opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
 					}
 
@@ -477,7 +477,7 @@ private:
 					opdata->p_detail->retry = 0;
 					opdata->p_detail->database_id = 0;
 					opdata->p_detail->p_metadata = metadata_;
-					opdata->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
+					opdata->p_detail->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
 
 					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 

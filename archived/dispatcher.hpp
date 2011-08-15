@@ -50,7 +50,7 @@ public:
 	{
 		if(storage_opr_result == storage::operation_result::success) {
 			LogVerbose(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
-			opdata->state = operation_state::operation_state_t(opdata->state + 1);
+			opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			retention_data_channel_.produce(opdata);
 		}
@@ -60,11 +60,11 @@ public:
 			opdata->p_detail->retry++;
 			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
 				error = true;
-				opdata->state = operation_state::operation_state_t(opdata->state + 2);
+				opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 2);
 				LogError(opdata->p_detail->identifier<<": Failed store after "<<opdata->p_detail->retry<<" retry(s)");
 			}
 			else
-				opdata->state = operation_state::operation_state_t(opdata->state - 2); // setup retry
+				opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state - 2); // setup retry
 
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
@@ -79,20 +79,20 @@ public:
 			try {
 				operation_data::pointer opdata = convert_done_channel_.consume();
 				const std::string& identifier(opdata->p_detail->identifier);
-				if(opdata->state == operation_state::put_file_convert_ok) {
+				if(opdata->p_detail->state == operation_state::put_file_convert_ok) {
 
-					opdata->state = operation_state::put_file_save;
+					opdata->p_detail->state = operation_state::put_file_save;
 					s3_operation_channel_.produce(
 							storage::s3::operation_ex(
 									storage::operation::put_object_commit,
 									opdata,
 									boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
 				}
-//				else if(opdata->state == operation_state::get_file_convert_ok) {
+//				else if(opdata->p_detail->state == operation_state::get_file_convert_ok) {
 //					//TODO
 //				}
 				else
-					LogError(identifier<<": invalid state found; state:"<<opdata->state);
+					LogError(identifier<<": invalid state found; state:"<<opdata->p_detail->state);
 			}
 			catch(...) {
 			}
