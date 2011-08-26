@@ -87,7 +87,7 @@ struct operation_data
 		applied_policy policy;
 
 		// The storage-endpoint definition
-		storage::s3::endpoint::pointer p_endpoint;
+		storage::basic_endpoint::pointer p_endpoint;
 
 		// target file format defined according to storage-endpoint
 		types::file_format::file_format_t target_file_format;
