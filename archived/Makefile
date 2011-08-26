@@ -43,6 +43,8 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 ARCHIVED_LISTEN_PORT=10100
 CPPFLAGS += -DARCHIVED_LISTEN_PORT='"$(ARCHIVED_LISTEN_PORT)"'
 
+CPPFLAGS += -I/usr/include/cpp-netlib
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
