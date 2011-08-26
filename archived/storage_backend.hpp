@@ -329,18 +329,20 @@ public:
 
 	void put(operation_data::pointer opdata)
 	{
+		endpoint::pointer p_endpoint( boost::static_pointer_cast<endpoint>(opdata->p_detail->p_endpoint) );
+
 		if(opdata->p_detail->state != operation_state::put_file_save && opdata->p_detail->retry > 0)
-			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
+			THROW_RML_EXCEPTION(p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
 
 		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
 		if(!tmpfs)
-			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
+			THROW_RML_EXCEPTION(p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
 
 		assert(false == opdata->p_detail->p_metadata->empty());
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
-		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
+		put(p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
 	}
 
 	inline void put(
