@@ -259,13 +259,13 @@ int main(int argc, char **argv) try
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
-		app::coreapi coreapi(app::confMap);
+		boost::asio::io_service io_service;
+
+		app::coreapi coreapi(app::confMap, io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
 		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
 				boost::bind(&app::storage::endpoint_finder, boost::ref(coreapi), _1));
-
-		boost::asio::io_service io_service;
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
