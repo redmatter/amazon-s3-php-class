@@ -40,14 +40,14 @@ public:
 //		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
 //	}
 
-	void encrypt(std::istream& istr, std::ostream& ostr, const std::vector<uint8_t>& encryption_key)
+	void encrypt(std::istream& istr, std::ostream& ostr, const storage::basic_endpoint::encryption_key_t& encryption_key)
 	{
 		try {
 			uint8_t iv[CryptoPP::Blowfish::BLOCKSIZE];
 			rng_.GenerateBlock(iv, sizeof(iv));
 
 			CryptoPP::CBC_Mode< CryptoPP::Blowfish >::Encryption blowfish_enc;
-			blowfish_enc.SetKeyWithIV(&encryption_key[0], encryption_key.size(), iv, CryptoPP::Blowfish::BLOCKSIZE);
+			blowfish_enc.SetKeyWithIV(&encryption_key[0], storage::basic_endpoint::encryption_key_t::static_size, iv, CryptoPP::Blowfish::BLOCKSIZE);
 
 			std::size_t file_size = 0;
 			{
