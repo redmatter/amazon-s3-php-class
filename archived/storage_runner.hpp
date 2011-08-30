@@ -21,7 +21,6 @@ template < typename storage_t, typename channel_t >
 class basic_runner
 {
 	typedef typename channel_t::item_t operation_ex_t;
-	typedef typename channel_t::item_t::object_identifier_t object_identifier_t;
 
 	storage_t& storage_;
 	channel_t& channel_;
