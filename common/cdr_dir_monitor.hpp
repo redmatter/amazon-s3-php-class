@@ -58,7 +58,7 @@ public:
 	    	LogError("cdr_dir_monitor: err:"<<e);
 	}
 
-	void operator() (const std::string& file_path)
+	void add_path(const std::string& file_path)
 	{
 		try {
 			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
