@@ -94,11 +94,10 @@ class basic_backend : public boost::noncopyable
 public:
 	typedef boost::shared_ptr< basic_backend > pointer;
 
-	typedef typename Backend::pointer Backend_ptr;
-
-	Backend_ptr get_instance(const boost::program_options::variables_map& confMap)
+	static pointer get_instance(const boost::program_options::variables_map& confMap = boost::program_options::variables_map())
 	{
-		return Backend_ptr(new Backend(confMap));
+		static pointer p_backend_( new Backend(confMap) );
+		return p_backend_;
 	}
 
 	virtual ~basic_backend()
