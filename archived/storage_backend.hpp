@@ -188,11 +188,6 @@ protected:
 		LogMessage("S3 backend created");
 	}
 
-	virtual ~backend()
-	{
-		LogMessage("S3 backend destroyed");
-	}
-
 	struct put_callback_data
 	{
 		rml::utils::tmp_fstream::pointer p_tmpfs_;
@@ -276,6 +271,11 @@ protected:
 public:
 
 	friend class basic_backend< backend >;
+
+	virtual ~backend()
+	{
+		LogMessage("S3 backend destroyed");
+	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
