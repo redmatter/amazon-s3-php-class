@@ -580,10 +580,10 @@ private:
 	void get_archivable_for_put()
 	{
 		try {
-			if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok) || put_archivable_ptr_.get()) {
+			if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok) || put_archivable_ptr_.get()) {
 
-				if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok))
-					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok");
+				if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
+					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok");
 
 				if(put_archivable_ptr_)
 					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; put_archivable_ptr_ != NULL");
