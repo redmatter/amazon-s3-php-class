@@ -605,6 +605,7 @@ private:
 							boost::asio::placeholders::error));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
+			LogVerbose("NOP -> ArchiveD");
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			ostr << "NOP\r\n";
 			current_state_ = state::nop_sent;
