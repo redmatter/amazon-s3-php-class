@@ -24,7 +24,7 @@ class directory_loader {
 
 	boost::function<void(const std::string&)>& loader_;
 
-	bool& quit_;
+	volatile bool& quit_;
 
 	enum constant
 	{
@@ -39,7 +39,7 @@ public:
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, boost::function<void(const std::string&)>& loader, bool& quit) :
+	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, boost::function<void(const std::string&)>& loader, volatile bool& quit) :
 		dir_path_(dir_path), confMap_(confMap), loader_(loader), quit_(quit)
 	{
 	}
