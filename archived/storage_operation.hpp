@@ -29,8 +29,7 @@ struct operation
 	{
 		invalid = 0,
 		get_object,
-		put_object_init,
-		put_object_commit,
+		put_object,
 		delete_object,
 		stat_object,
 
@@ -42,8 +41,7 @@ struct operation
 		static const char* str[] = {
 				"invalid",
 				"get_object",
-				"put_object_init",
-				"put_object_commit",
+				"put_object",
 				"delete_object",
 				"stat_object"
 		};
@@ -60,19 +58,15 @@ struct operation_result
 	enum operation_result_t { success, failure, interrupted };
 };
 
-template < typename object_identifier >
 struct operation_ex
 {
-	typedef object_identifier object_identifier_t;
-	typedef typename object_identifier::pointer object_identifier_ptr_t;
-
-	typedef boost::function< void (object_identifier_ptr_t, operation_result::operation_result_t) > callback_t;
+	typedef boost::function< void (operation_data::pointer, operation_result::operation_result_t) > callback_t;
 
 	operation::operation_t op;
-	object_identifier_ptr_t p_obj;
+	operation_data::pointer p_obj;
 	callback_t callback;
 
-	operation_ex(const operation::operation_t& op, const object_identifier_ptr_t& p_obj, const callback_t& callback) :
+	operation_ex(const operation::operation_t& op, const operation_data::pointer& p_obj, const callback_t& callback) :
 		op(op), p_obj(p_obj), callback(callback)
 	{
 	}
@@ -84,26 +78,19 @@ struct operation_ex
 
 };
 
-
-namespace s3 {
-
-typedef storage::operation_ex< operation_data > operation_ex;
-
 struct operation_ex_compare
 {
 	bool operator() (const operation_ex& lhs, const operation_ex& rhs) {
 		if(lhs.op != rhs.op)
 			return lhs.op < rhs.op;
 
-		operation_ex::object_identifier_t::pointer_compare_lt obj_lt;
+		operation_data::pointer_compare_lt obj_lt;
 
 		return obj_lt(lhs.p_obj, rhs.p_obj);
 	}
 };
 
 typedef rml::pc_channel<operation_ex, operation_ex_compare> operation_channel_t;
-
-}  // namespace s3
 
 }  // namespace storage
 

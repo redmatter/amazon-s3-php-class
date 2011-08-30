@@ -45,7 +45,7 @@ public:
 				storage::operation_result::operation_result_t result = storage::operation_result::failure;
 				try {
 					switch(op_obj.op) {
-					case operation::put_object_commit:
+					case operation::put_object:
 						result = storage_.commit_put(op_obj.p_obj)?
 								storage::operation_result::success:
 								storage::operation_result::failure;

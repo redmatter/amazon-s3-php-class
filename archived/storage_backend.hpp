@@ -88,10 +88,18 @@ namespace storage {
 
 typedef std::map< std::string, std::string > string_map_t;
 
+template < typename Backend >
 class basic_backend : public boost::noncopyable
 {
 public:
 	typedef boost::shared_ptr< basic_backend > pointer;
+
+	typedef typename Backend::pointer Backend_ptr;
+
+	Backend_ptr get_instance(const boost::program_options::variables_map& confMap)
+	{
+		return Backend_ptr(new Backend(confMap));
+	}
 
 	virtual ~basic_backend()
 	{
@@ -166,7 +174,7 @@ namespace s3 {
 //
 //} //namespace specific
 
-class backend : public basic_backend
+class backend : public basic_backend< backend >
 {
 	const boost::program_options::variables_map& confMap_;
 
@@ -221,6 +229,7 @@ protected:
 	static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
 	{
 		string_map_t& p_str_map(*(string_map_t *)callbackData);
+		(void)p_str_map;
 
 		return S3StatusOK;
 	}

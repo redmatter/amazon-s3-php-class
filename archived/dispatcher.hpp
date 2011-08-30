@@ -84,7 +84,7 @@ public:
 					opdata->p_detail->state = operation_state::put_file_save;
 					s3_operation_channel_.produce(
 							storage::s3::operation_ex(
-									storage::operation::put_object_commit,
+									storage::operation::put_object,
 									opdata,
 									boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
 				}
