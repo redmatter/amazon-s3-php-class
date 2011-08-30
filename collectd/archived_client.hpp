@@ -183,7 +183,7 @@ public:
 		current_state_ = state::closing_bye_wait;
 
 		std::ostream ostr(&send_buffer_); ostr.clear();
-		ostr << "BYE\r\n";
+		ostr << "BYE\r\n\r\n";
 		boost::asio::async_write(socket_, send_buffer_,
 				boost::bind(&archived_client::handle_write, this,
 						boost::asio::placeholders::error,
@@ -605,9 +605,9 @@ private:
 							boost::asio::placeholders::error));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
-			LogVerbose("NOP -> ArchiveD");
+			LogVerbose(channel_<<' '<<e.what()<<"; NOP to ArchiveD");
 			std::ostream ostr(&send_buffer_); ostr.clear();
-			ostr << "NOP\r\n";
+			ostr << "NOP\r\n\r\n";
 			current_state_ = state::nop_sent;
 			boost::asio::async_write(socket_, send_buffer_,
 					boost::bind(&archived_client::handle_write, this,
