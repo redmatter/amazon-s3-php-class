@@ -15,6 +15,7 @@ endif
 FREESWITCH_DIR=/opt/freeswitch
 
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
+CXX_INCLUDES += -I/usr/include/cpp-netlib
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib
 
