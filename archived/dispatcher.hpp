@@ -21,7 +21,7 @@ namespace app {
 class dispatcher
 {
 	operation_data::channel_t& convert_done_channel_;
-	storage::s3::operation_channel_t& s3_operation_channel_;
+	storage::operation_channel_t& operation_channel_;
 	operation_data::channel_t& retention_data_channel_;
 	// operation_data::channel_t& get_data_ready_channel_;
 
@@ -32,13 +32,13 @@ class dispatcher
 public:
 	dispatcher(
 			operation_data::channel_t& convert_done_channel,
-			storage::s3::operation_channel_t& s3_operation_channel,
+			storage::operation_channel_t& operation_channel,
 			operation_data::channel_t& retention_data_channel,
 			// operation_data::channel_t& get_data_ready_channel,
 			database::internal& internal_db,
 			volatile bool& quit) :
 				convert_done_channel_(convert_done_channel),
-				s3_operation_channel_(s3_operation_channel),
+				operation_channel_(operation_channel),
 				retention_data_channel_(retention_data_channel),
 				// get_data_ready_channel_(get_data_ready_channel),
 				internal_db_(internal_db),
@@ -82,8 +82,8 @@ public:
 				if(opdata->p_detail->state == operation_state::put_file_convert_ok) {
 
 					opdata->p_detail->state = operation_state::put_file_save;
-					s3_operation_channel_.produce(
-							storage::s3::operation_ex(
+					operation_channel_.produce(
+							storage::operation_ex(
 									storage::operation::put_object,
 									opdata,
 									boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
