@@ -167,6 +167,8 @@ public:
 				return false;
 			}
 		}
+		else
+			LogDebug("Logout invalid; "<<(authorization_error_? "Auth error": (authorization_.empty()? "Not authed": "Unknown error")));
 
 		return true;
 	}
