@@ -11,7 +11,7 @@
 #include <rml/logger.h>
 #include <rml/exception.h>
 
-#include <boost/network/protocol/http/client.hpp>
+#include <boost/network/protocol/http.hpp>
 
 #include <pugixml/pugixml.hpp>
 
