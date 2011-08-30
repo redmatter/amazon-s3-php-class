@@ -20,21 +20,10 @@
 namespace app {
 
 class directory_loader {
-	const std::string dir_path_;
-	const boost::program_options::variables_map& confMap_;
-
-	typedef boost::function<void(const std::string&)> loader_fn;
-
-	loader_fn& loader_;
-
-	volatile bool& quit_;
-
-	enum constant
-	{
-		min_interval = 60
-	};
 
 public:
+	typedef boost::function<void(const std::string&)> loader_fn;
+
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
@@ -100,6 +89,17 @@ public:
 
 		LogMessage("directory_loader terminating...");
 	}
+
+private:
+	const std::string dir_path_;
+	const boost::program_options::variables_map& confMap_;
+	loader_fn& loader_;
+	volatile bool& quit_;
+
+	enum constant
+	{
+		min_interval = 60
+	};
 };
 
 }  // namespace app

@@ -180,9 +180,9 @@ int main(int argc, char* argv[]) try
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		app::directory_loader directory_loader(cdr_directory, app::confMap,
-				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1),
-				app::quit);
+		app::directory_loader::loader_fn directory_loader_fn(
+				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
+		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap, app::hostname);
