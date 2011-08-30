@@ -275,7 +275,7 @@ protected:
 
 public:
 
-	friend class basic_backend;
+	friend class basic_backend< backend >;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{

@@ -248,7 +248,7 @@ int main(int argc, char **argv) try
 
 		app::operation_data::channel_t convert_channel("Convert");
 		app::operation_data::channel_t convert_done_channel("ConvertDone");
-		app::storage::s3::operation_channel_t s3_operation_channel("S3Ops");
+		app::storage::operation_channel_t storage_operation_channel("StorageOps");
 		app::operation_data::channel_t retention_data_channel("RetentionData");
 		app::operation_data::channel_t usage_data_channel("UsageData");
 		app::whisper::channel_t whisper_channel("Whisper");
@@ -270,12 +270,12 @@ int main(int argc, char **argv) try
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
 		app::converter converter(convert_channel, convert_done_channel, internal_db, app::quit);
-		app::dispatcher dispatcher(convert_done_channel, s3_operation_channel, retention_data_channel,
+		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, app::quit);
 
 		app::storage::s3::storage s3storage(app::confMap);
 
-		app::storage::s3::runner s3runner(s3storage, s3_operation_channel, app::quit);
+		app::storage::s3::runner s3runner(s3storage, storage_operation_channel, app::quit);
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
@@ -331,7 +331,7 @@ int main(int argc, char **argv) try
 
 		convert_channel.set_finishing();
 		convert_done_channel.set_finishing();
-		s3_operation_channel.set_finishing();
+		storage_operation_channel.set_finishing();
 		retention_data_channel.set_finishing();
 		usage_data_channel.set_finishing();
 		whisper_channel.set_finishing();
