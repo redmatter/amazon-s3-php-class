@@ -181,7 +181,7 @@ int main(int argc, char* argv[]) try
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
 		app::directory_loader directory_loader(cdr_directory, app::confMap,
-				boost::bind(&archiving::cdr_dir_monitor::operator(), boost::ref(cdr_dir_monitor), _1),
+				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1),
 				app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
