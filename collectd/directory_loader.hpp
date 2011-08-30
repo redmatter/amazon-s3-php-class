@@ -11,6 +11,7 @@
 #include <rml/exception.h>
 
 #include <boost/program_options.hpp>
+#include <boost/bind.hpp>
 
 #include <dirent.h>
 #include <sys/types.h>
