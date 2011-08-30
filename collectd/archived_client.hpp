@@ -564,7 +564,7 @@ private:
 		}
 
 		default:
-			LogError("State NOT implemented OR Invalid!");
+			LogError(state::to_string(current_state_)<<" State NOT implemented OR Invalid!");
 
 		case state::general_err:
 		{
