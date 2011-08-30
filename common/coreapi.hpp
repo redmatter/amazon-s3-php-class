@@ -195,7 +195,9 @@ public:
 
 				request << boost::network::header("Authorization", authorization_);
 				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+			}
 
+			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
 					request << boost::network::header(itr->first, itr->second);
 					LogDebug(boost::this_thread::get_id()<<' '<<itr->first<<": "<<itr->second);
@@ -235,9 +237,9 @@ public:
 	 *
 	 * @return response
 	 */
-	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true) const
+	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers()) const
 	{
-		const response& r(get(uri, use_authorization));
+		const response& r(get(uri, use_authorization, h));
 		if(expected_status && r.first != expected_status) {
 			LogError("Unexpected response status; status:"<<r.first<<" (expected status:"<<expected_status<<')');
 			throw rml::exception("Unexpected response status");
@@ -254,7 +256,7 @@ public:
 	 *
 	 * @return pair< status, body >
 	 */
-	response delete_(const std::string& uri, const bool use_authorization = true) const
+	response delete_(const std::string& uri, const bool use_authorization = true, const headers& h = headers()) const
 	{
 		int attempts = 2;
 
@@ -269,6 +271,13 @@ public:
 
 				request << boost::network::header("Authorization", authorization_);
 				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+			}
+
+			if(!h.empty()) {
+				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
+					request << boost::network::header(itr->first, itr->second);
+					LogDebug(boost::this_thread::get_id()<<' '<<itr->first<<": "<<itr->second);
+				}
 			}
 
 			http_client_response response;
@@ -310,7 +319,7 @@ public:
 	 *
 	 * @return pair< status, body >
 	 */
-	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true) const
+	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers()) const
 	{
 		int attempts = 2;
 
@@ -325,6 +334,13 @@ public:
 
 				request << boost::network::header("Authorization", authorization_);
 				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+			}
+
+			if(!h.empty()) {
+				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
+					request << boost::network::header(itr->first, itr->second);
+					LogDebug(boost::this_thread::get_id()<<' '<<itr->first<<": "<<itr->second);
+				}
 			}
 
 			LogDebug(boost::this_thread::get_id()<<" Content-Type: "<<content_type);
