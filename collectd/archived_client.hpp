@@ -564,7 +564,7 @@ private:
 		}
 
 		default:
-			LogError(state::to_string(current_state_)<<" State NOT implemented OR Invalid!");
+			LogError("State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
 
 		case state::general_err:
 		{
@@ -609,8 +609,9 @@ private:
 			ostr << "NOP\r\n";
 			current_state_ = state::nop_sent;
 			boost::asio::async_write(socket_, send_buffer_,
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					boost::bind(&archived_client::handle_write, this,
+							boost::asio::placeholders::error,
+							boost::asio::placeholders::bytes_transferred));
 		}
 		catch(const archiving::archivable_channel_t::finishing_exception& e) {
 			LogMessage("channel finishing: closing");
