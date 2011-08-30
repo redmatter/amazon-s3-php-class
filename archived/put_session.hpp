@@ -299,6 +299,8 @@ private:
 						current_state_ = states::closing;
 						io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
 					}
+					else
+						current_state_ = states::ready_for_put;
 				}
 				else {
 					// PUT ....
