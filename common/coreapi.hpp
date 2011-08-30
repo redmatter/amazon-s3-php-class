@@ -156,7 +156,6 @@ public:
 	 */
 	inline bool logout() const
 	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
 		if(!authorization_.empty() && !authorization_error_) {
 			try {
 				const response& res( delete_("/auth/", true) );
