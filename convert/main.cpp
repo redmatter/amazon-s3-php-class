@@ -1,6 +1,7 @@
 #include "../archived/types.hpp"
 #include "../archived/compress.hpp"
 #include "../archived/crypto.hpp"
+#include "../archived/storage_endpoint.hpp"
 #include "../common/coreapi.hpp"
 
 #include <rml/logger.h>
@@ -185,11 +186,11 @@ int main(int argc, char* argv[])
 
 			case 3:
 			{
-				std::vector<uint8_t> enc_key(32);
+				const app::storage::basic_endpoint::encryption_key_t enc_key;
 				const std::string& key(cli_confMap["key"].as<std::string>());
 				CryptoPP::StringSource((const byte*)&key[0], key.length(), true,
 						new CryptoPP::Base64Decoder(
-								new CryptoPP::ArraySink(&enc_key[0], 32)));
+								new CryptoPP::ArraySink(&enc_key[0], app::storage::basic_endpoint::encryption_key_t::static_size)));
 
 				app::utils::crypto crypto;
 				crypto.decrypt(*p_source, *p_tmp, enc_key);
