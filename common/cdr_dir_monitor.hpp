@@ -43,9 +43,8 @@ public:
 			else if(ev.type & (dir_monitor::event::closed | dir_monitor::event::moved_to)) {
 				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close.find(file_path) != files_created_waiting_close.end()) ) {
 					try {
-						std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
-						channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname)));
-						files_created_waiting_close.erase(file_path);
+						if(add_path(file_path))
+							files_created_waiting_close.erase(file_path);
 					}
 					catch(const std::exception& e) {
 						LogError("Error while processing CDR; "<<e.what());
@@ -58,15 +57,18 @@ public:
 	    	LogError("cdr_dir_monitor: err:"<<e);
 	}
 
-	void add_path(const std::string& file_path)
+	inline bool add_path(const std::string& file_path)
 	{
 		try {
 			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
 			channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname)));
+			return true;
 		}
 		catch(const std::exception& e) {
 			LogError("Error while processing CDR; "<<e.what());
 		}
+
+		return false;
 	}
 
 };

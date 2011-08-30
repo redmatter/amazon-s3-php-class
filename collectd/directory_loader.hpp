@@ -22,7 +22,7 @@ namespace app {
 class directory_loader {
 
 public:
-	typedef boost::function<void(const std::string&)> loader_fn;
+	typedef boost::function<bool(const std::string&)> loader_fn;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -75,7 +75,7 @@ public:
 					else if((time(0) - s.st_ctime) < 3) // lets ignore any freshies for 3secs
 						continue;
 
-					loader_(file_path);
+					(void)loader_(file_path);
 				}
 
 				closedir(dh);
