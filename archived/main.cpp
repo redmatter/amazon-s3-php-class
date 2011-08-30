@@ -261,7 +261,7 @@ int main(int argc, char **argv) try
 
 		boost::asio::io_service io_service;
 
-		app::coreapi coreapi(app::confMap, io_service);
+		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
 		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
@@ -335,6 +335,8 @@ int main(int argc, char **argv) try
 		retention_data_channel.set_finishing();
 		usage_data_channel.set_finishing();
 		whisper_channel.set_finishing();
+
+		coreapi.logout();
 
 		io_service.stop();
 

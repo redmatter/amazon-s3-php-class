@@ -18,6 +18,7 @@
 #include <boost/thread/mutex.hpp>
 
 #include <utility>
+#include <map>
 
 // TODO DELETE auth on deinit
 
@@ -31,6 +32,8 @@ class coreapi
 public:
 	typedef std::pair< uint16_t, std::string > response;
 
+	typedef std::map< std::string, std::string > headers;
+
 private:
 	typedef boost::network::http::basic_client< Tag , 1 , 1 > http_client;
 	typedef typename http_client::request http_client_request;
@@ -38,6 +41,7 @@ private:
 
 	std::string base_url_;
 	std::string auth_hash_;
+	std::string ui_version_;
 
 	mutable boost::asio::io_service& io_service_;
 	mutable http_client client_;
@@ -61,7 +65,10 @@ private:
 			try {
 				time(&auth_attempt_time_);
 
-				const response& res( get(std::string("/auth/")+auth_hash_, false) );
+				headers hdr;
+				hdr.insert(std::make_pair<std::string, std::string>("UIVERSION", ui_version_));
+
+				const response& res( get(std::string("/auth/")+auth_hash_, false, hdr) );
 
 				// run xpath
 				pugi::xml_document doc;
@@ -115,24 +122,27 @@ public:
 	coreapi(const coreapi& copy) :
 		base_url_(copy.base_url_),
 		auth_hash_(copy.auth_hash_),
+		ui_version_(copy.ui_version_),
 		io_service_(copy.io_service_),
 		client_(io_service_)
 	{
 		init();
 	}
 
-	coreapi(const std::string& base_url, const std::string& auth_hash, boost::asio::io_service& io_service) :
+	coreapi(const std::string& base_url, const std::string& auth_hash, const std::string& ui_version, boost::asio::io_service& io_service) :
 		base_url_(base_url),
 		auth_hash_(auth_hash),
+		ui_version_(ui_version),
 		io_service_(io_service),
 		client_(io_service_)
 	{
 		init();
 	}
 
-	coreapi(const boost::program_options::variables_map& confMap, boost::asio::io_service& io_service) :
+	coreapi(const boost::program_options::variables_map& confMap, const std::string& ui_version, boost::asio::io_service& io_service) :
 		base_url_(confMap["coreapi.url"].as<std::string>()),
 		auth_hash_(confMap["coreapi.auth_hash"].as<std::string>()),
+		ui_version_(ui_version),
 		io_service_(io_service),
 		client_(io_service_)
 	{
@@ -140,14 +150,37 @@ public:
 	}
 
 	/**
+	 * logout from API
+	 *
+	 * @return true on loged-in & logout succeeded
+	 */
+	inline bool logout() const
+	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+		if(!authorization_.empty() && !authorization_error_) {
+			try {
+				const response& res( delete_("/auth/", true) );
+				return (res.first >= 200 && res.first < 300);
+			}
+			catch(const std::exception& e) {
+				LogWarning("Delete failed: exception: "<<e.what());
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * GET requests
 	 *
 	 * @param uri
 	 * @param use_authorization
+	 * @param h headers
 	 *
 	 * @return pair< status, body >
 	 */
-	response get(const std::string& uri, const bool use_authorization = true) const
+	response get(const std::string& uri, const bool use_authorization = true, const headers& h = headers()) const
 	{
 		int attempts = 2;
 
@@ -162,6 +195,11 @@ public:
 
 				request << boost::network::header("Authorization", authorization_);
 				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+
+				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
+					request << boost::network::header(itr->first, itr->second);
+					LogDebug(boost::this_thread::get_id()<<' '<<itr->first<<": "<<itr->second);
+				}
 			}
 
 			http_client_response response;
