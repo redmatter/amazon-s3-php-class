@@ -292,7 +292,7 @@ private:
 			}
 			else {
 				if(verb == "NOP" || verb == "BYE") {
-					istr >> cr >> lf;
+					istr >> cr >> lf >> cr >> lf;
 					LogMessage(remote_ep<<' '<<verb<<" received");
 					ostr << "OK\r\n";
 					if(verb == "BYE") {
