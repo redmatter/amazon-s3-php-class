@@ -25,9 +25,13 @@ class cdr_dir_monitor {
 	string_set files_created_waiting_close;
 
 public:
-	cdr_dir_monitor(archivable_channel_t& channel, const std::string& pbx_hostname) : channel(channel), pbx_hostname(pbx_hostname) { }
+	cdr_dir_monitor(archivable_channel_t& channel, const std::string& pbx_hostname) :
+		channel(channel), pbx_hostname(pbx_hostname)
+	{
+	}
 
-	void operator() (dir_monitor::event ev, boost::system::error_code e) {
+	void operator() (dir_monitor::event ev, boost::system::error_code e)
+	{
 	    if (!e) {
 	    	LogVerbose("cdr_dir_monitor: received event "<<ev);
 
@@ -53,6 +57,18 @@ public:
 	    else
 	    	LogError("cdr_dir_monitor: err:"<<e);
 	}
+
+	void operator() (const std::string& file_path)
+	{
+		try {
+			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
+			channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname)));
+		}
+		catch(const std::exception& e) {
+			LogError("Error while processing CDR; "<<e.what());
+		}
+	}
+
 };
 
 }  // namespace archiving

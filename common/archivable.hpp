@@ -433,6 +433,7 @@ public:
 };
 
 typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
+typedef rml::busy_set<archivable::pointer, archivable_pointer_compare> archivable_busy_set_t;
 
 }  // namespace archiving
 

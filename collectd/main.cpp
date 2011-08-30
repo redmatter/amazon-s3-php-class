@@ -7,6 +7,7 @@
 
 #include "archived_client.hpp"
 #include "cdr_inspector.hpp"
+#include "directory_loader.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -125,6 +126,7 @@ int main(int argc, char* argv[]) try
 
 		app::cdr_inspector::describe_config(optsDesc);
 		app::archived_client::describe_config(optsDesc);
+		app::directory_loader::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -160,7 +162,11 @@ int main(int argc, char* argv[]) try
 
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 
-		archiving::archivable_channel_t in_channel("IN");
+		archiving::archivable_busy_set_t in_channel_busy_set;
+		archiving::archivable_channel_t in_channel(
+				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(in_channel_busy_set), _1),
+				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(in_channel_busy_set), _1),
+				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
 
 		initialized = true;
@@ -173,6 +179,9 @@ int main(int argc, char* argv[]) try
 		archiving::dir_monitor dir_monitor(io_service);
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
+
+		app::directory_loader directory_loader(cdr_directory, app::confMap, cdr_dir_monitor, app::quit);
+		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
