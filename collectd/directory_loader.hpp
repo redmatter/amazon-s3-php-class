@@ -23,7 +23,9 @@ class directory_loader {
 	const std::string dir_path_;
 	const boost::program_options::variables_map& confMap_;
 
-	boost::function<void(const std::string&)>& loader_;
+	typedef boost::function<void(const std::string&)> loader_fn;
+
+	loader_fn& loader_;
 
 	volatile bool& quit_;
 
@@ -40,7 +42,7 @@ public:
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, boost::function<void(const std::string&)>& loader, volatile bool& quit) :
+	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, volatile bool& quit) :
 		dir_path_(dir_path), confMap_(confMap), loader_(loader), quit_(quit)
 	{
 	}
