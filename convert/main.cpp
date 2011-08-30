@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
 
 			case 3:
 			{
-				const app::storage::basic_endpoint::encryption_key_t enc_key;
+				app::storage::basic_endpoint::encryption_key_t enc_key;
 				const std::string& key(cli_confMap["key"].as<std::string>());
 				CryptoPP::StringSource((const byte*)&key[0], key.length(), true,
 						new CryptoPP::Base64Decoder(
