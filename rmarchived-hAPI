@@ -1,0 +1,68 @@
+#!/bin/sh
+
+function Die
+{
+	echo "$1"
+	exit 1
+}
+
+MYSQL_USER=cdruser
+MYSQL_DB=CDR
+
+CONFIG_DB_CDRMUNCH=/etc/archiving/cdrmunch_database.conf
+CONFIG_DB_RETENTION=/etc/archiving/retention_database.conf
+CONFIG_DB_INTERNAL=/etc/archiving/internal_database.conf
+CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
+CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
+
+MYSQL_RO=`hapi mysql $MYSQL_USER $MYSQL_DB host ro`
+if [ $? != 0 ]; then
+	Die "Failed to call hapi mysql $MYSQL_USER $MYSQL_DB host ro"
+fi
+
+MYSQL_RW=`hapi mysql $MYSQL_USER $MYSQL_DB host rw`
+if [ $? != 0 ]; then
+	Die "Failed to call hapi mysql $MYSQL_USER $MYSQL_DB host rw"
+fi
+
+MYSQL_PW=`hapi mysql $MYSQL_USER $MYSQL_DB pass`
+if [ $? != 0 ]; then
+	Die "Failed to call hapi mysql $MYSQL_USER $MYSQL_DB pass"
+fi
+
+HOSTTYPE=`hapi get HostType`
+if [ $? != 0 ]; then
+	Die "Failed to call hapi get HostType"
+fi
+
+SEARCHDOMAIN=`hapi get SearchDomain`
+if [ $? != 0 ]; then
+	Die "Failed to call hapi get SearchDomain"
+fi
+
+hapi mysql $MYSQL_USER $MYSQL_DB test ro || echo "TEST FAILED TO RO DATABASE CONNECTION"
+hapi mysql $MYSQL_USER $MYSQL_DB test rw || echo "TEST FAILED TO RW DATABASE CONNECTION"
+
+if [ -f $CONFIG_DB_INTERNAL ]; then
+	sed -i "s/mysql_internal.host\(.*\)/mysql_internal.host = $MYSQL_RW/" $CONFIG_DB_INTERNAL 						|| Die "Unable to set mysql_internal.host in $CONFIG_DB_INTERNAL"
+	sed -i "s/mysql_internal.password\(.*\)/mysql_internal.password = $MYSQL_PW/" $CONFIG_DB_INTERNAL				|| Die "Unable to set mysql.password in $CONFIG_DB_INTERNAL"
+fi
+
+if [ -f $CONFIG_DB_CDRMUNCH ]; then
+	sed -i "s/mysql_cdrmunch.host\(.*\)/mysql_cdrmunch.host = $MYSQL_RW/" $CONFIG_DB_CDRMUNCH						|| Die "Unable to set mysql_cdrmunch.host in $CONFIG_DB_CDRMUNCH"
+	sed -i "s/mysql_cdrmunch.password\(.*\)/mysql_cdrmunch.password = $MYSQL_PW/" $CONFIG_DB_CDRMUNCH				|| Die "Unable to set mysql_cdrmunch.password in $CONFIG_DB_CDRMUNCH"
+fi
+
+if [ -f $CONFIG_DB_RETENTION ]; then
+	sed -i "s/mysql_retention.host\(.*\)/mysql_retention.host = $MYSQL_RW/" $CONFIG_DB_RETENTION					|| Die "Unable to set mysql_retention.host in $CONFIG_DB_RETENTION"
+	sed -i "s/mysql_retention.password\(.*\)/mysql_retention.password = $MYSQL_PW/" $CONFIG_DB_RETENTION			|| Die "Unable to set mysql_retention.password in $CONFIG_DB_RETENTION"
+fi
+
+if [ -f $CONFIG_ARCHIVED ]; then
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED						|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
+fi
+
+if [ -f $CONFIG_COLLECTD ]; then
+	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = http\:\/\/archived.$SEARCHDOMAIN\//" $CONFIG_COLLECTD				|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTD"
+fi
+
