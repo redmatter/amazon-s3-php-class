@@ -116,10 +116,10 @@ cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 # Common
 mkdir -p %{buildroot}/etc/archiving/conf.d/
-cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf.sample
-cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf.sample
-cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf.sample
-#cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf.sample
+cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf
+cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf
+cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf
+#cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
 # ----------
 
@@ -190,7 +190,7 @@ fi
 /usr/bin/rmarchived_safe
 /usr/share/archiving/rmarchived.supp
 /etc/rc.d/init.d/rmarchived
-%config(noreplace) /etc/archiving/rmarchived.conf
+/etc/archiving/rmarchived.conf
 %dir /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmarchived
@@ -202,7 +202,7 @@ fi
 /usr/bin/rmcollectd_safe
 /usr/share/archiving/rmcollectd.supp
 /etc/rc.d/init.d/rmcollectd
-%config(noreplace) /etc/archiving/rmcollectd.conf
+/etc/archiving/rmcollectd.conf
 %dir /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmcollectd
@@ -228,10 +228,10 @@ fi
 
 %files common
 %dir /etc/archiving/conf.d/
-/etc/archiving/internal_database.conf.sample
-/etc/archiving/retention_database.conf.sample
-/etc/archiving/cdrmunch_database.conf.sample
-# /etc/archiving/migration_database.conf.sample
+/etc/archiving/internal_database.conf
+/etc/archiving/retention_database.conf
+/etc/archiving/cdrmunch_database.conf
+# /etc/archiving/migration_database.conf
 
 # ----------
 
