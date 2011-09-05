@@ -63,6 +63,6 @@ if [ -f $CONFIG_ARCHIVED ]; then
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
-	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = http\:\/\/archived.$SEARCHDOMAIN\//" $CONFIG_COLLECTD				|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTD"
+	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTD				|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTD"
 fi
 
