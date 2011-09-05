@@ -119,6 +119,7 @@ mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf
+cp rmarchived-hAPI %{buildroot}/usr/bin/ 
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
 # ----------
@@ -161,14 +162,22 @@ fi
 # ----------
 
 %post
+/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 [ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
 
 %post collectd
+/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
 [ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+
+%post convert
+/usr/bin/rmarchived-hAPI
+
+%post common
+/usr/bin/rmarchived-hAPI
 
 #%post migrationd
 #/sbin/chkconfig --add rmmigrationd
@@ -185,6 +194,7 @@ fi
 # ----------
 
 %files
+%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root) 
 /usr/bin/rmarchived.bin
 /usr/bin/rmarchived_safe
@@ -197,6 +207,7 @@ fi
 /etc/rsyslog.d/11-rmarchived.conf
 
 %files collectd
+%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root) 
 /usr/bin/rmcollectd.bin
 /usr/bin/rmcollectd_safe
@@ -223,10 +234,12 @@ fi
 #/usr/share/archiving/migration-scripts/*
 
 %files convert
+%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root) 
 /usr/bin/archiving-convert
 
 %files common
+%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
 /etc/archiving/internal_database.conf
 /etc/archiving/retention_database.conf
