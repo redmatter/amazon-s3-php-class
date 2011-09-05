@@ -116,9 +116,9 @@ cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 # Common
 mkdir -p %{buildroot}/etc/archiving/conf.d/
-cp common/internal_database.conf  %{buildroot}/etc/archiving/internal_database.conf
-cp common/retention_database.conf %{buildroot}/etc/archiving/retention_database.conf
-cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/cdrmunch_database.conf
+cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
+cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
+cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp rmarchived-hAPI %{buildroot}/usr/bin/ 
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
@@ -241,9 +241,9 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
-/etc/archiving/internal_database.conf
-/etc/archiving/retention_database.conf
-/etc/archiving/cdrmunch_database.conf
+/etc/archiving/conf.d/internal_database.conf
+/etc/archiving/conf.d/retention_database.conf
+/etc/archiving/conf.d/cdrmunch_database.conf
 # /etc/archiving/migration_database.conf
 
 # ----------

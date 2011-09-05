@@ -9,9 +9,9 @@ function Die
 MYSQL_USER=cdruser
 MYSQL_DB=CDR
 
-CONFIG_DB_CDRMUNCH=/etc/archiving/cdrmunch_database.conf
-CONFIG_DB_RETENTION=/etc/archiving/retention_database.conf
-CONFIG_DB_INTERNAL=/etc/archiving/internal_database.conf
+CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
+CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
+CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
 CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 
