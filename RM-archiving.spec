@@ -28,7 +28,7 @@ Requires: cryptopp
 Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
-Conflicts: RM-cdrmunch-cdrpostd
+Obsoletes: RM-cdrmunch-cdrpostd
 
 #%package migrationd
 #Summary: Archiving CollectD
@@ -225,7 +225,7 @@ fi
 #/usr/bin/rmmigrationd_safe
 #/usr/share/archiving/rmmigrationd.supp
 #/etc/rc.d/init.d/rmmigrationd
-#%config(noreplace) /etc/archiving/rmmigrationd.conf
+#/etc/archiving/rmmigrationd.conf
 #%dir /var/lib/archiving
 #%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 #/etc/logrotate.d/rmmigrationd
