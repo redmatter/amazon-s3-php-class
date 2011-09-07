@@ -17,7 +17,7 @@ Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
 Requires: RM-%{appname}-common = %{version}-%{release}
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-14403, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-14387, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
 
 %package collectd
 Summary: Archiving CollectD
@@ -28,7 +28,7 @@ Requires: cryptopp
 Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
-Obsoletes: RM-cdrmunch-cdrpostd
+Conflicts: RM-cdrmunch-cdrpostd
 
 #%package migrationd
 #Summary: Archiving CollectD
@@ -225,7 +225,7 @@ fi
 #/usr/bin/rmmigrationd_safe
 #/usr/share/archiving/rmmigrationd.supp
 #/etc/rc.d/init.d/rmmigrationd
-#/etc/archiving/rmmigrationd.conf
+#%config(noreplace) /etc/archiving/rmmigrationd.conf
 #%dir /var/lib/archiving
 #%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 #/etc/logrotate.d/rmmigrationd
