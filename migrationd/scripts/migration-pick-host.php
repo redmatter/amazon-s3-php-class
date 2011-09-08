@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS `ArchivingInternal`.`Migration` (
 
 */
 
-$mysqli = new mysqli('localhost', 'root', null, 'test');
+$mysqli = new mysqli('localhost', 'root', null, 'ArchivingMigration');
 if ($mysqli->connect_error)
 	die('Connect Error ('.$mysqli->connect_errno.') '.$mysqli->connect_error);
 
@@ -54,7 +54,8 @@ $sql = "SELECT ".
 	"HEX(UUID) UUID, OrgID, Path, CreateEpoch, Type, ".
 	"HEX(MD5_s01fss01) MD5_s01fss01, HEX(MD5_s01fss02) MD5_s01fss02, HEX(MD5_gmtfss01) MD5_gmtfss01, HEX(MD5_gmtfss02) MD5_gmtfss02, ".
 	"Size_s01fss01, Size_s01fss02, Size_gmtfss01, Size_gmtfss02, GoodHost, Status ".
-	"FROM Migration WHERE Status!='error' AND FileState!='error' LIMIT 10";
+	"FROM Migration WHERE Status!='error' AND FileState!='error'";
+
 if ($result = $mysqli->query($sql))
 {
 	while ($row = $result->fetch_object())
