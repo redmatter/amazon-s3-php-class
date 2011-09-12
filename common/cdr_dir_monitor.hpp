@@ -20,13 +20,13 @@ namespace archiving {
 class cdr_dir_monitor {
 	typedef std::set<std::string> string_set;
 
-	archivable_channel_t& channel;
-	const std::string& pbx_hostname;
-	string_set files_created_waiting_close;
+	archivable_channel_t& channel_;
+	const std::string& pbx_hostname_;
+	string_set files_created_waiting_close_;
 
 public:
 	cdr_dir_monitor(archivable_channel_t& channel, const std::string& pbx_hostname) :
-		channel(channel), pbx_hostname(pbx_hostname)
+		channel_(channel), pbx_hostname_(pbx_hostname)
 	{
 	}
 
@@ -38,13 +38,13 @@ public:
 	    	std::string file_path = ev.dir_name + '/' + ev.file_name;
 
 	        if(ev.type & dir_monitor::event::created) {
-				files_created_waiting_close.insert(file_path);
+				files_created_waiting_close_.insert(file_path);
 			}
 			else if(ev.type & (dir_monitor::event::closed | dir_monitor::event::moved_to)) {
-				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close.find(file_path) != files_created_waiting_close.end()) ) {
+				if( ev.type & dir_monitor::event::moved_to || (files_created_waiting_close_.find(file_path) != files_created_waiting_close_.end()) ) {
 					try {
 						if(add_path(file_path))
-							files_created_waiting_close.erase(file_path);
+							files_created_waiting_close_.erase(file_path);
 					}
 					catch(const std::exception& e) {
 						LogError("Error while processing CDR; "<<e.what());
@@ -61,7 +61,7 @@ public:
 	{
 		try {
 			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
-			channel.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname)));
+			channel_.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname_)));
 			return true;
 		}
 		catch(const std::exception& e) {

@@ -146,6 +146,8 @@ private:
 	state::state_t current_state_;
 
 	archiving::archivable_channel_t& channel_;
+	archiving::archivable_busy_set_t& archivable_busy_set_;
+
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
@@ -161,6 +163,7 @@ public:
 	archived_client(
 			boost::asio::io_service& io_service,
 			archiving::archivable_channel_t& channel,
+			archiving::archivable_busy_set_t& archivable_busy_set,
 			const std::string& archived_host,
 			const std::string& archived_port) :
 				io_service_(io_service),
@@ -171,7 +174,8 @@ public:
 				archived_port_(archived_port),
 				connected_(false),
 				current_state_(state::initialised),
-				channel_(channel)
+				channel_(channel),
+				archivable_busy_set_(archivable_busy_set)
 	{
 		connect_archived();
 	}
@@ -229,6 +233,8 @@ private:
 		}
 
 		connected_ = false;
+		if(put_archivable_ptr_)
+			archivable_busy_set_.remove(put_archivable_ptr_);
 		put_archivable_ptr_.reset();
 
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
@@ -449,7 +455,10 @@ private:
 
 		case state::put_sent_file_ack_ok:
 		{
-			put_archivable_ptr_->set_done();
+			if(put_archivable_ptr_) {
+				archivable_busy_set_.remove(put_archivable_ptr_);
+				put_archivable_ptr_->set_done();
+			}
 			put_archivable_ptr_.reset();
 		}
 		case state::nop_ack_ok:
@@ -677,6 +686,9 @@ private:
 			socket_.cancel();
 			socket_.close();
 		}
+
+		if(put_archivable_ptr_)
+			archivable_busy_set_.remove(put_archivable_ptr_);
 
 		put_archivable_ptr_.reset();
 

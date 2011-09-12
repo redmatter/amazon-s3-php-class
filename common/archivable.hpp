@@ -42,7 +42,7 @@ struct owner_info
 	org_id_t orgID;
 	std::vector< user_id_t > userIDs;
 
-	owner_info()
+	owner_info() : orgID(0)
 	{
 	}
 
@@ -459,6 +459,14 @@ namespace std {
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
 	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " md5:" << a.get_md5();
+}
+
+inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& p_a)
+{
+	if(p_a)
+		return ostr << *p_a;
+
+	return ostr << "archivable::pointer(NULL)";
 }
 
 inline istream& operator>>(istream& istr, archiving::archivable::file_type::file_type_t& t)

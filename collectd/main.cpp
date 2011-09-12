@@ -167,10 +167,7 @@ int main(int argc, char* argv[]) try
 				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(archivable_busy_set), _1),
 				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
 				0, "IN");
-		archiving::archivable_channel_t out_channel(
-				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(archivable_busy_set), _1),
-				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
-				0, "OUT");
+		archiving::archivable_channel_t out_channel("OUT");
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -195,6 +192,7 @@ int main(int argc, char* argv[]) try
 	    app::archived_client archived_client(
 	    		io_service,
 	    		out_channel,
+	    		archivable_busy_set,
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
 	    		app::confMap["archived_client.server_port"].as<std::string>());
 
