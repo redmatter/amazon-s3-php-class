@@ -20,8 +20,6 @@
 #include <utility>
 #include <map>
 
-// TODO DELETE auth on deinit
-
 namespace app {
 
 namespace impl {
