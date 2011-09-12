@@ -449,6 +449,7 @@ private:
 
 		case state::put_sent_file_ack_ok:
 		{
+			put_archivable_ptr_->set_done();
 			put_archivable_ptr_.reset();
 		}
 		case state::nop_ack_ok:
@@ -656,13 +657,6 @@ private:
 
 		LogDebug("2. buf_length: "<<buf_length);
 		put_sent_size_ += buf_length;
-
-		/*
-		if(put_sent_size_ == put_file_size_) {
-			buf[++buf_length] = '\t'; // add EOF
-			LogDebug("3. buf_length: "<<buf_length);
-		}
-		*/
 
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr.write(&buf[0], buf_length);
