@@ -162,12 +162,15 @@ int main(int argc, char* argv[]) try
 
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 
-		archiving::archivable_busy_set_t in_channel_busy_set;
+		archiving::archivable_busy_set_t archivable_busy_set;
 		archiving::archivable_channel_t in_channel(
-				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(in_channel_busy_set), _1),
-				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(in_channel_busy_set), _1),
+				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(archivable_busy_set), _1),
+				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
 				0, "IN");
-		archiving::archivable_channel_t out_channel("OUT");
+		archiving::archivable_channel_t out_channel(
+				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(archivable_busy_set), _1),
+				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
+				0, "OUT");
 
 		initialized = true;
 		LogMessage("Initialisation complete");
