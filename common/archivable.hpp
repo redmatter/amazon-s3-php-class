@@ -399,22 +399,39 @@ public:
 	 * Set a new intermediate file that replaces the archivable's fstream
 	 *
 	 * @param tmp_fstr
-	 * @param do_close
+	 * @param do_close_old
 	 */
-	void set_fstream(const rml::utils::tmp_fstream::pointer& tmp_fstr, const bool& do_close = true)
+	void set_fstream(const rml::utils::tmp_fstream::pointer& tmp_fstr, const bool& do_close_old = true)
 	{
 		assert(tmp_fstr.get());
 
 		if( 0 == tmp_fstr->get_size() )
 			THROW_RML_EXCEPTION("Zero length file; path:"<<tmp_fstr->get_filename());
 
+		if(do_close_old && p_fstream_)
+			p_fstream_->close();
+
 		p_fstream_ = tmp_fstr;
 		tmp_fstreams_.push_back(tmp_fstr);
 		md5_ = md5hasher::hash(tmp_fstr);
-		if(do_close)
-			tmp_fstr->close();
 	}
 
+	/**
+	 * Mark an archivable article to be done with
+	 * Leads to unlink() of the file
+	 */
+	void set_done()
+	{
+		if (!p_fstream_)
+			return;
+
+		if (p_fstream_->is_open())
+			p_fstream_->close();
+
+		p_fstream_->set_persistent(false);
+
+		LogMessage(type_<<'/'<<owners_.orgID<<'/'<<uuid<<" done");
+	}
 };
 
 /**
