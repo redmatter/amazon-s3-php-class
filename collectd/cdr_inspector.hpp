@@ -75,8 +75,6 @@ class cdr_inspector : public boost::noncopyable
 
 	const std::string& pbx_hostname_;
 
-	bool was_HUPed;
-
 	struct leg
 	{
 		enum type_t
@@ -116,8 +114,7 @@ public:
 		in_channel(in_channel),
 		out_channel(out_channel),
 		confMap(confMap),
-		pbx_hostname_(pbx_hostname),
-		was_HUPed(false)
+		pbx_hostname_(pbx_hostname)
 	{
 		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
 			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
@@ -173,15 +170,9 @@ public:
 				{
 					temp_files_base_directory = confMap["temp_files.base_directory"].as<std::string>();
 				}
-
-				// TODO setup HUP hook
-				if(was_HUPed) {
-					LogMessage("HUPed; configuration reloaded");
-					was_HUPed = false;
-				}
 			}
 
-			while(!was_HUPed && !app::quit) {
+			while(!app::quit) {
 				try {
 					archiving::archivable::pointer archivable_cdr = in_channel.consume();
 					LogVerbose("cdr_inspector::run - got from channel "<<*archivable_cdr);
@@ -283,8 +274,8 @@ public:
 							}
 
 							if(!rmOrgID) {
-								LogError("cdr:"<<cdr_uuid<<" - No rmOrgID found");
-								// TODO archivable_cdr->set_done();
+								LogCritical("cdr:"<<cdr_uuid<<" - No rmOrgID found");
+								archivable_cdr->set_done();
 								archivable_cdr.reset();
 								continue;
 							}
@@ -334,7 +325,7 @@ public:
 						}
 
 						if( isDiscardable ) {
-							// TODO archivable_cdr->set_done();
+							archivable_cdr->set_done();
 							archivable_cdr.reset();
 							continue;
 						}
