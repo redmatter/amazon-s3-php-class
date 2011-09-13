@@ -213,6 +213,12 @@ struct applied_policy
 		return std::time_t( (creation_time - epoch).total_seconds() );
 	}
 
+	std::time_t get_midnight_offset_seconds() const
+	{
+		boost::posix_time::ptime midnight(creation_time.date());
+		return (creation_time - midnight).total_seconds();
+	}
+
 	ymd_t get_creation_ymd() const
 	{
 		return creation_time.date().year_month_day();
