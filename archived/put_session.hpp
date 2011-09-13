@@ -492,6 +492,8 @@ private:
 
 					current_state_ = states::put_check_received_file_ack_ok;
 
+					// save the state of operation data
+					internal_db_.save(opdata);
 
 					// Put CDRs and those recordings needed for CDR processing on to GlusterFS
 					// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
@@ -544,9 +546,6 @@ private:
 							// opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
 						}
 					}
-
-					// save the state of operation data
-					internal_db_.save(opdata);
 
 					// no need to keep the file open till we can process it
 					ofs_->close();
