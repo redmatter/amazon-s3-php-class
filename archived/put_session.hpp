@@ -528,6 +528,8 @@ private:
 
 									ofs_->re_open();
 									std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
+									whisper_ofs.flush();
+									whisper_ofs.close();
 
 									LogMessage(remote_ep<<" Whisper file created; file:"<<whisper_path);
 
