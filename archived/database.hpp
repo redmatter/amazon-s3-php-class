@@ -147,13 +147,14 @@ public:
 
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
-					"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, Type )"
+					"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
 					" VALUES ";
 			int values_count = 0;
 			for(data::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
 				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
 				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
 				const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
+				const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
 
 				query << (values_count? ',': '\n')
 						<<"( "
@@ -166,6 +167,7 @@ public:
 						<<'\''<<applied_policy::ymd_t::year_type::value_type(creation_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(creation_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(creation_ymd.day)<<"', "
 						<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
 						<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
+						<<midnight_offset_seconds<<", "
 						<<itr->endpoint_id<<", "
 						<<(int)(itr->file_type)
 						<<" )\n";

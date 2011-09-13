@@ -65,7 +65,11 @@ struct operation_state
 
 		put_usage_save,
 		put_usage_save_ok,
-		put_usage_save_err
+		put_usage_save_err,
+
+		// -------------------------
+
+		retention_info_saved
 	};
 };
 

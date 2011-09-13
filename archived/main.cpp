@@ -11,6 +11,7 @@
 #include "clear_cache.hpp"
 #include "operation_data.hpp"
 #include "whisper_client.hpp"
+#include "retention_data_flusher.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -136,6 +137,7 @@ int main(int argc, char **argv) try
 		app::clear_cache::describe_config(optsDesc);
 		app::operation_data::describe_config(optsDesc);
 		app::whisper_client::describe_config(optsDesc);
+		app::retention_data_flusher::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -273,6 +275,8 @@ int main(int argc, char **argv) try
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, app::quit);
 
+		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, retention_db, app::quit);
+
 		app::storage::s3::storage s3storage(app::confMap);
 
 		app::storage::s3::runner s3runner(s3storage, storage_operation_channel, app::quit);
@@ -308,6 +312,8 @@ int main(int argc, char **argv) try
 			while(0 < --n_threads)
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
+
+		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
 
 		unsigned int ticker = 1;
 		while(!app::quit) {

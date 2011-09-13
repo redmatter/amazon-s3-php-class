@@ -15,10 +15,13 @@ namespace app {
 class retention_data_flusher
 {
 	operation_data::channel_t& retention_data_channel_;
-	database::internal& internal_db_;
+	database::retention& retention_db_;
+
+	volatile bool& quit_;
 
 	unsigned int flush_interval_seconds_;
 
+public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
@@ -26,9 +29,10 @@ class retention_data_flusher
 				;
 	}
 
-	retention_data_flusher(const boost::program_options::variables_map& confMap, operation_data::channel_t& retention_data_channel, database::internal& internal_db) :
+	retention_data_flusher(const boost::program_options::variables_map& confMap, operation_data::channel_t& retention_data_channel, database::retention& retention_db, volatile bool& quit) :
 		retention_data_channel_(retention_data_channel),
-		internal_db_(internal_db),
+		retention_db_(retention_db),
+		quit_(quit),
 		flush_interval_seconds_(confMap["retention_data.flush_interval_seconds"].as<unsigned int>())
 	{
 	}
@@ -67,7 +71,7 @@ class retention_data_flusher
 								creation_time = rml::utils::strtoull(itr->second.c_str());
 						}
 
-						if(data->state == operation_state::put_file_save_ok) {
+						if(data->p_detail->state == operation_state::put_file_save_ok) {
 							LogDebug(identifier<<": ToRetention");
 							{
 								database::retention::data retention;
@@ -75,7 +79,7 @@ class retention_data_flusher
 								retention.file_type = identifier.filetype;
 								retention.org = identifier.org;
 								retention.uuid = identifier.uuid;
-								retention.retention = app::applied_policy(data->p_detail->policy, creation_time);
+								retention.retention = app::applied_policy(data->p_detail->policy.p_policy, creation_time);
 								retention.endpoint_id = data->p_detail->p_endpoint->id;
 								retention.user = 0;
 								{
@@ -102,12 +106,12 @@ class retention_data_flusher
 								usage_data_set.insert(usage);
 							}
 
-							data.state = migration_data::retention_info_saved;
+							data->p_detail->state = operation_state::retention_info_saved;
 						}
 
-						channel_save_status_.produce(data);
+						// TODO channel_save_status_.produce(data);
 					}
-					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
+					catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 						break;
 					}
 				}
@@ -121,7 +125,7 @@ class retention_data_flusher
 					quit_ = true;
 				}
 			}
-			catch(const migration_data::channel_t::finishing_exception& e) {
+			catch(const operation_data::channel_t::finishing_exception& e) {
 				break;
 			}
 			catch(const std::exception& e) {
