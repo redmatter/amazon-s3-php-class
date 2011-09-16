@@ -23,6 +23,7 @@ class directory_loader {
 
 public:
 	typedef boost::function<bool(const std::string&)> loader_fn;
+	typedef boost::function<bool(const std::string&)> is_valid_fn;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -31,14 +32,16 @@ public:
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, volatile bool& quit) :
-		dir_path_(dir_path), confMap_(confMap), loader_(loader), quit_(quit)
+	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_valid_fn& is_valid, volatile bool& quit) :
+		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_valid_(is_valid), quit_(quit)
 	{
 	}
 
 	void run()
 	{
-		int count = -5;
+		int count = -120;
+
+		LogVerbose("Loading from directory in "<<(-1 * count)<<" seconds");
 
 		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval) );
 
@@ -75,7 +78,8 @@ public:
 					else if((time(0) - s.st_ctime) < 3) // lets ignore any freshies for 3secs
 						continue;
 
-					(void)loader_(file_path);
+					if (is_valid_(file_path))
+						(void)loader_(file_path);
 				}
 
 				closedir(dh);
@@ -94,6 +98,7 @@ private:
 	const std::string dir_path_;
 	const boost::program_options::variables_map& confMap_;
 	loader_fn& loader_;
+	is_valid_fn& is_valid_;
 	volatile bool& quit_;
 
 	enum constant

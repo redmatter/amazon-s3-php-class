@@ -20,8 +20,6 @@
 
 namespace app {
 
-// TODO timeouts
-
 using boost::asio::ip::tcp;
 
 class archived_client
@@ -457,7 +455,7 @@ private:
 		{
 			if(put_archivable_ptr_) {
 				archivable_busy_set_.remove(put_archivable_ptr_);
-				put_archivable_ptr_->set_done();
+				put_archivable_ptr_->set_done(false);
 			}
 			put_archivable_ptr_.reset();
 		}
@@ -605,6 +603,19 @@ private:
 
 			put_archivable_ptr_ = channel_.consume(10/*seconds*/);
 			LogMessage("Got from "<<channel_<<" archivable: "<<*(put_archivable_ptr_.get()));
+
+			if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
+				LogWarning(*put_archivable_ptr_<<" Already stored !!! ???");
+
+				archivable_busy_set_.remove(put_archivable_ptr_);
+				put_archivable_ptr_->set_done(false);
+				put_archivable_ptr_.reset();
+
+				io_service_.post(boost::bind(&archived_client::get_archivable_for_put, this));
+
+				return;
+			}
+
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			put_archivable_ptr_->shove_put_request(ostr);

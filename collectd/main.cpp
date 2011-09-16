@@ -8,6 +8,7 @@
 #include "archived_client.hpp"
 #include "cdr_inspector.hpp"
 #include "directory_loader.hpp"
+#include "database.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -75,6 +76,36 @@ extern "C"
 
 namespace app {
 
+class archivable_dedup
+{
+	const archiving::archivable_busy_set_t& busy_set_;
+
+public:
+	archivable_dedup(const archiving::archivable_busy_set_t& busy_set) : busy_set_(busy_set)
+	{
+	}
+
+	inline bool is_archivable_loaded(archiving::archivable::pointer p_arc) const
+	{
+		return busy_set_.is_busied(p_arc);
+	}
+
+	inline bool is_file_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& file_path) const
+	{
+		return is_loaded(type, std::string(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36));
+	}
+
+	inline bool is_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& uuid) const
+	{
+		return is_archivable_loaded(archiving::archivable::pointer(new archiving::archivable(uuid, type)));
+	}
+
+	inline archiving::archivable::pointer get_loaded_instance(const archiving::archivable::pointer& p_lookup) const
+	{
+		return busy_set_.get_item(p_lookup);
+	}
+};
+
 std::string temp_files_base_directory;
 std::string hostname;
 
@@ -127,6 +158,7 @@ int main(int argc, char* argv[]) try
 		app::cdr_inspector::describe_config(optsDesc);
 		app::archived_client::describe_config(optsDesc);
 		app::directory_loader::describe_config(optsDesc);
+		app::database::internal::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -169,6 +201,8 @@ int main(int argc, char* argv[]) try
 				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
 
+		app::database::internal internal_db(app::confMap);
+
 		initialized = true;
 		LogMessage("Initialisation complete");
 
@@ -182,10 +216,22 @@ int main(int argc, char* argv[]) try
 
 		app::directory_loader::loader_fn directory_loader_fn(
 				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
-		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, app::quit);
+
+		app::archivable_dedup archivable_dedup(archivable_busy_set);
+		app::directory_loader::is_valid_fn archivable_is_valid_fn(
+				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::archivable::file_type::cdr, _1));
+
+		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
+				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
+
+		// initialise the internal static variables before we load anything;
+		bool more_to_load_from_db = false;
+		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+
+		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, app::confMap, app::hostname);
+		app::cdr_inspector cdr_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
@@ -206,6 +252,10 @@ int main(int argc, char* argv[]) try
 		while(!app::quit) {
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
+
+			if(more_to_load_from_db)
+				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
+						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}

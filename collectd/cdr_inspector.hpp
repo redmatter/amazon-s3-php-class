@@ -9,6 +9,7 @@
 #define CDR_INSPECTOR_HPP_
 
 #include "globals.h"
+#include "database.hpp"
 
 #include "../common/types.hpp"
 
@@ -69,6 +70,9 @@ class cdr_inspector : public boost::noncopyable
 
 	archiving::archivable_channel_t& in_channel;
 	archiving::archivable_channel_t& out_channel;
+
+	database::internal& internal_db_;
+
 	const boost::program_options::variables_map& confMap;
 
 	std::vector<archiving::org_id_t> orgs_enabled_;
@@ -110,9 +114,10 @@ public:
 	 * @param confMap
 	 * @return
 	 */
-	cdr_inspector(archiving::archivable_channel_t& in_channel, archiving::archivable_channel_t& out_channel, const boost::program_options::variables_map& confMap, const std::string& pbx_hostname) :
+	cdr_inspector(archiving::archivable_channel_t& in_channel, archiving::archivable_channel_t& out_channel, database::internal& internal_db, const boost::program_options::variables_map& confMap, const std::string& pbx_hostname) :
 		in_channel(in_channel),
 		out_channel(out_channel),
+		internal_db_(internal_db),
 		confMap(confMap),
 		pbx_hostname_(pbx_hostname)
 	{
@@ -176,6 +181,13 @@ public:
 				try {
 					archiving::archivable::pointer archivable_cdr = in_channel.consume();
 					LogVerbose("cdr_inspector::run - got from channel "<<*archivable_cdr);
+
+					if((archivable_cdr->get_type() != archiving::archivable::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
+						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
+						out_channel.produce(archivable_cdr);
+						continue;
+					}
+
 
 					// inspect and cleanup CDR
 					{
@@ -275,7 +287,7 @@ public:
 
 							if(!rmOrgID) {
 								LogCritical("cdr:"<<cdr_uuid<<" - No rmOrgID found");
-								archivable_cdr->set_done();
+								archivable_cdr->set_done(true);
 								archivable_cdr.reset();
 								continue;
 							}
@@ -325,7 +337,7 @@ public:
 						}
 
 						if( isDiscardable ) {
-							archivable_cdr->set_done();
+							archivable_cdr->set_done(true);
 							archivable_cdr.reset();
 							continue;
 						}
@@ -378,6 +390,9 @@ public:
 											if(recording_policy < 0 || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
 												archivable_recording->set_add_to_cdrmunch_cache(true);
 
+											archivable_recording->set_current_state(archiving::archivable::state::inspected);
+											internal_db_.save(archivable_recording);
+
 											out_channel.produce(archivable_recording);
 										}
 										catch(const std::exception& e) {
@@ -422,6 +437,9 @@ public:
 
 									LogWarning(*archivable_cdr<<" - Archivable recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
 
+									archivable_recording->set_current_state(archiving::archivable::state::inspected);
+									internal_db_.save(archivable_recording);
+
 									out_channel.produce(archivable_recording);
 								}
 								catch(const std::exception& e) {
@@ -454,6 +472,9 @@ public:
 						archivable_cdr->set_originator_uuid(originator_uuid);
 						archivable_cdr->set_start_epoch(start_epoch);
 						archivable_cdr->set_add_to_cdrmunch_cache(true);
+
+						archivable_cdr->set_current_state(archiving::archivable::state::inspected);
+						internal_db_.save(archivable_cdr);
 
 						out_channel.produce(archivable_cdr);
 					}

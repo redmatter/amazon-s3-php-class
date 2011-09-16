@@ -73,18 +73,51 @@ public:
 	friend class archivable_pointer_compare;
 	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
 
-	/**
-	 * States in archivable's lifecycle
 	struct state
 	{
-		enum
+		enum state_t
 		{
+			unknown = 0,
 			collected,
+			inspected,
 			stored,
-			stored_acked
+			discarded,
+
+			n_states
 		};
+
+		static const char* to_string(const state_t& s)
+		{
+			static const char* str[] = {
+					"unknown",
+					"collected",
+					"inspected",
+					"stored",
+					"discarded"
+			};
+
+			if(s > 0 && s < n_states)
+				return str[s];
+
+			return str[0];
+		}
+
+		static state_t from_string(const std::string& str)
+		{
+			if(str == "unknown")
+				return unknown;
+			else if(str == "collected")
+				return collected;
+			else if(str == "inspected")
+				return inspected;
+			else if(str == "stored")
+				return stored;
+			else if(str == "discarded")
+				return discarded;
+			else
+				THROW_RML_EXCEPTION("Unknown state from string: "<<str);
+		}
 	};
-	 */
 
 	/**
 	 * Types of files we deal with
@@ -130,17 +163,14 @@ public:
 		 */
 		static const file_type_t from_string(const std::string& str)
 		{
-			file_type_t type;
 			if(str == "unknown")
-				type = unknown;
+				return unknown;
 			else if(str == "cdr")
-				type = cdr;
+				return cdr;
 			else if(str == "recording")
-				type = recording;
-			else
-				THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
+				return recording;
 
-			return type;
+			THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 		}
 
 		friend std::ostream& operator << (std::ostream& ostr, const file_type_t& type)
@@ -205,15 +235,15 @@ protected:
 	std::string originator_uuid;
 	time_t start_epoch;
 	std::string data_format;
-	const std::string& pbx_hostname;
+	const std::string pbx_hostname;
 	bool add_to_cdrmunch_cache;
 
 private:
+	state::state_t state_;
+	std::string file_path_;
 	rml::utils::tmp_fstream::pointer p_fstream_;
+	bool is_modified_;
 	hash_vector md5_;
-
-	// other temp files; we cant delete any till we are completely done
-	std::vector<rml::utils::tmp_fstream::pointer> tmp_fstreams_;
 
 	const file_type::file_type_t type_;
 
@@ -227,7 +257,54 @@ private:
 
 	owner_info owners_;
 
+	uint64_t database_id_;
+	uint8_t retry;
+
+	archivable();
+	archivable(const archivable& a);
+
 public:
+//	archivable()
+//	: start_epoch(0),
+//	  data_format(0),
+//	  pbx_hostname("unknown"),
+//	  add_to_cdrmunch_cache(false),
+//	  type_(file_type::unknown),
+//	  n_children_(0),
+//	  n_children_done_(0),
+//	  parent_(0),
+//	  policy_id_(0),
+//	  database_id(0)
+//	{
+//	}
+
+	/**
+	 * Ctor ONLY for lookups etc
+	 *
+	 * @param uuid
+	 * @param type
+	 */
+	archivable(const std::string& uuid, const file_type::file_type_t& type) :
+		uuid(uuid),
+		start_epoch(0),
+		data_format("unknown"),
+		pbx_hostname(),
+		add_to_cdrmunch_cache(false),
+		state_(state::unknown),
+		file_path_(),
+		p_fstream_(),
+		is_modified_(false),
+		type_(type),
+		n_children_(0),
+		n_children_done_(0),
+		parent_(),
+		policy_id_(0),
+		database_id_(0),
+		retry(0)
+	{
+		// Just for the comparisons and find to work
+	}
+
 	/**
 	 * Constructor
 	 *
@@ -248,7 +325,11 @@ public:
 			const std::string& pbx_hostname,
 			const pointer& parent = pointer(),
 			const app::policy::id_type& policy_id = app::policy::id_type(0),
-			const bool& add_to_cdrmunch_cache = false
+			const bool& add_to_cdrmunch_cache = false,
+			const bool& is_modified = false,
+			const std::string& modified_file_path = "",
+			const std::string& md5 = "",
+			const state::state_t& state = state::collected
 	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
@@ -256,15 +337,30 @@ public:
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
 	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
-	  p_fstream_(new rml::utils::tmp_fstream(file_path, std::fstream::in | std::fstream::out | std::fstream::binary)),
+	  state_(state),
+	  file_path_(file_path),
+	  p_fstream_(new rml::utils::tmp_fstream((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
+	  is_modified_(is_modified),
 	  type_(type),
 	  n_children_(0),
 	  n_children_done_(0),
 	  parent_(parent),
-	  policy_id_(policy_id)
+	  policy_id_(policy_id),
+	  database_id_(0),
+	  retry(0)
 	{
-		tmp_fstreams_.push_back(p_fstream_);
-		md5_ = md5hasher::hash(p_fstream_);
+		if(md5.empty()) {
+			md5_ = md5hasher::hash(p_fstream_);
+		}
+		else {
+			std::istringstream istr(md5);
+			istr >> md5_;
+		}
+
+		// set persistent; we will get around to making it NOT persistent when we are done with it
+		p_fstream_->set_persistent(true);
+
+		// close it, re_open when needed; file handles are very precious
 		p_fstream_->close();
 	}
 
@@ -273,21 +369,20 @@ public:
 		originator_uuid = new_originator_uuid;
 	}
 
+	std::string get_originator_uuid()
+	{
+		return originator_uuid;
+	}
+
 	void set_start_epoch(const time_t& epoch)
 	{
 		start_epoch = epoch;
 	}
 
-	inline std::ostream& shove_put_request(std::ostream& ostr) const
+	inline std::ostream& shove_metadata(std::ostream& ostr) const
 	{
-#ifndef RML_NO_DEBUG
-		std::string put_request;
-		{
-			std::ostringstream ostr;
-#endif
 		// if this NOT a CDR usual ownership applies
 		if(type_ != file_type::cdr) {
-			ostr << "PUT "<<type_<<' '<<owners_.orgID<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
 			if(!owners_.userIDs.empty()) {
 				ostr << "UserIDs: ";
@@ -304,7 +399,6 @@ public:
 		}
 		// Otherwise i.e if CDR; Org 1 owns it all
 		else {
-			ostr << "PUT "<<type_<<' '<<org_id_t(1)<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 			ostr << "OrgID: "<<org_id_t(1)<<"\r\n";
 			ostr << "CallOwnerOrg: "<<owners_.orgID<<"\r\n"; // custom header
 			if(!owners_.userIDs.empty()) {
@@ -321,16 +415,41 @@ public:
 			}
 		}
 
-		ostr << "FileType: "<<type_<<"\r\n"
+		std::string leg_uuid;
+		{
+			if(parent_){
+				if(parent_->type_ != file_type::cdr)
+					LogError(*this<<"Parent arcivable NOT a CDR ?!?");
+
+				leg_uuid = parent_->uuid;
+			}
+			else
+				leg_uuid = uuid;
+		}
+
+		// TODO Get rid of OriginatorUUID
+
+		return ostr << "FileType: "<<type_<<"\r\n"
 				<< "MD5: "<<md5_<<"\r\n"
 				<< "CreateTime: "<<start_epoch<<"\r\n"
 				<< "RetentionPolicyID: "<<policy_id_<<"\r\n"
-				<< "LegUUID: "<<uuid<<"\r\n"
+				<< "LegUUID: "<<leg_uuid<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
 				<< "DataFormat: "<<data_format<<"\r\n"
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
 				<< "AddToCDRMunchCache: "<<(add_to_cdrmunch_cache? "true": "false")<<"\r\n"
 				;
+	}
+
+	inline std::ostream& shove_put_request(std::ostream& ostr) const
+	{
+#ifndef RML_NO_DEBUG
+		std::string put_request;
+		{
+			std::ostringstream ostr;
+#endif
+		ostr << "PUT "<<type_<<' '<<((type_ != file_type::cdr)? owners_.orgID: org_id_t(1))<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
+		shove_metadata(ostr);
 #ifndef RML_NO_DEBUG
 			put_request = ostr.str();
 		}
@@ -370,6 +489,56 @@ public:
 		add_to_cdrmunch_cache = add_it;
 	}
 
+	inline bool get_add_to_cdrmunch_cache() const
+	{
+		return add_to_cdrmunch_cache;
+	}
+
+	inline std::string get_data_format() const
+	{
+		return data_format;
+	}
+
+	inline pointer get_parent() const
+	{
+		return parent_;
+	}
+
+	inline uint64_t get_database_id() const
+	{
+		return database_id_;
+	}
+
+	inline void set_database_id(const uint64_t& id)
+	{
+		database_id_ = id;
+	}
+
+	inline uint8_t get_retry() const
+	{
+		return retry;
+	}
+
+	inline state::state_t get_current_state() const
+	{
+		return state_;
+	}
+
+	inline void set_current_state(const state::state_t& state)
+	{
+		state_ = state;
+	}
+
+	inline std::string get_hostname() const
+	{
+		return pbx_hostname;
+	}
+
+	inline app::policy::id_type get_policy_id() const
+	{
+		return policy_id_;
+	}
+
 	void set_owners(const owner_info& o)
 	{
 		owners_.orgID = o.orgID;
@@ -395,6 +564,14 @@ public:
 		return owners_.orgID;
 	}
 
+	inline std::pair< std::string, std::string > get_paths() const
+	{
+		if(is_modified_)
+			return std::make_pair<std::string, std::string>(file_path_, p_fstream_->get_filename());
+
+		return std::make_pair<std::string, std::string>(file_path_, "");
+	}
+
 	/**
 	 * Set a new intermediate file that replaces the archivable's fstream
 	 *
@@ -403,16 +580,20 @@ public:
 	 */
 	void set_fstream(const rml::utils::tmp_fstream::pointer& tmp_fstr, const bool& do_close_old = true)
 	{
-		assert(tmp_fstr.get());
-
 		if( 0 == tmp_fstr->get_size() )
 			THROW_RML_EXCEPTION("Zero length file; path:"<<tmp_fstr->get_filename());
 
 		if(do_close_old && p_fstream_)
 			p_fstream_->close();
 
+		if(is_modified_) {
+			LogMessage(*this << " Already modified");
+			p_fstream_->set_persistent(false);
+		}
+
+		is_modified_ = true;
+
 		p_fstream_ = tmp_fstr;
-		tmp_fstreams_.push_back(tmp_fstr);
 		md5_ = md5hasher::hash(tmp_fstr);
 	}
 
@@ -420,17 +601,28 @@ public:
 	 * Mark an archivable article to be done with
 	 * Leads to unlink() of the file
 	 */
-	void set_done()
+	void set_done(const bool discarded)
 	{
-		if (!p_fstream_)
-			return;
+		if(p_fstream_) {
+			if(p_fstream_->is_open())
+				p_fstream_->close();
 
-		if (p_fstream_->is_open())
-			p_fstream_->close();
+			p_fstream_->set_persistent(false);
+		}
 
-		p_fstream_->set_persistent(false);
+		state_ = discarded? state::discarded: state::stored;
 
-		LogMessage(type_<<'/'<<owners_.orgID<<'/'<<uuid<<" done");
+		if(is_modified_) {
+			if( 0 != chmod(file_path_.c_str(), 0666) )
+				LogWarning(*this<<' '<<file_path_ << " chmod for unlink failed - err:" << strerror(errno));
+
+			if( 0 != unlink(file_path_.c_str()) )
+				LogWarning(*this<<' '<<file_path_ << " unlink failed - err:" << strerror(errno));
+			else
+				LogVerbose(*this<<' '<<file_path_ << " unlinked");
+		}
+
+		LogMessage(*this<<" done");
 	}
 };
 
@@ -440,7 +632,7 @@ public:
 class archivable_pointer_compare
 {
 public:
-	bool operator() (const archivable::pointer& lhs, const archivable::pointer& rhs)
+	bool operator() (const archivable::pointer& lhs, const archivable::pointer& rhs) const
 	{
 		if (lhs->uuid == rhs->uuid)
 			return lhs->get_type() < rhs->get_type();
@@ -452,13 +644,15 @@ public:
 typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
 typedef rml::busy_set<archivable::pointer, archivable_pointer_compare> archivable_busy_set_t;
 
+typedef rml::busy_set< archivable::pointer, archivable_pointer_compare > archivable_set_t;
+
 }  // namespace archiving
 
 namespace std {
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
-	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " md5:" << a.get_md5();
+	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " md5:" << a.get_md5() << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
 }
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& p_a)

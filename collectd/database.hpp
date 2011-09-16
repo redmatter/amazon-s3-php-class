@@ -1,0 +1,316 @@
+/*
+ * database.hpp
+ *
+ *  Created on: 7 Mar 2011
+ *      Author: dkorah
+ */
+
+#ifndef DATABASE_HPP_
+#define DATABASE_HPP_
+
+#include "../common/policy.hpp"
+#include "../common/basic_database.hpp"
+
+#include <rml/DBConnectionPool.h>
+#include <rml/exception.h>
+#include <rml/logger.h>
+
+#include <mysql/mysqld_error.h>
+
+#include <boost/program_options.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include <set>
+
+#include <time.h>
+
+namespace app {
+
+extern std::string hostname;
+
+namespace database {
+
+class internal : public basic_database< internal >
+{
+public:
+	static inline const char* get_identifier()
+	{
+		static const char* identifier = "internal";
+		return identifier;
+	}
+
+	internal(const boost::program_options::variables_map& confMap) :
+		basic_database< internal >(confMap)
+	{
+	}
+
+	void save(archiving::archivable::pointer& p_arc)
+	{
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+		archiving::archivable& arc(*p_arc);
+
+		std::pair< std::string, std::string > paths = arc.get_paths();
+		mysqlpp::Null<mysqlpp::sql_character_varying> modified_path( mysqlpp::null );
+		if(!paths.second.empty())
+			modified_path = paths.second;
+
+		std::string userIDs_str;
+		{
+			std::ostringstream ostr;
+			const std::vector< archiving::user_id_t >& userIDs( arc.get_owners() );
+			std::vector< archiving::user_id_t >::const_iterator itr = userIDs.begin();
+			for(; itr != userIDs.end(); ++itr) {
+				ostr << ((itr == userIDs.begin())? ' ': ',');
+				ostr << *itr;
+			}
+
+			userIDs_str = ostr.str();
+		}
+
+		std::string md5_str;
+		{
+			std::ostringstream ostr;
+			ostr << arc.get_md5();
+			md5_str = ostr.str();
+		}
+
+		archiving::archivable::pointer p_parent(arc.get_parent());
+		if (p_parent && !p_parent->get_database_id())
+			save(p_parent);
+
+		mysqlpp::Query query = conn->query();
+
+		if(!arc.get_database_id()) {
+			LogVerbose("Insert: "<<arc);
+			query << "INSERT INTO `ArchivingInternal`.`CollectDQueue`";
+		}
+		else {
+			LogVerbose("Update "<<arc);
+
+			mysqlpp::Query query = conn->query();
+			query << "UPDATE `ArchivingInternal`.`CollectDQueue`";
+		}
+
+		query << " SET"
+
+				" ParentID=%0:ParentID,"
+				" FileType=%1:FileType,"
+
+				" OrgID=%2:OrgID,"
+				" UserIDs=%3q:UserIDs,"
+
+				" UUID=UNHEX(REPLACE(%4q:UUID, '-', '')),"
+				" OriginatorUUID=UNHEX(REPLACE(%5q:OriginatorUUID, '-', '')),"
+
+				" Path=%6q:Path,"
+				" ModifiedPath=%7q:ModifiedPath,"
+
+				" State=%8q:State,"
+
+				" PolicyID=%9:PolicyID,"
+				" MD5=UNHEX(%10q:MD5),"
+				" AddToCDRMunchCache=%11q:AddToCDRMunchCache,"
+				" DataFormat=%12q:DataFormat,"
+
+				" Retry=%13:Retry,"
+
+				" StartEpoch=%14:StartEpoch,"
+				" HostName=%15q:HostName,"
+
+				" UpdateTime=NOW()"
+				;
+
+		if(arc.get_database_id())
+			query << " WHERE ID=%6:ID";
+
+		query.parse();
+
+		mysqlpp::SQLQueryParms qp;
+			qp 	<< (p_parent? p_parent->get_database_id(): 0ULL)
+				<< arc.get_type()
+
+				<< arc.get_org_id()
+				<< userIDs_str
+
+				<< arc.get_uuid()
+				<< arc.get_originator_uuid()
+
+				<< paths.first
+				<< modified_path
+
+				<< archiving::archivable::state::to_string(arc.get_current_state())
+
+				<< arc.get_policy_id()
+				<< md5_str // TODO use NULL if not set
+				<< (arc.get_add_to_cdrmunch_cache()? "true": "false")
+				<< arc.get_data_format()
+
+				<< arc.get_retry()
+
+				<< arc.get_start_epoch()
+				<< arc.get_hostname()
+				;
+
+		if(arc.get_database_id())
+			qp << arc.get_database_id();
+
+		LogVerbose("SQL: "<<query.str(qp));
+		query.execute(qp);
+
+		if(!arc.get_database_id()) {
+			LogVerbose(arc<<" ID: "<<query.insert_id());
+			arc.set_database_id(query.insert_id());
+		}
+	}
+
+	void find_archivables(
+			const std::string& pbx_hostname,
+			const boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)>& fn_get_loaded_instance,
+			archiving::archivable_channel_t& in_channel,
+			bool& have_more_to_load)
+	{
+		static bool first = true;
+		static uint64_t first_max_id = 0;
+		static uint64_t max_id = 0;
+
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+		if(first) {
+			mysqlpp::Query query = conn->query();
+			query << "SELECT MAX(ID) FROM ArchivingInternal.CollectDQueue WHERE HostName=%0q:HostName AND Retry < 3 AND State NOT IN ('stored','discarded')";
+			query.parse();
+
+			mysqlpp::SQLQueryParms qp;
+			qp << pbx_hostname;
+
+			LogVerbose("SQL: "<<query.str(qp));
+
+			mysqlpp::UseQueryResult res = query.use(qp);
+			while(mysqlpp::Row row = res.fetch_row())
+				if(row[0] != "NULL")
+					first_max_id = rml::utils::strtoull(row[0].c_str(), 0UL);
+
+			first = false;
+		}
+
+		if(first_max_id && max_id <= first_max_id) {
+			mysqlpp::Query query = conn->query();
+			query << "SELECT"
+					" c.ID, c.FileType, LCASE(CONCAT(HEX(SUBSTR(c.UUID, 1, 4)),'-',HEX(SUBSTR(c.UUID, 5, 2)),'-',HEX(SUBSTR(c.UUID, 7, 2)),'-',HEX(SUBSTR(c.UUID, 9, 2)),'-',HEX(SUBSTR(c.UUID, 11)))) c_UUID,"
+					" p.ID, p.FileType, LCASE(CONCAT(HEX(SUBSTR(p.UUID, 1, 4)),'-',HEX(SUBSTR(p.UUID, 5, 2)),'-',HEX(SUBSTR(p.UUID, 7, 2)),'-',HEX(SUBSTR(p.UUID, 9, 2)),'-',HEX(SUBSTR(p.UUID, 11)))) p_UUID "
+					 "FROM"
+					 " ArchivingInternal.CollectDQueue c LEFT JOIN ArchivingInternal.CollectDQueue p ON c.ParentID=p.ID "
+					 "WHERE"
+					 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded') AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID"
+					 "ORDER BY c.ID ASC "
+					 "LIMIT 100";
+			query.parse();
+
+			mysqlpp::SQLQueryParms qp;
+			qp << pbx_hostname << first_max_id << max_id;
+
+			LogVerbose("SQL: "<<query.str(qp));
+
+			mysqlpp::UseQueryResult res = query.use(qp);
+			while(mysqlpp::Row row = res.fetch_row()) {
+				const uint64_t& child_id(rml::utils::strtoll(row[0].c_str()));
+				max_id = child_id;
+
+				archiving::archivable::pointer p_parent;
+				archiving::archivable::pointer p_child;
+
+				archiving::archivable::file_type::file_type_t child_file_type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0UL));
+				archiving::archivable::file_type::file_type_t parent_file_type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[4].c_str(), 0UL));
+
+				p_child = fn_get_loaded_instance(archiving::archivable::pointer(
+						new archiving::archivable(row[2].c_str(), child_file_type)));
+
+				if(!p_child) {
+					LogVerbose("Loading ID:"<<row[0].c_str()<<" FileType:"<<archiving::archivable::file_type::to_string(child_file_type)<<" UUID:"<<row[2].c_str());
+					if(row[3] != "NULL") {
+						p_parent = fn_get_loaded_instance(archiving::archivable::pointer(
+								new archiving::archivable(row[5].c_str(), parent_file_type)));
+
+						if(!p_parent) {
+							p_parent = load_archivable_by_id(rml::utils::strtoull(row[3].c_str()));
+							in_channel.produce(p_parent);
+						}
+					}
+
+					p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()), p_parent);
+					in_channel.produce(p_child);
+				}
+			}
+		}
+
+		have_more_to_load = (first_max_id && max_id <= first_max_id); // more to load?
+	}
+
+	archiving::archivable::pointer load_archivable_by_id(const uint64_t& id, archiving::archivable::pointer p_parent = archiving::archivable::pointer())
+	{
+		rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+		mysqlpp::Query query = conn->query();
+		query <<"SELECT"
+				" ParentID,"
+				" FileType,"
+				" OrgID,"
+				" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID,"
+				" Path,"
+				" ModifiedPath,"
+				" State,"
+				" PolicyID,"
+				" HEX(MD5),"
+				" AddToCDRMunchCache,"
+				" DataFormat,"
+				" Retry,"
+				" StartEpoch,"
+				" HostName,"
+				" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID"
+				" UserIDs "
+				"FROM ArchivingInternal.CollectDQueue "
+				"WHERE ID=%0:ID";
+		query.parse();
+
+		mysqlpp::SQLQueryParms qp;
+		qp << id;
+
+		LogVerbose("SQL: "<<query.str(qp));
+
+		mysqlpp::UseQueryResult res = query.use(qp);
+		if(mysqlpp::Row row = res.fetch_row()) {
+			if(row[0] != "NULL" && !p_parent)
+				throw rml::exception("No parent given");
+
+			archiving::archivable::file_type::file_type_t type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str(), 0ULL));
+			archiving::archivable::pointer p_arc( new archiving::archivable(
+					row[3].c_str(),
+					(row[14] != "NULL") ? row[14].c_str(): "",
+					rml::utils::strtoull(row[12].c_str(), 0ULL),
+					row[4].c_str(),
+					type,
+					row[10].c_str(),
+					row[13].c_str(),
+					p_parent,
+					app::policy::id_type(rml::utils::strtoull(row[7].c_str(), 0ULL)),
+					row[9] == "true",
+					row[5] != "NULL",
+					(row[5] != "NULL")? row[5].c_str(): "",
+					row[8].c_str(),
+					archiving::archivable::state::from_string(row[6].c_str())
+				));
+
+			return p_arc;
+		}
+
+		THROW_RML_EXCEPTION("Archivable object not found; ID:"<<id);
+	}
+};
+
+}  // namespace database
+
+}  // namespace app
+
+#endif /* DATABASE_HPP_ */
