@@ -13,6 +13,7 @@
 #include "../common/types.hpp"
 
 #include "globals.h"
+#include "database.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/bind.hpp>
@@ -149,6 +150,8 @@ private:
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
+	database::internal& internal_db_;
+
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -163,7 +166,8 @@ public:
 			archiving::archivable_channel_t& channel,
 			archiving::archivable_busy_set_t& archivable_busy_set,
 			const std::string& archived_host,
-			const std::string& archived_port) :
+			const std::string& archived_port,
+			database::internal& internal_db) :
 				io_service_(io_service),
 				resolver_(io_service_),
 				socket_(io_service_),
@@ -173,7 +177,8 @@ public:
 				connected_(false),
 				current_state_(state::initialised),
 				channel_(channel),
-				archivable_busy_set_(archivable_busy_set)
+				archivable_busy_set_(archivable_busy_set),
+				internal_db_(internal_db)
 	{
 		connect_archived();
 	}
@@ -456,6 +461,14 @@ private:
 			if(put_archivable_ptr_) {
 				archivable_busy_set_.remove(put_archivable_ptr_);
 				put_archivable_ptr_->set_done(false);
+				{
+					int retry = 0;
+					while(!internal_db_.save(put_archivable_ptr_) && (retry < archiving::archivable::save_retry_max_count)) {
+						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
+						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+						retry++;
+					}
+				}
 			}
 			put_archivable_ptr_.reset();
 		}
@@ -609,6 +622,15 @@ private:
 
 				archivable_busy_set_.remove(put_archivable_ptr_);
 				put_archivable_ptr_->set_done(false);
+				{
+					int retry = 0;
+					while(!internal_db_.save(put_archivable_ptr_) && (retry < archiving::archivable::save_retry_max_count)) {
+						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
+						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+						retry++;
+					}
+				}
+
 				put_archivable_ptr_.reset();
 
 				io_service_.post(boost::bind(&archived_client::get_archivable_for_put, this));

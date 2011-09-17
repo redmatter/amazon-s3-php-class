@@ -391,7 +391,15 @@ public:
 												archivable_recording->set_add_to_cdrmunch_cache(true);
 
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
-											internal_db_.save(archivable_recording);
+											{
+												int retry = 0;
+												while(!internal_db_.save(archivable_recording) && (retry < archiving::archivable::save_retry_max_count)) {
+													LogMessage(*archivable_recording<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
+													boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+													retry++;
+												}
+											}
+
 
 											out_channel.produce(archivable_recording);
 										}
@@ -438,7 +446,14 @@ public:
 									LogWarning(*archivable_cdr<<" - Archivable recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
 
 									archivable_recording->set_current_state(archiving::archivable::state::inspected);
-									internal_db_.save(archivable_recording);
+									{
+										int retry = 0;
+										while(!internal_db_.save(archivable_recording) && (retry < archiving::archivable::save_retry_max_count)) {
+											LogMessage(archivable_recording<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
+											boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+											retry++;
+										}
+									}
 
 									out_channel.produce(archivable_recording);
 								}
@@ -474,7 +489,14 @@ public:
 						archivable_cdr->set_add_to_cdrmunch_cache(true);
 
 						archivable_cdr->set_current_state(archiving::archivable::state::inspected);
-						internal_db_.save(archivable_cdr);
+						{
+							int retry = 0;
+							while(!internal_db_.save(archivable_cdr) && (retry < archiving::archivable::save_retry_max_count)) {
+								LogMessage(*archivable_cdr<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
+								boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+								retry++;
+							}
+						}
 
 						out_channel.produce(archivable_cdr);
 					}

@@ -68,6 +68,11 @@ class archivable_pointer_compare;
 class archivable
 {
 public:
+	enum constants {
+		save_retry_max_count = 3,
+		save_retry_multiplier_seconds = 3
+	};
+
 	typedef boost::shared_ptr<archivable> pointer;
 
 	friend class archivable_pointer_compare;

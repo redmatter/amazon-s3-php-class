@@ -106,6 +106,68 @@ public:
 	}
 };
 
+bool unlink_path(const std::string& path)
+{
+	if(0 != chmod(path.c_str(), 0666)) {
+		if(errno == ENOENT) {
+			LogMessage("File "<<path<<" doesn't exist; may be already unlinked");
+			return true;
+		}
+
+		LogWarning("chmod failed "<<path<<" - err:" << strerror(errno));
+	}
+
+	if(0 != unlink(path.c_str()) && (errno != ENOENT)) {
+		LogWarning("unlink failed "<<path<<" - err:" << strerror(errno));
+	}
+	else {
+		LogVerbose(path << " unlinked");
+		return true;
+	}
+
+	return false;
+}
+
+void purge(database::internal& internal_db, volatile bool& quit, const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int max_age_days, const unsigned int limit, const unsigned int frequency_minutes)
+{
+	int ticks = 1;
+
+	while(!quit) {
+
+		boost::this_thread::sleep(boost::posix_time::seconds(1));
+		if(ticks % (frequency_minutes * 60))
+			continue;
+
+		try {
+			const database::internal::purgedef::pointer_vector& purgeables( internal_db.purge_find(pbx_hostname, done_items_max_age_minutes, max_age_days, limit) );
+
+			if(!purgeables.empty()) {
+				for(database::internal::purgedef::pointer_vector::const_iterator itr = purgeables.begin();
+						itr != purgeables.end(); ++itr) {
+					if(!(*itr)->modified_path.empty())
+						unlink_path((*itr)->modified_path);
+
+					unlink_path((*itr)->path);
+				}
+
+				{
+					int retry = 0;
+					while(!internal_db.purge(purgeables) && (retry < 2)) {
+						LogMessage("[retry:"<<retry<<"] Purge failed; retrying ... (max-retry: "<<2<<')');
+						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * 3));
+						retry++;
+					}
+				}
+			}
+		}
+		catch(const std::exception& e) {
+			LogWarning("Exception: "<<e.what());
+		}
+	}
+
+	LogMessage("Purge closing");
+}
+
 std::string temp_files_base_directory;
 std::string hostname;
 
@@ -150,6 +212,10 @@ int main(int argc, char* argv[]) try
 				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "CollectD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
+				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
+				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
+				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(4), "Purge batch size")
+				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()->default_value(1), "Purge frequency")
 				;
 
 		rml::daemon::describe_config(optsDesc);
@@ -240,7 +306,8 @@ int main(int argc, char* argv[]) try
 	    		out_channel,
 	    		archivable_busy_set,
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>());
+	    		app::confMap["archived_client.server_port"].as<std::string>(),
+	    		internal_db);
 
 		{
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
@@ -249,11 +316,19 @@ int main(int argc, char* argv[]) try
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
 
+		threads.create_thread(boost::bind(app::purge,
+				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),
+				app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>(),
+				app::confMap["purge.max_age_days"].as<unsigned int>(),
+				app::confMap["purge.batch_size"].as<unsigned int>(),
+				app::confMap["purge.frequency_minutes"].as<unsigned int>()));
+
+		int ticks = 1;
 		while(!app::quit) {
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
-			if(more_to_load_from_db)
+			if(more_to_load_from_db && !(ticks % 10))
 				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
 						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
 
