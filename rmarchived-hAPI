@@ -59,7 +59,8 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 fi
 
 if [ -f $CONFIG_ARCHIVED ]; then
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED						|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED												|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
+	sed -i "s/distiller_client.server_host\(.*\)/distiller_client.server_host.url = cdrmunch.$SEARCHDOMAIN/" $CONFIG_ARCHIVED				|| Die "Unable to set distiller_client.server_host in $CONFIG_ARCHIVED"
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
