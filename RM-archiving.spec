@@ -201,7 +201,7 @@ fi
 /usr/share/archiving/rmarchived.supp
 /etc/rc.d/init.d/rmarchived
 /etc/archiving/rmarchived.conf
-%dir /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmarchived
 /etc/rsyslog.d/11-rmarchived.conf
@@ -214,7 +214,7 @@ fi
 /usr/share/archiving/rmcollectd.supp
 /etc/rc.d/init.d/rmcollectd
 /etc/archiving/rmcollectd.conf
-%dir /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmcollectd
 /etc/rsyslog.d/11-rmcollectd.conf
@@ -226,7 +226,7 @@ fi
 #/usr/share/archiving/rmmigrationd.supp
 #/etc/rc.d/init.d/rmmigrationd
 #%config(noreplace) /etc/archiving/rmmigrationd.conf
-#%dir /var/lib/archiving
+#%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 #%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 #/etc/logrotate.d/rmmigrationd
 #/etc/rsyslog.d/11-rmmigrationd.conf
