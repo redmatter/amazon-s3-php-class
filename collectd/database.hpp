@@ -99,8 +99,6 @@ public:
 			}
 			else {
 				LogVerbose("Update "<<arc);
-
-				mysqlpp::Query query = conn->query();
 				query << "UPDATE `ArchivingInternal`.`CollectDQueue`";
 			}
 
@@ -134,34 +132,36 @@ public:
 					;
 
 			if(arc.get_database_id())
-				query << " WHERE ID=%6:ID";
+				query << " WHERE ID=%16:ID";
+
+			LogVerbose("SQL: "<<query.str());
 
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-				qp 	<< (p_parent? p_parent->get_database_id(): 0ULL)
-					<< arc.get_type()
+			qp		<< mysqlpp::sql_bigint_unsigned(p_parent? p_parent->get_database_id(): 0ULL)
+					<< mysqlpp::sql_int(arc.get_type())
 
-					<< arc.get_org_id()
-					<< userIDs_str
+					<< mysqlpp::sql_int(arc.get_org_id())
+					<< mysqlpp::sql_character_varying(userIDs_str)
 
-					<< arc.get_uuid()
-					<< arc.get_originator_uuid()
+					<< mysqlpp::sql_char(arc.get_uuid())
+					<< mysqlpp::sql_char(arc.get_originator_uuid())
 
-					<< paths.first
+					<< mysqlpp::sql_character_varying(paths.first)
 					<< modified_path
 
-					<< archiving::archivable::state::to_string(arc.get_current_state())
+					<< mysqlpp::sql_enum(archiving::archivable::state::to_string(arc.get_current_state()))
 
-					<< arc.get_policy_id()
-					<< md5_str // TODO use NULL if not set
-					<< (arc.get_add_to_cdrmunch_cache()? "true": "false")
-					<< arc.get_data_format()
+					<< mysqlpp::sql_int(arc.get_policy_id())
+					<< mysqlpp::sql_char(md5_str) // TODO use NULL if not set
+					<< mysqlpp::sql_enum(arc.get_add_to_cdrmunch_cache()? "true": "false")
+					<< mysqlpp::sql_char(arc.get_data_format())
 
-					<< arc.get_retry()
+					<< mysqlpp::sql_int(arc.get_retry())
 
-					<< arc.get_start_epoch()
-					<< arc.get_hostname()
+					<< mysqlpp::sql_int(arc.get_start_epoch())
+					<< mysqlpp::sql_char(arc.get_hostname())
 					;
 
 			if(arc.get_database_id())
@@ -235,7 +235,7 @@ public:
 						 "FROM"
 						 " ArchivingInternal.CollectDQueue c LEFT JOIN ArchivingInternal.CollectDQueue p ON c.ParentID=p.ID "
 						 "WHERE"
-						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded') AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID"
+						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded') AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
 						 "LIMIT 100";
 				query.parse();
@@ -320,7 +320,7 @@ public:
 					" Retry,"
 					" StartEpoch,"
 					" HostName,"
-					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID"
+					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID,"
 					" UserIDs "
 					"FROM ArchivingInternal.CollectDQueue "
 					"WHERE ID=%0:ID";
@@ -333,7 +333,7 @@ public:
 
 			mysqlpp::UseQueryResult res = query.use(qp);
 			if(mysqlpp::Row row = res.fetch_row()) {
-				if(row[0] != "NULL" && !p_parent)
+				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
 					throw rml::exception("No parent given");
 
 				archiving::archivable::file_type::file_type_t type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str(), 0ULL));
@@ -353,6 +353,8 @@ public:
 						row[8].c_str(),
 						archiving::archivable::state::from_string(row[6].c_str())
 					));
+
+				p_arc->set_database_id(id);
 
 				return p_arc;
 			}
