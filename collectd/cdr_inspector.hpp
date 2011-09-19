@@ -393,9 +393,9 @@ public:
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
 											{
 												int retry = 0;
-												while(!internal_db_.save(archivable_recording) && (retry < archiving::archivable::save_retry_max_count)) {
-													LogMessage(*archivable_recording<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
-													boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+												while(!internal_db_.save(archivable_recording) && !app::quit) {
+													LogMessage(*archivable_recording<<" [retry:"<<retry<<"] Save state to DB failed; retrying ...");
+													boost::this_thread::sleep(boost::posix_time::seconds(5));
 													retry++;
 												}
 											}
@@ -448,9 +448,9 @@ public:
 									archivable_recording->set_current_state(archiving::archivable::state::inspected);
 									{
 										int retry = 0;
-										while(!internal_db_.save(archivable_recording) && (retry < archiving::archivable::save_retry_max_count)) {
-											LogMessage(archivable_recording<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
-											boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+										while(!internal_db_.save(archivable_recording) && !app::quit) {
+											LogMessage(archivable_recording<<" [retry:"<<retry<<"] Save state to DB failed; retrying ...");
+											boost::this_thread::sleep(boost::posix_time::seconds(5));
 											retry++;
 										}
 									}
@@ -491,9 +491,9 @@ public:
 						archivable_cdr->set_current_state(archiving::archivable::state::inspected);
 						{
 							int retry = 0;
-							while(!internal_db_.save(archivable_cdr) && (retry < archiving::archivable::save_retry_max_count)) {
-								LogMessage(*archivable_cdr<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
-								boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+							while(!internal_db_.save(archivable_cdr) && !app::quit) {
+								LogMessage(*archivable_cdr<<" [retry:"<<retry<<"] Save states to DB failed; retrying ...");
+								boost::this_thread::sleep(boost::posix_time::seconds(5));
 								retry++;
 							}
 						}

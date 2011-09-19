@@ -152,6 +152,8 @@ private:
 
 	database::internal& internal_db_;
 
+	volatile bool& quit_;
+
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -167,7 +169,8 @@ public:
 			archiving::archivable_busy_set_t& archivable_busy_set,
 			const std::string& archived_host,
 			const std::string& archived_port,
-			database::internal& internal_db) :
+			database::internal& internal_db,
+			volatile bool& quit) :
 				io_service_(io_service),
 				resolver_(io_service_),
 				socket_(io_service_),
@@ -178,7 +181,8 @@ public:
 				current_state_(state::initialised),
 				channel_(channel),
 				archivable_busy_set_(archivable_busy_set),
-				internal_db_(internal_db)
+				internal_db_(internal_db),
+				quit_(quit)
 	{
 		connect_archived();
 	}
@@ -463,9 +467,9 @@ private:
 				put_archivable_ptr_->set_done(false);
 				{
 					int retry = 0;
-					while(!internal_db_.save(put_archivable_ptr_) && (retry < archiving::archivable::save_retry_max_count)) {
-						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
-						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
+						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save states to DB failed; retrying..");
+						boost::this_thread::sleep(boost::posix_time::seconds(5));
 						retry++;
 					}
 				}
@@ -624,9 +628,9 @@ private:
 				put_archivable_ptr_->set_done(false);
 				{
 					int retry = 0;
-					while(!internal_db_.save(put_archivable_ptr_) && (retry < archiving::archivable::save_retry_max_count)) {
-						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save failed; retrying ... (max-retry: "<<archiving::archivable::save_retry_max_count<<')');
-						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * archiving::archivable::save_retry_multiplier_seconds));
+					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
+						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save states to DB failed; retrying..");
+						boost::this_thread::sleep(boost::posix_time::seconds(5));
 						retry++;
 					}
 				}

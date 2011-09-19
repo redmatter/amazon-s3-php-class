@@ -307,7 +307,8 @@ int main(int argc, char* argv[]) try
 	    		archivable_busy_set,
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
 	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db);
+	    		internal_db,
+	    		app::quit);
 
 		{
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
