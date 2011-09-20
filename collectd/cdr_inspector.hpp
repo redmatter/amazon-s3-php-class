@@ -394,8 +394,8 @@ public:
 											{
 												int retry = 0;
 												while(!internal_db_.save(archivable_recording) && !app::quit) {
-													LogMessage(*archivable_recording<<" [retry:"<<retry<<"] Save state to DB failed; retrying ...");
-													boost::this_thread::sleep(boost::posix_time::seconds(5));
+													LogMessage(*archivable_recording<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
+													boost::this_thread::sleep(boost::posix_time::seconds(15));
 													retry++;
 												}
 											}
@@ -449,8 +449,8 @@ public:
 									{
 										int retry = 0;
 										while(!internal_db_.save(archivable_recording) && !app::quit) {
-											LogMessage(archivable_recording<<" [retry:"<<retry<<"] Save state to DB failed; retrying ...");
-											boost::this_thread::sleep(boost::posix_time::seconds(5));
+											LogMessage(archivable_recording<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
+											boost::this_thread::sleep(boost::posix_time::seconds(15));
 											retry++;
 										}
 									}
@@ -492,8 +492,8 @@ public:
 						{
 							int retry = 0;
 							while(!internal_db_.save(archivable_cdr) && !app::quit) {
-								LogMessage(*archivable_cdr<<" [retry:"<<retry<<"] Save states to DB failed; retrying ...");
-								boost::this_thread::sleep(boost::posix_time::seconds(5));
+								LogMessage(*archivable_cdr<<" [retry: "<<retry<<"] Save states to DB failed; retrying ...");
+								boost::this_thread::sleep(boost::posix_time::seconds(15));
 								retry++;
 							}
 						}

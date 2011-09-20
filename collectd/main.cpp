@@ -150,14 +150,8 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 					unlink_path((*itr)->path);
 				}
 
-				{
-					int retry = 0;
-					while(!internal_db.purge(purgeables) && (retry < 2)) {
-						LogMessage("[retry:"<<retry<<"] Purge failed; retrying ... (max-retry: "<<2<<')');
-						boost::this_thread::sleep(boost::posix_time::seconds(1 + retry * 3));
-						retry++;
-					}
-				}
+				if(!internal_db.purge(purgeables))
+					LogWarning("Purge DB failed; ignoring ...");
 			}
 		}
 		catch(const std::exception& e) {

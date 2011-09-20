@@ -116,13 +116,12 @@ public:
 					}
 				}
 
-				try {
-					retention_db_.save(retention_set, usage_data_set);
-				}
-				catch(const mysqlpp::Exception& e) {
-					LogCritical("Database Error: "<<e.what());
-					LogWarning("Raising quit flag due to database error!!");
-					quit_ = true;
+				{
+					int retry = 0;
+					while(!retention_db_.save(retention_set, usage_data_set) && !quit_) {
+						LogMessage("[retry: "<<(++retry)<<"] Retention save failed' retrying...");
+						boost::this_thread::sleep(boost::posix_time::seconds(15));
+					}
 				}
 			}
 			catch(const operation_data::channel_t::finishing_exception& e) {

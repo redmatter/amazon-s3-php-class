@@ -468,8 +468,8 @@ private:
 				{
 					int retry = 0;
 					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save states to DB failed; retrying..");
-						boost::this_thread::sleep(boost::posix_time::seconds(5));
+						LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
 				}
@@ -629,8 +629,8 @@ private:
 				{
 					int retry = 0;
 					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-						LogMessage(put_archivable_ptr_<<" [retry:"<<retry<<"] Save states to DB failed; retrying..");
-						boost::this_thread::sleep(boost::posix_time::seconds(5));
+						LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
 				}

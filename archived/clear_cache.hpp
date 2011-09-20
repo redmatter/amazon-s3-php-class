@@ -20,6 +20,8 @@
 
 namespace app {
 
+extern volatile bool quit;
+
 class clear_cache
 {
 	const boost::program_options::variables_map& confMap_;
@@ -135,7 +137,11 @@ public:
 				}
 			}
 
-			db_.clear_cache_put_path(identifier.org, identifier.uuid, file_format, cache_path, is_hardlink);
+			int retry = 0;
+			while(!db_.clear_cache_put_path(identifier.org, identifier.uuid, file_format, cache_path, is_hardlink) && !quit) {
+				LogMessage("[retry: "<<(++retry)<<"] clear_cache_put_path failed; retrying...");
+				boost::this_thread::sleep(boost::posix_time::seconds(15));
+			}
 		}
 		catch(const std::exception& e) {
 			LogMessage("Failed to add file to clear cache err:"<<e.what());

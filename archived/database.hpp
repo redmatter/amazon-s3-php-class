@@ -91,140 +91,171 @@ public:
 
 	std::pair< bool, app::retention > get_retention(const archiving::org_id_t& org, const std::string& identifier)
 	{
-		rml::MySQLConnection conn(*p_pool_); // scoped connection
-		mysqlpp::Query query = conn->query();
-		query << "SELECT"
-				" OrgID,"
-				" UserID,"
-				" PolicyID,"
-				" PolicyVersion, "
-				" DAYOFMONTH(CreationDate), MONTH(CreationDate), YEAR(CreationDate),"
-				" DAYOFMONTH(RetentionMinDate), MONTH(RetentionMinDate), YEAR(RetentionMinDate),"
-				" DAYOFMONTH(RetentionMaxDate), MONTH(RetentionMaxDate), YEAR(RetentionMaxDate)"
-				"FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-				"WHERE ReversedIdentifier=REVERSE(%0q:Identifier) AND OrgID=%1:OrgID"
-				" AND Purged='n' AND RetentionMaxDate >= CURDATE()"
-				"LIMIT 1";
-		query.parse();
-		mysqlpp::SQLQueryParms qp;
-		qp << identifier << org;
+		try {
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			mysqlpp::Query query = conn->query();
+			query << "SELECT"
+					" OrgID,"
+					" UserID,"
+					" PolicyID,"
+					" PolicyVersion, "
+					" DAYOFMONTH(CreationDate), MONTH(CreationDate), YEAR(CreationDate),"
+					" DAYOFMONTH(RetentionMinDate), MONTH(RetentionMinDate), YEAR(RetentionMinDate),"
+					" DAYOFMONTH(RetentionMaxDate), MONTH(RetentionMaxDate), YEAR(RetentionMaxDate)"
+					"FROM `ArchivingRetention`.`Retention_"<<org<<"` "
+					"WHERE ReversedIdentifier=REVERSE(%0q:Identifier) AND OrgID=%1:OrgID"
+					" AND Purged='n' AND RetentionMaxDate >= CURDATE()"
+					"LIMIT 1";
+			query.parse();
+			mysqlpp::SQLQueryParms qp;
+			qp << identifier << org;
 
-		mysqlpp::UseQueryResult res = query.use(qp);
-		if(mysqlpp::Row row = res.fetch_row()) {
-			return std::make_pair(true, app::retention(
-					archiving::org_id_t(rml::utils::strtoull(row[0].c_str())),    // OrgID
-					archiving::user_id_t(rml::utils::strtoull(row[1].c_str())),   // UserID
-					policy::id_type(rml::utils::strtoull(row[2].c_str())),      // PolicyID
-					policy::version_type(rml::utils::strtoull(row[3].c_str())), // PolicyVersion
-					applied_policy::ymd_t(                                      // CreationDate
-							rml::utils::strtoull(row[4].c_str()),
-							rml::utils::strtoull(row[5].c_str()),
-							rml::utils::strtoull(row[6].c_str())),
-					applied_policy::ymd_t(                                      // RetentionMinDate
-							rml::utils::strtoull(row[7].c_str()),
-							rml::utils::strtoull(row[8].c_str()),
-							rml::utils::strtoull(row[9].c_str())),
-					applied_policy::ymd_t(                                      // RetentionMinDate
-							rml::utils::strtoull(row[10].c_str()),
-							rml::utils::strtoull(row[11].c_str()),
-							rml::utils::strtoull(row[12].c_str()))));
+			mysqlpp::UseQueryResult res = query.use(qp);
+			if(mysqlpp::Row row = res.fetch_row()) {
+				return std::make_pair(true, app::retention(
+						archiving::org_id_t(rml::utils::strtoull(row[0].c_str())),    // OrgID
+						archiving::user_id_t(rml::utils::strtoull(row[1].c_str())),   // UserID
+						policy::id_type(rml::utils::strtoull(row[2].c_str())),      // PolicyID
+						policy::version_type(rml::utils::strtoull(row[3].c_str())), // PolicyVersion
+						applied_policy::ymd_t(                                      // CreationDate
+								rml::utils::strtoull(row[4].c_str()),
+								rml::utils::strtoull(row[5].c_str()),
+								rml::utils::strtoull(row[6].c_str())),
+						applied_policy::ymd_t(                                      // RetentionMinDate
+								rml::utils::strtoull(row[7].c_str()),
+								rml::utils::strtoull(row[8].c_str()),
+								rml::utils::strtoull(row[9].c_str())),
+						applied_policy::ymd_t(                                      // RetentionMinDate
+								rml::utils::strtoull(row[10].c_str()),
+								rml::utils::strtoull(row[11].c_str()),
+								rml::utils::strtoull(row[12].c_str()))));
+			}
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
 		}
 
 		return std::make_pair(false, app::retention());
 	}
 
-	void save(data::multiset_t& data, usage_data::multiset_t& usage_data)
+	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
 	{
-		// Retention Data
-		rml::MySQLConnection conn(*p_pool_);
-		mysqlpp::Transaction transaction(*conn, false);
+		try {
+			rml::MySQLConnection conn(*p_pool_);
+			mysqlpp::Transaction transaction(*conn, false);
 
-		while(data.begin() != data.end()) {
-			data::multiset_t::iterator b_itr = data.begin();
-			std::pair< data::multiset_t::iterator, data::multiset_t::iterator > range = data.equal_range(*b_itr);
+			// retention data
+			{
+				const data::multiset_t::const_iterator& end(data.end());
 
-			const archiving::org_id_t& org(b_itr->org);
+				data::multiset_t::const_iterator batch_itr = data.begin();
+				const archiving::org_id_t& org(batch_itr->org);
+				while(batch_itr != end) {
+					std::pair< data::multiset_t::const_iterator, data::multiset_t::const_iterator > batch_range = data.equal_range(*batch_itr);
 
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
-					"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
-					" VALUES ";
-			int values_count = 0;
-			for(data::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
-				const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
-				const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
-				const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
-				const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
+					mysqlpp::Query query = conn->query();
+					query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
+							"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
+							" VALUES ";
 
-				query << (values_count? ',': '\n')
-						<<"( "
-						<<"UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), "
-						<<itr->file_format<<", "
-						<<itr->org<<", "
-						<<itr->user<<", "
-						<<itr->retention.p_policy->id<<", "
-						<<itr->retention.p_policy->version<<", "
-						<<'\''<<applied_policy::ymd_t::year_type::value_type(creation_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(creation_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(creation_ymd.day)<<"', "
-						<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
-						<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
-						<<midnight_offset_seconds<<", "
-						<<itr->endpoint_id<<", "
-						<<(int)(itr->file_type)
-						<<" )\n";
-				values_count++;
-			}
+					for(data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+						const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
+						const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
+						const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
+						const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
 
-			std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
+						query << ((itr != batch_range.first)? ',': '\n')
+								<<"( "
+								<<"UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), "
+								<<itr->file_format<<", "
+								<<itr->org<<", "
+								<<itr->user<<", "
+								<<itr->retention.p_policy->id<<", "
+								<<itr->retention.p_policy->version<<", "
+								<<'\''<<applied_policy::ymd_t::year_type::value_type(creation_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(creation_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(creation_ymd.day)<<"', "
+								<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
+								<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
+								<<midnight_offset_seconds<<", "
+								<<itr->endpoint_id<<", "
+								<<(int)(itr->file_type)
+								<<" )\n";
+					}
+					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
 
-			mysqlpp::SimpleResult res = query.execute();
-			LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
+					mysqlpp::SimpleResult res = query.execute();
+					LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
-			data.erase(range.first, range.second);
-		}
-
-		// Usage Data
-		while(usage_data.begin() != usage_data.end()) {
-			usage_data::multiset_t::iterator b_itr = usage_data.begin();
-			std::pair< usage_data::multiset_t::iterator, usage_data::multiset_t::iterator > range = usage_data.equal_range(*b_itr);
-
-			const archiving::org_id_t& org(b_itr->org);
-
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
-					"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage` )"
-					" VALUES ";
-			int values_count = 0;
-			for(usage_data::multiset_t::iterator itr = range.first; itr != range.second; ++itr) {
-				char hour_res_date[255];
-				{
-					tm tm_;
-					gmtime_r(&itr->create_time, &tm_);
-					strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+					batch_itr = batch_range.second;
 				}
-
-				query << (values_count? ',': '\n')
-						<<"( "
-						<<'\''<<hour_res_date<<"', "
-						<<'\''<<itr->filetype<<"', "
-						<<itr->org<<", "
-						<<"1, "
-						<<itr->clear_size<<", "
-						<<itr->real_size
-						<<" )\n";
-				values_count++;
 			}
-			query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
-					"\n";
 
-			std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
 
-			mysqlpp::SimpleResult res = query.execute();
-			LogMessage("Usage data added for Org:"<<org);
+			// Usage Data
+			{
+				const usage_data::multiset_t::const_iterator& end(usage_data.end());
 
-			usage_data.erase(range.first, range.second);
+				usage_data::multiset_t::const_iterator batch_itr = usage_data.begin();
+				while(batch_itr != end) {
+					std::pair< usage_data::multiset_t::const_iterator, usage_data::multiset_t::const_iterator > batch_range = usage_data.equal_range(*batch_itr);
+
+					const archiving::org_id_t& org(batch_itr->org);
+
+					mysqlpp::Query query = conn->query();
+					query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
+							"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage` )"
+							" VALUES ";
+
+					for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+						char hour_res_date[255];
+						{
+							tm tm_;
+							gmtime_r(&itr->create_time, &tm_);
+							strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+						}
+
+						query << (itr != batch_range.first? ',': '\n')
+								<<"( "
+								<<'\''<<hour_res_date<<"', "
+								<<'\''<<itr->filetype<<"', "
+								<<itr->org<<", "
+								<<"1, "
+								<<itr->clear_size<<", "
+								<<itr->real_size
+								<<" )\n";
+					}
+					query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+							"\n";
+
+					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
+
+					mysqlpp::SimpleResult res = query.execute();
+					LogMessage("Usage data added for Org:"<<org);
+
+					batch_itr = batch_range.second;
+				}
+			}
+
+			transaction.commit();
+
+			return true;
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
 		}
 
-		transaction.commit();
+		return false;
 	}
 
 	/*
@@ -289,189 +320,203 @@ public:
 	{
 	}
 
-	void save(operation_data::pointer& opdata)
+	bool save(operation_data::pointer& opdata)
 	{
-		rml::MySQLConnection conn(*p_pool_); // scoped connection
+		try {
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			mysqlpp::Transaction transaction(*conn, false);
 
-		const operation_data::detail& opdetail(*(opdata->p_detail));
+			const operation_data::detail& opdetail(*(opdata->p_detail));
 
-		if(!opdetail.database_id) {
-			LogVerbose("Insert: "<<opdetail.identifier);
+			if(!opdetail.database_id) {
+				LogVerbose("Insert: "<<opdetail.identifier);
 
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueue`"
+				mysqlpp::Query query = conn->query();
+				query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueue`"
 
-					" SET HostName=%0q:HostName,"
+						" SET HostName=%0q:HostName,"
 
-					" FileType=%1:FileType,"
-					" OrgID=%2:OrgID,"
-					" UUID=UNHEX(REPLACE(%3q:UUID, '-', '')),"
+						" FileType=%1:FileType,"
+						" OrgID=%2:OrgID,"
+						" UUID=UNHEX(REPLACE(%3q:UUID, '-', '')),"
 
-					" MetaData=%4q:MetaData,"
+						" MetaData=%4q:MetaData,"
 
-					" PolicyID=%5:PolicyID,"
-					" PolicyVersion=%6:PolicyVersion,"
+						" PolicyID=%5:PolicyID,"
+						" PolicyVersion=%6:PolicyVersion,"
 
-					" TargetFileFormat=%7:TargetFileFormat,"
-					" EndPointID=%8:EndPointID,"
+						" TargetFileFormat=%7:TargetFileFormat,"
+						" EndPointID=%8:EndPointID,"
 
-					" CurrentFileFormat=%9:CurrentFileFormat,"
-					" RetryCount=%10:RetryCount,"
-					" OpState=%11:OpState,"
+						" CurrentFileFormat=%9:CurrentFileFormat,"
+						" RetryCount=%10:RetryCount,"
+						" OpState=%11:OpState,"
 
-					" CreateTimeEpoch=%12:CreateTimeEpoch"
-					;
-			query.parse();
+						" CreateTimeEpoch=%12:CreateTimeEpoch"
+						;
+				query.parse();
 
-			mysqlpp::SQLQueryParms qp;
-			qp 		<< app::hostname
+				mysqlpp::SQLQueryParms qp;
+				qp 		<< app::hostname
 
-					<< opdetail.identifier.filetype
-					<< opdetail.identifier.org
-					<< opdetail.identifier.uuid
+						<< opdetail.identifier.filetype
+						<< opdetail.identifier.org
+						<< opdetail.identifier.uuid
 
-					<< opdetail.p_metadata->to_string()
+						<< opdetail.p_metadata->to_string()
 
-					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->id: -1)
-					<< (opdetail.policy.p_policy? opdetail.policy.p_policy->version: 0)
+						<< (opdetail.policy.p_policy? opdetail.policy.p_policy->id: -1)
+						<< (opdetail.policy.p_policy? opdetail.policy.p_policy->version: 0)
 
-					<< ( opdetail.p_endpoint? opdetail.target_file_format: 0 ) // bodge! no target file format if there is no endpoint!
-					<< ( opdetail.p_endpoint? opdetail.p_endpoint->id: 0 )
+						<< ( opdetail.p_endpoint? opdetail.target_file_format: 0 ) // bodge! no target file format if there is no endpoint!
+						<< ( opdetail.p_endpoint? opdetail.p_endpoint->id: 0 )
 
-					<< opdetail.current_file_format
-					<< opdetail.retry
-					<< opdetail.state
+						<< opdetail.current_file_format
+						<< opdetail.retry
+						<< opdetail.state
 
-					<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
-					;
+						<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
+						;
 
-			LogVerbose("SQL: "<<query.str(qp));
-			query.execute(qp);
+				LogVerbose("SQL: "<<query.str(qp));
+				query.execute(qp);
 
-			opdata->p_detail->database_id = query.insert_id();
-		}
-		else {
-			LogVerbose("Update "<<opdetail.identifier);
+				opdata->p_detail->database_id = query.insert_id();
+			}
+			else {
+				LogVerbose("Update "<<opdetail.identifier);
 
-			mysqlpp::Query query = conn->query();
-			query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
-					" SET CurrentFileFormat=%0:CurrentFileFormat,"
-					" RetryCount=%1:RetryCount,"
-					" OpState=%2:OpState"
-					" WHERE ID=%3:ID "
-					"  AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
-					;
-			query.parse();
+				mysqlpp::Query query = conn->query();
+				query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
+						" SET CurrentFileFormat=%0:CurrentFileFormat,"
+						" RetryCount=%1:RetryCount,"
+						" OpState=%2:OpState"
+						" WHERE ID=%3:ID "
+						"  AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
+						;
+				query.parse();
 
-			mysqlpp::SQLQueryParms qp;
-			qp << opdetail.current_file_format
-					<< opdetail.retry
-					<< opdetail.state
-					<< opdetail.database_id
-					<< opdetail.identifier.filetype
-					<< opdetail.identifier.org
-					<< opdetail.identifier.uuid
-					;
+				mysqlpp::SQLQueryParms qp;
+				qp << opdetail.current_file_format
+						<< opdetail.retry
+						<< opdetail.state
+						<< opdetail.database_id
+						<< opdetail.identifier.filetype
+						<< opdetail.identifier.org
+						<< opdetail.identifier.uuid
+						;
 
-			LogVerbose("SQL: "<<query.str(qp));
-			query.execute(qp);
-		}
-
-		// save files list
-		if(!opdata->p_detail->files_map.empty()) {
-			mysqlpp::SQLQueryParms qp;
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueueFiles`"
-					" (ArchiveDQueueID, FileFormat, Path) VALUES"
-					;
-
-			const files_map_t::iterator& end = opdata->p_detail->files_map.end();
-			files_map_t::iterator itr = opdata->p_detail->files_map.begin();
-			bool first = true;
-			for(unsigned int c = 0; itr != end; ++itr, c += 3) {
-				query << (!first? ',': ' ') << "( %"<<(c+0)<<":ArchiveDQueueID, %"<<(c+1)<<":FileFormat, %"<<(c+2)<<"q:Path )";
-				qp << opdetail.database_id << itr->first << itr->second->get_filename();
-				first = false;
+				LogVerbose("SQL: "<<query.str(qp));
+				query.execute(qp);
 			}
 
-			query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
+			// save files list
+			if(!opdata->p_detail->files_map.empty()) {
+				mysqlpp::SQLQueryParms qp;
+				mysqlpp::Query query = conn->query();
+				query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueueFiles`"
+						" (ArchiveDQueueID, FileFormat, Path) VALUES"
+						;
 
-			query.parse();
-			LogVerbose("SQL: "<<query.str(qp));
+				const files_map_t::iterator& end = opdata->p_detail->files_map.end();
+				files_map_t::iterator itr = opdata->p_detail->files_map.begin();
+				bool first = true;
+				for(unsigned int c = 0; itr != end; ++itr, c += 3) {
+					query << (!first? ',': ' ') << "( %"<<(c+0)<<":ArchiveDQueueID, %"<<(c+1)<<":FileFormat, %"<<(c+2)<<"q:Path )";
+					qp << opdetail.database_id << itr->first << itr->second->get_filename();
+					first = false;
+				}
 
-			query.execute(qp);
+				query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
+
+				query.parse();
+				LogVerbose("SQL: "<<query.str(qp));
+
+				query.execute(qp);
+			}
+
+			transaction.commit();
+
+			return true;
 		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return false;
 	}
 
 	std::string clear_cache_get_path(const archiving::org_id_t org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
 		rml::MySQLConnection conn(*p_pool_); // scoped connection
-		unsigned int retry = 3;
-		while(retry--) {
-			try {
-				mysqlpp::Transaction trans(*conn);
+		std::string path;
+		try {
+			mysqlpp::Transaction trans(*conn);
 
-				std::string path;
-				uint64_t id;
+			uint64_t id;
 
-				{
-					mysqlpp::Query query = conn->query();
-					query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
-							"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat "
-							"FOR UPDATE";
-					query.parse();
+			{
+				mysqlpp::Query query = conn->query();
+				query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
+						"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat "
+						"FOR UPDATE";
+				query.parse();
 
-					mysqlpp::SQLQueryParms qp;
-					qp << org_id << uuid << file_format;
+				mysqlpp::SQLQueryParms qp;
+				qp << org_id << uuid << file_format;
 
-					LogVerbose("SQL: "<<query.str(qp));
+				LogVerbose("SQL: "<<query.str(qp));
 
-					mysqlpp::UseQueryResult res = query.use(qp);
+				mysqlpp::UseQueryResult res = query.use(qp);
 
-					if(mysqlpp::Row row = res.fetch_row()) {
-						path = row[1].c_str();
-						id = rml::utils::strtoull(row[0].c_str());
-					}
+				if(mysqlpp::Row row = res.fetch_row()) {
+					path = row[1].c_str();
+					id = rml::utils::strtoull(row[0].c_str());
 				}
-
-				if(!path.empty() && id) {
-					mysqlpp::Query query = conn->query();
-					query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
-					LogMessage("SQL: "<<query.str());
-					query.execute();
-
-					return path;
-				}
-
-				throw rml::exception("No path found in clear cache");
 			}
-			catch(const mysqlpp::BadQuery& e) {
-				if(e.errnum() == ER_LOCK_DEADLOCK || e.errnum() == ER_LOCK_WAIT_TIMEOUT) {
-					LogWarning("Bad Query: "<<e.what());
-					LogMessage("Transaction failed with locking failure; retrying ...");
-					boost::this_thread::sleep(boost::posix_time::seconds(1));
-					continue;
-				}
 
-				LogError("Bad Query: "<<e.what());
-				throw;
+			if(!path.empty() && id) {
+				mysqlpp::Query query = conn->query();
+				query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
+				LogMessage("SQL: "<<query.str());
+				query.execute();
+
+				return path;
 			}
-			catch(const mysqlpp::Exception& e) {
-				LogError("Exception: "<<e.what());
-				throw;
+
+			throw rml::exception("No path found in clear cache");
+		}
+		catch(const mysqlpp::BadQuery& e) {
+			if(e.errnum() == ER_LOCK_DEADLOCK || e.errnum() == ER_LOCK_WAIT_TIMEOUT) {
+				LogWarning("Ignoring UPDATE failure: "<<e.what());
+				return path;
 			}
+
+			LogError("Bad Query: "<<e.what());
+			throw;
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("Exception: "<<e.what());
+			throw;
 		}
 	}
 
-	void clear_cache_put_path(
+	bool clear_cache_put_path(
 			const archiving::org_id_t org_id,
 			const std::string& uuid,
 			const types::file_format::file_format_t& file_format,
 			const std::string& path,
 			const bool is_hardlink=true)
 	{
-		rml::MySQLConnection conn(*p_pool_);
 		try {
+			rml::MySQLConnection conn(*p_pool_);
+
 			mysqlpp::Query query = conn->query();
 			query << "INSERT INTO `ArchivingInternal`.`ArchiveDClearCache` "
 					"SET OrgID=%0:OrgID,"
@@ -480,7 +525,7 @@ public:
 					" Path=%3q:Path,"
 					" HardLink=%4q:HardLink,"
 					" CreateTime=NOW(),"
-					" AccessTime=NOW()"
+					" AccessTime=NOW() "
 					"ON DUPLICATE KEY UPDATE"
 					" Path=%3q:Path,"
 					" HardLink=%4q:HardLink,"
@@ -492,15 +537,20 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no");
 			query.execute(qp);
-		}
-		catch(const mysqlpp::BadQuery& e) {
-			LogCritical("Bad Query: "<<e.what());
-			throw;
+
+			return true;
 		}
 		catch(const mysqlpp::Exception& e) {
-			LogError("Exception: "<<e.what());
-			throw;
+			LogError("MySQL Exception: "<<e.what());
 		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return false;
 	}
 };
 

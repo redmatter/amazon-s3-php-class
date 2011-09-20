@@ -537,7 +537,9 @@ private:
 										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
 										whisper_channel_.produce(p_whisper);
 
-										cdrmunch_db_.save(p_whisper);
+										// TODO XXX handle failure to insert into cdrmunch DB
+										if(!cdrmunch_db_.save(p_whisper))
+											LogWarning(remote_ep<<" Failed to add CDR into distiller queue (table: CDR.cdr_queue)");
 									}
 								}
 								else
