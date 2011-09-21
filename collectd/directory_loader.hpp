@@ -51,8 +51,10 @@ public:
 			if(count++ % interval)
 				continue;
 
+			DIR* dh = 0;
+
 			try {
-				DIR* dh = opendir(dir_path_.c_str());
+				dh = opendir(dir_path_.c_str());
 				if(!dh) {
 					LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
 					throw rml::exception("failed opening directory");
@@ -82,12 +84,15 @@ public:
 						(void)loader_(file_path);
 				}
 
-				closedir(dh);
-
 				LogMessage("Loading from directory; done");
 			}
 			catch(const std::exception& e) {
 				LogError(e.what());
+			}
+
+			if(dh) {
+				closedir(dh);
+				dh = 0;
 			}
 		}
 
