@@ -97,6 +97,7 @@ _start() {
 	_is_alive && _die 1 "$program_name already running."
 	
 	rm -f $pid_file;
+	/usr/bin/rmarchived-hAPI || return 1
 	nohup /usr/bin/${program_name}_safe $program $program_opts </dev/null &>/dev/null &
 	
 	sleep 2;

@@ -174,8 +174,8 @@ fi
 /sbin/chkconfig rmcollectd on
 [ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
 
-%post convert
-/usr/bin/rmarchived-hAPI
+#%post convert
+#/usr/bin/rmarchived-hAPI
 
 %post common
 /usr/bin/rmarchived-hAPI
@@ -206,6 +206,8 @@ fi
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmarchived
 /etc/rsyslog.d/11-rmarchived.conf
+/etc/archiving/conf.d/retention_database.conf
+/etc/archiving/conf.d/cdrmunch_database.conf
 
 %files collectd
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
@@ -243,8 +245,6 @@ fi
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
 /etc/archiving/conf.d/internal_database.conf
-/etc/archiving/conf.d/retention_database.conf
-/etc/archiving/conf.d/cdrmunch_database.conf
 # /etc/archiving/migration_database.conf
 
 # ----------
