@@ -116,7 +116,7 @@ public:
 					}
 				}
 
-				{
+				if(!retention_set.empty() || !usage_data_set.empty()) {
 					int retry = 0;
 					while(!retention_db_.save(retention_set, usage_data_set) && !quit_) {
 						LogMessage("[retry: "<<(++retry)<<"] Retention save failed' retrying...");
