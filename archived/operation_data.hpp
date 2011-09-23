@@ -181,7 +181,7 @@ struct operation_data
 			if(lhs->p_detail->identifier.uuid != rhs->p_detail->identifier.uuid)
 				return lhs->p_detail->identifier.uuid < rhs->p_detail->identifier.uuid;
 
-			return lhs->p_detail->state < rhs->p_detail->state;
+			return lhs->p_detail->identifier.filetype < rhs->p_detail->identifier.filetype;
 		}
 	};
 
