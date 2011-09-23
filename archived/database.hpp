@@ -189,7 +189,7 @@ public:
 					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
 
 					mysqlpp::SimpleResult res = query.execute();
-					LogMessage("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
+					LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
 					batch_itr = batch_range.second;
 				}
@@ -235,7 +235,7 @@ public:
 					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
 
 					mysqlpp::SimpleResult res = query.execute();
-					LogMessage("Usage data added for Org:"<<org);
+					LogVerbose("Usage data added for Org:"<<org);
 
 					batch_itr = batch_range.second;
 				}
@@ -329,7 +329,7 @@ public:
 			const operation_data::detail& opdetail(*(opdata->p_detail));
 
 			if(!opdetail.database_id) {
-				LogVerbose("Insert: "<<opdetail.identifier);
+				LogDebug("Insert: "<<opdetail.identifier);
 
 				mysqlpp::Query query = conn->query();
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueue`"
@@ -378,13 +378,13 @@ public:
 						<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
 						;
 
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 				query.execute(qp);
 
 				opdata->p_detail->database_id = query.insert_id();
 			}
 			else {
-				LogVerbose("Update "<<opdetail.identifier);
+				LogDebug("Update "<<opdetail.identifier);
 
 				mysqlpp::Query query = conn->query();
 				query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
@@ -406,7 +406,7 @@ public:
 						<< opdetail.identifier.uuid
 						;
 
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 				query.execute(qp);
 			}
 
@@ -430,7 +430,7 @@ public:
 				query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
 
 				query.parse();
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 				query.execute(qp);
 			}
@@ -471,7 +471,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << org_id << uuid << file_format;
 
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 
@@ -484,7 +484,7 @@ public:
 			if(!path.empty() && id) {
 				mysqlpp::Query query = conn->query();
 				query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
-				LogMessage("SQL: "<<query.str());
+				std::cout << "SQL: "<<query.str() << std::endl;
 				query.execute();
 
 				return path;

@@ -33,7 +33,7 @@ public:
 	void operator() (dir_monitor::event ev, boost::system::error_code e)
 	{
 	    if (!e) {
-	    	LogVerbose("cdr_dir_monitor: received event "<<ev);
+	    	LogDebug("cdr_dir_monitor: received event "<<ev);
 
 	    	std::string file_path = ev.dir_name + '/' + ev.file_name;
 

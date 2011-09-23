@@ -187,7 +187,7 @@ private:
 	inline void reconnect(const bool& force_reconnect, const boost::system::error_code& error)
 	{
 		if(error != boost::asio::error::operation_aborted) {
-			LogMessage("Timeout; reconnecting...");
+			LogVerbose("Timeout; reconnecting...");
 			reconnect(force_reconnect);
 		}
 	}
@@ -195,7 +195,7 @@ private:
 	inline void reconnect(const bool& force_reconnect = false)
 	{
 		if(connected_ && force_reconnect) {
-			LogMessage("Reconnecting...");
+			LogVerbose("Reconnecting...");
 			do_close(true);
 		}
 		else if(!connected_ && (current_state_ == state::initialised)) {
@@ -224,7 +224,7 @@ private:
 	void handle_resolve(const boost::system::error_code& error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
-			LogMessage("Resolved "<<distiller_host_<<':'<<distiller_port_<<"; opening connection");
+			LogDebug("Resolved "<<distiller_host_<<':'<<distiller_port_<<"; opening connection");
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			socket_.async_connect(endpoint,
 					boost::bind(&whisper_client::handle_connect, this,
@@ -238,7 +238,7 @@ private:
 	void handle_connect(const boost::system::error_code& error, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
-			LogMessage("Connected to "<<distiller_host_<<':'<<distiller_port_<<"; handshaking...");
+			LogDebug("Connected to "<<distiller_host_<<':'<<distiller_port_<<"; handshaking...");
 			current_state_ = state::connecting;
 			timer_.cancel();
 
@@ -295,7 +295,7 @@ private:
 				ostr << *p_whisper << "\r\n";
 			}
 			catch(const whisper::channel_t::consume_timed_out_exception& e) {
-				LogVerbose("timed-out on whisper-item; retrying...");
+				LogDebug("timed-out on whisper-item; retrying...");
 				current_state_ = state::nop_ack_wait;
 
 				ostr << "NOP\r\n";
@@ -329,7 +329,7 @@ private:
 				current_state_ = state::whisper_ack_err;
 			}
 			else {
-				LogMessage("Whisper aacked OK");
+				LogVerbose("Whisper aacked OK");
 				current_state_ = state::whisper_ack_ok;
 			}
 
@@ -351,7 +351,7 @@ private:
 				current_state_ = state::nop_ack_err;
 			}
 			else {
-				LogMessage("NOP acked OK");
+				LogVerbose("NOP acked OK");
 				current_state_ = state::nop_ack_ok;
 			}
 

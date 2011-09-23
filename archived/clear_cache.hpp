@@ -55,13 +55,13 @@ public:
 			const archiving::archivable::identifier& identifier,
 			const types::file_format::file_format_t& file_format)
 	{
-		LogVerbose(identifier<<": Get file_format:"<<RML_HEX(5, file_format));
+		LogDebug(identifier<<": Get file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
 
 		try {
 			const std::string& path(db_.clear_cache_get_path(identifier.org, identifier.uuid, file_format));
-			LogVerbose(identifier<<": Got from DB path:"<<path<<"; opening it...");
+			LogDebug(identifier<<": Got from DB path:"<<path<<"; opening it...");
 
 			return rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(path, std::ios_base::in | std::ios_base::binary));
 		}
@@ -83,7 +83,7 @@ public:
 			const types::file_format::file_format_t& file_format,
 			rml::utils::tmp_fstream::pointer file)
 	{
-		LogVerbose(identifier<<": Put file_format:"<<RML_HEX(5, file_format));
+		LogDebug(identifier<<": Put file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
 
@@ -92,7 +92,7 @@ public:
 						boost::str(
 							boost::format("%1%/%2%.%3%") % base_directory_ % archiving::archivable::identifier::to_string(identifier) % types::file_format::to_extension(file_format)));
 
-			LogVerbose(identifier<<": clear cache path: "<<cache_path);
+			LogDebug(identifier<<": clear cache path: "<<cache_path);
 
 			bool is_linked = false;
 			bool path_exists = false;
@@ -144,8 +144,8 @@ public:
 			}
 		}
 		catch(const std::exception& e) {
-			LogMessage("Failed to add file to clear cache err:"<<e.what());
-			// XXX may be we should remove the DB entry / file on disk here depending on the type of excception
+			LogWarning("Failed to add file to clear cache err:"<<e.what());
+			// XXX may be we should remove the DB entry / file on disk here depending on the type of exception
 		}
 	}
 };

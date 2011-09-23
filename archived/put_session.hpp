@@ -311,7 +311,7 @@ private:
 						ostr << "ERR PUT invalid PUT request\r\n";
 					}
 					else {
-						LogMessage(remote_ep<<" PUT received for file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length);
+						LogMessage(remote_ep<<" PUT received [ file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length<<" ]");
 						if(content_length <= 0) {
 							LogError(remote_ep<<" Invalid content length:"<<content_length);
 							current_state_ = states::put_received_ack_err;
@@ -455,11 +455,11 @@ private:
 			if(xfrd_ok_) {
 				ofs_->re_open();
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
-				LogVerbose(remote_ep<<" Original MD5: "<<md5_);
-				LogVerbose(remote_ep<<" Computed MD5: "<<md5);
+				LogDebug(remote_ep<<' '<<resource_id_<<" Original MD5: "<<md5_);
+				LogDebug(remote_ep<<' '<<resource_id_<<" Computed MD5: "<<md5);
 				if(md5 == md5_) {
 
-					LogMessage(resource_id_<<": PUT received OK");
+					LogMessage(remote_ep<<" "<<resource_id_<<": PUT; Data received OK");
 
 					// create operation_data
 					operation_data::pointer opdata(new operation_data());
@@ -513,7 +513,7 @@ private:
 						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
 						if(itr != opdata->p_detail->p_metadata->end()) {
 							if( itr->second == "true" ) {
-								LogVerbose(remote_ep<<" AddToCDRMunchCache requested");
+								LogVerbose(remote_ep<<' '<<resource_id_<<" AddToCDRMunchCache requested");
 								std::string whisper_path = boost::str(
 										boost::format("%1%/%2%_%3%_%4%")
 												% confMap_["distiller_client.base_dir"].as<std::string>()
@@ -531,7 +531,7 @@ private:
 									whisper_ofs.flush();
 									whisper_ofs.close();
 
-									LogMessage(remote_ep<<" Whisper file created; file:"<<whisper_path);
+									LogMessage(remote_ep<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
 
 									if(file_type_ == archiving::archivable::file_type::cdr) {
 										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
@@ -554,7 +554,6 @@ private:
 					// no need to keep the file open till we can process it
 					ofs_->close();
 
-					// do not produce till we are done whispering as we might endup sharing the same tmp_fstream object across threads... bad!
 					if(policy_id_ >= 0) // if PolicyID < 0; it only needs to be local cached
 						channel_.produce(opdata);
 					else
@@ -600,24 +599,26 @@ private:
 	{
 		const boost::asio::ip::tcp::socket::endpoint_type& remote_ep( socket_.remote_endpoint() );
 
-		LogVerbose(remote_ep<<" error: "<<error<<" ---------------------------------------");
-		LogVerbose(remote_ep<<" bytes_transferred: "<<bytes_transferred);
-		LogVerbose(remote_ep<<" content_length_: "<<content_length_);
+		/*
+		LogDebug(remote_ep<<' '<<resource_id_<<" error: "<<error<<" ---------------------------------------");
+		LogDebug(remote_ep<<' '<<resource_id_<<" bytes_transferred: "<<bytes_transferred);
+		LogDebug(remote_ep<<' '<<resource_id_<<" content_length_: "<<content_length_);
+		 */
 
 		std::size_t chunk_remaining = bytes_transferred;
 
 		if(!error) {
 			while(chunk_remaining) {
-				LogVerbose(remote_ep<<" xfrd_content_length_: "<<xfrd_content_length_);
 
 				std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
 				if(buf_length) {
 					std::vector<char> buf(buf_length);
 					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
-					LogVerbose("Received: "<<buf_length<<" bytes");
 					ofs_->rdbuf()->sputn(&buf[0], buf_length);
 					xfrd_content_length_ += buf_length;
 					chunk_remaining -= buf_length;
+
+					LogDebug(remote_ep<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
 				}
 				else {
 					if ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_)) {
@@ -625,25 +626,24 @@ private:
 						char eof[4];
 						std::streamsize eof_len = recv_buffer_.sgetn(eof, 4);
 
-						LogDebug(remote_ep<<" eof_len: "<<eof_len);
-						//LogDebug("eof: {0x"<<RML_HEX(4, int(eof[0]))<<", 0x"<<RML_HEX(4, int(eof[1]))<<", 0x"<<RML_HEX(4, int(eof[2]))<<", 0x"<<RML_HEX(4, int(eof[3]))<<RML_HEX_RESET<<'}');
-						LogDebug(remote_ep<<" eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
+						//LogDebug(remote_ep<<' '<<resource_id_<<" eof_len: "<<eof_len);
+						//LogDebug(remote_ep<<' '<<resource_id_<<" eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
 
 						if((1 == eof_len) && (eof[0] == '\x1a')) {
 							xfrd_ok_ = true;
 							chunk_remaining = 0;
-							LogDebug(remote_ep<<" PUT; File transfer completed ok");
+							LogMessage(remote_ep<<' '<<resource_id_<<" PUT; File transfer completed ok");
 						}
 						else {
-							LogError(remote_ep<<" Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
+							LogError(remote_ep<<' '<<resource_id_<<" Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
 							break;
 						}
 					}
 					else {
-						LogVerbose(remote_ep<<" chunk_remaining:"<<chunk_remaining);
-						LogVerbose(remote_ep<<" content_length_:"<<content_length_);
-						LogVerbose(remote_ep<<" xfrd_content_length_:"<<xfrd_content_length_);
-						LogError(remote_ep<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
+						LogDebug(remote_ep<<' '<<resource_id_<<" chunk_remaining:"<<chunk_remaining);
+						LogDebug(remote_ep<<' '<<resource_id_<<" content_length_:"<<content_length_);
+						LogDebug(remote_ep<<' '<<resource_id_<<" xfrd_content_length_:"<<xfrd_content_length_);
+						LogError(remote_ep<<' '<<resource_id_<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
 						break;
 					}
 				}

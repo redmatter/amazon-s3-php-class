@@ -213,7 +213,7 @@ protected:
 			if(!(*p_tmpfs_) && !p_tmpfs_->eof())
 				throw rml::exception("Error while creating md5");
 
-			LogVerbose("Base64(MD5): "<<base64_md5);
+			LogDebug("Base64(MD5): "<<base64_md5);
 
 			p_tmpfs_->clear(); // clear eof
 			p_tmpfs_->seekg(0);
@@ -233,7 +233,7 @@ protected:
 		put_callback_data *data = (put_callback_data *) callbackData;
 		data->status = status;
 
-		LogVerbose("status: "<<S3_get_status_name(status));
+		LogDebug("status: "<<S3_get_status_name(status));
 
 		if (error && error->message)
 			LogError("Error: "<<error->message);
@@ -375,7 +375,7 @@ public:
 
 
 		S3NameValue metadata[s3headers.size()];
-		LogVerbose(identifier<<": Adding "<<s3headers.size()<<" metadata headers");
+		LogDebug(identifier<<": Adding "<<s3headers.size()<<" metadata headers");
 		int i = 0;
 		for(types::caseless_key_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
 			if(!itr->first.empty() && !itr->second.empty()) {
@@ -418,7 +418,7 @@ public:
 			S3_put_object(&bucket_context, &identifier[0], data.to_be_copied, &put_props, 0, &put_handler, &data);
 		} while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
-		LogVerbose(identifier<<": PUT Result Status: "<<S3_get_status_name(data.status));
+		LogMessage(identifier<<": PUT Result Status: "<<S3_get_status_name(data.status));
 
 		if(data.status != S3StatusOK)
 			throw rml::exception("S3 PUT failed");

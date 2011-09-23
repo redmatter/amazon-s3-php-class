@@ -44,7 +44,15 @@ public:
 
 		p_pool_ = new rml::DBConnectionPool(confMap_, database_type::get_identifier());
 
-		LogVerbose(database_type::get_identifier()<<" database connection pool created");
+		LogMessage("database['"<<database_type::get_identifier() << "] connection pool created");
+
+		{
+			// let us see if it really works!
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			mysqlpp::Query query = conn->query();
+			query << "SELECT NOW()";
+			mysqlpp::UseQueryResult res = query.use();
+		}
 	}
 
 	virtual ~basic_database()

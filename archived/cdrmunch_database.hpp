@@ -58,7 +58,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-			LogVerbose("SQL: "<<query.str(qp));
+			std::cout << "SQL: "<<query.str(qp)<<std::endl;
 			query.execute(qp);
 
 			return true;

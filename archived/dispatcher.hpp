@@ -49,14 +49,14 @@ public:
 	void queue_for_retention_save(operation_data::pointer opdata, const storage::operation_result::operation_result_t& storage_opr_result)
 	{
 		if(storage_opr_result == storage::operation_result::success) {
-			LogVerbose(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
+			LogMessage(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
 			opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			retention_data_channel_.produce(opdata);
 		}
 		else {
 			bool error = false;
-			LogVerbose(opdata->p_detail->identifier<<": Saving to S3 failed");
+			LogWarning(opdata->p_detail->identifier<<": Saving to S3 failed");
 			opdata->p_detail->retry++;
 			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
 				error = true;

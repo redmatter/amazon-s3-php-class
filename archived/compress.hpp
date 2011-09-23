@@ -66,14 +66,10 @@ public:
 						boost::iostreams::write(filters, &buf[0], buf_length);
 
 						copied_length += buf_length;
-
-						LogDebug("Copied: "<<buf_length<<" ("<<copied_length<<'/'<<content_length<<')'<<" bytes");
 					}
-					LogVerbose("Copied: "<<copied_length<<" bytes");
 				}
 				else {
-					std::streamsize copied = boost::iostreams::copy(is, filters);
-					LogVerbose("Copied: "<<copied<<" bytes");
+					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
 				}
 			}
 
@@ -181,13 +177,10 @@ public:
 						boost::iostreams::write(filters, &buf[0], buf_length);
 
 						copied_length += buf_length;
-
-						LogVerbose("Copied: "<<buf_length<<" ("<<copied_length<<'/'<<content_length<<')'<<" bytes");
 					}
 				}
 				else {
-					std::streamsize copied = boost::iostreams::copy(is, filters);
-					LogVerbose("Copied: "<<copied<<" bytes");
+					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
 				}
 			}
 

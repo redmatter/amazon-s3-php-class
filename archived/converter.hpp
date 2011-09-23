@@ -62,7 +62,7 @@ public:
 					std::pair<app::types::file_format::convert_action::convert_action_t, app::types::file_format::file_format_t> next =
 							app::types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format);
 
-					LogVerbose(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
+					LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
 
 					try {
 						if(next.second == app::types::file_format::unknown) {

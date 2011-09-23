@@ -184,7 +184,7 @@ public:
 		int attempts = 2;
 
 		const std::string& url(base_url_+uri);
-		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
+		LogDebug(boost::this_thread::get_id()<<" url: "<<url);
 
 		while(attempts--) {
 			http_client_request request(url);
@@ -260,7 +260,7 @@ public:
 		int attempts = 2;
 
 		const std::string& url(base_url_+uri);
-		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
+		LogDebug(boost::this_thread::get_id()<<" url: "<<url);
 
 		while(attempts--) {
 			http_client_request request(url);
@@ -323,7 +323,7 @@ public:
 		int attempts = 2;
 
 		const std::string& url(base_url_+uri);
-		LogVerbose(boost::this_thread::get_id()<<" url: "<<url);
+		LogDebug(boost::this_thread::get_id()<<" url: "<<url);
 
 		while(attempts--) {
 			http_client_request request(url);

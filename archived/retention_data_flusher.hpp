@@ -64,7 +64,7 @@ public:
 							const types::metadata::pointer& p_metadata( data->p_detail->p_metadata );
 							types::metadata::const_iterator itr = p_metadata->find("CreateTime");
 							if(itr == p_metadata->end()) {
-								LogWarning("CreateTime NOT found in metadata");
+								LogWarning(identifier<<" CreateTime NOT found in metadata");
 								time(&creation_time);
 							}
 							else

@@ -81,7 +81,7 @@ public:
 		if(ec)
 			THROW_RML_EXCEPTION("Failed to listen on PUT port ["<<put_port<<"]; error:"<<ec.message());
 
-		LogMessage("Listening on PUT port ["<<put_port<<']');
+		LogMessage("PUT Listening ["<<put_port<<']');
 
 		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 		acceptor_.async_accept(new_session->socket(),
