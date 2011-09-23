@@ -178,7 +178,10 @@ struct operation_data
 			if(lhs->p_detail->state != rhs->p_detail->state)
 				return lhs->p_detail->state < rhs->p_detail->state; // order of states in the enum dictates the order here
 
-			return lhs->p_detail->identifier.uuid < rhs->p_detail->identifier.uuid;
+			if(lhs->p_detail->identifier.uuid != rhs->p_detail->identifier.uuid)
+				return lhs->p_detail->identifier.uuid < rhs->p_detail->identifier.uuid;
+
+			return lhs->p_detail->state < rhs->p_detail->state;
 		}
 	};
 
