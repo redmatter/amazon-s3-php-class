@@ -3,9 +3,9 @@
 # Enable debug
 # set -x
 
-program_name=rmcollectd
+program_name=rmcollect-smsd
 
-syslog_tag=rm-collectd
+syslog_tag=rm-collect-smsd
 
 pid_file=/var/run/archiving/${program_name}_safe.pid
 

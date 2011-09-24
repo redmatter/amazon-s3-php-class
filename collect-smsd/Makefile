@@ -12,7 +12,7 @@ LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
 # CPPFLAGS += -Wsign-promo
 
-TARGET=collectd
+TARGET=collect-smsd
 
 TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
@@ -30,7 +30,7 @@ endif
 DEFAULT_APP_NAME=rm$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 
-DEFAULT_APP_LONG_NAME=Archiving collect-d
+DEFAULT_APP_LONG_NAME=Archiving collect-smsd
 CPPFLAGS += -DDEFAULT_APP_LONG_NAME='"$(DEFAULT_APP_LONG_NAME)"'
 
 CONFIG_FILE_PATH=/etc/archiving/$(DEFAULT_APP_NAME).conf

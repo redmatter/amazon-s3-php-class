@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# rmcollectd     This shell script takes care of starting and stopping
+# rmcollect-smsd     This shell script takes care of starting and stopping
 #                the CDR POST Daemon.
 #
 # chkconfig: 2345 80 05
 # description: Archiving Collect Daemon
-# processname: rmcollectd
-# config: /etc/archiving/rmcollectd.conf
-# pidfile: /var/run/archiving/rmcollectd.pid
+# processname: rmcollect-smsd
+# config: /etc/archiving/rmcollect-smsd.conf
+# pidfile: /var/run/archiving/rmcollect-smsd.pid
 
 # Source function library.
 . /etc/rc.d/init.d/functions
@@ -17,7 +17,7 @@
 
 prog="Archiving Collect Daemon"
 
-program_name=rmcollectd
+program_name=rmcollect-smsd
 
 pid_file=/var/run/archiving/${program_name}.pid
 

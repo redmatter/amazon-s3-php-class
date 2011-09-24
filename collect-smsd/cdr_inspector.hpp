@@ -102,7 +102,7 @@ public:
 				("cdr_handler.number_of_threads", boost::program_options::value<unsigned int>()->default_value(2), "number of cdr inspector threads")
 				("cdr_handler.archiving_enabled_orgs", boost::program_options::value<std::string>()->default_value("1"), "archiving enabled orgs; for phased rollout")
 
-				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/collectd")), "collectd temp data directory")
+				("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/collect-smsd")), "collect-smsd temp data directory")
 				;
 	}
 

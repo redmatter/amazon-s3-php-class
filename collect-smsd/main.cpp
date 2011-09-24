@@ -42,11 +42,11 @@
 #include <time.h>
 
 #ifndef SYSLOG_APP_NAME
-#define SYSLOG_APP_NAME "rm-collectd"
+#define SYSLOG_APP_NAME "rm-collect-smsd"
 #endif
 
 #ifndef DEFAULT_APP_NAME
-#define DEFAULT_APP_NAME "rmcollectd"
+#define DEFAULT_APP_NAME "rmcollect-smsd"
 #endif
 
 #ifndef DEFAULT_APP_LONG_NAME
@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) try
 		optsDesc.add_options()
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
-				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "CollectD service threads")
+				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "collect-smsd service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
 				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
