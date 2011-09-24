@@ -5,10 +5,10 @@
  *      Author: dkorah
  */
 
-#include "archived_client.hpp"
+#include "../common/archived_client.hpp"
 #include "cdr_inspector.hpp"
 #include "directory_loader.hpp"
-#include "database.hpp"
+#include "../common/database.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"

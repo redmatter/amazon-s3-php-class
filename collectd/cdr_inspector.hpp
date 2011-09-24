@@ -8,8 +8,8 @@
 #ifndef CDR_INSPECTOR_HPP_
 #define CDR_INSPECTOR_HPP_
 
-#include "globals.h"
-#include "database.hpp"
+#include "../common/globals.h"
+#include "../common/database.hpp"
 
 #include "../common/types.hpp"
 
