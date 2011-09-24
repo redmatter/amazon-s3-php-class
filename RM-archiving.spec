@@ -30,6 +30,17 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
 
+%package collect-smsd
+Summary: Archiving CollectSmsD
+Group: RedMatter/Archiving
+Requires: boost >= 1.45.0
+Requires: mysql++ >= 3.1.0-14089
+Requires: cryptopp
+Requires: libs3
+Requires: RM-%{appname}-common = %{version}-%{release}
+Provides: cdrpostd
+Conflicts: RM-cdrmunch-cdrpostd
+
 #%package migrationd
 #Summary: Archiving CollectD
 #Group: RedMatter/Archiving
@@ -52,6 +63,10 @@ Archiving daemon ( ArchiveD )
 
 %description collectd
 Works on CDR from FreeSWITCH to identify files to be archived.
+It also makes sense of archiving policy and passes that on to ArchiveD.
+
+%description collect-smsd
+Daemon that archives queued SMS messages from BES server via the callcontrol API.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
 #%description migrationd
@@ -101,6 +116,15 @@ cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
 cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 
+# CollectSmsD
+cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
+cp collect-smsd/rmcollect-smsd_safe %{buildroot}/usr/bin/
+cp collect-smsd/rmcollect-smsd %{buildroot}/etc/rc.d/init.d/
+cp collect-smsd/rmcollect-smsd.supp %{buildroot}/usr/share/archiving/
+cp collect-smsd/rmcollect-smsd.conf %{buildroot}/etc/archiving/
+cp collect-smsd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-smsd
+cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
+
 ## MigrationD
 #cp migrationd/tmp-%{buildtype}-build/migrationd %{buildroot}/usr/bin/rmmigrationd.bin
 #cp migrationd/rmmigrationd_safe %{buildroot}/usr/bin/
@@ -146,6 +170,17 @@ if ! /usr/bin/id cdrmunch &>/dev/null; then
 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
 fi
 
+%pre collect-smsd
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+fi
+
 #%pre migrationd
 #if grep ^cdrmunch: /etc/group &>/dev/null; then
 #	: # group already exists
@@ -171,6 +206,12 @@ fi
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+
+%post collect-smsd
+/usr/bin/rmarchived-hAPI
+/sbin/chkconfig --add rmcollect-smsd
+/sbin/chkconfig rmcollect-smsd on
 [ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
 
 #%post convert
@@ -220,6 +261,19 @@ fi
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmcollectd
 /etc/rsyslog.d/11-rmcollectd.conf
+
+%files collect-smsd
+%attr(755,root,root) /usr/bin/rmarchived-hAPI
+%defattr(-,root,root) 
+/usr/bin/rmcollect-smsd.bin
+/usr/bin/rmcollect-smsd_safe
+/usr/share/archiving/rmcollect-smsd.supp
+/etc/rc.d/init.d/rmcollect-smsd
+/etc/archiving/rmcollect-smsd.conf
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+/etc/logrotate.d/rmcollect-smsd
+/etc/rsyslog.d/11-rmcollect-smsd.conf
 
 #%files migrationd
 #%defattr(-,root,root) 

@@ -13,6 +13,7 @@ CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
 CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
+CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 
 HOSTTYPE=`hapi get HostType`
 if [ $? != 0 ]; then
@@ -77,5 +78,9 @@ if [ -f $CONFIG_COLLECTD ]; then
 	if [ ! `hapi get HostType QA || hapi get HostType DEV` ]; then
 		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_COLLECTD || Die "Unable to set log.level in $CONFIG_COLLECTD"
 	fi
+fi
+
+if [ -f $CONFIG_COLLECTSMSD ]; then
+	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTSMSD			|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTSMSD"
 fi
 
