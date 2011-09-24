@@ -1,0 +1,34 @@
+{
+	program_options options_description_easy_init
+	Memcheck:Leak
+	fun:_Znwm
+	fun:_ZNSt6vectorIbSaIbEE9push_backEb
+	fun:_ZN5boost15program_options29options_description_easy_initclEPKcPKNS0_14value_semanticES3_
+	fun:main
+}
+
+{
+	program_options init
+	Memcheck:Leak
+	fun:_Znwm
+	fun:_ZN5boost3anyC1IiEERKT_
+	fun:_ZN5boost15program_options11typed_valueIicE13default_valueERKi
+	fun:main
+}
+
+{
+	program_options typed_value
+	Memcheck:Leak
+	fun:_Znwm
+	fun:_ZN5boost3anyC1ISsEERKT_
+	fun:_ZN5boost15program_options11typed_valueISscE13default_valueERKSs
+	fun:main
+}
+
+{
+	<insert_a_suppression_name_here>
+	Memcheck:Leak
+	fun:_Znwm
+	fun:_ZN5boost4asio10io_serviceC1Ev
+	fun:main
+}
