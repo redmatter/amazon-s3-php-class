@@ -11,7 +11,7 @@
 #include "../common/database.hpp"
 
 #include "../common/types.hpp"
-#include "../common/cdr_dir_monitor.hpp"
+#include "cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
 
 #include <rml/logger.h>

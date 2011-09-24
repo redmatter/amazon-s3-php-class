@@ -134,6 +134,7 @@ public:
 			unknown = 0,
 			cdr,
 			recording,
+			sms,
 
 			n_file_types
 		};
@@ -150,6 +151,7 @@ public:
 				"unknown",
 				"cdr",
 				"recording",
+				"sms",
 
 				"invalid-file-type"
 			};
@@ -174,6 +176,8 @@ public:
 				return cdr;
 			else if(str == "recording")
 				return recording;
+			else if(str == "sms")
+				return sms;
 
 			THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 		}
