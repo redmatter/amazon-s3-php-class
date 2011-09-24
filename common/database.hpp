@@ -33,6 +33,8 @@ namespace database {
 
 class internal : public basic_database< internal >
 {
+protected:
+	std::string tableName_;
 public:
 	static inline const char* get_identifier()
 	{
@@ -45,8 +47,9 @@ public:
 	 *
 	 * @param confMap
 	 */
-	internal(const boost::program_options::variables_map& confMap) :
-		basic_database< internal >(confMap)
+	internal(const boost::program_options::variables_map& confMap, const char *Table) :
+		basic_database< internal >(confMap),
+		tableName_(Table)
 	{
 	}
 
@@ -95,11 +98,11 @@ public:
 
 			if(!arc.get_database_id()) {
 				LogVerbose("Insert: "<<arc);
-				query << "INSERT INTO `ArchivingInternal`.`CollectDQueue`";
+				query << "INSERT INTO `ArchivingInternal`.`" << tableName_ << "`";
 			}
 			else {
 				LogVerbose("Update "<<arc);
-				query << "UPDATE `ArchivingInternal`.`CollectDQueue`";
+				query << "UPDATE `ArchivingInternal`.`" << tableName_ << "`";
 			}
 
 			query << " SET"
@@ -211,7 +214,7 @@ public:
 
 			if(first) {
 				mysqlpp::Query query = conn->query();
-				query << "SELECT MAX(ID) FROM ArchivingInternal.CollectDQueue WHERE HostName=%0q:HostName AND Retry < 3 AND State NOT IN ('stored','discarded')";
+				query << "SELECT MAX(ID) FROM ArchivingInternal." << tableName_ << " WHERE HostName=%0q:HostName AND Retry < 3 AND State NOT IN ('stored','discarded')";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
@@ -233,7 +236,7 @@ public:
 						" c.ID, c.FileType, LCASE(CONCAT(HEX(SUBSTR(c.UUID, 1, 4)),'-',HEX(SUBSTR(c.UUID, 5, 2)),'-',HEX(SUBSTR(c.UUID, 7, 2)),'-',HEX(SUBSTR(c.UUID, 9, 2)),'-',HEX(SUBSTR(c.UUID, 11)))) c_UUID,"
 						" p.ID, p.FileType, LCASE(CONCAT(HEX(SUBSTR(p.UUID, 1, 4)),'-',HEX(SUBSTR(p.UUID, 5, 2)),'-',HEX(SUBSTR(p.UUID, 7, 2)),'-',HEX(SUBSTR(p.UUID, 9, 2)),'-',HEX(SUBSTR(p.UUID, 11)))) p_UUID "
 						 "FROM"
-						 " ArchivingInternal.CollectDQueue c LEFT JOIN ArchivingInternal.CollectDQueue p ON c.ParentID=p.ID "
+						 " ArchivingInternal." << tableName_ << " c LEFT JOIN ArchivingInternal." << tableName_ << " p ON c.ParentID=p.ID "
 						 "WHERE"
 						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded') AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
@@ -322,7 +325,7 @@ public:
 					" HostName,"
 					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID,"
 					" UserIDs "
-					"FROM ArchivingInternal.CollectDQueue "
+					"FROM ArchivingInternal." << tableName_ << " "
 					"WHERE ID=%0:ID";
 			query.parse();
 
@@ -408,7 +411,7 @@ public:
 			mysqlpp::Query query = conn->query();
 			query <<"SELECT"
 					" ID, FileType, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, Path, ModifiedPath "
-					"FROM ArchivingInternal.CollectDQueue "
+					"FROM ArchivingInternal." << tableName_ << " "
 					"WHERE HostName=%0q:HostName AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime AND ( State IN ('stored','discarded') OR %2:MaxAgeDays > StartEpoch )";
 			if(limit)
 				query << " LIMIT "<<limit;
@@ -450,7 +453,7 @@ public:
 		try {
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
-			query << "DELETE FROM ArchivingInternal.CollectDQueue WHERE ID IN (";
+			query << "DELETE FROM ArchivingInternal." << tableName_ << " WHERE ID IN (";
 			for(purgedef::pointer_vector::const_iterator itr = purgeables.begin();
 					itr != purgeables.end(); ++itr) {
 				if(itr != purgeables.begin())

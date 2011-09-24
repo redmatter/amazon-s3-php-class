@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) try
 				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
 
-		app::database::internal internal_db(app::confMap);
+		app::database::internal internal_db(app::confMap, "CollectDQueue");
 
 		initialized = true;
 		LogMessage("Initialisation complete");
