@@ -1,0 +1,159 @@
+#!/bin/bash
+#
+# rmcollect-smsd     This shell script takes care of starting and stopping
+#                the CDR POST Daemon.
+#
+# chkconfig: 2345 80 05
+# description: Archiving Collect Daemon
+# processname: rmcollect-smsd
+# config: /etc/archiving/rmcollect-smsd.conf
+# pidfile: /var/run/archiving/rmcollect-smsd.pid
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+prog="Archiving Collect Daemon"
+
+program_name=rmcollect-smsd
+
+pid_file=/var/run/archiving/${program_name}.pid
+
+program=/usr/bin/${program_name}.bin
+
+program_opts="--hostname $( uname -n | cut -d. -f1 )"
+
+config_file=/etc/archiving/${program_name}.conf
+
+_pid() {
+	if [ -r "$pid_file" ];then
+		pid=$(cat $pid_file);
+	fi
+	
+	[ -n "$pid" ] && kill -0 $pid >/dev/null 2>&1 && echo $pid
+}
+
+
+isNumeric() {
+	echo "$@" | grep -q -v "[^0-9]"
+}
+
+_alert() {
+	echo "$@"
+}
+
+get_conf() {
+	if [ $# -ge 3 ] && [ 1 -eq "$3" ]; then ret='tolower($2)'; else ret='$2'; fi;
+	
+	from_conf=$( grep -m1 "^$2[[:space:]]*=" "$1" )
+	if [ -n "$from_conf" ]; then
+		echo $from_conf | awk -F'[[:space:]]*=[[:space:]]*|[[:space:]]*#' '{print '$ret'}'
+	elif [ -n "$4" ]; then
+		echo "$4";
+	fi
+}
+
+_is_alive() {
+	if [ -n "$1" ]; then
+		kill -0 "$1" >/dev/null 2>&1 &&
+			pid="$1"
+	else
+		pid=$(_pid);
+	fi
+	
+	[ -n "$pid" ] && return 0
+	
+	return 1
+}
+
+_kill_program() {
+	pid="$(_pid)"
+ 	
+	[ -n "$pid" ] || return 0;
+	
+	# stab it with a kill
+	kill $pid
+
+	# give enough time to die.
+	sleep $( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 );
+
+	# if still alive cut its neck with -9
+	kill -0 $pid >/dev/null 2>&1 && kill -9 $pid
+}
+
+_die() {
+	if [ -n "$1" ] && isNumeric "$1"; then
+		ret="$1"
+		shift
+	fi
+	[ -n "$1" ] && _alert "$@";
+	[ -n "$ret" ] && exit $ret;
+}
+
+_start() {
+	[ -x $program ] || _die 0 "$program not found";
+	_is_alive && _die 1 "$program_name already running."
+	
+	rm -f $pid_file;
+	/usr/bin/rmarchived-hAPI || return 1
+	nohup /usr/bin/${program_name}_safe $program $program_opts </dev/null &>/dev/null &
+	
+	sleep 2;
+
+	_is_alive; return $?;
+}
+
+_stop() {
+	_is_alive || return 0
+
+	/usr/bin/${program_name}_safe stop
+	_kill_program "$1"
+
+	sleep 1;
+
+	_is_alive && return 1 || return 0;
+}
+
+_restart() {
+	action $"Stopping $prog: " _stop
+	sleep 1
+    action $"Starting $prog: " _start
+}
+
+export __VALGRIND=${VALGRIND:=$( which valgrind 2>/dev/null )}
+export __VALGRIND_LOG="$( get_conf $config_file debug.valgrind_log_file 0 "/tmp/${program_name}_valgrind.log" )"
+export __VALGRIND_RUN="$( get_conf $config_file debug.valgrind_enabled 1 false )"
+export __VALGRIND_GEN_SUPP="$( get_conf $config_file debug.valgrind_generate_suppressions 1 false )"
+export __VALGRIND_TRACK_FDS="$( get_conf $config_file debug.valgrind_track_file_descriptors 1 false )"
+export __VALGRIND_TOOL="$( get_conf $config_file debug.valgrind_tool 1 memcheck )"
+
+export __MALLOC_CHECK="$( get_conf $config_file debug.malloc_check 0 false )"
+
+export __CORE_DIR="$( get_conf $config_file app.core_dump_dir 0 false )"
+
+export __NICE=${NICE:=$( which nice 2>/dev/null )}
+export __NICENESS="$( get_conf $config_file app.niceness 0 false )"
+
+export __DISABLE_RESTART="$( get_conf $config_file debug.disable_restart 0 false )"
+
+case "$1" in
+  start)
+    action $"Starting $prog: " _start
+    ;;
+  stop)
+	action $"Stopping $prog: " _stop
+    ;;
+  status)
+    status $program
+    ;;
+  restart)
+    _restart
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|restart}"
+    exit 1
+esac
+
+exit $?
