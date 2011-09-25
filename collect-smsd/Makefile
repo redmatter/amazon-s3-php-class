@@ -56,7 +56,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common
+	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lcppnetlib-uri-parsers
 
 # -lcrypt -luuid \
 
