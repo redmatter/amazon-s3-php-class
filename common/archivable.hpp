@@ -553,6 +553,11 @@ public:
 		return policy_id_;
 	}
 
+	inline void set_policy_id(app::policy::id_type id)
+	{
+		policy_id_ = id;
+	}
+
 	void set_owners(const owner_info& o)
 	{
 		owners_.orgID = o.orgID;
