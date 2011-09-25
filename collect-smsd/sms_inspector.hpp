@@ -85,6 +85,9 @@ namespace app
 
 		const std::string& pbx_hostname_;
 
+		app::coreapi& coreapi_;
+		app::policy::cached_finder_t policy_cache_;
+
 	public:
 		/**
 		 * Describe confog
@@ -111,9 +114,11 @@ namespace app
 				archiving::archivable_channel_t& out_channel,
 				database::internal& internal_db,
 				const boost::program_options::variables_map& confMap,
-				const std::string& pbx_hostname) :
+				const std::string& pbx_hostname,
+				app::coreapi coreapi) :
 				in_channel(in_channel), out_channel(out_channel), internal_db_(
-						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname)
+						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
+						policy_cache_(boost::bind(&app::policy::finder, boost::ref(coreapi_), _1))
 		{
 		}
 
@@ -208,6 +213,23 @@ namespace app
 								LogVerbose("sms:" << archivable_sms->get_uuid() << " - HostName: " << hostname);
 							}
 
+							// policy id
+
+							app::policy::id_type looked_up_policy_id;
+
+							try
+							{
+								app::policy::pointer thepolicy = policy_cache_(std::make_pair(rmOrgID, app::policy::id_type(-2)));
+								looked_up_policy_id = thepolicy->id;
+							}
+							catch(rml::exception &e)
+							{
+								LogCritical("sms:" << archivable_sms->get_uuid() << " - policy cache lookup (" << rmOrgID << ",-2) threw an exception: " << e.what());
+								archivable_sms->set_done(true);
+								archivable_sms.reset();
+								continue;
+							}
+
 							// commit the new data to the archivable object
 
 							archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
@@ -215,6 +237,7 @@ namespace app
 							archivable_sms->set_start_epoch(start_epoch);
 							if (!hostname.empty())
 								archivable_sms->set_hostname(hostname);
+							archivable_sms->set_policy_id(looked_up_policy_id);
 							archivable_sms->set_current_state(archiving::archivable::state::inspected);
 
 							int retry = 0;

@@ -12,6 +12,7 @@
 
 #include "../common/types.hpp"
 #include "sms_dir_monitor.hpp"
+#include "../common/coreapi.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -218,6 +219,7 @@ int main(int argc, char* argv[]) try
 		app::archived_client::describe_config(optsDesc);
 		app::directory_loader::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
+		app::coreapi::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -268,6 +270,8 @@ int main(int argc, char* argv[]) try
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
+		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
+
 		archiving::sms_dir_monitor sms_dir_monitor(in_channel, app::hostname);
 
 		app::directory_loader::loader_fn directory_loader_fn(
@@ -287,7 +291,7 @@ int main(int argc, char* argv[]) try
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
-		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname);
+		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname, coreapi);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
 
@@ -328,6 +332,8 @@ int main(int argc, char* argv[]) try
 
 		in_channel.set_finishing();
 		out_channel.set_finishing();
+
+		coreapi.logout();
 
 		io_service.stop();
 
