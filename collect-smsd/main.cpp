@@ -6,7 +6,7 @@
  */
 
 #include "../common/archived_client.hpp"
-#include "cdr_inspector.hpp"
+#include "sms_inspector.hpp"
 #include "directory_loader.hpp"
 #include "../common/database.hpp"
 
