@@ -244,7 +244,7 @@ protected:
 	std::string originator_uuid;
 	time_t start_epoch;
 	std::string data_format;
-	const std::string pbx_hostname;
+	std::string pbx_hostname;
 	bool add_to_cdrmunch_cache;
 
 private:
@@ -543,7 +543,7 @@ public:
 		return pbx_hostname;
 	}
 
-	inline void set_hostname(const std::string &hostname) const
+	inline void set_hostname(const std::string &hostname)
 	{
 		pbx_hostname = hostname;
 	}
