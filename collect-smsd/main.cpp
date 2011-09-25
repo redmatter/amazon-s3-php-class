@@ -11,8 +11,7 @@
 #include "../common/database.hpp"
 
 #include "../common/types.hpp"
-#include "../common/cdr_dir_monitor.hpp"
-#include "../common/dir_monitor.hpp"
+#include "sms_dir_monitor.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -92,7 +91,7 @@ public:
 
 	inline bool is_file_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& file_path) const
 	{
-		return is_loaded(type, std::string(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36));
+		return is_loaded(type, std::string(file_path, file_path.length() - (36/*uuid*/+4/*.sms*/+4/*.xml*/), 36));
 	}
 
 	inline bool is_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& uuid) const
@@ -203,7 +202,7 @@ int main(int argc, char* argv[]) try
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("sms.directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/rmfs/archiving-import/sms")), "sms directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "collect-smsd service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
@@ -215,7 +214,7 @@ int main(int argc, char* argv[]) try
 		rml::daemon::describe_config(optsDesc);
 		rml::logger::describe_config(optsDesc);
 
-		app::cdr_inspector::describe_config(optsDesc);
+		app::sms_inspector::describe_config(optsDesc);
 		app::archived_client::describe_config(optsDesc);
 		app::directory_loader::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
@@ -252,7 +251,7 @@ int main(int argc, char* argv[]) try
 
 	try {
 
-		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
+		const std::string sms_directory( app::confMap["sms.directory"].as<std::string>() );
 
 		archiving::archivable_busy_set_t archivable_busy_set;
 		archiving::archivable_channel_t in_channel(
@@ -269,17 +268,14 @@ int main(int argc, char* argv[]) try
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, app::hostname);
-		archiving::dir_monitor dir_monitor(io_service);
-		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
-		dir_monitor.async_monitor(cdr_dir_monitor);
+		archiving::sms_dir_monitor sms_dir_monitor(in_channel, app::hostname);
 
 		app::directory_loader::loader_fn directory_loader_fn(
-				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
+				boost::bind(&archiving::sms_dir_monitor::add_path, boost::ref(sms_dir_monitor), _1));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set);
 		app::directory_loader::is_valid_fn archivable_is_valid_fn(
-				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::archivable::file_type::cdr, _1));
+				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::archivable::file_type::sms, _1));
 
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
@@ -288,12 +284,12 @@ int main(int argc, char* argv[]) try
 		bool more_to_load_from_db = false;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 
-		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
+		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname);
+		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
-			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
+			threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
 
 	    app::archived_client archived_client(
 	    		io_service,

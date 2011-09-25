@@ -543,6 +543,11 @@ public:
 		return pbx_hostname;
 	}
 
+	inline void set_hostname(const std::string &hostname) const
+	{
+		pbx_hostname = hostname;
+	}
+
 	inline app::policy::id_type get_policy_id() const
 	{
 		return policy_id_;
