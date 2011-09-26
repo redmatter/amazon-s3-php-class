@@ -361,7 +361,7 @@ public:
 
 								unsigned int recording_count( rml::utils::strtoull(node.node().value(), 0) );
 								if(recording_count) {
-									variables_node.append_child("rmArchivingEnabled").set_value("true");
+									variables_node.append_child("rmArchivingEnabled").append_child(pugi::node_pcdata).set_value("true");
 									modified = true;
 								}
 
@@ -380,7 +380,7 @@ public:
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).set_value(uuid.c_str());
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
 											modified = true;
 
 											archivable_recording->set_owners(*owners);
@@ -407,7 +407,7 @@ public:
 											LogWarning("Failed producing archivable item; error: "<<e.what());
 											// add a flag to signal this
 
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).set_value("true");
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value("true");
 											modified = true;
 										}
 									}
@@ -425,7 +425,7 @@ public:
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
-									variables_node.append_child("rmCallRecordingUUID").set_value(uuid.c_str());
+									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;
 
 									{
@@ -460,7 +460,7 @@ public:
 								catch(const std::exception& e) {
 									LogWarning("Failed producing archivable item; error: "<<e.what());
 
-									variables_node.append_child("rmCallRecordingUnavailable").set_value("true");
+									variables_node.append_child("rmCallRecordingUnavailable").append_child(pugi::node_pcdata).set_value("true");
 									modified = true;
 								}
 							}
