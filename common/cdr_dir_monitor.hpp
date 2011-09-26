@@ -8,8 +8,8 @@
 #ifndef CDR_DIR_MONITOR_HPP_
 #define CDR_DIR_MONITOR_HPP_
 
-#include "../common/archivable.hpp"
-#include "../common/dir_monitor.hpp"
+#include "archivable.hpp"
+#include "dir_monitor.hpp"
 
 #include <rml/pc_channel.h>
 
