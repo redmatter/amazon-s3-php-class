@@ -67,7 +67,7 @@ public:
 					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
 						continue;
 
-					const std::string& file_path(dir_path_+'/'+dp->d_name);
+					const std::string file_path(dir_path_+'/'+dp->d_name);
 
 					struct stat s;
 					if (-1 == stat(file_path.c_str(), &s)) {
