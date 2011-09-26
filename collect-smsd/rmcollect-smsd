@@ -15,7 +15,7 @@
 # Source networking configuration.
 . /etc/sysconfig/network
 
-prog="Archiving Collect Daemon"
+prog="Archiving Collect SMS Daemon"
 
 program_name=rmcollect-smsd
 
