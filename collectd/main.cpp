@@ -295,21 +295,19 @@ int main(int argc, char* argv[]) try
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
-	    app::archived_client archived_client(
-	    		io_service,
-	    		out_channel,
-	    		archivable_busy_set,
-	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db,
-	    		app::quit);
+		const unsigned int n_threads( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
+		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 
-		{
-			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
-			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
-			while(0 < --n_threads)
-				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
-		}
+		std::vector< app::archived_client::pointer > archived_client(n_threads - 1);
+		for(unsigned int i = 0; i < (n_threads - 1); i++)
+			archived_client.push_back(app::archived_client::pointer(new app::archived_client(
+		    		io_service, out_channel, archivable_busy_set,
+		    		app::confMap["archived_client.server_host"].as<std::string>(),
+		    		app::confMap["archived_client.server_port"].as<std::string>(),
+		    		internal_db, app::quit)));
+
+		for(unsigned int i = 0; i < n_threads; i++)
+			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),

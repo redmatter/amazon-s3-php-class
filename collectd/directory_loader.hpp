@@ -45,25 +45,31 @@ public:
 
 		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval) );
 
+		DIR* dh = 0;
+
 		while(!quit_) {
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 			if(count++ % interval)
 				continue;
 
-			DIR* dh = 0;
-
 			try {
-				dh = opendir(dir_path_.c_str());
+				// if we are not already within a batch
 				if(!dh) {
-					LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
-					throw rml::exception("failed opening directory");
+					dh = opendir(dir_path_.c_str());
+					if(!dh) {
+						LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
+						throw rml::exception("failed opening directory");
+					}
+					LogMessage("Loading from directory...");
 				}
+				else
+					LogMessage("Continuing loading from directory...");
 
-				LogMessage("Loading from directory...");
 
 				struct dirent *dp;
-				while((dp = readdir(dh))) {
+				unsigned int file_count = 0;
+				while((file_count++ < directory_loading_batch_size) && (dp = readdir(dh))) {
 					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
 						continue;
 
@@ -84,15 +90,17 @@ public:
 						(void)loader_(file_path);
 				}
 
-				LogMessage("Loading from directory; done");
+				// are we done with the batch ?
+				if (dh && !dp) {
+					closedir(dh);
+					dh = 0;
+					dp = 0;
+
+					LogMessage("Loading from directory; done");
+				}
 			}
 			catch(const std::exception& e) {
 				LogError(e.what());
-			}
-
-			if(dh) {
-				closedir(dh);
-				dh = 0;
 			}
 		}
 
@@ -108,7 +116,8 @@ private:
 
 	enum constant
 	{
-		min_interval = 60
+		min_interval = 60,
+		directory_loading_batch_size = 500
 	};
 };
 
