@@ -18,6 +18,7 @@
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <boost/shared_ptr.hpp>
 
 namespace app {
 
@@ -155,6 +156,8 @@ private:
 	volatile bool& quit_;
 
 public:
+	typedef boost::shared_ptr<archived_client> pointer;
+
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
@@ -184,6 +187,9 @@ public:
 				internal_db_(internal_db),
 				quit_(quit)
 	{
+		boost::asio::socket_base::send_buffer_size option(8192);
+		socket_.set_option(option);
+
 		connect_archived();
 	}
 
