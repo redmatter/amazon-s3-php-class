@@ -339,7 +339,7 @@ public:
 				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
 					throw rml::exception("No parent given");
 
-				archiving::archivable::file_type::file_type_t type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str(), 0ULL));
+				archiving::archivable::file_type::file_type_t type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL));
 				archiving::archivable::pointer p_arc( new archiving::archivable(
 						row[3].c_str(),
 						(row[14] != "NULL") ? row[14].c_str(): "",
@@ -358,6 +358,15 @@ public:
 					));
 
 				p_arc->set_database_id(id);
+				archiving::owner_info owner((archiving::org_id_t)rml::utils::strtoull(row[2].c_str(), 0ULL));
+				if(row[15] != "NULL") {
+					const std::string userIds(row[15].c_str());
+					std::istringstream str(userIds);
+					std::string userId_str;
+					while(std::getline(str, userId_str, ','))
+						owner.addUser((archiving::user_id_t)rml::utils::strtoull(userId_str.c_str(), 0ULL));
+					p_arc->set_owners(owner);
+				}
 
 				return p_arc;
 			}
