@@ -137,7 +137,7 @@ public:
 			if(arc.get_database_id())
 				query << " WHERE ID=%16:ID";
 
-			LogVerbose("SQL: "<<query.str());
+			std::cout << "SQL: "<<query.str() << std::endl;
 
 			query.parse();
 
@@ -170,7 +170,7 @@ public:
 			if(arc.get_database_id())
 				qp << arc.get_database_id();
 
-			LogVerbose("SQL: "<<query.str(qp));
+			std::cout << "SQL: "<<query.str(qp) << std::endl;
 			query.execute(qp);
 
 			if(!arc.get_database_id()) {
@@ -220,7 +220,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << pbx_hostname;
 
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row())
@@ -246,7 +246,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << pbx_hostname << first_max_id << max_id;
 
-				LogVerbose("SQL: "<<query.str(qp));
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
@@ -332,7 +332,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << id;
 
-			LogVerbose("SQL: "<<query.str(qp));
+			std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 			mysqlpp::UseQueryResult res = query.use(qp);
 			if(mysqlpp::Row row = res.fetch_row()) {
@@ -430,12 +430,12 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << pbx_hostname << done_items_max_age_minutes << max_age_days__boundary;
 
-			LogVerbose("SQL: "<<query.str(qp));
+			std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 			mysqlpp::UseQueryResult res = query.use(qp);
 			while(mysqlpp::Row row = res.fetch_row()) {
 				ret.push_back(purgedef::pointer(new purgedef(
-						rml::utils::strtoull(row[0].c_str(), 0ULL), archiving::archivable::file_type::from_string(row[1].c_str()), row[2].c_str(), row[3].c_str(), row[4].c_str())));
+						rml::utils::strtoull(row[0].c_str(), 0ULL), archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL)), row[2].c_str(), row[3].c_str(), (row[4]=="NULL"? "": row[4].c_str()))));
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -473,7 +473,7 @@ public:
 
 			query << ')';
 
-			LogVerbose("SQL: "<<query.str());
+			std::cout << "SQL: "<<query.str() << std::endl;
 
 			mysqlpp::SimpleResult res = query.execute();
 			LogMessage(res.rows()<<" rows deleted.");

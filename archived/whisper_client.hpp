@@ -329,7 +329,7 @@ private:
 				current_state_ = state::whisper_ack_err;
 			}
 			else {
-				LogVerbose("Whisper aacked OK");
+				LogVerbose("Whisper acked OK");
 				current_state_ = state::whisper_ack_ok;
 			}
 
@@ -351,7 +351,7 @@ private:
 				current_state_ = state::nop_ack_err;
 			}
 			else {
-				LogVerbose("NOP acked OK");
+				LogDebug("NOP acked OK");
 				current_state_ = state::nop_ack_ok;
 			}
 

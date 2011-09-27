@@ -128,7 +128,7 @@ public:
 				boost::algorithm::split(orgs_enabled_str, orgs_enabled, boost::is_any_of(", \t"));
 				std::vector<std::string>::const_iterator end = orgs_enabled_str.end();
 				for(std::vector<std::string>::const_iterator itr = orgs_enabled_str.begin(); itr != end; ++itr) {
-					LogVerbose("cdr_handler.archiving_enabled_orgs: "<<*itr);
+					LogDebug("cdr_handler.archiving_enabled_orgs: "<<*itr);
 					orgs_enabled_.push_back(rml::utils::strtoull(itr->c_str()));
 				}
 			}
@@ -180,7 +180,7 @@ public:
 			while(!app::quit) {
 				try {
 					archiving::archivable::pointer archivable_cdr = in_channel.consume();
-					LogVerbose("cdr_inspector::run - got from channel "<<*archivable_cdr);
+					LogVerbose(*archivable_cdr<<" from channel");
 
 					if((archivable_cdr->get_type() != archiving::archivable::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
 						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
@@ -221,17 +221,17 @@ public:
 							pugi::xpath_node direction_node = doc.select_single_node("/cdr/channel_data/direction/text()");
 							RML_DEBUG(
 								if(!direction_node)
-									LogVerbose("/cdr/channel_data/direction NOT found");
+									LogDebug(*archivable_cdr<<" /cdr/channel_data/direction NOT found");
 								else
-									LogVerbose("/cdr/channel_data/direction = "<<direction_node.node().value());
+									LogDebug(*archivable_cdr<<" /cdr/channel_data/direction = "<<direction_node.node().value());
 							);
 
 							pugi::xpath_node rmAssumeALeg_node = variables_node.select_single_node("rmAssumeALeg/text()");
 							RML_DEBUG(
 								if(!rmAssumeALeg_node)
-									LogVerbose("/cdr/channel_data/rmAssumeALeg NOT found");
+									LogDebug(*archivable_cdr<<" /cdr/channel_data/rmAssumeALeg NOT found");
 								else
-									LogVerbose("/cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
+									LogDebug(*archivable_cdr<<" /cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
 							);
 
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
@@ -244,7 +244,7 @@ public:
 								start_epoch = rml::utils::strtoull(start_epoch_node.node().value());
 							}
 							else {
-								LogWarning("Start Epoch not found ( /cdr/variables/start_epoch ); falling-back to current time");
+								LogWarning(*archivable_cdr<<" Start Epoch not found ( /cdr/variables/start_epoch ); falling-back to current time");
 								time(&start_epoch);
 							}
 						}
@@ -258,15 +258,15 @@ public:
 								pugi::xpath_node OriginatorUUID_node = variables_node.select_single_node("rmOriginatorUUID/text()");
 								if(OriginatorUUID_node) {
 									originator_uuid = OriginatorUUID_node.node().value();
-									LogVerbose("OriginatorUUID from /cdr/variables/rmOriginatorUUID "<<originator_uuid);
+									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/rmOriginatorUUID "<<originator_uuid);
 								}
 								else if(pugi::xpath_node originator_node = variables_node.select_single_node("originator/text()")) {
 									originator_uuid = originator_node.node().value();
-									LogVerbose("OriginatorUUID from /cdr/variables/originator "<<originator_uuid);
+									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/originator "<<originator_uuid);
 								}
 								else {
 									originator_uuid = "";
-									LogError("cdr:"<<cdr_uuid<<" - OriginatorUUID NOT found");
+									LogWarning(*archivable_cdr<<" OriginatorUUID NOT found");
 								}
 							}
 						}
@@ -279,14 +279,14 @@ public:
 								pugi::xpath_node rmOrgID_node = variables_node.select_single_node(leg == leg::A? "rmOrgID/text()": "rmOriginatorOrgId/text()");
 								if(rmOrgID_node) {
 									rmOrgID = (archiving::org_id_t)rml::utils::strtoull(( rmOrgID_str = rmOrgID_node.node().value() ), 0);
-									LogVerbose("cdr:"<<cdr_uuid<<" - rmOrgID: "<<rmOrgID);
+									LogDebug(*archivable_cdr<<" rmOrgID: "<<rmOrgID);
 								}
 								else
-									LogWarning("No rmOrgId/rmOriginatorOrgId found; using 0");
+									LogWarning(*archivable_cdr<<" No rmOrgId/rmOriginatorOrgId found; using 0");
 							}
 
 							if(!rmOrgID) {
-								LogCritical("cdr:"<<cdr_uuid<<" - No rmOrgID found");
+								LogError(*archivable_cdr<<" No rmOrgID found");
 								archivable_cdr->set_done(true);
 								archivable_cdr.reset();
 								continue;
@@ -297,7 +297,7 @@ public:
 								pugi::xpath_node rmUserID_node = variables_node.select_single_node("rmUserID/text()");
 								if(rmUserID_node) {
 									rmUserID = (archiving::user_id_t)rml::utils::strtoll(rmUserID_node.node().value(), 0);
-									LogVerbose("cdr:"<<cdr_uuid<<" - rmUserID: "<<rmUserID);
+									LogDebug(*archivable_cdr<<" rmUserID: "<<rmUserID);
 								}
 							}
 
@@ -314,7 +314,7 @@ public:
 								if(enable_rmCDRDiscard) {
 									pugi::xpath_node rmCDRDiscard_node = variables_node.select_single_node("rmCDRDiscard/text()");
 									if((isDiscardable = (0 == strncasecmp("true", rmCDRDiscard_node.node().value(), 4))))
-										LogMessage("cdr:"<<cdr_uuid<<" - rmCDRDiscard=true marked discardable");
+										LogMessage(*archivable_cdr<<" rmCDRDiscard=true marked discardable");
 								}
 
 								if(!isDiscardable) {
@@ -325,7 +325,7 @@ public:
 
 										if(!isLegAnswered) {
 											isDiscardable = true;
-											LogMessage("cdr:"<<cdr_uuid<<" - Un-ANSWERed B leg marked discardable");
+											LogMessage(*archivable_cdr<<" Un-ANSWERed B leg marked discardable");
 										}
 									}
 								}
@@ -365,7 +365,7 @@ public:
 									modified = true;
 								}
 
-								LogVerbose("cdr:"<<cdr_uuid<<" - rmCallRecordingCount: "<<recording_count);
+								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
 								for(; recording_count; recording_count--) {
 

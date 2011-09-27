@@ -658,7 +658,7 @@ private:
 							boost::asio::placeholders::error));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
-			LogVerbose(channel_<<' '<<e.what()<<"; NOP to ArchiveD");
+			LogDebug(channel_<<' '<<e.what()<<"; NOP to ArchiveD");
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			ostr << "NOP\r\n\r\n";
 			current_state_ = state::nop_sent;
@@ -676,10 +676,7 @@ private:
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred)
 	{
-		LogVerbose("-------------------------");
-		LogVerbose("put_sent_size_: "<<put_sent_size_);
-		LogVerbose("bytes_transferred: "<<bytes_transferred);
-		LogVerbose("error: "<<error);
+		LogDebug(*put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
 			if (!error && (put_sent_size_ == put_file_size_)) {
@@ -699,7 +696,6 @@ private:
 		}
 
 		std::streamsize buf_length = std::min<std::streamsize>( (std::streamsize)(put_file_size_ - put_sent_size_), (std::streamsize)4096 );
-		LogDebug("1. buf_length: "<<buf_length);
 
 		// TODO finetune memory usage here; now we double up unnecessarily!
 		// we could read directly into allocated stream space [ after send_buffer_.prepare(buf_length) ]
@@ -707,7 +703,6 @@ private:
 		std::vector<char> buf(buf_length + 1);
 		buf_length = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], buf_length);
 
-		LogDebug("2. buf_length: "<<buf_length);
 		put_sent_size_ += buf_length;
 
 		std::ostream ostr(&send_buffer_); ostr.clear();

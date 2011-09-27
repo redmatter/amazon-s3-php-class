@@ -671,7 +671,7 @@ namespace std {
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
-	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " md5:" << a.get_md5() << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
+	return ostr << a.get_type() << '/' << a.get_org_id() << '/' << a.uuid << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
 }
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& p_a)

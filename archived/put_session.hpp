@@ -296,9 +296,10 @@ private:
 			else {
 				if(verb == "NOP" || verb == "BYE") {
 					istr >> cr >> lf >> cr >> lf;
-					LogMessage(remote_ep<<' '<<verb<<" received");
+					LogDebug(remote_ep<<' '<<verb<<" received");
 					ostr << "OK\r\n";
 					if(verb == "BYE") {
+						LogMessage(remote_ep<<' '<<verb<<" received; Closing");
 						current_state_ = states::closing;
 						io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
 					}
