@@ -132,8 +132,6 @@ public:
 				whisper_channel_(whisper_channel)
 	{
 		//ctor
-		boost::asio::socket_base::receive_buffer_size option(8192);
-		socket_.set_option(option);
 	}
 
 	boost::asio::ip::tcp::socket& socket()
@@ -150,6 +148,9 @@ public:
 
 	void start()
 	{
+		boost::asio::socket_base::receive_buffer_size option(8192);
+		socket_.set_option(option);
+
 		current_state_ = states::handshake_sent;
 		std::ostream ostr(&send_buffer_);
 		ostr << "ArchiveD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
