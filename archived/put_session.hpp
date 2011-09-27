@@ -132,6 +132,8 @@ public:
 				whisper_channel_(whisper_channel)
 	{
 		//ctor
+		boost::asio::socket_base::receive_buffer_size option(8192);
+		socket_.set_option(option);
 	}
 
 	boost::asio::ip::tcp::socket& socket()
