@@ -187,9 +187,6 @@ public:
 				internal_db_(internal_db),
 				quit_(quit)
 	{
-		boost::asio::socket_base::send_buffer_size option(8192);
-		socket_.set_option(option);
-
 		connect_archived();
 	}
 
@@ -276,6 +273,9 @@ private:
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
+			boost::asio::socket_base::send_buffer_size option(8192);
+			socket_.set_option(option);
+
 			current_state_ = state::connecting;
 			timer_.cancel();
 
