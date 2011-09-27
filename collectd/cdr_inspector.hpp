@@ -372,7 +372,7 @@ public:
 									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
 									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), 0LL) );
 
-									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%") % recording_count), std::string()) == "true" );
+									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
 
 									if(!recording_location.empty()) {
@@ -474,14 +474,15 @@ public:
 									(*it).node().parent().remove_child((*it).node());
 									modified = true;
 								}
-
-								if(modified) {
-									rml::utils::tmp_fstream::pointer tmp_fsptr(new rml::utils::tmp_fstream(archivable_cdr->get_fstream_ptr()->get_filename(true)+'.', 0U, temp_files_base_directory));
-									doc.save(*tmp_fsptr, "  ");
-									archivable_cdr->set_fstream(tmp_fsptr);
-									LogVerbose(*archivable_cdr<<" modified");
-								}
 							}
+						}
+
+						// did we modify the CDR during the above inspection?
+						if(modified) {
+							rml::utils::tmp_fstream::pointer tmp_fsptr(new rml::utils::tmp_fstream(archivable_cdr->get_fstream_ptr()->get_filename(true)+'.', 0U, temp_files_base_directory));
+							doc.save(*tmp_fsptr, "  ");
+							archivable_cdr->set_fstream(tmp_fsptr);
+							LogVerbose(*archivable_cdr<<" modified");
 						}
 
 						archivable_cdr->set_originator_uuid(originator_uuid);
