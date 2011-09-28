@@ -43,6 +43,7 @@ public:
 		archiving::org_id_t org;
 		archiving::user_id_t user;
 		std::string uuid;
+		std::string leg_uuid;
 		applied_policy retention;
 		types::file_format::file_format_t file_format;
 		archiving::archivable::file_type::file_type_t file_type;
@@ -89,6 +90,7 @@ public:
 	{
 	}
 
+	/// TODO NEED TO MAINTAIN THIS!!!
 	std::pair< bool, app::retention > get_retention(const archiving::org_id_t& org, const std::string& identifier)
 	{
 		try {
@@ -161,7 +163,7 @@ public:
 
 					mysqlpp::Query query = conn->query();
 					query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
-							"( UUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
+							"( UUID, LegUUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
 							" VALUES ";
 
 					for(data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
@@ -172,8 +174,14 @@ public:
 
 						query << ((itr != batch_range.first)? ',': '\n')
 								<<"( "
-								<<"UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), "
-								<<itr->file_format<<", "
+								<<"UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), ";
+
+						if(!itr->leg_uuid.empty())
+							query << "UNHEX(REPLACE( '"<<itr->leg_uuid<<"', '-', '' )), ";
+						else
+							query << "NULL, ";
+
+						query << itr->file_format<<", "
 								<<itr->org<<", "
 								<<itr->user<<", "
 								<<itr->retention.p_policy->id<<", "
@@ -387,12 +395,14 @@ public:
 				LogDebug("Update "<<opdetail.identifier);
 
 				mysqlpp::Query query = conn->query();
-				query << "UPDATE `ArchivingInternal`.`ArchiveDQueue`"
-						" SET CurrentFileFormat=%0:CurrentFileFormat,"
+				query << "UPDATE `ArchivingInternal`.`ArchiveDQueue` "
+						"SET"
+						" CurrentFileFormat=%0:CurrentFileFormat,"
 						" RetryCount=%1:RetryCount,"
-						" OpState=%2:OpState"
-						" WHERE ID=%3:ID "
-						"  AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
+						" OpState=%2:OpState "
+						"WHERE"
+						" ID=%3:ID"
+						" AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
 						;
 				query.parse();
 
