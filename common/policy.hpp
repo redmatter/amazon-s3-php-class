@@ -126,6 +126,19 @@ typedef std::set<archiving::user_id_t> users_t;
 
 struct policy
 {
+	/// pseudo policy ids used in the archiving system
+	struct pseudo_id
+	{
+		enum pseudo_id_t
+		{
+			recording = 0,
+			cdr = -1,
+			sms = -2,
+
+			do_not_archive = -999
+		};
+	};
+
 	typedef int64_t id_type; // making it signed to accomodate the negative IDs passed in from FreeSwitch to denote NOT to archive
 	typedef uint16_t version_type;
 

@@ -476,7 +476,7 @@ private:
 
 				app::policy::pointer p_policy;
 
-				if( policy_id_ >= 0 ) {
+				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
 					if(!p_policy)
 						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PilicyID: %1%/%2% )") % orgID_ % policy_id_));
