@@ -323,8 +323,8 @@ int main(int argc, char **argv) try
 			//TODO monitoring stuff goes in here
 
 			if(0 == (ticker % 20)) {
-				cached_endpoint_finder.clear_unused(300);
-				cached_policy_finder.clear_unused(300);
+				cached_endpoint_finder.clear_unused(60);
+				cached_policy_finder.clear_unused(10);
 				ticker = 0;
 			}
 
