@@ -291,7 +291,7 @@ int main(int argc, char* argv[]) try
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
-		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname, coreapi);
+		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname, coreapi, io_service);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
 

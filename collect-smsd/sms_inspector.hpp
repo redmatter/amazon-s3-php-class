@@ -88,6 +88,12 @@ namespace app
 		app::coreapi& coreapi_;
 		app::policy::cached_finder_t policy_cache_;
 
+		boost::asio::io_service &io_service_;
+		boost::thread_group threads_;
+		std::vector<std::string> log_queue_;
+		boost::mutex log_queue_mutex_;
+		boost::asio::deadline_timer timer_;
+
 	public:
 		/**
 		 * Describe confog
@@ -115,11 +121,67 @@ namespace app
 				database::internal& internal_db,
 				const boost::program_options::variables_map& confMap,
 				const std::string& pbx_hostname,
-				app::coreapi coreapi) :
+				app::coreapi coreapi,
+				boost::asio::io_service &io_service) :
 				in_channel(in_channel), out_channel(out_channel), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
-						policy_cache_(boost::bind(&app::policy::finder, boost::ref(coreapi_), _1))
+						policy_cache_(boost::bind(&app::policy::finder, boost::ref(coreapi_), _1)),
+						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
 		{
+			threads_.create_thread(boost::bind(&app::sms_inspector::smslog, boost::ref(this)));
+		}
+
+		void smslog()
+		{
+			LogCritical("sms_inspector: smslog: thread starting");
+			while (!app::quit)
+			{
+				try
+				{
+					// capture the current state of the log queue
+					log_queue_mutex_.lock();
+					std::vector<std::string> tmpvec = log_queue_;
+					log_queue_.clear();
+					log_queue_mutex_.unlock();
+
+					if (!tmpvec.empty())
+					{
+						std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Messages>\n";
+						for (std::vector<std::string>::iterator i = tmpvec.begin(); i != tmpvec.end(); ++i)
+							xml += *i + "\n";
+						xml += "</Messages>";
+
+						app::coreapi::response r = coreapi_.post(std::string("/smslogs/push"), xml);
+						if (r.first < 200 || r.first >= 300)
+						{
+							LogError("sms_inspector: smslog: error submitting SMS logs: " << r.first << ": " << r.second);
+
+							log_queue_mutex_.lock();
+							log_queue_.insert(log_queue_.begin(), tmpvec.begin(), tmpvec.end());
+							log_queue_mutex_.unlock();
+						}
+						else
+							LogMessage("sms_inspector: smslog: successfully submitted " << tmpvec.size() << " SMS records to the log");
+					}
+
+					timer_.expires_from_now(boost::posix_time::seconds(10));
+					timer_.wait();
+				}
+				catch (boost::thread_interrupted)
+				{
+					LogCritical("sms_inspector: smslog: boost::thread_interrupted");
+					break;
+				}
+				catch (const std::exception& e)
+				{
+					LogWarning("exception:" << e.what());
+				}
+				catch (...)
+				{
+					LogCritical("unexpected exception");
+				}
+			}
+			LogCritical("sms_inspector: smslog: thread stopping");
 		}
 
 		/**
@@ -129,141 +191,150 @@ namespace app
 		{
 			while (!app::quit)
 			{
-
-				while (!app::quit)
+				try
 				{
-					try
+					archiving::archivable::pointer archivable_sms =	in_channel.consume();
+
+					LogVerbose("sms_inspector::run - got from channel "	<< *archivable_sms);
+
+					if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
 					{
-						archiving::archivable::pointer archivable_sms =	in_channel.consume();
+						LogVerbose(*archivable_sms << " Already inspected; shifting to out channel");
+						out_channel.produce(archivable_sms);
+					}
+					else
+					{
+						// pull XML metadata out of SMS and add it to archivable
 
-						LogVerbose("sms_inspector::run - got from channel "	<< *archivable_sms);
+						rml::utils::tmp_fstream::pointer ifs = archivable_sms->get_fstream_ptr();
+						ifs->re_open();
 
-						if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
+						pugi::xml_document doc;
+
 						{
-							LogVerbose(*archivable_sms << " Already inspected; shifting to out channel");
-							out_channel.produce(archivable_sms);
+							pugi::xml_parse_result res = doc.load(*ifs);
+							if (!res)
+								THROW_RML_EXCEPTION("Error parsing SMS; error:" << res.description());
+						}
+
+						// start epoch
+
+						time_t start_epoch = 0;
+						pugi::xpath_node start_epoch_node = doc.select_single_node("StartEpoch/text()");
+						if(start_epoch_node)
+						{
+							start_epoch = rml::utils::strtoull(start_epoch_node.node().value());
 						}
 						else
 						{
-							// pull XML metadata out of SMS and add it to archivable
-
-							rml::utils::tmp_fstream::pointer ifs = archivable_sms->get_fstream_ptr();
-							ifs->re_open();
-
-							pugi::xml_document doc;
-
-							{
-								pugi::xml_parse_result res = doc.load(*ifs);
-								if (!res)
-									THROW_RML_EXCEPTION("Error parsing SMS; error:" << res.description());
-							}
-
-							// start epoch
-
-							time_t start_epoch = 0;
-							pugi::xpath_node start_epoch_node = doc.select_single_node("StartEpoch/text()");
-							if(start_epoch_node)
-							{
-								start_epoch = rml::utils::strtoull(start_epoch_node.node().value());
-							}
-							else
-							{
-								LogWarning("Start Epoch not found ( /sms/start_epoch ); falling-back to current time");
-								time(&start_epoch);
-							}
-
-							// OrgID/UserID
-
-							archiving::owner_info::pointer owners;
-							const char* rmOrgID_str = 0;
-							archiving::org_id_t rmOrgID = 0;
-							pugi::xpath_node rmOrgID_node =	doc.select_single_node("OrgID/text()");
-
-							if (rmOrgID_node)
-							{
-								rmOrgID = (archiving::org_id_t) rml::utils::strtoull((rmOrgID_str = rmOrgID_node.node().value()), 0);
-								LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmOrgID: " << rmOrgID);
-							}
-							else
-							{
-								LogCritical("sms:" << archivable_sms->get_uuid() << " - No rmOrgID found");
-								archivable_sms->set_done(true);
-								archivable_sms.reset();
-								continue;
-							}
-
-							archiving::user_id_t rmUserID = 0;
-							pugi::xpath_node rmUserID_node = doc.select_single_node("UserID/text()");
-							if (rmUserID_node)
-							{
-								rmUserID = (archiving::user_id_t) rml::utils::strtoll(rmUserID_node.node().value(), 0);
-								LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmUserID: " << rmUserID);
-							}
-
-							owners.reset(new archiving::owner_info(rmOrgID));
-							owners->addUser(rmUserID);
-
-							// hostname
-
-							std::string hostname;
-							pugi::xpath_node hostname_node = doc.select_single_node("HostName/text()");
-							if (hostname_node)
-							{
-								hostname = hostname_node.node().value();
-								LogVerbose("sms:" << archivable_sms->get_uuid() << " - HostName: " << hostname);
-							}
-
-							// policy id
-
-							app::policy::id_type looked_up_policy_id;
-
-							try
-							{
-								app::policy::pointer thepolicy = policy_cache_(std::make_pair(rmOrgID, app::policy::id_type(-2)));
-								looked_up_policy_id = thepolicy->id;
-							}
-							catch(rml::exception &e)
-							{
-								LogCritical("sms:" << archivable_sms->get_uuid() << " - policy cache lookup (" << rmOrgID << ",-2) threw an exception: " << e.what());
-								archivable_sms->set_done(true);
-								archivable_sms.reset();
-								continue;
-							}
-
-							// commit the new data to the archivable object
-
-							archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
-							archivable_sms->set_originator_uuid(archivable_sms->get_uuid());
-							archivable_sms->set_start_epoch(start_epoch);
-							if (!hostname.empty())
-								archivable_sms->set_hostname(hostname);
-							archivable_sms->set_policy_id(looked_up_policy_id);
-							archivable_sms->set_current_state(archiving::archivable::state::inspected);
-
-							int retry = 0;
-							while (!internal_db_.save(archivable_sms) && !app::quit)
-							{
-								LogMessage(*archivable_sms << " [retry: " << retry << "] Save states to DB failed; retrying in 15 seconds ...");
-								boost::this_thread::sleep(boost::posix_time::seconds(15));
-								retry++;
-							}
-
-							out_channel.produce(archivable_sms);
+							LogWarning("Start Epoch not found ( /sms/start_epoch ); falling-back to current time");
+							time(&start_epoch);
 						}
+
+						// OrgID/UserID
+
+						archiving::owner_info::pointer owners;
+						const char* rmOrgID_str = 0;
+						archiving::org_id_t rmOrgID = 0;
+						pugi::xpath_node rmOrgID_node =	doc.select_single_node("OrgID/text()");
+
+						if (rmOrgID_node)
+						{
+							rmOrgID = (archiving::org_id_t) rml::utils::strtoull((rmOrgID_str = rmOrgID_node.node().value()), 0);
+							LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmOrgID: " << rmOrgID);
+						}
+						else
+						{
+							LogCritical("sms:" << archivable_sms->get_uuid() << " - No rmOrgID found");
+							archivable_sms->set_done(true);
+							continue;
+						}
+
+						archiving::user_id_t rmUserID = 0;
+						pugi::xpath_node rmUserID_node = doc.select_single_node("UserID/text()");
+						if (rmUserID_node)
+						{
+							rmUserID = (archiving::user_id_t) rml::utils::strtoll(rmUserID_node.node().value(), 0);
+							LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmUserID: " << rmUserID);
+						}
+
+						owners.reset(new archiving::owner_info(rmOrgID));
+						owners->addUser(rmUserID);
+
+						// hostname
+
+						std::string hostname;
+						pugi::xpath_node hostname_node = doc.select_single_node("HostName/text()");
+						if (hostname_node)
+						{
+							hostname = hostname_node.node().value();
+							LogVerbose("sms:" << archivable_sms->get_uuid() << " - HostName: " << hostname);
+						}
+
+						// policy id
+
+						app::policy::id_type looked_up_policy_id;
+
+						try
+						{
+							app::policy::pointer thepolicy = policy_cache_(std::make_pair(rmOrgID, app::policy::id_type(-2)));
+							looked_up_policy_id = thepolicy->id;
+						}
+						catch(rml::exception &e)
+						{
+							LogWarning("sms:" << archivable_sms->get_uuid() << " - policy cache lookup (" << rmOrgID << ",-2) threw an exception: " << e.what());
+							LogWarning("sms:" << archivable_sms->get_uuid() << " - we'll try again later");
+							continue;
+						}
+
+						// commit the new data to the archivable object
+
+						archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
+						archivable_sms->set_originator_uuid(archivable_sms->get_uuid());
+						archivable_sms->set_start_epoch(start_epoch);
+						if (!hostname.empty())
+							archivable_sms->set_hostname(hostname);
+						archivable_sms->set_policy_id(looked_up_policy_id);
+						archivable_sms->set_current_state(archiving::archivable::state::inspected);
+
+						int retry = 0;
+						while (!internal_db_.save(archivable_sms) && !app::quit)
+						{
+							LogMessage(*archivable_sms << " [retry: " << retry << "] Save states to DB failed; retrying in 15 seconds ...");
+							boost::this_thread::sleep(boost::posix_time::seconds(15));
+							retry++;
+						}
+
+						out_channel.produce(archivable_sms);
+
+						std::string xml = boost::str (boost::format ("SMS UUID=\"%1\" OrgID=\"%2\" UserID=\"%3\" Time=\"%4\" From_Number=\"%5\" To_Number=\"%6\" Direction=\"%7\" HostName=\"%8\"/>")
+							% archivable_sms->get_uuid()
+							% rmOrgID
+							% rmUserID
+							% start_epoch
+							% doc.select_single_node("FromNumber/text()").node().value()
+							% doc.select_single_node("ToNumber/text()").node().value()
+							% (doc.select_single_node("Direction/text()").node().value() == "inbound" ? "Inbound" : "Outbound")
+							% hostname
+						);
+
+						log_queue_mutex_.lock();
+						log_queue_.push_back(xml);
+						log_queue_mutex_.unlock();
 					}
-					catch (const archiving::archivable_channel_t::finishing_exception& e)
-					{
-						LogVerbose(e.what());
-						break;
-					}
-					catch (const std::exception& e)
-					{
-						LogWarning("exception:" << e.what());
-					}
-					catch (...)
-					{
-						LogCritical("unexpected exception");
-					}
+				}
+				catch (const archiving::archivable_channel_t::finishing_exception& e)
+				{
+					LogVerbose(e.what());
+					break;
+				}
+				catch (const std::exception& e)
+				{
+					LogWarning("exception:" << e.what());
+				}
+				catch (...)
+				{
+					LogCritical("unexpected exception");
 				}
 			}
 			LogMessage("finishing");
