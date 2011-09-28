@@ -36,6 +36,13 @@ namespace app {
 
 class put_session : public boost::enable_shared_from_this<put_session>
 {
+	struct protocol_exception : public rml::exception
+	{
+		protocol_exception(const std::string& message) : rml::exception(message)
+		{
+		}
+	};
+
 	struct states
 	{
 		enum state_t
@@ -456,124 +463,147 @@ private:
 		case states::put_receiving_file_ok:
 		{
 			std::ostream ostr(&send_buffer_);
-			if(xfrd_ok_) {
+			try {
+				if(!xfrd_ok_) {
+					LogError(remote_ep<<" "<<resource_id_<<": general failure during transfer");
+					throw protocol_exception("general failure during transfer");
+				}
+
 				ofs_->re_open();
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
 				LogDebug(remote_ep<<' '<<resource_id_<<" Original MD5: "<<md5_);
 				LogDebug(remote_ep<<' '<<resource_id_<<" Computed MD5: "<<md5);
-				if(md5 == md5_) {
 
-					LogMessage(remote_ep<<" "<<resource_id_<<": PUT; Data received OK");
+				app::policy::pointer p_policy;
 
-					// create operation_data
-					operation_data::pointer opdata(new operation_data());
-					opdata->p_detail.reset(new operation_data::detail());
+				if( policy_id_ >= 0 ) {
+					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
+					if(!p_policy)
+						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PilicyID: %1%/%2% )") % orgID_ % policy_id_));
+				}
 
-					if( policy_id_ >= 0 ) {
-						opdata->p_detail->policy = applied_policy(cached_policy_finder_(std::make_pair(orgID_, policy_id_)), creation_time_);
-						opdata->p_detail->p_endpoint = cached_endpoint_finder_(std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(orgID_, opdata->p_detail->policy.p_policy->endpoint_id));
-						opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
+				if(md5 != md5_) {
+					LogError(remote_ep<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
+					throw protocol_exception("md5 mismatch");
+				}
+
+				LogMessage(remote_ep<<" "<<resource_id_<<": PUT; Data received OK");
+
+				// create operation_data
+				operation_data::pointer opdata(new operation_data());
+				opdata->p_detail.reset(new operation_data::detail());
+
+				if(p_policy) {
+					opdata->p_detail->policy = applied_policy(p_policy, creation_time_);
+					opdata->p_detail->p_endpoint = cached_endpoint_finder_(std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(orgID_, opdata->p_detail->policy.p_policy->endpoint_id));
+					opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
+				}
+
+				opdata->p_detail->identifier = archiving::archivable::identifier(file_type_, orgID_, uuid_);
+				opdata->p_detail->current_file_format = types::file_format::make(false, false, data_type_);
+				opdata->p_detail->files_map.insert(std::make_pair(opdata->p_detail->current_file_format, ofs_));
+				opdata->p_detail->clear_size = content_length_;
+				opdata->p_detail->real_size = 0;
+				opdata->p_detail->retry = 0;
+				opdata->p_detail->database_id = 0;
+				opdata->p_detail->p_metadata = metadata_;
+				opdata->p_detail->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
+
+				ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
+
+				// Looks like we have the file intact; lets make it temporarily not temporary
+				ofs_->set_persistent();
+
+				// lets add the file to clear cache for the sake of optimization
+				// otherwise we will have to pull it back from storage
+				clear_cache_.put(opdata->p_detail->identifier, opdata->p_detail->current_file_format, ofs_);
+
+				current_state_ = states::put_check_received_file_ack_ok;
+
+				// save the state of operation data
+				internal_db_.save(opdata);
+
+				// Put CDRs and those recordings needed for CDR processing on to GlusterFS
+				// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
+				{
+					std::string pbx_hostname;
+					{
+						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("PBXHostName");
+						if(itr == opdata->p_detail->p_metadata->end()) {
+							LogWarning(remote_ep<<" No PBXHostName found in metadata; substituting with 'dft-rm-pbx'");
+							pbx_hostname = "dft-rm-pbx";
+						}
+						else
+							pbx_hostname = itr->second;
 					}
 
-					opdata->p_detail->identifier = archiving::archivable::identifier(file_type_, orgID_, uuid_);
-					opdata->p_detail->current_file_format = types::file_format::make(false, false, data_type_);
-					opdata->p_detail->files_map.insert(std::make_pair(opdata->p_detail->current_file_format, ofs_));
-					opdata->p_detail->clear_size = content_length_;
-					opdata->p_detail->real_size = 0;
-					opdata->p_detail->retry = 0;
-					opdata->p_detail->database_id = 0;
-					opdata->p_detail->p_metadata = metadata_;
-					opdata->p_detail->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
+					// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
+					types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
+					if(itr != opdata->p_detail->p_metadata->end()) {
+						if( itr->second == "true" ) {
+							LogVerbose(remote_ep<<' '<<resource_id_<<" AddToCDRMunchCache requested");
+							std::string whisper_path = boost::str(
+									boost::format("%1%/%2%_%3%_%4%")
+											% confMap_["distiller_client.base_dir"].as<std::string>()
+											% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
+											% opdata->p_detail->identifier.org
+											% opdata->p_detail->identifier.uuid);
 
-					ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
+							rml::utils::directory_ready(whisper_path);
+							std::ofstream whisper_ofs(whisper_path.c_str(), std::ios_base::out | std::ios_base::binary);
+							if(whisper_ofs) {
+								whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
 
-					// Looks like we have the file intact; lets make it temporarily not temporary
-					ofs_->set_persistent();
+								ofs_->re_open();
+								std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
+								whisper_ofs.flush();
+								whisper_ofs.close();
 
-					// lets add the file to clear cache for the sake of optimization
-					// otherwise we will have to pull it back from storage
-					clear_cache_.put(opdata->p_detail->identifier, opdata->p_detail->current_file_format, ofs_);
+								LogMessage(remote_ep<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
 
-					current_state_ = states::put_check_received_file_ack_ok;
+								if(file_type_ == archiving::archivable::file_type::cdr) {
+									whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
+									whisper_channel_.produce(p_whisper);
 
-					// save the state of operation data
-					internal_db_.save(opdata);
-
-					// Put CDRs and those recordings needed for CDR processing on to GlusterFS
-					// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
-					{
-						std::string pbx_hostname;
-						{
-							types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("PBXHostName");
-							if(itr == opdata->p_detail->p_metadata->end()) {
-								LogWarning(remote_ep<<" No PBXHostName found in metadata; substituting with 'dft-rm-pbx'");
-								pbx_hostname = "dft-rm-pbx";
+									// TODO XXX handle failure to insert into cdrmunch DB
+									if(!cdrmunch_db_.save(p_whisper))
+										LogWarning(remote_ep<<" Failed to add CDR into distiller queue (table: CDR.cdr_queue)");
+								}
 							}
 							else
-								pbx_hostname = itr->second;
+								LogError(remote_ep<<" Failed to create whisper! error:"<<strerror(errno));
 						}
 
-						// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
-						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
-						if(itr != opdata->p_detail->p_metadata->end()) {
-							if( itr->second == "true" ) {
-								LogVerbose(remote_ep<<' '<<resource_id_<<" AddToCDRMunchCache requested");
-								std::string whisper_path = boost::str(
-										boost::format("%1%/%2%_%3%_%4%")
-												% confMap_["distiller_client.base_dir"].as<std::string>()
-												% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
-												% opdata->p_detail->identifier.org
-												% opdata->p_detail->identifier.uuid);
-
-								rml::utils::directory_ready(whisper_path);
-								std::ofstream whisper_ofs(whisper_path.c_str(), std::ios_base::out | std::ios_base::binary);
-								if(whisper_ofs) {
-									whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
-
-									ofs_->re_open();
-									std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
-									whisper_ofs.flush();
-									whisper_ofs.close();
-
-									LogMessage(remote_ep<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
-
-									if(file_type_ == archiving::archivable::file_type::cdr) {
-										whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
-										whisper_channel_.produce(p_whisper);
-
-										// TODO XXX handle failure to insert into cdrmunch DB
-										if(!cdrmunch_db_.save(p_whisper))
-											LogWarning(remote_ep<<" Failed to add CDR into distiller queue (table: CDR.cdr_queue)");
-									}
-								}
-								else
-									LogError(remote_ep<<" Failed to create whisper! error:"<<strerror(errno));
-							}
-
-							// we do not need to store the AddToCDRMunchCache header
-							// opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
-						}
+						// we do not need to store the AddToCDRMunchCache header
+						// opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
 					}
-
-					// no need to keep the file open till we can process it
-					ofs_->close();
-
-					if(policy_id_ >= 0) // if PolicyID < 0; it only needs to be local cached
-						channel_.produce(opdata);
-					else
-						LogMessage(remote_ep<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 				}
-				else {
-					LogError(remote_ep<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
-					ostr << "ERR RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<" md5 mismatch\r\n";
-					current_state_ = states::put_check_received_file_ack_err;
-					xfrd_ok_ = false;
-				}
+
+				// no need to keep the file open till we can process it
+				ofs_->close();
+
+				if(p_policy) // if PolicyID < 0; it only needs to be local cached
+					channel_.produce(opdata);
+				else
+					LogMessage(remote_ep<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 			}
-			else {
-				LogError(remote_ep<<" "<<resource_id_<<": PUT failed; general failure during transfer");
+			catch(const protocol_exception& e) {
+				LogMessage("Protocol Exception: "<<e.what());
+				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<' '<<e.what()<<"\r\n";
+				current_state_ = states::put_check_received_file_ack_err;
+				xfrd_ok_ = false;
+			}
+			catch(const std::exception& e) {
+				LogWarning("Exception: "<<e.what());
 				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
+				xfrd_ok_ = false;
+			}
+			catch(...) {
+				LogWarning("Unexpected exception");
+				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
+				current_state_ = states::put_check_received_file_ack_err;
+				xfrd_ok_ = false;
 			}
 
 			ofs_.reset();

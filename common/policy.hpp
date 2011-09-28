@@ -151,17 +151,23 @@ struct policy
 		//ctor
 	}
 
-	static pointer finder(coreapi& api, const std::pair<archiving::org_id_t, id_type>& org_policy)
+	static pointer finder(coreapi& api, const std::pair<archiving::org_id_t, id_type>& org_policy) try
 	{
 		std::ostringstream ostr;
 		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
 
-		coreapi::response response(api.get(ostr.str(), 200U, true));
+		coreapi::response response(api.get(ostr.str(), true));
+		if(response.first != 200) {
+			LogCritical("Policy NOT found ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" ); need to restart ArchiveD after fixing this");
+			return pointer();
+		}
 
 		// run xpath
 		pugi::xml_document doc;
-		if(!doc.load(response.second.c_str()))
-			throw rml::exception("Unable to load response document");
+		if(!doc.load(response.second.c_str())) {
+			LogCritical("Unable to load response document ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" ); need to restart ArchiveD after fixing this");
+			return pointer();
+		}
 
 		pugi::xml_node policy_node = doc.select_single_node("/Archiving/Policy").node();
 
@@ -184,6 +190,10 @@ struct policy
 				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
 				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
 				endpoint_id));
+	}
+	catch(const std::exception& e) {
+		LogCritical("Exception: "<<e.what()<<"; need to restart ArchiveD after fixing this");
+		return pointer();
 	}
 
 	typedef cache::result_cache<const std::pair<archiving::org_id_t, id_type>, pointer> cached_finder_t;

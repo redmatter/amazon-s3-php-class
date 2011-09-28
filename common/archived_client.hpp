@@ -564,13 +564,13 @@ private:
 
 		case state::put_sent_file_ack_waiting:
 		{
-			std::string OK_or_ERR, RECV, md5, message;
+			std::string OK_or_ERR, RECV, uuid, message, file_type_str;
 			char sp[4], cr, lf;
 			archiving::org_id_t OrgID;
 
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 
-			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> OrgID >> sp[2] >> md5;
+			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> file_type_str >> sp[2] >> OrgID >> sp[3] >> uuid;
 			LogDebug("OK_or_ERR: "<<OK_or_ERR);
 			if(OK_or_ERR != "OK") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
