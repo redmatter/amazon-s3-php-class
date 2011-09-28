@@ -27,6 +27,7 @@ Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
 Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
+Requires: RM-fshooks >= 0.0.1-15219
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
 

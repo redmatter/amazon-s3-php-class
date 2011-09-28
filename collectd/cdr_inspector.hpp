@@ -76,6 +76,7 @@ class cdr_inspector : public boost::noncopyable
 	const boost::program_options::variables_map& confMap;
 
 	std::vector<archiving::org_id_t> orgs_enabled_;
+	bool orgs_enabled_all_;
 
 	const std::string& pbx_hostname_;
 
@@ -123,7 +124,9 @@ public:
 	{
 		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
 			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
-			if(!orgs_enabled.empty()) {
+			orgs_enabled_all_ = orgs_enabled == "all";
+
+			if(!orgs_enabled_all_ && !orgs_enabled.empty()) {
 				std::vector<std::string> orgs_enabled_str;
 				boost::algorithm::split(orgs_enabled_str, orgs_enabled, boost::is_any_of(", \t"));
 				std::vector<std::string>::const_iterator end = orgs_enabled_str.end();
@@ -279,17 +282,8 @@ public:
 								pugi::xpath_node rmOrgID_node = variables_node.select_single_node(leg == leg::A? "rmOrgID/text()": "rmOriginatorOrgId/text()");
 								if(rmOrgID_node) {
 									rmOrgID = (archiving::org_id_t)rml::utils::strtoull(( rmOrgID_str = rmOrgID_node.node().value() ), 0);
-									LogDebug(*archivable_cdr<<" rmOrgID: "<<rmOrgID);
+									LogDebug(*archivable_cdr<<" From CDR rmOrgID: "<<rmOrgID);
 								}
-								else
-									LogWarning(*archivable_cdr<<" No rmOrgId/rmOriginatorOrgId found; using 0");
-							}
-
-							if(!rmOrgID) {
-								LogError(*archivable_cdr<<" No rmOrgID found");
-								archivable_cdr->set_done(true);
-								archivable_cdr.reset();
-								continue;
 							}
 
 							archiving::user_id_t rmUserID = 0;
@@ -297,12 +291,12 @@ public:
 								pugi::xpath_node rmUserID_node = variables_node.select_single_node("rmUserID/text()");
 								if(rmUserID_node) {
 									rmUserID = (archiving::user_id_t)rml::utils::strtoll(rmUserID_node.node().value(), 0);
-									LogDebug(*archivable_cdr<<" rmUserID: "<<rmUserID);
+									LogDebug(*archivable_cdr<<" From CDR rmUserID: "<<rmUserID);
 								}
 							}
 
 							{
-								owners.reset(new archiving::owner_info(rmOrgID));
+								owners.reset(new archiving::owner_info(rmOrgID? rmOrgID: 1));
 								owners->addUser(rmUserID);
 								archivable_cdr->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
 							}
@@ -351,7 +345,7 @@ public:
 							LogDebug("orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)): " << (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)));
 						);
 
-						if(orgs_enabled_.empty() || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
+						if(orgs_enabled_all_ || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
 
 							// switch between the new variables and old
 							// if rmCallRecordingCount set, we are in the new scheme
