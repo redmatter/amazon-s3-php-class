@@ -58,11 +58,21 @@ public:
 				opdata->get_tmp_fstream()->re_open();
 
 				bool converted_ok = (opdata->p_detail->current_file_format == opdata->p_detail->target_file_format);
-				while(opdata->p_detail->current_file_format != opdata->p_detail->target_file_format) {
+				while(true) {
+					if (opdata->p_detail->current_file_format == opdata->p_detail->target_file_format) {
+						converted_ok = true;
+						LogMessage(identifier<<": No (more) conversion needed; current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+						break;
+					}
+
+					LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+					LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
+
 					std::pair<app::types::file_format::convert_action::convert_action_t, app::types::file_format::file_format_t> next =
 							app::types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format);
 
 					LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
+					LogDebug(identifier<<": next convert target:"<<app::types::file_format::to_string(next.second));
 
 					try {
 						if(next.second == app::types::file_format::unknown) {
@@ -102,6 +112,9 @@ public:
 							break;
 						}
 
+						LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+						LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
+
 						opdata->p_detail->current_file_format = next.second;
 					}
 					catch(const std::exception& e) {
@@ -123,6 +136,8 @@ public:
 						LogError(identifier<<": Failed convert after "<<opdata->p_detail->retry<<" retry(s)");
 						continue;
 					}
+					else
+						LogWarning(identifier<<": Failed convert; retrying...FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
 
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
 
