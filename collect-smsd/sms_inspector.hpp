@@ -128,7 +128,11 @@ namespace app
 						policy_cache_(boost::bind(&app::policy::finder, boost::ref(coreapi_), _1)),
 						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
 		{
-			threads_.create_thread(boost::bind(&app::sms_inspector::smslog, boost::ref(this)));
+		}
+
+		void start()
+		{
+			threads_.create_thread(boost::bind(&app::sms_inspector::smslog, this));
 		}
 
 		void smslog()

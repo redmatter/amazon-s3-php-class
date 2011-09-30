@@ -44,7 +44,7 @@ public:
 
 		p_pool_ = new rml::DBConnectionPool(confMap_, database_type::get_identifier());
 
-		LogMessage("database['"<<database_type::get_identifier() << "] connection pool created");
+		LogMessage("database['"<<database_type::get_identifier() << "'] connection pool created");
 
 		{
 			// let us see if it really works!
@@ -60,7 +60,7 @@ public:
 		if(p_pool_)
 			delete p_pool_;
 
-		LogMessage("database['"<<database_type::get_identifier() << "] destroyed");
+		LogMessage("database['"<<database_type::get_identifier() << "'] destroyed");
 	}
 };
 

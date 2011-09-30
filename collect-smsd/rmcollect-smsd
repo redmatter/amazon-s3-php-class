@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# rmcollect-smsd     This shell script takes care of starting and stopping
-#                the CDR POST Daemon.
+# rmcollect-smsd  This shell script takes care of starting and stopping
+#                 the SMS POST Daemon.
 #
 # chkconfig: 2345 80 05
 # description: Archiving Collect Daemon

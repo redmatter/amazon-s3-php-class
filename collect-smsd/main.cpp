@@ -14,6 +14,8 @@
 #include "sms_dir_monitor.hpp"
 #include "../common/coreapi.hpp"
 
+#include "../common/logstack.h"
+
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
@@ -292,8 +294,9 @@ int main(int argc, char* argv[]) try
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		app::sms_inspector sms_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname, coreapi, io_service);
-		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
+		for(unsigned int i = app::confMap["sms_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
+		sms_inspector.start();
 
 	    app::archived_client archived_client(
 	    		io_service,
@@ -352,6 +355,7 @@ int main(int argc, char* argv[]) try
 }
 catch(const std::exception& e) {
 	LogError("Exception: "<<e.what());
+	logstack();
 	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }

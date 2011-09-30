@@ -80,9 +80,11 @@ public:
 					throw rml::exception("failed opening directory");
 				}
 
-				LogMessage("Loading from directory...");
+				LogDebug("Loading from directory...");
 
 				unsigned int item_count = max_items;
+
+				int items_added = 0, items_tidied = 0;
 
 				struct dirent *dp;
 				while ((dp = readdir(dh)))
@@ -111,35 +113,47 @@ public:
 								if (!in_dir_.insert(file_path).second)
 									LogError("Error adding " << file_path << " into in_dir list");
 
-								if ((handled_.find(file_path) == handled_.end()) && is_valid_(file_path))
+								if (handled_.find(file_path) != handled_.end())
 								{
+									LogVerbose(file_path << " already handled");
+								}
+								else if (!is_valid_(file_path))
+								{
+									LogVerbose(file_path << " failed is_valid: possibly already archived ... ?");
+								}
+								else
+								{
+									LogVerbose("sending " << file_path << " to loader");
+
 									if (!handled_.insert(file_path).second)
 										LogError("Error adding " << file_path << " into handled list, calling loader anyway");
 
 									(void) loader_(file_path);
+									items_added ++;
 								}
 							}
 						}
 					}
-
-					// remove items from handled_ which have been cleared away by the archive daemon
-					for (file_list::iterator i = handled_.begin(); i != handled_.end(); )
-					{
-						if (in_dir_.find(*i) == in_dir_.end())
-						{
-							// file is in handled_, but not in_dir_, so it's been deleted by the archiving process
-							// and can be deleted from our handled_ hash table
-							file_list::iterator nexti = i;
-							++nexti;
-							handled_.erase(i);
-							i = nexti;
-						}
-						else
-							++i;
-					}
 				}
 
-				LogMessage("Loading from directory; done");
+				// remove items from handled_ which have been cleared away by the archive daemon
+				for (file_list::iterator i = handled_.begin(); i != handled_.end(); )
+				{
+					if (in_dir_.find(*i) == in_dir_.end())
+					{
+						// file is in handled_, but not in_dir_, so it's been deleted by the archiving process
+						// and can be deleted from our handled_ hash table
+						file_list::iterator nexti = i;
+						++nexti;
+						handled_.erase(i);
+						items_tidied ++;
+						i = nexti;
+					}
+					else
+						++i;
+				}
+
+				LogMessage("directory_loader: " << items_added << " added, " << items_tidied << " tidied");
 			}
 			catch (const std::exception& e)
 			{
