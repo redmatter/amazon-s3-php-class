@@ -152,6 +152,12 @@ public:
 			rml::MySQLConnection conn(*p_pool_);
 			mysqlpp::Transaction transaction(*conn, false);
 
+			{
+				mysqlpp::Query query = conn->query();
+				query << "SET time_zone = '+00:00'";
+				query.execute();
+			}
+
 			// retention data
 			{
 				const data::multiset_t::const_iterator& end(data.end());
