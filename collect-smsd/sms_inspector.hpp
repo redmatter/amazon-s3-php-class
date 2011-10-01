@@ -22,56 +22,6 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 
-namespace
-{
-	inline const char* get_xpath_single_value(pugi::xml_node& doc,
-			const std::string& xpath, const char* default_value)
-	{
-		RML_DEBUG(LogDebug("xpath: " << xpath << " default_value:" << default_value));
-
-		pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
-
-		if (xpath_node)
-		{
-			RML_DEBUG(LogDebug(xpath << '=' << xpath_node.node().value()));
-			return xpath_node.node().value();
-		}
-
-		RML_DEBUG(
-				if (default_value)
-				LogDebug(xpath<<'='<<default_value);
-				else
-				LogDebug(xpath<<"=NULL");
-		);
-
-		return default_value;
-	}
-
-	inline std::string get_xpath_single_value(pugi::xml_node& doc,
-			const std::string& xpath, const std::string& default_value = "")
-	{
-		RML_DEBUG(LogDebug("xpath: " << xpath << " default_value:" << default_value));
-		return get_xpath_single_value(doc, xpath, default_value.c_str());
-	}
-
-	inline unsigned long long get_xpath_single_value(pugi::xml_node& doc,
-			const std::string& xpath,
-			const unsigned long long& default_value = 0ULL)
-	{
-		RML_DEBUG(LogDebug("xpath: " << xpath << " default_value:" << default_value));
-		return rml::utils::strtoull(
-				get_xpath_single_value(doc, xpath, (const char*) 0), default_value);
-	}
-
-	inline long long get_xpath_single_value(pugi::xml_node& doc,
-			const std::string& xpath, const long long default_value = 0LL)
-	{
-		RML_DEBUG(LogDebug("xpath: " << xpath << " default_value:" << default_value));
-		return rml::utils::strtoll(
-				get_xpath_single_value(doc, xpath, (const char*) 0), default_value);
-	}
-}
-
 namespace app
 {
 	class sms_inspector: public boost::noncopyable
@@ -125,7 +75,7 @@ namespace app
 				boost::asio::io_service &io_service) :
 				in_channel(in_channel), out_channel(out_channel), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
-						policy_cache_(boost::bind(&app::policy::finder, boost::ref(coreapi_), _1)),
+						policy_cache_(boost::bind(&app::policy::finder, coreapi_, _1)),
 						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
 		{
 		}
@@ -224,14 +174,14 @@ namespace app
 						// start epoch
 
 						time_t start_epoch = 0;
-						pugi::xpath_node start_epoch_node = doc.select_single_node("StartEpoch/text()");
+						pugi::xpath_node start_epoch_node = doc.select_single_node("/SMS/StartEpoch");
 						if(start_epoch_node)
 						{
-							start_epoch = rml::utils::strtoull(start_epoch_node.node().value());
+							start_epoch = rml::utils::strtoull(start_epoch_node.node().child_value());
 						}
 						else
 						{
-							LogWarning("Start Epoch not found ( /sms/start_epoch ); falling-back to current time");
+							LogWarning("Start Epoch not found /SMS/StartEpoch; falling-back to current time");
 							time(&start_epoch);
 						}
 
@@ -240,11 +190,11 @@ namespace app
 						archiving::owner_info::pointer owners;
 						const char* rmOrgID_str = 0;
 						archiving::org_id_t rmOrgID = 0;
-						pugi::xpath_node rmOrgID_node =	doc.select_single_node("OrgID/text()");
+						pugi::xpath_node rmOrgID_node =	doc.select_single_node("/SMS/OrgID");
 
 						if (rmOrgID_node)
 						{
-							rmOrgID = (archiving::org_id_t) rml::utils::strtoull((rmOrgID_str = rmOrgID_node.node().value()), 0);
+							rmOrgID = (archiving::org_id_t) rml::utils::strtoull((rmOrgID_str = rmOrgID_node.node().child_value()), 0);
 							LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmOrgID: " << rmOrgID);
 						}
 						else
@@ -255,10 +205,10 @@ namespace app
 						}
 
 						archiving::user_id_t rmUserID = 0;
-						pugi::xpath_node rmUserID_node = doc.select_single_node("UserID/text()");
+						pugi::xpath_node rmUserID_node = doc.select_single_node("/SMS/UserID");
 						if (rmUserID_node)
 						{
-							rmUserID = (archiving::user_id_t) rml::utils::strtoll(rmUserID_node.node().value(), 0);
+							rmUserID = (archiving::user_id_t) rml::utils::strtoll(rmUserID_node.node().child_value(), 0);
 							LogVerbose("sms:" << archivable_sms->get_uuid() << " - rmUserID: " << rmUserID);
 						}
 
@@ -268,10 +218,10 @@ namespace app
 						// hostname
 
 						std::string hostname;
-						pugi::xpath_node hostname_node = doc.select_single_node("HostName/text()");
+						pugi::xpath_node hostname_node = doc.select_single_node("/SMS/HostName");
 						if (hostname_node)
 						{
-							hostname = hostname_node.node().value();
+							hostname = hostname_node.node().child_value();
 							LogVerbose("sms:" << archivable_sms->get_uuid() << " - HostName: " << hostname);
 						}
 
@@ -316,11 +266,13 @@ namespace app
 							% rmOrgID
 							% rmUserID
 							% start_epoch
-							% doc.select_single_node("FromNumber/text()").node().value()
-							% doc.select_single_node("ToNumber/text()").node().value()
-							% (doc.select_single_node("Direction/text()").node().value() == "inbound" ? "Inbound" : "Outbound")
+							% doc.select_single_node("/SMS/FromNumber").node().child_value()
+							% doc.select_single_node("/SMS/ToNumber").node().child_value()
+							% (doc.select_single_node("/SMS/Direction").node().child_value() == "inbound" ? "Inbound" : "Outbound")
 							% hostname
 						);
+
+						LogVerbose("sms: logging xml: " << xml);
 
 						log_queue_mutex_.lock();
 						log_queue_.push_back(xml);

@@ -98,6 +98,7 @@ public:
 						}
 
 						const std::string file_path(dir_path_ + '/' + dp->d_name);
+						const std::string file_name(dp->d_name);
 
 						struct stat s;
 						if (-1 == stat(file_path.c_str(), &s))
@@ -110,22 +111,24 @@ public:
 							// lets ignore any freshies for 3secs
 							if (!S_ISDIR(s.st_mode) && ((time(0) - s.st_ctime) > 3))
 							{
-								if (!in_dir_.insert(file_path).second)
-									LogError("Error adding " << file_path << " into in_dir list");
+								if (!in_dir_.insert(file_name).second)
+									LogError("We have already seen " << file_path);
 
-								if (handled_.find(file_path) != handled_.end())
+								if (handled_.find(file_name) != handled_.end())
 								{
-									LogVerbose(file_path << " already handled");
+									LogMessage(file_path << " already handled");
 								}
-								else if (!is_valid_(file_path))
+								// this is badly named it should be is_busy_()
+								// so a positive return means the file is busy
+								else if (is_valid_(file_name))
 								{
-									LogVerbose(file_path << " failed is_valid: possibly already archived ... ?");
+									LogMessage(file_path << " failed is_valid: we're already working on this file");
 								}
 								else
 								{
-									LogVerbose("sending " << file_path << " to loader");
+									LogMessage("sending " << file_path << " to loader");
 
-									if (!handled_.insert(file_path).second)
+									if (!handled_.insert(file_name).second)
 										LogError("Error adding " << file_path << " into handled list, calling loader anyway");
 
 									(void) loader_(file_path);
