@@ -70,6 +70,7 @@ class cdr_inspector : public boost::noncopyable
 
 	archiving::archivable_channel_t& in_channel;
 	archiving::archivable_channel_t& out_channel;
+	archiving::archivable_busy_set_t& archivable_busy_set_;
 
 	database::internal& internal_db_;
 
@@ -115,9 +116,15 @@ public:
 	 * @param confMap
 	 * @return
 	 */
-	cdr_inspector(archiving::archivable_channel_t& in_channel, archiving::archivable_channel_t& out_channel, database::internal& internal_db, const boost::program_options::variables_map& confMap, const std::string& pbx_hostname) :
+	cdr_inspector(archiving::archivable_channel_t& in_channel,
+			archiving::archivable_channel_t& out_channel,
+			archiving::archivable_busy_set_t& archivable_busy_set,
+			database::internal& internal_db,
+			const boost::program_options::variables_map& confMap,
+			const std::string& pbx_hostname) :
 		in_channel(in_channel),
 		out_channel(out_channel),
+		archivable_busy_set_(archivable_busy_set),
 		internal_db_(internal_db),
 		confMap(confMap),
 		pbx_hostname_(pbx_hostname)
@@ -332,7 +339,19 @@ public:
 
 						if( isDiscardable ) {
 							archivable_cdr->set_done(true);
+
+							{
+								int retry = 0;
+								while(!internal_db_.save(archivable_cdr) && !app::quit) {
+									LogMessage(archivable_cdr<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+									boost::this_thread::sleep(boost::posix_time::seconds(15));
+									retry++;
+								}
+							}
+
+							archivable_busy_set_.remove(archivable_cdr);
 							archivable_cdr.reset();
+
 							continue;
 						}
 

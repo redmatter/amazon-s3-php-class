@@ -294,7 +294,7 @@ int main(int argc, char* argv[]) try
 		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, internal_db, app::confMap, app::hostname);
+		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
