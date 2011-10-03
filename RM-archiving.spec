@@ -160,6 +160,7 @@ cp rmarchived-hAPI %{buildroot}/usr/bin/
 cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
 cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
+cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-checker.conf
 
 # ----------
 
