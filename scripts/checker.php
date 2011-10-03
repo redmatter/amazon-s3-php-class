@@ -15,6 +15,7 @@
  *
  */
 define('APP_NAME_', 'rm-archiving-checker');
+define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 
 require_once "s3/S3.php";
 require_once 'rmapp/class.BaseApp.php';
@@ -71,7 +72,6 @@ class ArchivingCheckerApp extends BaseApp
 			
 			$rmOrgID = isset($row[1])? $row[1]: 1;
 			$fileType = isset($row[2])? $row[2]: 1;
-			
 			if (false === fputcsv($this->_outfp, array($uuid, $rmOrgID, $fileType, ArchivingChecker::Check($fileType, $rmOrgID, $uuid))))
 			{
 				LogError('Failed writing output');
