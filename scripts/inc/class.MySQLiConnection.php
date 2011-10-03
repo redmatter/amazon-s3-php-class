@@ -51,7 +51,7 @@ class MySQLiConnection extends MySQLi
 		
 			if ($conn->_ping_interval_seconds && ((time() - $conn->_ping_time) > $conn->_ping_interval_seconds))
 			{
-				if (true !== $conn->ping())
+				if (true !== $this->ping())
 				{
 					self::$_connections[$mysql_conf] = null;
 					return MySQLiConnection::Get($mysql_conf, $make_new);
@@ -60,6 +60,18 @@ class MySQLiConnection extends MySQLi
 		}
 				
 		return $conn;
+	}
+	
+	/**
+	 * Ping
+	 * 
+	 * @return bool
+	 */
+	public function ping()
+	{
+		$ret = parent::ping();
+		LogDebug('Ping '.($ret? 'OK': 'FAILED'));
+		return $ret;
 	}
 	
 	private $_ping_time = 0;
@@ -141,7 +153,7 @@ class MySQLiConnection extends MySQLi
 			$port = config::get("{$prefix}.port", null);
 			$socket = config::get("{$prefix}.socket", null);
 			
-			$this->_ping_interval_seconds = config::get("{$prefix}.ping_interval_seconds", 0);
+			$this->_ping_interval_seconds = config::get("{$prefix}.ping_interval_seconds", 10);
 		}
 		
 		if (false === parent::real_connect($host, $username, $password, $database, $port, $socket, $flags))
