@@ -51,7 +51,7 @@ class MySQLiConnection extends MySQLi
 		
 			if ($conn->_ping_interval_seconds && ((time() - $conn->_ping_time) > $conn->_ping_interval_seconds))
 			{
-				if (true !== $this->ping())
+				if (true !== $conn->ping())
 				{
 					self::$_connections[$mysql_conf] = null;
 					return MySQLiConnection::Get($mysql_conf, $make_new);
@@ -70,7 +70,7 @@ class MySQLiConnection extends MySQLi
 	public function ping()
 	{
 		$ret = parent::ping();
-		LogDebug('Ping '.($ret? 'OK': 'FAILED'));
+		$this->_logContext->LogDebug('Ping '.($ret? 'OK': 'FAILED'));
 		return $ret;
 	}
 	
@@ -93,6 +93,7 @@ class MySQLiConnection extends MySQLi
 		
 		if (is_array($mysql_conf))
 		{
+			$this->_logContext = new SysLogContext('DB:anonymous');
 			$persistent = isset($mysql_conf['persistent'])? ($mysql_conf['persistent'] === true): false;
 			$host = isset($mysql_conf['host'])? $mysql_conf['host']: 'localhost';
 			$host = $persistent? "p:$host": $host;
@@ -117,6 +118,7 @@ class MySQLiConnection extends MySQLi
 		}
 		else
 		{
+			$this->_logContext = new SysLogContext("[DB:$mysql_conf]");
 			$prefix = 'mysql'.( ($mysql_conf !== 'default')? "_$mysql_conf": '' );
 				
 			if (false === config::get("{$prefix}.username", false))
@@ -177,7 +179,7 @@ class MySQLiConnection extends MySQLi
 	 */
 	public function query($query, $resultmode = MYSQLI_STORE_RESULT)
 	{
-		LogMessage($query, 'SQL');
+		$this->_logContext->LogDebug($query, 'SQL');
 		$res = parent::query($query, $resultmode);
 		
 		if ($this->errno)
