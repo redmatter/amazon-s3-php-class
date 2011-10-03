@@ -29,6 +29,8 @@ namespace app
 		archiving::archivable_channel_t& in_channel;
 		archiving::archivable_channel_t& out_channel;
 
+		archiving::archivable_busy_set_t& archivable_busy_set_;
+
 		database::internal& internal_db_;
 
 		const boost::program_options::variables_map& confMap;
@@ -68,12 +70,13 @@ namespace app
 		 */
 		sms_inspector(archiving::archivable_channel_t& in_channel,
 				archiving::archivable_channel_t& out_channel,
+				archiving::archivable_busy_set_t& archivable_busy_set,
 				database::internal& internal_db,
 				const boost::program_options::variables_map& confMap,
 				const std::string& pbx_hostname,
 				app::coreapi coreapi,
 				boost::asio::io_service &io_service) :
-				in_channel(in_channel), out_channel(out_channel), internal_db_(
+				in_channel(in_channel), out_channel(out_channel), archivable_busy_set_(archivable_busy_set), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
 						policy_cache_(boost::bind(&app::policy::finder, coreapi_, _1)),
 						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
@@ -201,6 +204,16 @@ namespace app
 						{
 							LogCritical("sms:" << archivable_sms->get_uuid() << " - No rmOrgID found");
 							archivable_sms->set_done(true);
+
+							int retry = 0;
+							while (!internal_db_.save(archivable_sms) && !app::quit)
+							{
+								LogMessage(*archivable_sms << " [retry: " << retry << "] Save states to DB failed; retrying in 15 seconds ...");
+								boost::this_thread::sleep(boost::posix_time::seconds(15));
+								retry++;
+							}
+
+							archivable_busy_set_.remove(archivable_sms);
 							continue;
 						}
 
