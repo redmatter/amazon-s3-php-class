@@ -323,6 +323,7 @@ fi
 /usr/share/php/archiving/*
 /usr/bin/archiving-checker
 /usr/share/archiving/archiving-checker.conf.sample
+/etc/rsyslog.d/11-archiving-checker.conf
 
 
 # ----------
