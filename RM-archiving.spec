@@ -61,6 +61,7 @@ Group: RedMatter/Archiving
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.1-15308
+Requires: RM-%{appname}-convert >= %{version}-%{release}
 
 # ------------ description---------------
 
