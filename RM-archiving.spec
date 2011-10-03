@@ -60,7 +60,7 @@ Group: RedMatter/Archiving
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: php-rmapp >= 15308
+Requires: RM-php-rmapp >= 15308
 
 # ------------ description---------------
 
