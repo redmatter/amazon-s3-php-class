@@ -241,7 +241,9 @@ fi
 #/sbin/chkconfig rmmigrationd on
 #[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
 
-#%post common
+%post scripts
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+
 
 # ----------
 
