@@ -57,6 +57,11 @@ Requires: boost >= 1.45.0, cryptopp
 Summary: Archiving Common files
 Group: RedMatter/Archiving
 
+%package scripts
+Summary: Archiving Utility Scripts
+Group: RedMatter/Archiving
+Requires: php-rmapp >= 15308
+
 # ------------ description---------------
 
 %description
@@ -79,6 +84,9 @@ Archiving Convert Utility; used by core-api to fetch files from S3
 %description common
 Archiving common config files, etc.
 
+%description scripts
+Archiving Utility scripts for verification etc
+
 # ----------
 
 %prep
@@ -98,6 +106,7 @@ mkdir -p %{buildroot}/etc/rc.d/init.d/
 mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
+mkdir -p %{buildroot}/usr/share/php/archiving
 
 # ArchiveD
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
@@ -146,6 +155,11 @@ cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_da
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp rmarchived-hAPI %{buildroot}/usr/bin/ 
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
+
+# Scripts
+cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
+cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
+cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
 
 # ----------
 
@@ -300,6 +314,13 @@ fi
 %dir /etc/archiving/conf.d/
 /etc/archiving/conf.d/internal_database.conf
 # /etc/archiving/migration_database.conf
+
+%files scripts
+%defattr(-,root,root) 
+/usr/share/php/archiving/*
+/usr/bin/archiving-checker
+/usr/share/archiving/archiving-checker.conf.sample
+
 
 # ----------
 
