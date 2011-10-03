@@ -87,7 +87,10 @@ public:
 
 	inline bool is_archivable_loaded(archiving::archivable::pointer p_arc) const
 	{
-		return busy_set_.is_busied(p_arc);
+		const bool& ret(busy_set_.is_busied(p_arc));
+		LogDebug(p_arc<<" is_archivable_loaded: "<<ret);
+
+		return ret;
 	}
 
 	inline bool is_file_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& file_path) const
@@ -281,7 +284,7 @@ int main(int argc, char* argv[]) try
 				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set);
-		app::directory_loader::is_valid_fn archivable_is_valid_fn(
+		app::directory_loader::is_loaded_fn archivable_is_loaded_fn(
 				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::archivable::file_type::cdr, _1));
 
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
@@ -291,7 +294,7 @@ int main(int argc, char* argv[]) try
 		bool more_to_load_from_db = false;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 
-		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
+		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_loaded_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);

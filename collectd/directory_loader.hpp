@@ -23,7 +23,7 @@ class directory_loader {
 
 public:
 	typedef boost::function<bool(const std::string&)> loader_fn;
-	typedef boost::function<bool(const std::string&)> is_valid_fn;
+	typedef boost::function<bool(const std::string&)> is_loaded_fn;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -32,8 +32,8 @@ public:
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_valid_fn& is_valid, volatile bool& quit) :
-		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_valid_(is_valid), quit_(quit)
+	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_loaded_fn& is_loaded, volatile bool& quit) :
+		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_loaded_(is_loaded), quit_(quit)
 	{
 	}
 
@@ -69,7 +69,24 @@ public:
 
 				struct dirent *dp;
 				unsigned int file_count = 0;
-				while((file_count++ < directory_loading_batch_size) && (dp = readdir(dh))) {
+				while((file_count < directory_loading_batch_size)) {
+					errno = 0;
+					dp = readdir(dh);
+
+					if(!dp) {
+						if(errno) {
+							LogError("Failed to read directory - err:"<<strerror(errno));
+							dh = opendir(dir_path_.c_str());
+							if(!dh) {
+								LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
+								throw rml::exception("failed opening directory");
+							}
+							continue;
+						}
+
+						break;
+					}
+
 					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
 						continue;
 
@@ -81,13 +98,20 @@ public:
 						continue;
 					}
 
-					if(S_ISDIR(s.st_mode)) // we are not interested in any dirs
+					if(S_ISDIR(s.st_mode)) { // we are not interested in any dirs
+						LogDebug("Ignoring directory "<<file_path);
 						continue;
+					}
 					else if((time(0) - s.st_ctime) < 3) // lets ignore any freshies for 3secs
 						continue;
 
-					if (is_valid_(file_path))
+					if (!is_loaded_(file_path)) {
 						(void)loader_(file_path);
+						file_count++;
+					}
+					else {
+						LogDebug("Ignoring invalid item "<<file_path);
+					}
 				}
 
 				// are we done with the batch ?
@@ -111,7 +135,7 @@ private:
 	const std::string dir_path_;
 	const boost::program_options::variables_map& confMap_;
 	loader_fn& loader_;
-	is_valid_fn& is_valid_;
+	is_loaded_fn& is_loaded_;
 	volatile bool& quit_;
 
 	enum constant
