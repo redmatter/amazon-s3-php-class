@@ -76,7 +76,9 @@ public:
 				const std::vector< archiving::user_id_t >& userIDs( arc.get_owners() );
 				std::vector< archiving::user_id_t >::const_iterator itr = userIDs.begin();
 				for(; itr != userIDs.end(); ++itr) {
-					ostr << ((itr == userIDs.begin())? ' ': ',');
+					if(itr != userIDs.begin())
+						ostr << ',';
+
 					ostr << *itr;
 				}
 
