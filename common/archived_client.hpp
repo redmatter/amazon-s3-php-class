@@ -27,6 +27,15 @@ using boost::asio::ip::tcp;
 class archived_client
 {
 private:
+	static boost::mutex mutex_;
+	static bool is_archived_ok_;
+
+	static void set_is_archived_ok(const bool ok)
+	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+		is_archived_ok_ = ok;
+	}
+
 	enum constants
 	{
 		reconnect_delay_seconds = 10
@@ -157,6 +166,12 @@ private:
 
 public:
 	typedef boost::shared_ptr<archived_client> pointer;
+
+	static bool get_is_archived_ok()
+	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+		return is_archived_ok_;
+	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -438,6 +453,7 @@ private:
 				is >> cr >> lf;
 				LogMessage("Handshake OK; Ready to PUT");
 				current_state_ = state::ready_to_put;
+				set_is_archived_ok(true);
 				run_statemachine(error);
 			}
 
@@ -480,12 +496,33 @@ private:
 					}
 				}
 			}
+
 			put_archivable_ptr_.reset();
 		}
 		case state::nop_ack_ok:
 		case state::ready_to_put:
 		{
 			io_service_.post(boost::bind(&archived_client::get_archivable_for_put, this));
+			break;
+		}
+
+		case state::put_sent_file_ack_err:
+		{
+			// TODO set retry interval etc
+			/*
+			if(put_archivable_ptr_) {
+				int retry = 0;
+				while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
+					LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+					boost::this_thread::sleep(boost::posix_time::seconds(15));
+					retry++;
+				}
+			}
+			*/
+
+			// reset here so that the item doesnt get removed by do_close()
+			put_archivable_ptr_.reset();
+			io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			break;
 		}
 
@@ -512,13 +549,13 @@ private:
 			is >> OK_or_ERR >> sp[0] >> PUT >> sp[1] >> OrgID >> sp[2] >> md5;
 			if(OK_or_ERR == "ERR") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
-				LogError("put_sent_ack_waiting: PUT Error: "<<message);
+				LogError(put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
 				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			}
 			else {
 				is >> cr >> lf;
-				LogMessage("PUT OK; Sending file");
+				LogMessage(put_archivable_ptr_<<" PUT OK; Sending file");
 
 				current_state_ = state::put_sending_file;
 				rml::utils::tmp_fstream::pointer ifs = put_archivable_ptr_->get_fstream_ptr();
@@ -528,7 +565,7 @@ private:
 				put_file_size_ = ifs->get_size();
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
-					LogWarning("send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
+					LogWarning(put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
 					send_buffer_.consume(send_buffer_.size());
 				}
 				run_statemachine(error);
@@ -571,19 +608,20 @@ private:
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 
 			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> file_type_str >> sp[2] >> OrgID >> sp[3] >> uuid;
-			LogDebug("OK_or_ERR: "<<OK_or_ERR);
+			LogDebug(put_archivable_ptr_<<" OK_or_ERR: "<<OK_or_ERR);
 			if(OK_or_ERR != "OK") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
-				LogError("put_sent_file_ack_waiting: PUT Error: "<<message);
+				LogError(put_archivable_ptr_<<" PUT Error: "<<message);
 				current_state_ = state::put_sent_file_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 			}
 			else {
 				is >> cr >> lf;
-				LogMessage("PUT OK; Get next for PUT");
+				LogMessage(put_archivable_ptr_<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
-				run_statemachine(error);
 			}
+
+			put_archivable_ptr_->hibernate();
+			run_statemachine(error);
 
 			break;
 		}
@@ -717,6 +755,8 @@ private:
 	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {
 		current_state_ = state::closed;
 		connected_ = false;
+
+		set_is_archived_ok(false);
 
 		timer_.cancel();
 		resolver_.cancel();

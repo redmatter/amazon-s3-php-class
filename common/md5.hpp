@@ -8,6 +8,8 @@
 #ifndef MD5_HPP_
 #define MD5_HPP_
 
+#include "types.hpp"
+
 #include <rml/exception.h>
 #include <rml/utils.h>
 
@@ -23,58 +25,12 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/array.hpp>
 
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
-
-namespace archiving {
-
-typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
-
-}
-
-namespace std {
-
-std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
-{
-	string ret;
-
-	CryptoPP::HexEncoder encoder(0, false);
-	encoder.Put(&hash[0], hash.size());
-
-	size_t size = encoder.MaxRetrievable();
-	if(size) {
-	    ret.resize(size);
-	    encoder.Get((byte*)&ret[0], ret.size());
-	}
-
-	return ostr << ret;
-}
-
-std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
-{
-	string encoded;
-	istr >> encoded;
-
-	assert(archiving::hash_vector::static_size*2 == encoded.length());
-
-	CryptoPP::HexDecoder decoder;
-
-	decoder.Put( (byte*)&encoded[0], encoded.length() );
-	decoder.MessageEnd();
-
-	size_t size = decoder.MaxRetrievable();
-	if(size)
-	    decoder.Get(&hv[0], archiving::hash_vector::static_size);
-
-	return istr;
-}
-
-}
 
 namespace archiving {
 

@@ -1,5 +1,6 @@
 include /usr/share/librml/Makefile.macros
 include ../version_info
+include ../common/Makefile.macros
 
 TARGET=libarchiving_common.a
 
@@ -18,7 +19,9 @@ LIBS = \
 
 CXX_SRCS += \
 		dir_monitor.cpp \
-		defines.cpp
+		defines.cpp \
+		types.cpp \
+		archived_client.cpp
 
 C_SRCS += \
 

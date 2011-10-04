@@ -369,8 +369,7 @@ public:
 		// set persistent; we will get around to making it NOT persistent when we are done with it
 		p_fstream_->set_persistent(true);
 
-		// close it, re_open when needed; file handles are very precious
-		p_fstream_->close();
+		hibernate();
 	}
 
 	void set_originator_uuid(const std::string& new_originator_uuid)
@@ -386,6 +385,11 @@ public:
 	void set_start_epoch(const time_t& epoch)
 	{
 		start_epoch = epoch;
+	}
+
+	inline void hibernate()
+	{
+		p_fstream_->close();
 	}
 
 	inline std::ostream& shove_metadata(std::ostream& ostr) const

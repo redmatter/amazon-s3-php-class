@@ -137,8 +137,6 @@ public:
 			if(arc.get_database_id())
 				query << " WHERE ID=%16:ID";
 
-			std::cout << "SQL: "<<query.str() << std::endl;
-
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
@@ -188,6 +186,37 @@ public:
 		}
 
 		return false;
+	}
+
+	bool is_queued(archiving::archivable::pointer& p_arc)
+	{
+		try {
+			archiving::archivable& arc(*p_arc);
+
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+			mysqlpp::Query query = conn->query();
+			query << "SELECT COUNT(*) FROM `ArchivingInternal`.`" << tableName_ << "` WHERE FileType=%0:FileType AND UUID=UNHEX(REPLACE(%1q:UUID, '-', ''))";
+			query.parse();
+
+			mysqlpp::SQLQueryParms qp;
+			qp << mysqlpp::sql_int(p_arc->get_type()) << mysqlpp::sql_char(arc.get_uuid());
+
+			std::cout << "SQL: "<<query.str(qp) << std::endl;
+
+			mysqlpp::UseQueryResult res = query.use(qp);
+			if(mysqlpp::Row row = res.fetch_row())
+				return 0ULL != rml::utils::strtoull(row[0].c_str(), 0ULL);
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogWarning("MySQL Error: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogWarning("Exception: "<<e.what());
+		}
+
+		// fail close ... we dont want to load any file if DB is out of action
+		return true;
 	}
 
 	/**
@@ -285,7 +314,7 @@ public:
 				}
 			}
 
-			have_more_to_load = (first_max_id && max_id <= first_max_id); // more to load?
+			have_more_to_load = (first_max_id && (max_id < first_max_id)); // more to load?
 		}
 		catch(const mysqlpp::Exception& e) {
 			LogWarning("MySQL Error: "<<e.what());
