@@ -495,6 +495,9 @@ private:
 						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
+
+					if(retry && app::quit)
+						throw rml::exception("Quit flagged during database retry");
 				}
 			}
 
@@ -678,6 +681,9 @@ private:
 						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
+
+					if(retry && app::quit)
+						throw rml::exception("Quit flagged during database retry");
 				}
 
 				put_archivable_ptr_.reset();
@@ -710,6 +716,9 @@ private:
 			LogMessage("channel finishing: closing");
 			io_service_.post(boost::bind(&archived_client::do_close, this));
 			current_state_ = state::closing;
+		}
+		catch(const std::exception& e) {
+			LogWarning(e.what());
 		}
 	}
 
