@@ -315,12 +315,15 @@ int main(int argc, char* argv[]) try
 		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 
 		std::vector< app::archived_client::pointer > archived_client(n_threads - 2);
-		for(unsigned int i = 0; i < (n_threads - 2); i++)
+		for(unsigned int i = 0; i < (n_threads - 2); i++) {
 			archived_client.push_back(app::archived_client::pointer(new app::archived_client(
 		    		io_service, out_channel, archivable_busy_set,
 		    		app::confMap["archived_client.server_host"].as<std::string>(),
 		    		app::confMap["archived_client.server_port"].as<std::string>(),
 		    		internal_db, app::quit)));
+
+			boost::this_thread::sleep(boost::posix_time::milliseconds(500));
+		}
 
 		for(unsigned int i = 0; i < n_threads; i++)
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
