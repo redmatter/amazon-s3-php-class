@@ -347,6 +347,9 @@ public:
 									boost::this_thread::sleep(boost::posix_time::seconds(15));
 									retry++;
 								}
+
+								if(retry && app::quit)
+									throw rml::exception("Quit flagged during database retry");
 							}
 
 							archivable_busy_set_.remove(archivable_cdr);
@@ -411,6 +414,9 @@ public:
 													boost::this_thread::sleep(boost::posix_time::seconds(15));
 													retry++;
 												}
+
+												if(retry && app::quit)
+													throw rml::exception("Quit flagged during database retry");
 											}
 
 
@@ -466,6 +472,9 @@ public:
 											boost::this_thread::sleep(boost::posix_time::seconds(15));
 											retry++;
 										}
+
+										if(retry && app::quit)
+											throw rml::exception("Quit flagged during database retry");
 									}
 
 									out_channel.produce(archivable_recording);
@@ -510,6 +519,9 @@ public:
 								boost::this_thread::sleep(boost::posix_time::seconds(15));
 								retry++;
 							}
+
+							if(retry && app::quit)
+								throw rml::exception("Quit flagged during database retry");
 						}
 
 						out_channel.produce(archivable_cdr);
