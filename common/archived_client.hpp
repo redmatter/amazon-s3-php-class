@@ -33,6 +33,7 @@ private:
 	static void set_is_archived_ok(const bool ok)
 	{
 		boost::unique_lock<boost::mutex> lock(mutex_);
+		LogVerbose("set_is_archived_ok: "<<ok);
 		is_archived_ok_ = ok;
 	}
 

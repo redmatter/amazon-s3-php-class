@@ -288,6 +288,8 @@ int main(int argc, char* argv[]) try
 		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
 		dir_monitor.async_monitor(cdr_dir_monitor);
 
+		app::directory_loader::continue_loading_fn continue_loading(boost::bind(app::archived_client::get_is_archived_ok));
+
 		app::directory_loader::loader_fn directory_loader_fn(
 				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
 
@@ -302,7 +304,7 @@ int main(int argc, char* argv[]) try
 		bool more_to_load_from_db = false;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 
-		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_loaded_fn, app::quit);
+		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_loaded_fn, continue_loading, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);
@@ -335,9 +337,13 @@ int main(int argc, char* argv[]) try
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
-			if(more_to_load_from_db && !(ticks % 10))
-				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
-						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
+			if(more_to_load_from_db && !(ticks % 10)) {
+				if(app::archived_client::get_is_archived_ok())
+					io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
+							boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
+				else
+					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
+			}
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 

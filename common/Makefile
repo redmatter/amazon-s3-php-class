@@ -1,6 +1,6 @@
 include /usr/share/librml/Makefile.macros
 include ../version_info
-include ../common/Makefile.macros
+include Makefile.macros
 
 TARGET=libarchiving_common.a
 

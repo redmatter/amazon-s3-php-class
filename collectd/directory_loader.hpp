@@ -19,11 +19,12 @@
 
 namespace app {
 
-class directory_loader {
+class directory_loader : public boost::noncopyable {
 
 public:
 	typedef boost::function<bool(const std::string&)> loader_fn;
 	typedef boost::function<bool(const std::string&)> is_loaded_fn;
+	typedef boost::function<bool()> continue_loading_fn;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -32,8 +33,8 @@ public:
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_loaded_fn& is_loaded, volatile bool& quit) :
-		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_loaded_(is_loaded), quit_(quit)
+	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_loaded_fn& is_loaded, continue_loading_fn& continue_loading, volatile bool& quit) :
+		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_loaded_(is_loaded), continue_loading_(continue_loading), quit_(quit)
 	{
 	}
 
@@ -52,6 +53,11 @@ public:
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 			if(count++ % interval)
 				continue;
+
+			if(!continue_loading_()) {
+				LogMessage("Directory loading paused; waiting for ArchiveDs to come back online");
+				continue;
+			}
 
 			try {
 				// if we are not already within a batch
@@ -136,6 +142,7 @@ private:
 	const boost::program_options::variables_map& confMap_;
 	loader_fn& loader_;
 	is_loaded_fn& is_loaded_;
+	continue_loading_fn& continue_loading_;
 	volatile bool& quit_;
 
 	enum constant
