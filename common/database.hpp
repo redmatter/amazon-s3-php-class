@@ -491,6 +491,7 @@ public:
 			return true;
 
 		try {
+			int xx = 1;
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query << "DELETE FROM ArchivingInternal." << tableName_ << " WHERE ID IN (";
@@ -499,7 +500,7 @@ public:
 				if(itr != purgeables.begin())
 					query << ", ";
 
-				query << (*itr)->id << "/* "<<archiving::archivable::file_type::to_string((*itr)->file_type)<<'/'<<(*itr)->uuid<<" */";
+				query << (*itr)->id << "/* "<<archiving::archivable::file_type::to_string((*itr)->file_type)<<'/'<<(*itr)->uuid<<" */"<<((0 == (xx++ % 4))? '\n': ' ');
 			}
 
 			query << ')';
