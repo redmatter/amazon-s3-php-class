@@ -19,10 +19,10 @@ typedef short unsigned int char16_t;
 typedef char16_t CHAR;
 #define CHARCONST(str) u ## str
 
-static char *columns = "\"Name.ID\",\"Email Address\",\"Type of Message\",\"To\",\"From\",\"Callback Phone Number\",\"Body\",\"Send/Received Date\",\"Server Log Date\",\"Overall Message Status\",\"Command\",\"UID\"\n";
+static char *columns = "\"Name.ID\",\"Email Address\",\"Type of Message\",\"To\",\"From\",\"Callback Phone Number\",\"Body\",\"Send/Received Date\",\"Server Log Date\",\"Overall Message Status\",\"Command\",\"UID\"\r\n";
 static char *separator = "\",\"";
 static char *begin = "\"";
-static char *end = "\",\n";
+static char *end = "\"\r\n";
 
 char *random_text(char *buff, size_t max_len);
 
