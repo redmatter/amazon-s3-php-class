@@ -24,6 +24,24 @@
 
 namespace app
 {
+	std::string remove_hyphens(const std::string &str)
+	{
+		std::string buff(str);
+		size_t hy;
+		while ((hy = buff.find("-")) != std::string::npos)
+			buff.erase(hy, 1);
+		return buff;
+	}
+
+	std::string remove_redmatter(const std::string &str)
+	{
+		std::string buff(str);
+		size_t rm;
+		if ((rm = buff.find(".redmatter.com")) != std::string::npos)
+			buff.erase(rm);
+		return buff;
+	}
+
 	class sms_inspector: public boost::noncopyable
 	{
 		archiving::archivable_channel_t& in_channel;
@@ -74,7 +92,7 @@ namespace app
 				database::internal& internal_db,
 				const boost::program_options::variables_map& confMap,
 				const std::string& pbx_hostname,
-				app::coreapi coreapi,
+				app::coreapi& coreapi,
 				boost::asio::io_service &io_service) :
 				in_channel(in_channel), out_channel(out_channel), archivable_busy_set_(archivable_busy_set), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
@@ -274,15 +292,18 @@ namespace app
 
 						out_channel.produce(archivable_sms);
 
-						std::string xml = boost::str (boost::format ("SMS UUID=\"%1\" OrgID=\"%2\" UserID=\"%3\" Time=\"%4\" From_Number=\"%5\" To_Number=\"%6\" Direction=\"%7\" HostName=\"%8\"/>")
-							% archivable_sms->get_uuid()
+						std::string FromNumber(doc.select_single_node("/SMS/FromNumber").node().child_value());
+						std::string ToNumber(doc.select_single_node("/SMS/ToNumber").node().child_value());
+
+						std::string xml = boost::str (boost::format ("<SMS UUID=\"%1%\" OrgID=\"%2%\" UserID=\"%3%\" Time=\"%4%\" From_Number=\"%5%\" To_Number=\"%6%\" Direction=\"%7%\" HostName=\"%8%\"/>")
+							% app::remove_hyphens(archivable_sms->get_uuid())
 							% rmOrgID
 							% rmUserID
 							% start_epoch
-							% doc.select_single_node("/SMS/FromNumber").node().child_value()
-							% doc.select_single_node("/SMS/ToNumber").node().child_value()
-							% (doc.select_single_node("/SMS/Direction").node().child_value() == "inbound" ? "Inbound" : "Outbound")
-							% hostname
+							% (FromNumber.empty() ? "0" : FromNumber)
+							% (ToNumber.empty() ? "0" : ToNumber)
+							% (doc.select_single_node("/SMS/Direction").node().child_value() == "Inbound" ? "Inbound" : "Outbound")
+							% app::remove_redmatter(hostname)
 						);
 
 						LogVerbose("sms: logging xml: " << xml);
