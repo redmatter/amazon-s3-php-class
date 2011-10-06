@@ -198,11 +198,11 @@ public:
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 
 			mysqlpp::Query query = conn->query();
-			query << "SELECT COUNT(*) FROM `ArchivingInternal`.`" << tableName_ << "` WHERE FileType=%0:FileType AND UUID=UNHEX(REPLACE(%1q:UUID, '-', ''))";
+			query << "SELECT COUNT(*) FROM `ArchivingInternal`.`" << tableName_ << "` WHERE FileType=%0:FileType AND UUID=UNHEX(REPLACE(%1q:UUID, '-', '')) AND HostName=%2q:HostName";
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << mysqlpp::sql_int(p_arc->get_type()) << mysqlpp::sql_char(arc.get_uuid());
+			qp << mysqlpp::sql_int(p_arc->get_type()) << mysqlpp::sql_char(arc.get_uuid()) << app::hostname;
 
 			std::cout << "SQL: "<<query.str(qp) << std::endl;
 
