@@ -39,7 +39,7 @@ private:
 
 	enum constants
 	{
-		reconnect_delay_seconds = 10
+		reconnect_delay_seconds = 3,
 	};
 
 	//TODO optimize with masks for quicker switch case
@@ -80,11 +80,11 @@ private:
 
 			general_err,
 
-			reconnect_init,
-			reconnecting,
-
 			closing,
 			closing_bye_wait,
+
+			reconnecting,
+			reconnecting_bye_wait,
 
 			closed,
 
@@ -127,11 +127,11 @@ private:
 
 					"general_err",
 
-					"reconnect_init",
-					"reconnecting",
-
 					"closing",
 					"closing_bye_wait",
+
+					"reconnecting",
+					"reconnecting_bye_wait",
 
 					"closed",
 			};
@@ -154,6 +154,7 @@ private:
 
 	bool connected_;
 	state::state_t current_state_;
+	int reconnect_delay_;
 
 	archiving::archivable_channel_t& channel_;
 	archiving::archivable_busy_set_t& archivable_busy_set_;
@@ -198,6 +199,7 @@ public:
 				archived_port_(archived_port),
 				connected_(false),
 				current_state_(state::initialised),
+				reconnect_delay_(reconnect_delay_seconds),
 				channel_(channel),
 				archivable_busy_set_(archivable_busy_set),
 				internal_db_(internal_db),
@@ -206,11 +208,22 @@ public:
 		connect_archived();
 	}
 
-	void close()
+	void reconnect(const bool with_bye = true, int delay_seconds = reconnect_delay_seconds)
+	{
+		if (!with_bye) {
+			io_service_.post(boost::bind(&archived_client::do_close, this, true, delay_seconds));
+		}
+		else {
+			reconnect_delay_ = delay_seconds;
+			close(true);
+		}
+	}
+
+	void close(const bool reconnect = false)
 	{
 		// io_service_.post(boost::bind(&archived_client::do_close, this));
 
-		current_state_ = state::closing_bye_wait;
+		current_state_ = reconnect? state::reconnecting_bye_wait: state::closing_bye_wait;
 
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr << "BYE\r\n\r\n";
@@ -226,18 +239,22 @@ private:
 		timer_.cancel();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
 		timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-				force_reconnect, boost::asio::placeholders::error));
+				force_reconnect, true, boost::asio::placeholders::error));
 	}
 
-	inline void connect_archived(const bool& force_reconnect, const boost::system::error_code& error)
+	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error)
 	{
-		if(error != boost::asio::error::operation_aborted) {
+		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
 			LogMessage("Timeout; reconnecting...");
 			connect_archived(force_reconnect);
 		}
+		else if(!timer_expired && (error == boost::asio::error::operation_aborted)) {
+			LogMessage("Socket operation aborted; reconnecting...");
+			set_reconnect_timer(10, true);
+		}
 	}
 
-	inline void connect_archived(const bool& force_reconnect)
+	inline void connect_archived(const bool force_reconnect)
 	{
 		if(connected_ && force_reconnect) {
 			do_close(true);
@@ -324,28 +341,29 @@ private:
 			}
 		}
 
-		if(current_state_ == state::closing_bye_wait) {
+LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current_state_));
+
+		if((current_state_ == state::closing_bye_wait) || (current_state_ == state::reconnecting_bye_wait)) {
 			if(!error) {
 				boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
 						boost::bind(&archived_client::run_statemachine, this,
 								boost::asio::placeholders::error));
 
 				timer_.expires_from_now(boost::posix_time::seconds(2));
-				timer_.async_wait(boost::bind(&archived_client::do_close, this));
+				timer_.async_wait(boost::bind(&archived_client::do_close, this, current_state_ == state::reconnecting_bye_wait, reconnect_delay_));
 			}
 			else
-				io_service_.post(boost::bind(&archived_client::do_close, this));
+				io_service_.post(boost::bind(&archived_client::do_close, this, current_state_ == state::reconnecting_bye_wait, reconnect_delay_));
 
 			return;
 		}
 
 		if(!error)
-			LogWarning("Invalid current_state:"<<current_state_);
+			LogWarning("Invalid current_state:"<<state::to_string(current_state_));
 		else
 			LogError("Socket IO error: "<<error.message());
 
-		current_state_ = state::reconnect_init;
-		io_service_.post(boost::bind(&archived_client::run_statemachine, this, error));
+		reconnect(false);
 	}
 
 	void run_statemachine(const boost::system::error_code& error)
@@ -419,8 +437,7 @@ private:
 
 		case state::handshake_err:
 		{
-			current_state_ = state::closing;
-			io_service_.post(boost::bind(&archived_client::do_close, this, true));
+			reconnect(false);
 			break;
 		}
 
@@ -448,7 +465,8 @@ private:
 				is >> sp; std::getline(is, message, '\r'); is >> lf;
 				LogError("handshake_ack_waiting: error: "<<message);
 				current_state_ = state::handshake_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this, true));
+
+				reconnect(false);
 			}
 			else {
 				is >> cr >> lf;
@@ -472,7 +490,7 @@ private:
 				is >> sp; std::getline(is, message, '\r'); is >> lf;
 				LogError("NOP Error: "<<message);
 				current_state_ = state::nop_ack_err;
-				do_close(true);
+				reconnect(true, 5);
 			}
 			else {
 				is >> cr >> lf;
@@ -526,7 +544,7 @@ private:
 
 			// reset here so that the item doesnt get removed by do_close()
 			put_archivable_ptr_.reset();
-			io_service_.post(boost::bind(&archived_client::do_close, this, true));
+			reconnect(true);
 			break;
 		}
 
@@ -555,7 +573,7 @@ private:
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
 				LogError(put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
-				io_service_.post(boost::bind(&archived_client::do_close, this, true));
+				reconnect(true);
 			}
 			else {
 				is >> cr >> lf;
@@ -585,9 +603,7 @@ private:
 
 		case state::put_sent_file_err:
 		{
-			current_state_ = state::closing;
-			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, error));
+			reconnect(true, 10);
 			break;
 		}
 
@@ -632,7 +648,15 @@ private:
 
 		case state::closing_bye_wait:
 		{
+			current_state_ = state::closing;
 			do_close();
+			break;
+		}
+
+		case state::reconnecting_bye_wait:
+		{
+			current_state_ = state::reconnecting;
+			do_close(true, reconnect_delay_);
 			break;
 		}
 
@@ -641,9 +665,7 @@ private:
 
 		case state::general_err:
 		{
-			current_state_ = state::closing;
-			io_service_.post(boost::bind(&archived_client::connect_archived, this,
-					true, error));
+			reconnect(false, 10);
 			break;
 		}
 
@@ -661,7 +683,6 @@ private:
 				if(put_archivable_ptr_)
 					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; put_archivable_ptr_ != NULL");
 
-				current_state_ = state::closing;
 				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 				return;
 			}
@@ -714,8 +735,7 @@ private:
 		}
 		catch(const archiving::archivable_channel_t::finishing_exception& e) {
 			LogMessage("channel finishing: closing");
-			io_service_.post(boost::bind(&archived_client::do_close, this));
-			current_state_ = state::closing;
+			close();
 		}
 		catch(const std::exception& e) {
 			LogWarning(e.what());
