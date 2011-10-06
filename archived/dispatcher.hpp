@@ -50,7 +50,7 @@ public:
 	{
 		if(storage_opr_result == storage::operation_result::success) {
 			LogMessage(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
-			opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1);
+			opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			retention_data_channel_.produce(opdata);
 		}
@@ -60,11 +60,11 @@ public:
 			opdata->p_detail->retry++;
 			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
 				error = true;
-				opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 2);
+				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
 				LogError(opdata->p_detail->identifier<<": Failed store after "<<opdata->p_detail->retry<<" retry(s)");
 			}
 			else
-				opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state - 2); // setup retry
+				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::unknown); // setup retry
 
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
@@ -84,7 +84,7 @@ public:
 					opdata->p_detail->state = operation_state::put_file_save;
 					operation_channel_.produce(
 							storage::operation_ex(
-									storage::operation::put_object,
+									app::operation::put_object,
 									opdata,
 									boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
 				}

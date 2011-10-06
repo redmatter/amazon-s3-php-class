@@ -109,11 +109,12 @@ public:
 								usage.create_time = creation_time;
 								usage.clear_size = data->p_detail->clear_size;
 								usage.real_size = data->p_detail->real_size;
+								usage.endpoint_id = data->p_detail->p_endpoint->id;
 
 								usage_data_set.insert(usage);
 							}
 
-							data->p_detail->state = operation_state::retention_info_saved;
+							data->p_detail->state = operation_state::all_done;
 						}
 
 						// TODO channel_save_status_.produce(data);

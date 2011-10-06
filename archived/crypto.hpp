@@ -281,7 +281,7 @@ public:
 							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
 
 					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
-						opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1); // let it move on from "convert"
+						opdata->p_detail->state = operation_state::next_up(opdata->p_detail->state); // let it move on from "convert"
 				}
 
 				// put it back to the main channel

@@ -67,6 +67,7 @@ public:
 		std::size_t clear_size;
 		time_t create_time;
 		archiving::archivable::file_type::file_type_t filetype;
+		uint64_t endpoint_id;
 
 		struct compare
 		{
@@ -200,7 +201,9 @@ public:
 								<<(int)(itr->file_type)
 								<<" )\n";
 					}
-					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
+					query << "ON DUPLICATE KEY UPDATE EndpointID=VALUES(EndpointID)";
+
+					std::cout << "SQL: "<<query.str()<< std::endl;
 
 					mysqlpp::SimpleResult res = query.execute();
 					LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
@@ -222,7 +225,7 @@ public:
 
 					mysqlpp::Query query = conn->query();
 					query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
-							"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage` )"
+							"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
 							" VALUES ";
 
 					for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
@@ -240,7 +243,8 @@ public:
 								<<itr->org<<", "
 								<<"1, "
 								<<itr->clear_size<<", "
-								<<itr->real_size
+								<<itr->real_size<<", "
+								<<itr->endpoint_id
 								<<" )\n";
 					}
 					query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
@@ -366,7 +370,10 @@ public:
 						" RetryCount=%10:RetryCount,"
 						" OpState=%11:OpState,"
 
-						" CreateTimeEpoch=%12:CreateTimeEpoch"
+						" CallCreateTimeEpoch=%12:CallCreateTimeEpoch,"
+						" ArrivalTime=FROM_UNIXTIME(%13:ArrivalTime), "
+
+						" HostName=%14q:HostName"
 						;
 				query.parse();
 
@@ -390,6 +397,9 @@ public:
 						<< opdetail.state
 
 						<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
+						<< mysqlpp::sql_int(opdetail.arrival_time)
+
+						<< app::hostname
 						;
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
@@ -480,12 +490,12 @@ public:
 			{
 				mysqlpp::Query query = conn->query();
 				query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
-						"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat "
+						"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat AND HostName=%3q:HostName"
 						"FOR UPDATE";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
-				qp << org_id << uuid << file_format;
+				qp << org_id << uuid << file_format << app::hostname;
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
@@ -541,17 +551,21 @@ public:
 					" Path=%3q:Path,"
 					" HardLink=%4q:HardLink,"
 					" CreateTime=NOW(),"
-					" AccessTime=NOW() "
+					" AccessTime=NOW(),"
+					" HostName=%5q:HostName "
 					"ON DUPLICATE KEY UPDATE"
 					" Path=%3q:Path,"
 					" HardLink=%4q:HardLink,"
 					" CreateTime=NOW(),"
-					" AccessTime=NOW()"
+					" AccessTime=NOW(),"
+					" HostName=%5q:HostName"
 					;
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no");
+			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no") << app::hostname;
+
+			std::cout << "SQL: "<<query.str(qp)<< std::endl;
 			query.execute(qp);
 
 			return true;

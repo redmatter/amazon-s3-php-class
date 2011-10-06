@@ -26,51 +26,121 @@ namespace app {
 
 typedef std::map< types::file_format::file_format_t, rml::utils::tmp_fstream::pointer > files_map_t;
 
+struct operation
+{
+
+	// Order of the enum below decides operation queue priority as well; see operation_ex_compare
+	//    hence the customer facing get_object set to be the first one; it does expose
+	//    a potential DoS, but we should rate-limit such operations before it hits the
+	//    ArchiveD
+	enum operation_t
+	{
+		invalid = 0,
+		get_object,
+		put_object,
+		delete_object,
+		stat_object,
+
+		n_operation
+	};
+
+	static inline const char* to_string(const operation_t& op)
+	{
+		static const char* str[] = {
+				"invalid",
+				"get_object",
+				"put_object",
+				"delete_object",
+				"stat_object"
+		};
+
+		if(op > invalid && op < n_operation)
+			return str[op];
+
+		return str[0];
+	}
+};
+
+struct operation_outcome
+{
+	enum operation_outcome_t
+	{
+		unknown = 0,
+		ok = 1,
+		error = 2
+	};
+};
+
 struct operation_state
 {
-	enum operation_state_t {
+	enum operation_state_t
+	{
 		init = 0,
 
-		get_received,
+		get_received           = (operation::get_object << 12),
 
-		get_file_retrieve,
-		get_file_retrieve_ok,
-		get_file_retrieve_err,
+		get_file_retrieve      = get_received | (0x01 << 8) | operation_outcome::unknown,
+		get_file_retrieve_ok   = get_file_retrieve | operation_outcome::ok,
+		get_file_retrieve_err  = get_file_retrieve | operation_outcome::error,
 
-		get_file_convert,
-		get_file_convert_ok,
-		get_file_convert_err,
+		get_file_convert       = get_received | (0x02 << 8) | operation_outcome::unknown,
+		get_file_convert_ok    = get_file_convert | operation_outcome::ok,
+		get_file_convert_err   = get_file_convert | operation_outcome::error,
 
-		get_file_send,
-		get_file_sent_ok,
-		get_file_sent_err,
+		get_file_send          = get_received  | (0x03 << 8) | operation_outcome::unknown,
+		get_file_sent_ok       = get_file_send | operation_outcome::ok,
+		get_file_sent_err      = get_file_send | operation_outcome::error,
 
 
 		// --------------------------
 
 
-		put_received, // received PUT and acked OK
+		put_received           = (operation::put_object << 12), // received PUT and acked OK
 
-		put_file_convert,
-		put_file_convert_ok,
-		put_file_convert_err,
+		put_file_convert       = put_received | (0x01 << 8) | operation_outcome::unknown,
+		put_file_convert_ok    = put_file_convert | operation_outcome::ok,
+		put_file_convert_err   = put_file_convert | operation_outcome::error,
 
-		put_file_save,
-		put_file_save_ok,
-		put_file_save_err,
+		put_file_save          = put_received | (0x02 << 8) | operation_outcome::unknown,
+		put_file_save_ok       = put_file_save | operation_outcome::ok,
+		put_file_save_err      = put_file_save | operation_outcome::error,
 
-		put_retention_save,
-		put_retention_save_ok,
-		put_retention_save_err,
+		put_retention_save     = put_received | (0x03 << 8) | operation_outcome::unknown,
+		put_retention_save_ok  = put_retention_save | operation_outcome::ok,
+		put_retention_save_err = put_retention_save | operation_outcome::error,
 
-		put_usage_save,
-		put_usage_save_ok,
-		put_usage_save_err,
+		put_usage_save         = put_received | (0x04 << 8) | operation_outcome::unknown,
+		put_usage_save_ok      = put_usage_save | operation_outcome::ok,
+		put_usage_save_err     = put_usage_save | operation_outcome::error,
 
 		// -------------------------
 
-		retention_info_saved
+		all_done               = (0x0f << 12) | (0x0f << 8) | operation_outcome::ok
 	};
+
+	static inline operation_state_t make(const operation_state_t& state, const operation_outcome::operation_outcome_t& outcome)
+	{
+		return operation_state_t((state & 0xff0) | outcome);
+	}
+
+	static inline operation_state_t make(const operation_state_t& state, const bool& outcome_ok)
+	{
+		return make(state, outcome_ok? operation_outcome::ok: operation_outcome::error);
+	}
+
+	static inline operation_state_t next_up(const operation_state_t& state)
+	{
+		if (state == init)
+			throw rml::exception("next_up NOT possible from 'init' state");
+
+		if((state & 0x0f0) && (operation_outcome::ok != operation_outcome::operation_outcome_t(state & 0x00f)))
+			throw rml::exception("next_up NOT possible if outcome != ok");
+
+		if((state == get_file_sent_ok) || (state == put_usage_save_ok))
+			return all_done;
+
+		return operation_state_t((state & 0xf00) | (((state & 0x0f0) >> 8) + 1) | operation_outcome::unknown);
+	}
 };
 
 struct operation_data
@@ -80,6 +150,9 @@ struct operation_data
 	struct detail
 	{
 		typedef boost::shared_ptr<detail> pointer;
+
+		// arrival time
+		time_t arrival_time;
 
 		// the identifier of this object within storage
 		archiving::archivable::identifier identifier;
@@ -158,8 +231,10 @@ struct operation_data
 			if((itr == end) && !create_missing)
 				return ret; // empty!
 
-			if(itr != end)
+			if(itr != end) {
+				itr->second->set_persistent(false);
 				p_detail->files_map.erase(itr);
+			}
 
 			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier, std::size_t(0), temp_files_base_directory));
 			p_detail->files_map.insert(std::make_pair(format, ret));

@@ -18,41 +18,6 @@ namespace app {
 
 namespace storage {
 
-struct operation
-{
-
-	// Order of the enum below decides operation queue priority as well; see operation_ex_compare
-	//    hence the customer facing get_object set to be the first one; it does expose
-	//    a potential DoS, but we should rate-limit such operations before it hits the
-	//    ArchiveD
-	enum operation_t
-	{
-		invalid = 0,
-		get_object,
-		put_object,
-		delete_object,
-		stat_object,
-
-		n_operation
-	};
-
-	static inline const char* to_string(const operation_t& op)
-	{
-		static const char* str[] = {
-				"invalid",
-				"get_object",
-				"put_object",
-				"delete_object",
-				"stat_object"
-		};
-
-		if(op > invalid && op < n_operation)
-			return str[op];
-
-		return str[0];
-	}
-};
-
 struct operation_result
 {
 	enum operation_result_t { success, failure, interrupted };

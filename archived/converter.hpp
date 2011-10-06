@@ -124,7 +124,7 @@ public:
 				}
 
 				if(converted_ok) {
-					opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 1);
+					opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 					opdata->p_detail->real_size = opdata->get_tmp_fstream()->get_size();
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
 					convert_done_channel_.produce(opdata);
@@ -132,12 +132,12 @@ public:
 				else {
 					opdata->p_detail->retry++;
 					if(opdata->p_detail->retry > 3) {
-						opdata->p_detail->state = operation_state::operation_state_t(opdata->p_detail->state + 2);
+						opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
 						LogError(identifier<<": Failed convert after "<<opdata->p_detail->retry<<" retry(s)");
 						continue;
 					}
 					else
-						LogWarning(identifier<<": Failed convert; retrying...FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+						LogWarning(identifier<<": Failed convert; retrying...");
 
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
 

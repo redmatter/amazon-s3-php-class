@@ -156,7 +156,7 @@ public:
 
 	void start()
 	{
-		boost::asio::socket_base::receive_buffer_size option(8192);
+		boost::asio::socket_base::receive_buffer_size option(16384);
 		socket_.set_option(option);
 
 		{
@@ -427,6 +427,8 @@ private:
 			assert(recv_buffer_.size() == 0);
 
 			current_state_ = states::put_receiving_file;
+
+			recv_buffer_.prepare(8192);
 			boost::asio::async_read(socket_, recv_buffer_,
 					boost::asio::transfer_at_least(1),
 					boost::bind(&put_session::put_receive_file, shared_from_this(),
@@ -484,7 +486,7 @@ private:
 				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
 					if(!p_policy)
-						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PilicyID: %1%/%2% )") % orgID_ % policy_id_));
+						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID_ % policy_id_));
 				}
 
 				if(md5 != md5_) {
@@ -513,6 +515,7 @@ private:
 				opdata->p_detail->database_id = 0;
 				opdata->p_detail->p_metadata = metadata_;
 				opdata->p_detail->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
+				opdata->p_detail->arrival_time = time(0);
 
 				ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
@@ -698,6 +701,7 @@ private:
 				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
 			}
 			else {
+				recv_buffer_.prepare(8192);
 				boost::asio::async_read(socket_, recv_buffer_,
 						boost::asio::transfer_at_least(1),
 						boost::bind(&put_session::put_receive_file, shared_from_this(),
