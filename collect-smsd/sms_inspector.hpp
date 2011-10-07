@@ -96,7 +96,7 @@ namespace app
 				boost::asio::io_service &io_service) :
 				in_channel(in_channel), out_channel(out_channel), archivable_busy_set_(archivable_busy_set), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
-						policy_cache_(boost::bind(&app::policy::finder, coreapi_, _1)),
+						policy_cache_(boost::bind(&app::policy::finder, coreapi_, _1), "PolicyCache"),
 						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
 		{
 		}
