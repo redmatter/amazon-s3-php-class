@@ -15,6 +15,9 @@
 #include <boost/thread/locks.hpp>
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/function.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/random/variate_generator.hpp>
 
 #include <map>
 #include <algorithm>
@@ -41,17 +44,14 @@ class result_cache
 
 		struct timed_val_type
 		{
-			time_t atime;
-			val_type value;
+			mutable time_t atime;
+			const time_t eol_time;
+			const val_type value;
 
-			timed_val_type() : atime(0), value()
+			timed_val_type(val_type value, boost::variate_generator<boost::mt19937&, boost::uniform_int<> >& rander) :
+				atime(time(0)), eol_time(atime + rander()), value(value)
 			{
-			}
-
-			timed_val_type& operator=(const val_type& rhs)
-			{
-				value = rhs;
-				time(&atime);
+				LogDebug(value<<" end-of-life:"<<eol_time<<" access-time:"<<atime);
 			}
 		};
 
@@ -63,15 +63,20 @@ class result_cache
 
 		mutable boost::mutex mutex_;
 
+		boost::mt19937 rand_gen_;
+	    boost::uniform_int<> rand_dist_;
+	    mutable boost::variate_generator<boost::mt19937&, boost::uniform_int<> > rander_;
+
+	    const unsigned int max_idle_seconds_;
+
 	public:
-		result_cache (const function_type& fun) : fun_(fun)
+		result_cache (const function_type& fun, const int& min_max_age_minutes = 5, const int& max_max_age_minutes = 10, const unsigned int& max_idle_seconds = 30) :
+			fun_(fun), rand_gen_(), rand_dist_(min_max_age_minutes*60, max_max_age_minutes*60), rander_(rand_gen_, rand_dist_), max_idle_seconds_(max_idle_seconds)
 		{
-			LogDebug("fun_: empty? "<<fun_.empty());
 		}
 
 		~result_cache()
 		{
-			LogDebug("Destroyed");
 		}
 
 		Result operator() (Arg arg) const
@@ -81,30 +86,32 @@ class result_cache
 			iter_type it = cache_.find(arg);
 			if (it != cache_.end()) {
 				time(&it->second.atime);
+				LogDebug("Found from cache; "<<it->second.value<<" end-of-life:"<<it->second.eol_time<<" access-time:"<<it->second.atime);
 				return it->second.value;
 			}
 
-			timed_val_type t_value;
-			{
-				t_value.value = fun_(arg);
-				time(&t_value.atime);
-				cache_[arg] = t_value;
-			}
-
+			timed_val_type t_value(fun_(arg), rander_);
+			cache_.insert(std::make_pair(arg, t_value));
 			return t_value.value;
 		}
 
-		void clear_unused(time_t diff)
+		void clear_unused(const unsigned int& max_idle_seconds = 0)
 		{
 			boost::unique_lock<boost::mutex> lock(mutex_);
 
+			const unsigned int& max_idle(max_idle_seconds? max_idle_seconds: max_idle_seconds_);
+
 			LogVerbose("Removing older cache items");
 
-			time_t newer = time(0) - diff;
+			const time_t now( time(0) );
+			const time_t newer( now - max_idle );
+
 			iter_type cache_end = cache_.end();
 			for(iter_type it = cache_.begin(); it != cache_end; ) {
-				if(it->second.atime < newer)
+				if((it->second.eol_time < now) || (it->second.atime < newer)) {
+					LogDebug("Deleting from cache; "<<it->second.value<<" end-of-life:"<<it->second.eol_time<<" access-time:"<<it->second.atime);
 					cache_.erase(it++);
+				}
 				else
 					++it;
 			}
