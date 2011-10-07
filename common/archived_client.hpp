@@ -143,6 +143,7 @@ private:
 	boost::asio::io_service& io_service_;
 	boost::asio::ip::tcp::resolver resolver_;
 	tcp::socket socket_;
+	unsigned short int local_port_;
 
 	boost::asio::deadline_timer timer_;
 
@@ -194,6 +195,7 @@ public:
 				io_service_(io_service),
 				resolver_(io_service_),
 				socket_(io_service_),
+				local_port_(0),
 				timer_(io_service_),
 				archived_host_(archived_host),
 				archived_port_(archived_port),
@@ -312,6 +314,8 @@ private:
 			current_state_ = state::connecting;
 			timer_.cancel();
 
+			local_port_ = socket_.local_endpoint().port();
+
 			run_statemachine(error);
 		}
 		else {
@@ -340,8 +344,6 @@ private:
 				return;
 			}
 		}
-
-LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current_state_));
 
 		if((current_state_ == state::closing_bye_wait) || (current_state_ == state::reconnecting_bye_wait)) {
 			if(!error) {
@@ -470,7 +472,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 			}
 			else {
 				is >> cr >> lf;
-				LogMessage("Handshake OK; Ready to PUT");
+				LogMessage(local_port_<<" Handshake OK; Ready to PUT");
 				current_state_ = state::ready_to_put;
 				set_is_archived_ok(true);
 				run_statemachine(error);
@@ -509,7 +511,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 				{
 					int retry = 0;
 					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-						LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+						LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
 						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
@@ -543,6 +545,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 			*/
 
 			// reset here so that the item doesnt get removed by do_close()
+			archivable_busy_set_.remove(put_archivable_ptr_);
 			put_archivable_ptr_.reset();
 			reconnect(true);
 			break;
@@ -571,13 +574,13 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 			is >> OK_or_ERR >> sp[0] >> PUT >> sp[1] >> OrgID >> sp[2] >> md5;
 			if(OK_or_ERR == "ERR") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
-				LogError(put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
+				LogError(local_port_<<' '<<put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
 				reconnect(true);
 			}
 			else {
 				is >> cr >> lf;
-				LogMessage(put_archivable_ptr_<<" PUT OK; Sending file");
+				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Sending file");
 
 				current_state_ = state::put_sending_file;
 				rml::utils::tmp_fstream::pointer ifs = put_archivable_ptr_->get_fstream_ptr();
@@ -587,7 +590,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 				put_file_size_ = ifs->get_size();
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
-					LogWarning(put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
+					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
 					send_buffer_.consume(send_buffer_.size());
 				}
 				run_statemachine(error);
@@ -628,15 +631,15 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 
 			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> file_type_str >> sp[2] >> OrgID >> sp[3] >> uuid;
-			LogDebug(put_archivable_ptr_<<" OK_or_ERR: "<<OK_or_ERR);
+			LogDebug(local_port_<<' '<<put_archivable_ptr_<<" OK_or_ERR: "<<OK_or_ERR);
 			if(OK_or_ERR != "OK") {
 				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
-				LogError(put_archivable_ptr_<<" PUT Error: "<<message);
+				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT Error: "<<message);
 				current_state_ = state::put_sent_file_ack_err;
 			}
 			else {
 				is >> cr >> lf;
-				LogMessage(put_archivable_ptr_<<" PUT OK; Get next for PUT");
+				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
 			}
 
@@ -661,7 +664,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 		}
 
 		default:
-			LogError("State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
+			LogError(local_port_<<' '<<"State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
 
 		case state::general_err:
 		{
@@ -678,27 +681,27 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 			if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok) || put_archivable_ptr_.get()) {
 
 				if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
-					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok");
+					LogError(local_port_<<' '<<"Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok");
 
 				if(put_archivable_ptr_)
-					LogError("Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; put_archivable_ptr_ != NULL");
+					LogError(local_port_<<' '<<"Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; put_archivable_ptr_ != NULL");
 
 				io_service_.post(boost::bind(&archived_client::do_close, this, true));
 				return;
 			}
 
 			put_archivable_ptr_ = channel_.consume(10/*seconds*/);
-			LogMessage("Got from "<<channel_<<" archivable: "<<*(put_archivable_ptr_.get()));
+			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Got from "<<channel_);
 
 			if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
-				LogWarning(*put_archivable_ptr_<<" Already stored !!! ???");
+				LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
 
 				archivable_busy_set_.remove(put_archivable_ptr_);
 				put_archivable_ptr_->set_done(false);
 				{
 					int retry = 0;
 					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-						LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+						LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
 						boost::this_thread::sleep(boost::posix_time::seconds(15));
 						retry++;
 					}
@@ -724,7 +727,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 							boost::asio::placeholders::error));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
-			LogDebug(channel_<<' '<<e.what()<<"; NOP to ArchiveD");
+			LogDebug(local_port_<<' '<<channel_<<' '<<e.what()<<"; NOP to ArchiveD");
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			ostr << "NOP\r\n\r\n";
 			current_state_ = state::nop_sent;
@@ -744,7 +747,7 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred)
 	{
-		LogDebug(*put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
 			if (!error && (put_sent_size_ == put_file_size_)) {
@@ -752,11 +755,11 @@ LogDebug("++++++++++++++++++++++++++++ current_state:"<<state::to_string(current
 					std::string eof("\x1a");
 					boost::asio::write(socket_, boost::asio::buffer(eof, 1));
 				}
-				LogMessage("PUT send file completed OK");
+				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed OK");
 				current_state_ = state::put_sent_file_ok;
 			}
 			else {
-				LogError("PUT send file completed with error; err:"<<error.message());
+				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed with error; err:"<<error.message());
 				current_state_ = state::put_sent_file_err;
 			}
 			io_service_.post(boost::bind(&archived_client::run_statemachine, this, error));
