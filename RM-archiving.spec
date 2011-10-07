@@ -17,7 +17,7 @@ Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
 Requires: RM-%{appname}-common = %{version}-%{release}
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-15068, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-15501, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
 
 %package collectd
 Summary: Archiving CollectD
@@ -154,7 +154,7 @@ mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
-cp rmarchived-hAPI %{buildroot}/usr/bin/ 
+cp common/rmarchived-hAPI %{buildroot}/usr/bin/ 
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
 # Scripts
