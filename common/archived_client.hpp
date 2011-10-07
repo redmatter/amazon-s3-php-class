@@ -278,9 +278,12 @@ private:
 		}
 
 		connected_ = false;
-		if(put_archivable_ptr_)
-			archivable_busy_set_.remove(put_archivable_ptr_);
-		put_archivable_ptr_.reset();
+		if(put_archivable_ptr_) {
+			if(put_archivable_ptr_->set_retry())
+				channel_.produce(put_archivable_ptr_);
+
+			put_archivable_ptr_.reset();
+		}
 
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
 		resolver_.cancel();
@@ -544,8 +547,12 @@ private:
 			}
 			*/
 
-			archivable_busy_set_.remove(put_archivable_ptr_);
-			put_archivable_ptr_.reset(); // reset here so that the item doesnt get removed by do_close()
+			if(put_archivable_ptr_) {
+				if(put_archivable_ptr_->set_retry())
+					channel_.produce(put_archivable_ptr_);
+
+				put_archivable_ptr_.reset();
+			}
 
 			reconnect(true);
 			break;
@@ -690,7 +697,7 @@ private:
 				return;
 			}
 
-			put_archivable_ptr_ = channel_.consume(10/*seconds*/);
+			put_archivable_ptr_ = channel_.consume(10/*seconds*/, 0/*micro seconds*/, boost::bind(archiving::archivable::is_consumable, _1));
 			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Got from "<<channel_);
 
 			if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
@@ -798,10 +805,12 @@ private:
 			socket_.close();
 		}
 
-		if(put_archivable_ptr_)
-			archivable_busy_set_.remove(put_archivable_ptr_);
+		if(put_archivable_ptr_) {
+			if(put_archivable_ptr_->set_retry())
+				channel_.produce(put_archivable_ptr_);
 
-		put_archivable_ptr_.reset();
+			put_archivable_ptr_.reset();
+		}
 
 		if(reconnect)
 			set_reconnect_timer(reconnect_delay_seconds, false);

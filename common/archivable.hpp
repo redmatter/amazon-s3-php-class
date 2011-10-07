@@ -70,10 +70,18 @@ class archivable
 public:
 	enum constants {
 		save_retry_max_count = 3,
-		save_retry_multiplier_seconds = 3
+		save_retry_multiplier_seconds = 3,
+
+		retry_max_count = 0,
+		retry_minutes = 5,
 	};
 
 	typedef boost::shared_ptr<archivable> pointer;
+
+	static bool is_consumable(const pointer& p_arc)
+	{
+		return time(0) >= p_arc->next_attempt_time_;
+	}
 
 	friend class archivable_pointer_compare;
 	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
@@ -248,6 +256,7 @@ protected:
 	bool add_to_cdrmunch_cache;
 
 private:
+	time_t next_attempt_time_;
 	state::state_t state_;
 	std::string file_path_;
 	rml::utils::tmp_fstream::pointer p_fstream_;
@@ -299,6 +308,7 @@ public:
 		data_format("unknown"),
 		pbx_hostname(),
 		add_to_cdrmunch_cache(false),
+		next_attempt_time_(0),
 		state_(state::unknown),
 		file_path_(),
 		p_fstream_(),
@@ -346,6 +356,7 @@ public:
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
 	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
+	  next_attempt_time_(time(0)),
 	  state_(state),
 	  file_path_(file_path),
 	  p_fstream_(new rml::utils::tmp_fstream((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
@@ -487,6 +498,11 @@ public:
 		return type_;
 	}
 
+	inline const time_t& get_next_attempt_time() const
+	{
+		return next_attempt_time_;
+	}
+
 	inline const std::string get_uuid() const
 	{
 		return uuid;
@@ -530,6 +546,19 @@ public:
 	inline uint8_t get_retry() const
 	{
 		return retry;
+	}
+
+	inline bool set_retry()
+	{
+		retry++;
+		next_attempt_time_ = time(0)+(retry_minutes*60);
+
+		hibernate();
+
+		if (retry_max_count)
+			return retry_max_count > retry;
+
+		return true;
 	}
 
 	inline state::state_t get_current_state() const
@@ -657,8 +686,17 @@ class archivable_pointer_compare
 public:
 	bool operator() (const archivable::pointer& lhs, const archivable::pointer& rhs) const
 	{
-		if (lhs->uuid == rhs->uuid)
-			return lhs->get_type() < rhs->get_type();
+		const time_t& lhs_next_attempt_time(lhs->get_next_attempt_time());
+		const time_t& rhs_next_attempt_time(rhs->get_next_attempt_time());
+
+		if (lhs_next_attempt_time && rhs_next_attempt_time && (lhs_next_attempt_time != rhs_next_attempt_time))
+			return lhs_next_attempt_time < rhs_next_attempt_time;
+
+		const archiving::archivable::file_type::file_type_t& lhs_file_type(lhs->get_type());
+		const archiving::archivable::file_type::file_type_t& rhs_file_type(rhs->get_type());
+
+		if (lhs_file_type != rhs_file_type)
+			return lhs_file_type < rhs_file_type;
 
 		return lhs->uuid < rhs->uuid;
 	}
