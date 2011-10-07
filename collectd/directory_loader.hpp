@@ -29,7 +29,8 @@ public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("directory_loader.interval_seconds", boost::program_options::value<unsigned int>()->default_value(60U), "CDR directory loading interval in seconds")
+				("directory_loader.interval_seconds", boost::program_options::value<unsigned int>()->default_value(min_interval_seconds), "CDR directory loading interval in seconds")
+				("directory_loader.batch_size", boost::program_options::value<unsigned int>()->default_value(min_batch_size), "CDR directory loading chunked by this much")
 				;
 	}
 
@@ -44,7 +45,8 @@ public:
 
 		LogVerbose("Loading from directory in "<<(-1 * count)<<" seconds");
 
-		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval) );
+		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval_seconds) );
+		const unsigned int batch_size( std::max<unsigned int>(confMap_["directory_loader.batch_size"].as<unsigned int>(), min_batch_size) );
 
 		DIR* dh = 0;
 
@@ -100,7 +102,7 @@ public:
 
 					struct stat s;
 					if (-1 == stat(file_path.c_str(), &s)) {
-						LogError("Failed to stat "<<file_path<<" - err: "<<strerror(errno));
+						LogVerbose("Failed to stat "<<file_path<<" - err: "<<strerror(errno));
 						continue;
 					}
 
@@ -147,8 +149,8 @@ private:
 
 	enum constant
 	{
-		min_interval = 60,
-		directory_loading_batch_size = 500
+		min_interval_seconds = 30,
+		min_batch_size = 200
 	};
 };
 
