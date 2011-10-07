@@ -544,9 +544,9 @@ private:
 			}
 			*/
 
-			// reset here so that the item doesnt get removed by do_close()
 			archivable_busy_set_.remove(put_archivable_ptr_);
-			put_archivable_ptr_.reset();
+			put_archivable_ptr_.reset(); // reset here so that the item doesnt get removed by do_close()
+
 			reconnect(true);
 			break;
 		}
