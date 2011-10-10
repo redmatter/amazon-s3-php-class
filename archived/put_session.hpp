@@ -161,7 +161,21 @@ public:
 
 		{
 			std::ostringstream ostr;
-			ostr << socket_.remote_endpoint();
+
+			boost::system::error_code ec;
+			boost::asio::ip::tcp::resolver resolver(io_service_);
+			boost::asio::ip::tcp::resolver::iterator itr = resolver.resolve(socket_.remote_endpoint(), ec);
+			if(!ec) {
+				std::string fqdn((*itr).host_name());
+				std::istringstream istr(fqdn);
+				std::string hostname;
+				std::getline(istr, hostname, '.');
+
+				ostr << hostname <<':'<<socket_.remote_endpoint().port();
+			}
+			else
+				ostr << socket_.remote_endpoint();
+
 			remote_ep_ = ostr.str();
 		}
 
