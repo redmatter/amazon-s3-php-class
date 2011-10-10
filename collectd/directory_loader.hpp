@@ -77,7 +77,7 @@ public:
 
 				struct dirent *dp;
 				unsigned int file_count = 0;
-				while((file_count < directory_loading_batch_size)) {
+				while((file_count < batch_size)) {
 					errno = 0;
 					dp = readdir(dh);
 
@@ -121,6 +121,8 @@ public:
 						LogDebug("Ignoring invalid item "<<file_path);
 					}
 				}
+
+				LogVerbose("Loaded "<<file_count<<" files from "<<dir_path_);
 
 				// are we done with the batch ?
 				if (dh && !dp) {
