@@ -71,23 +71,44 @@ struct operation_outcome
 	};
 };
 
+struct operation_coarse
+{
+	enum operation_coarse_t
+	{
+		init           = 0x00,
+		file_retrieve  = 0x01,
+		file_convert   = 0x02,
+		file_send      = 0x03,
+		file_save      = 0x04,
+		retention_save = 0x05,
+		usage_save     = 0x06,
+
+		finished       = 0x0f
+	};
+
+	enum
+	{
+		mask = 0x00f0
+	};
+};
+
 struct operation_state
 {
 	enum operation_state_t
 	{
 		init = 0,
 
-		get_received           = (operation::get_object << 12),
+		get_received           = (operation::get_object << 8),
 
-		get_file_retrieve      = get_received | (0x01 << 8) | operation_outcome::unknown,
+		get_file_retrieve      = get_received | (operation_coarse::file_retrieve << 4) | operation_outcome::unknown,
 		get_file_retrieve_ok   = get_file_retrieve | operation_outcome::ok,
 		get_file_retrieve_err  = get_file_retrieve | operation_outcome::error,
 
-		get_file_convert       = get_received | (0x02 << 8) | operation_outcome::unknown,
+		get_file_convert       = get_received | (operation_coarse::file_convert << 4) | operation_outcome::unknown,
 		get_file_convert_ok    = get_file_convert | operation_outcome::ok,
 		get_file_convert_err   = get_file_convert | operation_outcome::error,
 
-		get_file_send          = get_received  | (0x03 << 8) | operation_outcome::unknown,
+		get_file_send          = get_received  | (operation_coarse::file_send << 4) | operation_outcome::unknown,
 		get_file_sent_ok       = get_file_send | operation_outcome::ok,
 		get_file_sent_err      = get_file_send | operation_outcome::error,
 
@@ -95,27 +116,27 @@ struct operation_state
 		// --------------------------
 
 
-		put_received           = (operation::put_object << 12), // received PUT and acked OK
+		put_received           = (operation::put_object << 8), // received PUT and acked OK
 
-		put_file_convert       = put_received | (0x01 << 8) | operation_outcome::unknown,
+		put_file_convert       = put_received | (operation_coarse::file_convert << 4) | operation_outcome::unknown,
 		put_file_convert_ok    = put_file_convert | operation_outcome::ok,
 		put_file_convert_err   = put_file_convert | operation_outcome::error,
 
-		put_file_save          = put_received | (0x02 << 8) | operation_outcome::unknown,
+		put_file_save          = put_received | (operation_coarse::file_save << 4) | operation_outcome::unknown,
 		put_file_save_ok       = put_file_save | operation_outcome::ok,
 		put_file_save_err      = put_file_save | operation_outcome::error,
 
-		put_retention_save     = put_received | (0x03 << 8) | operation_outcome::unknown,
+		put_retention_save     = put_received | (operation_coarse::retention_save << 4) | operation_outcome::unknown,
 		put_retention_save_ok  = put_retention_save | operation_outcome::ok,
 		put_retention_save_err = put_retention_save | operation_outcome::error,
 
-		put_usage_save         = put_received | (0x04 << 8) | operation_outcome::unknown,
+		put_usage_save         = put_received | (operation_coarse::usage_save << 4) | operation_outcome::unknown,
 		put_usage_save_ok      = put_usage_save | operation_outcome::ok,
 		put_usage_save_err     = put_usage_save | operation_outcome::error,
 
 		// -------------------------
 
-		all_done               = (0x0f << 12) | (0x0f << 8) | operation_outcome::ok
+		all_done               = (0x0f << 8) | (operation_coarse::finished << 4) | operation_outcome::ok
 	};
 
 	static inline operation_state_t make(const operation_state_t& state, const operation_outcome::operation_outcome_t& outcome)
@@ -191,6 +212,21 @@ struct operation_data
 
 		// state info: retry in the current operation state
 		uint8_t retry;
+
+		detail(const time_t& arrival_time, const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org,
+				const std::string& uuid, const std::string& metadata, const policy::pointer& policy,
+				const time_t& create_time, const storage::basic_endpoint::pointer& p_endpoint,
+				const types::file_format::file_format_t target_file_format, const std::size_t& clear_size,
+				const std::size_t& real_size, const types::file_format::file_format_t& current_file_format,
+				const files_map_t& files_map, const operation_state::operation_state_t& state,
+				const uint64_t& database_id, const uint8_t& retry=0) :
+			arrival_time(arrival_time), identifier(filetype, org, uuid), p_metadata(new types::metadata(metadata)),
+			policy(policy, create_time), p_endpoint(p_endpoint), target_file_format(target_file_format),
+			clear_size(clear_size), real_size(real_size), current_file_format(current_file_format),
+			files_map(files_map), database_id(database_id), state(state), retry(retry)
+		{
+			LogVerbose("Loading "<<identifier);
+		}
 	};
 
 	// Pointer to the detail structure
