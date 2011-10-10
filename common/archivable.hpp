@@ -405,12 +405,13 @@ public:
 
 	inline std::ostream& shove_metadata(std::ostream& ostr) const
 	{
-		// if this NOT a CDR usual ownership applies
-		if(type_ == file_type::recording) {
-			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
-			ostr << "RetentionPolicyID: "<<(policy_id_? policy_id_: app::policy::pseudo_id::recording)<<"\r\n";
+		// if CDR; Org 1 owns it all; and use the default CDR policy
+		if(type_ == file_type::cdr) {
+			ostr << "OrgID: "<<org_id_t(1)<<"\r\n";
+			ostr << "RetentionPolicyID: "<<app::policy::pseudo_id::cdr<<"\r\n";
+			ostr << "CallOwnerOrg: "<<owners_.orgID<<"\r\n"; // custom header
 			if(!owners_.userIDs.empty()) {
-				ostr << "UserIDs: ";
+				ostr << "CallOwnerUserIDs: "; // custom header
 				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
 				bool first = true;
 				for(std::vector< archiving::user_id_t >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
@@ -422,13 +423,12 @@ public:
 				ostr << "\r\n";
 			}
 		}
-		// Otherwise i.e if CDR; Org 1 owns it all
-		else if(type_ == file_type::cdr) {
-			ostr << "OrgID: "<<org_id_t(1)<<"\r\n";
-			ostr << "RetentionPolicyID: "<<app::policy::pseudo_id::cdr<<"\r\n";
-			ostr << "CallOwnerOrg: "<<owners_.orgID<<"\r\n"; // custom header
+		// if this NOT a CDR usual ownership applies
+		else {
+			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
+			ostr << "RetentionPolicyID: "<<(policy_id_? policy_id_: app::policy::pseudo_id::recording)<<"\r\n";
 			if(!owners_.userIDs.empty()) {
-				ostr << "CallOwnerUserIDs: "; // custom header
+				ostr << "UserIDs: ";
 				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
 				bool first = true;
 				for(std::vector< archiving::user_id_t >::const_iterator itr = owners_.userIDs.begin(); itr != end; ++itr) {
