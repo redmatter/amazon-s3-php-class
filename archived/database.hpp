@@ -371,9 +371,7 @@ public:
 						" OpState=%11:OpState,"
 
 						" CallCreateTimeEpoch=%12:CallCreateTimeEpoch,"
-						" ArrivalTime=FROM_UNIXTIME(%13:ArrivalTime), "
-
-						" HostName=%14q:HostName"
+						" ArrivalTime=FROM_UNIXTIME(%13:ArrivalTime)"
 						;
 				query.parse();
 
@@ -398,8 +396,6 @@ public:
 
 						<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
 						<< mysqlpp::sql_int(opdetail.arrival_time)
-
-						<< app::hostname
 						;
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
@@ -477,12 +473,82 @@ public:
 
 		return false;
 	}
+/*
+	void find_retriables(
+			const std::string& arcd_hostname,
+			const boost::function<bool(const operation_data::pointer&)>& fn_is_already_loaded,
+			operation_data::channel_t & channel,
+			bool& have_more_to_load)
+	{
+		static bool first = true;
+		static uint64_t first_max_id = 0;
+		static uint64_t max_id = 0;
 
+		try {
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+			if(first) {
+				mysqlpp::Query query = conn->query();
+				query << "SELECT MAX(ID) FROM ArchivingInternal.ArchiveDQueue"
+						" WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone";
+				query.parse();
+
+				mysqlpp::SQLQueryParms qp;
+				qp << arcd_hostname << operation_state::all_done;
+
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
+
+				mysqlpp::UseQueryResult res = query.use(qp);
+				while(mysqlpp::Row row = res.fetch_row())
+					if(row[0] != "NULL")
+						first_max_id = rml::utils::strtoull(row[0].c_str(), 0ULL);
+
+				first = false;
+			}
+
+			if(first_max_id && max_id <= first_max_id) {
+				mysqlpp::Query query = conn->query();
+				query << "SELECT"
+						" ID, HostName, MetaData, PolicyID, PolicyVersion, FileType, OrgID, UUID, TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime ";
+						"FROM ArchivingInternal.ArchiveDQueue "
+						"WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone "
+						" AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
+						"LIMIT 100";
+				query.parse();
+
+				mysqlpp::SQLQueryParms qp;
+				qp << arcd_hostname << first_max_id << max_id;
+
+				std::cout << "SQL: "<<query.str(qp) << std::endl;
+
+				mysqlpp::UseQueryResult res = query.use(qp);
+				while(mysqlpp::Row row = res.fetch_row()) {
+					max_id = rml::utils::strtoll(row[0].c_str());
+
+					try{
+
+					}
+					catch(const std::exception& e) {
+						LogWarning("Exception: "<<e.what());
+					}
+				}
+			}
+
+			have_more_to_load = (first_max_id && (max_id < first_max_id)); // more to load?
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogWarning("MySQL Error: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogWarning("Exception: "<<e.what());
+		}
+	}
+*/
 	std::string clear_cache_get_path(const archiving::org_id_t org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
-		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		std::string path;
 		try {
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Transaction trans(*conn);
 
 			uint64_t id;
@@ -490,7 +556,7 @@ public:
 			{
 				mysqlpp::Query query = conn->query();
 				query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
-						"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat AND HostName=%3q:HostName"
+						"WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat AND HostName=%3q:HostName "
 						"FOR UPDATE";
 				query.parse();
 
