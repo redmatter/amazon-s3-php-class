@@ -406,8 +406,9 @@ public:
 	inline std::ostream& shove_metadata(std::ostream& ostr) const
 	{
 		// if this NOT a CDR usual ownership applies
-		if(type_ != file_type::cdr) {
+		if(type_ == file_type::recording) {
 			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
+			ostr << "RetentionPolicyID: "<<(policy_id_? policy_id_: app::policy::pseudo_id::recording)<<"\r\n";
 			if(!owners_.userIDs.empty()) {
 				ostr << "UserIDs: ";
 				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
@@ -422,8 +423,9 @@ public:
 			}
 		}
 		// Otherwise i.e if CDR; Org 1 owns it all
-		else {
+		else if(type_ == file_type::cdr) {
 			ostr << "OrgID: "<<org_id_t(1)<<"\r\n";
+			ostr << "RetentionPolicyID: "<<app::policy::pseudo_id::cdr<<"\r\n";
 			ostr << "CallOwnerOrg: "<<owners_.orgID<<"\r\n"; // custom header
 			if(!owners_.userIDs.empty()) {
 				ostr << "CallOwnerUserIDs: "; // custom header
@@ -456,7 +458,6 @@ public:
 		return ostr << "FileType: "<<type_<<"\r\n"
 				<< "MD5: "<<md5_<<"\r\n"
 				<< "CreateTime: "<<start_epoch<<"\r\n"
-				<< "RetentionPolicyID: "<<policy_id_<<"\r\n"
 				<< "LegUUID: "<<leg_uuid<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
 				<< "DataFormat: "<<data_format<<"\r\n"
