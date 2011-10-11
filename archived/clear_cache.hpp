@@ -41,9 +41,7 @@ public:
 
 	clear_cache(const boost::program_options::variables_map& confMap, database::internal& db) :
 		confMap_(confMap), db_(db),
-		base_directory_( confMap_["clear_cache.base_directory"].as<std::string>().empty()?
-				confMap_["temp_files.base_directory"].as<std::string>()+"/clear-cache/" :
-				confMap_["clear_cache.base_directory"].as<std::string>()),
+		base_directory_(confMap_["clear_cache.base_directory"].as<std::string>()),
 		enabled_(confMap_["clear_cache.enabled"].as<std::string>() == "true")
 	{
 		// ctor
