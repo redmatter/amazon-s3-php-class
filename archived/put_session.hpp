@@ -384,10 +384,6 @@ private:
 									creation_date_yyyymmdd_ = str;
 								}
 
-								// open the file
-								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
-								RML_DEBUG(ofs_->set_persistent());
-
 								// make sure we have MD5 in headers
 								{
 									types::metadata::const_iterator itr = metadata_->find("MD5");
@@ -422,6 +418,9 @@ private:
 
 									data_type_ = types::data_sub_format::from_string(itr->second);
 								}
+
+								// open the file
+								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
 
 								uuid_ = uuid;
 								orgID_ = orgID;
