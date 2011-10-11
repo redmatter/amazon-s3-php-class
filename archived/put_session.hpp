@@ -375,10 +375,13 @@ private:
 									creation_time_ = rml::utils::strtoull(itr->second.c_str());
 								}
 
-								creation_date_yyyymmdd_ = std::string(10, '\0');
+								creation_date_yyyymmdd_.clear();
 								{
-									  struct tm * timeinfo = localtime(&creation_time_);
-									  strftime(&creation_date_yyyymmdd_[0], 10, "%Y%m%d", timeinfo);
+									char str[10];
+									struct tm * timeinfo = localtime(&creation_time_);
+									strftime(str, 10, "%Y%m%d", timeinfo);
+
+									creation_date_yyyymmdd_ = str;
 								}
 
 								// open the file
