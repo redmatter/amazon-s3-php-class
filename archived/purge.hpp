@@ -52,11 +52,9 @@ public:
 					try {
 						operation_data::pointer opdata = purge_channel_.consume(1);
 
-						// set files for unlinking
-						BOOST_FOREACH(const files_map_t::value_type& p, opdata->p_detail->files_map)
-						{
-						    p.second->set_persistent(false);
-						}
+						for(files_map_t::const_iterator itr = opdata->p_detail->files_map.begin();
+								itr != opdata->p_detail->files_map.end(); ++itr)
+							itr->second->set_persistent(false);
 
 						purge_set.insert(opdata);
 					}
