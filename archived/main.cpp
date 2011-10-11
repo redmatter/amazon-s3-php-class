@@ -83,9 +83,6 @@ volatile bool quit = false;
 // was HUPed
 volatile bool wasHUPed = false;
 
-
-std::string operation_data::temp_files_base_directory;
-
 }
 
 int main(int argc, char **argv) try
@@ -137,7 +134,6 @@ int main(int argc, char **argv) try
 		app::database::retention::describe_config(optsDesc);
 		app::database::cdrmunch::describe_config(optsDesc);
 		app::clear_cache::describe_config(optsDesc);
-		app::operation_data::describe_config(optsDesc);
 		app::whisper_client::describe_config(optsDesc);
 		app::retention_data_flusher::describe_config(optsDesc);
 		app::purge::describe_config(optsDesc);
@@ -173,8 +169,6 @@ int main(int argc, char **argv) try
 	}
 
 	try {
-		app::operation_data::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
-
 		app::operation_data::channel_t convert_channel("Convert");
 		app::operation_data::channel_t convert_done_channel("ConvertDone");
 		app::storage::operation_channel_t storage_operation_channel("StorageOps");
@@ -213,6 +207,13 @@ int main(int argc, char **argv) try
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
 				app::confMap["distiller_client.server_port"].as<std::string>());
+
+		/*
+		boost::function<bool(const app::operation_data::pointer&)>& fn_is_already_loaded;
+
+		bool& have_more_to_load = true;
+		internal_db.find_retriables(app::hostname, cached_policy_finder, fn_is_already_loaded, cached_endpoint_finder, convert_channel, have_more_to_load);
+ 	 	*/
 
 		initialized = true;
 		LogMessage("Initialisation complete");
