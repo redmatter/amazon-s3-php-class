@@ -15,6 +15,7 @@ namespace app {
 class retention_data_flusher
 {
 	operation_data::channel_t& retention_data_channel_;
+	operation_data::channel_t& purge_channel_;
 	database::retention& retention_db_;
 
 	volatile bool& quit_;
@@ -29,8 +30,9 @@ public:
 				;
 	}
 
-	retention_data_flusher(const boost::program_options::variables_map& confMap, operation_data::channel_t& retention_data_channel, database::retention& retention_db, volatile bool& quit) :
+	retention_data_flusher(const boost::program_options::variables_map& confMap, operation_data::channel_t& retention_data_channel, operation_data::channel_t& purge_channel, database::retention& retention_db, volatile bool& quit) :
 		retention_data_channel_(retention_data_channel),
+		purge_channel_(purge_channel),
 		retention_db_(retention_db),
 		quit_(quit),
 		flush_interval_seconds_(confMap["retention_data.flush_interval_seconds"].as<unsigned int>())
@@ -117,7 +119,7 @@ public:
 							data->p_detail->state = operation_state::all_done;
 						}
 
-						// TODO channel_save_status_.produce(data);
+						purge_channel_.produce(data);
 					}
 					catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 						break;

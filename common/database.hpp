@@ -269,7 +269,8 @@ public:
 						 "FROM"
 						 " ArchivingInternal." << tableName_ << " c LEFT JOIN ArchivingInternal." << tableName_ << " p ON c.ParentID=p.ID "
 						 "WHERE"
-						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded') AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
+						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded')"
+						 " AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
 						 "LIMIT 100";
 				query.parse();

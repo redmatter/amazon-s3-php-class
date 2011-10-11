@@ -78,21 +78,31 @@ public:
 		while(!quit_) {
 			try {
 				operation_data::pointer opdata = convert_done_channel_.consume();
-				const std::string& identifier(opdata->p_detail->identifier);
-				if(opdata->p_detail->state == operation_state::put_file_convert_ok) {
 
-					opdata->p_detail->state = operation_state::put_file_save;
-					operation_channel_.produce(
-							storage::operation_ex(
-									app::operation::put_object,
-									opdata,
-									boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
+				const operation::operation_t& arcd_operation(operation::operation_t((opdata->p_detail->state & 0x0f00) >> 8));
+
+				switch(arcd_operation) {
+				case operation::put_object:
+					if((operation_state::put_file_save_ok == opdata->p_detail->state) || (((opdata->p_detail->state & 0x00f0) >> 4) > app::operation_coarse::file_save)) {
+						LogVerbose(opdata->p_detail->identifier<<" already saved; shifting to next channel.");
+						queue_for_retention_save(opdata, storage::operation_result::success);
+						continue;
+					}
+
+					if(opdata->p_detail->state == operation_state::put_file_convert_ok) {
+						opdata->p_detail->state = operation_state::put_file_save;
+						operation_channel_.produce(
+								storage::operation_ex(
+										app::operation::put_object,
+										opdata,
+										boost::bind(&dispatcher::queue_for_retention_save, this, _1, _2)));
+					}
+					break;
+
+				default:
+					LogCritical("Not implemented; operation:"<<arcd_operation);
+					break;
 				}
-//				else if(opdata->p_detail->state == operation_state::get_file_convert_ok) {
-//					//TODO
-//				}
-				else
-					LogError(identifier<<": invalid state found; state:"<<opdata->p_detail->state);
 			}
 			catch(...) {
 			}

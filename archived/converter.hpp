@@ -53,6 +53,12 @@ public:
 			try {
 				app::operation_data::pointer opdata = convert_channel_.consume();
 
+				if((operation_state::put_file_convert_ok == opdata->p_detail->state) || (((opdata->p_detail->state & 0x00f0) >> 4) > app::operation_coarse::file_convert)) {
+					LogVerbose(opdata->p_detail->identifier<<" already converted; shifting to next channel.");
+					convert_done_channel_.produce(opdata);
+					continue;
+				}
+
 				const archiving::archivable::identifier& identifier(opdata->p_detail->identifier);
 
 				opdata->get_tmp_fstream()->re_open();

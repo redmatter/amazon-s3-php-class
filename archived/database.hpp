@@ -371,7 +371,10 @@ public:
 						" OpState=%11:OpState,"
 
 						" CallCreateTimeEpoch=%12:CallCreateTimeEpoch,"
-						" ArrivalTime=FROM_UNIXTIME(%13:ArrivalTime)"
+						" ArrivalTime=FROM_UNIXTIME(%13:ArrivalTime),"
+
+						" ClearSize=%14:ClearSize,"
+						" RealSize=%15:RealSize"
 						;
 				query.parse();
 
@@ -396,6 +399,9 @@ public:
 
 						<< mysqlpp::sql_int(opdetail.policy.get_creation_epoch())
 						<< mysqlpp::sql_int(opdetail.arrival_time)
+
+						<< opdetail.clear_size
+						<< opdetail.real_size
 						;
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
@@ -412,9 +418,11 @@ public:
 						" CurrentFileFormat=%0:CurrentFileFormat,"
 						" RetryCount=%1:RetryCount,"
 						" OpState=%2:OpState "
+						" ClearSize=%3:ClearSize,"
+						" RealSize=%4:RealSize "
 						"WHERE"
-						" ID=%3:ID"
-						" AND FileType=%4:FileType AND OrgID=%5:OrgID AND UUID=UNHEX(REPLACE(%6q:UUID, '-', ''))"
+						" ID=%5:ID"
+						" AND FileType=%6:FileType AND OrgID=%7:OrgID AND UUID=UNHEX(REPLACE(%8q:UUID, '-', ''))"
 						;
 				query.parse();
 
@@ -422,6 +430,8 @@ public:
 				qp << opdetail.current_file_format
 						<< opdetail.retry
 						<< opdetail.state
+						<< opdetail.clear_size
+						<< opdetail.real_size
 						<< opdetail.database_id
 						<< opdetail.identifier.filetype
 						<< opdetail.identifier.org
@@ -473,10 +483,12 @@ public:
 
 		return false;
 	}
-/*
+
 	void find_retriables(
 			const std::string& arcd_hostname,
+			policy::cached_finder_t fn_cached_policy_finder,
 			const boost::function<bool(const operation_data::pointer&)>& fn_is_already_loaded,
+			const storage::cached_endpoint_finder_t& fn_cached_endpoint_finder,
 			operation_data::channel_t & channel,
 			bool& have_more_to_load)
 	{
@@ -509,7 +521,9 @@ public:
 			if(first_max_id && max_id <= first_max_id) {
 				mysqlpp::Query query = conn->query();
 				query << "SELECT"
-						" ID, HostName, MetaData, PolicyID, PolicyVersion, FileType, OrgID, UUID, TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime ";
+						" ID, HostName, MetaData, PolicyID, PolicyVersion, FileType, OrgID,"
+						" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID,"
+						" TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime, ClearSize, RealSize "
 						"FROM ArchivingInternal.ArchiveDQueue "
 						"WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone "
 						" AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
@@ -517,16 +531,69 @@ public:
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
-				qp << arcd_hostname << first_max_id << max_id;
+				qp << arcd_hostname << operation_state::all_done << first_max_id << max_id;
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
 					max_id = rml::utils::strtoll(row[0].c_str());
+					const archiving::org_id_t org(rml::utils::strtoull(row[6].c_str(), 0ULL));
 
-					try{
+					try {
+						const uint64_t& item_id(rml::utils::strtoull(row[0].c_str(), 0ULL));
 
+						// TODO Ignoring PolicyVersion here; we need to revisit this
+						const policy::pointer& p_policy(
+								fn_cached_policy_finder(std::make_pair< archiving::org_id_t, policy::id_type >(
+										org, policy::id_type(rml::utils::strtoull(row[3].c_str(), 0ULL)))));
+
+						const storage::basic_endpoint::pointer& p_endpoint(
+								fn_cached_endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+										org, archiving::endpoint_id_t(rml::utils::strtoull(row[9].c_str(), 0ULL)))));
+
+						files_map_t files_map;
+						{
+							rml::MySQLConnection conn(*p_pool_);
+							mysqlpp::Query query = conn->query();
+							query << "SELECT FileFormat, Path FROM ArchivingInternal.ArchiveDQueueFiles WHERE ArchiveDQueueID=%0:ID";
+							query.parse();
+
+							mysqlpp::SQLQueryParms qp;
+							qp << item_id;
+							std::cout << "SQL: "<<query.str(qp) << std::endl;
+
+							mysqlpp::UseQueryResult res = query.use(qp);
+							while(mysqlpp::Row row = res.fetch_row()) {
+								const std::pair<files_map_t::iterator, bool>& ret(files_map.insert(std::make_pair< types::file_format::file_format_t, rml::utils::tmp_fstream::pointer >(
+										types::file_format::file_format_t(rml::utils::strtoull(row[0].c_str(), 0ULL)),
+										rml::utils::tmp_fstream::pointer(
+												new rml::utils::tmp_fstream(
+														row[1].c_str(),
+														std::ios_base::openmode(std::fstream::in | std::fstream::out | std::fstream::binary))))));
+								if(ret.second)
+									ret.first->second->close();
+							}
+						}
+
+						operation_data::pointer p_opdata(new operation_data());
+						p_opdata->p_detail = operation_data::detail::pointer(new operation_data::detail(
+								rml::utils::strtoull(row[14].c_str(), 0ULL),
+								archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)),
+								archiving::org_id_t(rml::utils::strtoull(row[6].c_str(), 0ULL)),
+								row[7].c_str(),
+								row[2].c_str(),
+								p_policy, rml::utils::strtoull(row[13].c_str(), 0ULL),
+								p_endpoint,
+								types::file_format::file_format_t(rml::utils::strtoull(row[8].c_str(), 0ULL)),
+								rml::utils::strtoull(row[15].c_str(), 0ULL), rml::utils::strtoull(row[16].c_str(), 0ULL),
+								types::file_format::file_format_t(rml::utils::strtoull(row[10].c_str(), 0ULL)),
+								files_map,
+								operation_state::operation_state_t(rml::utils::strtoull(row[12].c_str(), 0ULL)),
+								item_id,
+								rml::utils::strtoull(row[11].c_str(), 0ULL)));
+
+						channel.produce(p_opdata);
 					}
 					catch(const std::exception& e) {
 						LogWarning("Exception: "<<e.what());
@@ -543,7 +610,45 @@ public:
 			LogWarning("Exception: "<<e.what());
 		}
 	}
-*/
+
+	bool purge(const std::set< operation_data::pointer >& purgeables)
+	{
+		try {
+			rml::MySQLConnection conn(*p_pool_);
+			mysqlpp::Transaction trans(*conn);
+
+			mysqlpp::Query query = conn->query();
+
+			query << "DELETE FROM ArchivingInternal.ArchiveDQueue WHERE ID IN (";
+
+			for(std::set< operation_data::pointer >::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
+				if(itr != purgeables.begin())
+					query << ',';
+				query << '\n'<<(*itr)->p_detail->database_id << " /*"<<(*itr)->p_detail->identifier<<"*/";
+			}
+
+			query << ')';
+
+			std::cout << "SQL: "<<query.str() << std::endl;
+
+			query.execute();
+			trans.commit();
+
+			return true;
+		}
+		catch(const mysqlpp::BadQuery& e) {
+			LogError("Bad MySQL Query: "<<e.what());
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+
+		return false;
+	}
+
 	std::string clear_cache_get_path(const archiving::org_id_t org_id, const std::string& uuid, const types::file_format::file_format_t& file_format)
 	{
 		std::string path;
