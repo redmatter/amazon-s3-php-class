@@ -28,12 +28,14 @@ class clear_cache
 	database::internal& db_;
 	std::string base_directory_;
 
+	const bool enabled_;
+
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("clear_cache.base_directory", boost::program_options::value<std::string>()->default_value(std::string("")),
-					"base directory in which 'clear' files will be stored")
+				("clear_cache.enabled", boost::program_options::value<std::string>()->default_value(std::string("false")), "Clear cache enabled?")
+				("clear_cache.base_directory", boost::program_options::value<std::string>()->default_value(std::string("")), "base directory in which 'clear' files will be stored")
 			;
 	}
 
@@ -41,7 +43,8 @@ public:
 		confMap_(confMap), db_(db),
 		base_directory_( confMap_["clear_cache.base_directory"].as<std::string>().empty()?
 				confMap_["temp_files.base_directory"].as<std::string>()+"/clear-cache/" :
-				confMap_["clear_cache.base_directory"].as<std::string>())
+				confMap_["clear_cache.base_directory"].as<std::string>()),
+		enabled_(confMap_["clear_cache.enabled"].as<std::string>() == "true")
 	{
 		// ctor
 	}
@@ -55,6 +58,11 @@ public:
 			const archiving::archivable::identifier& identifier,
 			const types::file_format::file_format_t& file_format)
 	{
+		if(!enabled_) {
+			LogDebug("clear-cache is disabled");
+			return rml::utils::tmp_fstream::pointer();
+		}
+
 		LogDebug(identifier<<": Get file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
@@ -83,6 +91,11 @@ public:
 			const types::file_format::file_format_t& file_format,
 			rml::utils::tmp_fstream::pointer file)
 	{
+		if(!enabled_) {
+			LogDebug("clear-cache is disabled");
+			return;
+		}
+
 		LogDebug(identifier<<": Put file_format:"<<RML_HEX(5, file_format));
 
 		assert(types::data_format::clear == (file_format >> 8));
