@@ -106,6 +106,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	types::data_sub_format::data_sub_format_t data_type_;
 	policy::id_type policy_id_;
 	time_t creation_time_;
+	std::string creation_date_yyyymmdd_;
 	archiving::archivable::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
 	bool xfrd_ok_;
@@ -365,8 +366,23 @@ private:
 								// read metadata from stream
 								metadata_.reset(new types::metadata(istr));
 
+								// make sure we have CreateTime in headers
+								{
+									types::metadata::const_iterator itr = metadata_->find("CreateTime");
+									if(itr == metadata_->end())
+										throw rml::exception("No CreateTime given");
+
+									creation_time_ = rml::utils::strtoull(itr->second.c_str());
+								}
+
+								creation_date_yyyymmdd_ = std::string(10, '\0');
+								{
+									  struct tm * timeinfo = localtime(&creation_time_);
+									  strftime(&creation_date_yyyymmdd_[0], 10, "%Y%m%d", timeinfo);
+								}
+
 								// open the file
-								ofs_.reset(new rml::utils::tmp_fstream(resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
+								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
 								RML_DEBUG(ofs_->set_persistent());
 
 								// make sure we have MD5 in headers
@@ -386,15 +402,14 @@ private:
 										throw rml::exception("No RetentionPolicyID given");
 
 									policy_id_ = rml::utils::strtoll(itr->second.c_str());
-								}
-
-								// make sure we have CreateTime in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("CreateTime");
-									if(itr == metadata_->end())
-										throw rml::exception("No CreateTime given");
-
-									creation_time_ = rml::utils::strtoull(itr->second.c_str());
+									if( policy_id_ != policy::pseudo_id::do_not_archive ) {
+										// make sure we can handle this before CollectD start sending data
+										p_policy = cached_policy_finder_(std::make_pair(orgID, policy_id_));
+										if(!p_policy) {
+											cached_policy_finder_.forget(std::make_pair(orgID, policy_id_));
+											throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID % policy_id_));
+										}
+									}
 								}
 
 								// make sure we have CreateTime in headers
@@ -499,8 +514,10 @@ private:
 
 				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
-					if(!p_policy)
+					if(!p_policy) {
+						cached_policy_finder_.forget(std::make_pair(orgID_, policy_id_));
 						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID_ % policy_id_));
+					}
 				}
 
 				if(md5 != md5_) {
@@ -562,11 +579,13 @@ private:
 					// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
 					types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
 					if(itr != opdata->p_detail->p_metadata->end()) {
+
 						if( itr->second == "true" ) {
 							LogVerbose(remote_ep_<<' '<<resource_id_<<" AddToCDRMunchCache requested");
 							std::string whisper_path = boost::str(
-									boost::format("%1%/%2%_%3%_%4%")
+									boost::format("%1%/%2%/%3%_%4%_%5%")
 											% confMap_["distiller_client.base_dir"].as<std::string>()
+											% creation_date_yyyymmdd_
 											% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
 											% opdata->p_detail->identifier.org
 											% opdata->p_detail->identifier.uuid);
