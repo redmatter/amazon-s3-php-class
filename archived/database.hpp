@@ -486,7 +486,7 @@ public:
 
 	void find_retriables(
 			const std::string& arcd_hostname,
-			policy::cached_finder_t fn_cached_policy_finder,
+			policy::cached_finder_t& fn_cached_policy_finder,
 			const boost::function<bool(const operation_data::pointer&)>& fn_is_already_loaded,
 			const storage::cached_endpoint_finder_t& fn_cached_endpoint_finder,
 			operation_data::channel_t & channel,
@@ -526,7 +526,7 @@ public:
 						" TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime, ClearSize, RealSize "
 						"FROM ArchivingInternal.ArchiveDQueue "
 						"WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone "
-						" AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
+						" AND ID <= %2:FirstMaxID AND ID > %3:MaxID "
 						"LIMIT 100";
 				query.parse();
 
@@ -537,8 +537,16 @@ public:
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
+
 					max_id = rml::utils::strtoll(row[0].c_str());
+
+					const archiving::archivable::file_type::file_type_t file_type(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)));
 					const archiving::org_id_t org(rml::utils::strtoull(row[6].c_str(), 0ULL));
+					const std::string uuid(row[7].c_str());
+
+					// lookup the busy-set to see if we already have this loaded
+					if(fn_is_already_loaded(operation_data::pointer(new operation_data(operation_data::detail::pointer(new operation_data::detail(file_type, org, uuid))))))
+						continue;
 
 					try {
 						const uint64_t& item_id(rml::utils::strtoull(row[0].c_str(), 0ULL));
@@ -579,9 +587,7 @@ public:
 						operation_data::pointer p_opdata(new operation_data());
 						p_opdata->p_detail = operation_data::detail::pointer(new operation_data::detail(
 								rml::utils::strtoull(row[14].c_str(), 0ULL),
-								archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)),
-								archiving::org_id_t(rml::utils::strtoull(row[6].c_str(), 0ULL)),
-								row[7].c_str(),
+								file_type, org, uuid,
 								row[2].c_str(),
 								p_policy, rml::utils::strtoull(row[13].c_str(), 0ULL),
 								p_endpoint,

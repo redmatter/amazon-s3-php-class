@@ -410,7 +410,7 @@ private:
 									}
 								}
 
-								// make sure we have CreateTime in headers
+								// make sure we have DataFormat in headers
 								{
 									types::metadata::const_iterator itr = metadata_->find("DataFormat");
 									if(itr == metadata_->end())

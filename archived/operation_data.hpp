@@ -229,10 +229,28 @@ struct operation_data
 		{
 			LogVerbose("Loading "<<identifier);
 		}
+
+		detail(const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org, const std::string& uuid) :
+			arrival_time(0), identifier(filetype, org, uuid), p_metadata(),
+			policy(), p_endpoint(), target_file_format(types::file_format::unknown),
+			clear_size(0), real_size(0), current_file_format(types::file_format::unknown),
+			files_map(), database_id(0), state(operation_state::init), retry(0)
+		{
+			LogVerbose("Lookup "<<identifier);
+		}
 	};
 
 	// Pointer to the detail structure
 	detail::pointer p_detail;
+
+	// -------------------- ctor ----------------------
+	operation_data()
+	{
+	}
+
+	operation_data(detail::pointer p_detail) : p_detail(p_detail)
+	{
+	}
 
 	// -------------------- functions -----------------
 
@@ -273,7 +291,7 @@ struct operation_data
 
 	struct pointer_compare_lt
 	{
-		bool operator()(const pointer& lhs, const pointer& rhs)
+		bool operator()(const pointer& lhs, const pointer& rhs) const
 		{
 			if(lhs->p_detail->retry != rhs->p_detail->retry)
 				return lhs->p_detail->retry > lhs->p_detail->retry; // bigger retry, lesser priority ( > comparison )
@@ -288,7 +306,22 @@ struct operation_data
 		}
 	};
 
+	struct pointer_compare_dedup_lt
+	{
+		bool operator()(const pointer& lhs, const pointer& rhs) const
+		{
+			if(lhs->p_detail->identifier.filetype != rhs->p_detail->identifier.filetype)
+				return lhs->p_detail->identifier.filetype < rhs->p_detail->identifier.filetype;
+
+			if(lhs->p_detail->identifier.uuid != rhs->p_detail->identifier.uuid)
+				return lhs->p_detail->identifier.uuid < rhs->p_detail->identifier.uuid;
+
+			return lhs->p_detail->identifier.org < rhs->p_detail->identifier.org;
+		}
+	};
+
 	typedef rml::pc_channel< operation_data::pointer, operation_data::pointer_compare_lt > channel_t;
+	typedef rml::busy_set< operation_data::pointer, pointer_compare_dedup_lt > busy_set_t;
 };
 
 }  // namespace app

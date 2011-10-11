@@ -72,6 +72,36 @@
 
 namespace app {
 
+class operation_data_dedup
+{
+	const operation_data::busy_set_t& busy_set_;
+	database::internal& internal_db_;
+
+public:
+	operation_data_dedup(const operation_data::busy_set_t& busy_set, database::internal& internal_db) :
+		busy_set_(busy_set), internal_db_(internal_db)
+	{
+	}
+
+	inline bool is_loaded(operation_data::pointer p_opdata) const
+	{
+		const bool& is_busied(busy_set_.is_busied(p_opdata));
+		LogDebug(p_opdata<<" is_archivable_loaded [busied]: "<<is_busied);
+
+		return is_busied;
+	}
+
+	inline bool is_identifier_loaded(const archiving::archivable::file_type::file_type_t& type, const archiving::org_id_t& org, const std::string& uuid) const
+	{
+		return is_loaded(operation_data::pointer(new operation_data(operation_data::detail::pointer(new operation_data::detail(type, org, uuid)))));
+	}
+
+	inline operation_data::pointer get_loaded_instance(const operation_data::pointer& p_lookup) const
+	{
+		return busy_set_.get_item(p_lookup);
+	}
+};
+
 std::string hostname;
 
 // the configuration map
@@ -114,10 +144,6 @@ int main(int argc, char **argv) try
 
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
-//				("app.run_as_user", boost::program_options::value<std::string>()->default_value(std::string("")), "user to run the daemon as")
-//				("app.run_as_group", boost::program_options::value<std::string>()->default_value(std::string("")), "group to run the daemon as")
-//				("app.max_core_size_mega_bytes", boost::program_options::value<unsigned long>()->default_value(300UL), "max core size in mega bytes")
-//				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
@@ -169,16 +195,24 @@ int main(int argc, char **argv) try
 	}
 
 	try {
-		app::operation_data::channel_t convert_channel("Convert");
+
+		app::database::internal internal_db(app::confMap);
+		app::database::retention retention_db(app::confMap);
+		app::database::cdrmunch cdrmunch_db(app::confMap);
+
+		app::operation_data::busy_set_t operation_data_busy_set;
+		app::operation_data_dedup operation_data_dedup(operation_data_busy_set, internal_db);
+
+		app::operation_data::channel_t convert_channel(
+				boost::bind(&app::operation_data::busy_set_t::add, boost::ref(operation_data_busy_set), _1),
+				boost::bind(&app::operation_data::busy_set_t::is_busied, boost::ref(operation_data_busy_set), _1),
+				0, "Convert");
+
 		app::operation_data::channel_t convert_done_channel("ConvertDone");
 		app::storage::operation_channel_t storage_operation_channel("StorageOps");
 		app::operation_data::channel_t retention_data_channel("RetentionData");
 		app::operation_data::channel_t purge_channel("Purge");
 		app::whisper::channel_t whisper_channel("Whisper");
-
-		app::database::internal internal_db(app::confMap);
-		app::database::retention retention_db(app::confMap);
-		app::database::cdrmunch cdrmunch_db(app::confMap);
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
@@ -198,7 +232,7 @@ int main(int argc, char **argv) try
 
 		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, app::quit);
 
-		app::purge purge(purge_channel, internal_db, app::quit, app::confMap);
+		app::purge purge(purge_channel, internal_db, operation_data_busy_set, app::quit, app::confMap);
 
 		app::storage::s3::storage s3storage(app::confMap);
 
@@ -208,12 +242,8 @@ int main(int argc, char **argv) try
 				app::confMap["distiller_client.server_host"].as<std::string>(),
 				app::confMap["distiller_client.server_port"].as<std::string>());
 
-		/*
-		boost::function<bool(const app::operation_data::pointer&)>& fn_is_already_loaded;
-
-		bool& have_more_to_load = true;
-		internal_db.find_retriables(app::hostname, cached_policy_finder, fn_is_already_loaded, cached_endpoint_finder, convert_channel, have_more_to_load);
- 	 	*/
+		bool have_more_to_load = true;
+		internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -258,6 +288,9 @@ int main(int argc, char **argv) try
 				cached_policy_finder.clear_unused(10);
 				ticker = 0;
 			}
+
+			if(have_more_to_load && (0 == (ticker % 20)))
+				internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
 
 			ticker++;
 

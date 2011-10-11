@@ -16,6 +16,7 @@ class purge
 {
 	operation_data::channel_t& purge_channel_;
 	database::internal& internal_db_;
+	operation_data::busy_set_t& operation_data_busy_set_;
 	const volatile bool& quit_;
 
 	const boost::program_options::variables_map& confMap_;
@@ -33,9 +34,9 @@ public:
 				;
 	}
 
-	purge(operation_data::channel_t& purge_channel, database::internal& internal_db,
+	purge(operation_data::channel_t& purge_channel, database::internal& internal_db, operation_data::busy_set_t& operation_data_busy_set,
 			const volatile bool& quit, const boost::program_options::variables_map& confMap) :
-		purge_channel_(purge_channel), internal_db_(internal_db), quit_(quit), confMap_(confMap)
+		purge_channel_(purge_channel), internal_db_(internal_db), operation_data_busy_set_(operation_data_busy_set), quit_(quit), confMap_(confMap)
 	{
 	}
 
@@ -57,6 +58,7 @@ public:
 							itr->second->set_persistent(false);
 
 						purge_set.insert(opdata);
+						operation_data_busy_set_.remove(opdata); // RIP
 					}
 					catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 						// continue
