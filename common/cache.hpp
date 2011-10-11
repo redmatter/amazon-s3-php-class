@@ -94,7 +94,19 @@ class result_cache
 
 		timed_val_type t_value(fun_(arg), rander_);
 		cache_.insert(std::make_pair(arg, t_value));
+		LogVerbose(name_<<"Memorising "<<t_value.value);
 		return t_value.value;
+	}
+
+	void forget(Arg arg, const unsigned int in_seconds = 0)
+	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+
+		iter_type it = cache_.find(arg);
+		if (it != cache_.end()) {
+			LogVerbose(name_<<"Forgetting (immediately) "<<it->second.value);
+			cache_.erase(it);
+		}
 	}
 
 	void clear_unused(const unsigned int& max_idle_seconds = 0)
@@ -112,6 +124,7 @@ class result_cache
 		for(iter_type it = cache_.begin(); it != cache_end; ) {
 			if((it->second.eol_time < now) || (it->second.atime < newer)) {
 				LogDebug(name_<<"Deleting from cache; "<<it->second.value<<" end-of-life:"<<it->second.eol_time<<" access-time:"<<it->second.atime);
+				LogVerbose(name_<<"Forgetting "<<it->second.value);
 				cache_.erase(it++);
 			}
 			else
