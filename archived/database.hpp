@@ -417,7 +417,7 @@ public:
 						"SET"
 						" CurrentFileFormat=%0:CurrentFileFormat,"
 						" RetryCount=%1:RetryCount,"
-						" OpState=%2:OpState "
+						" OpState=%2:OpState, "
 						" ClearSize=%3:ClearSize,"
 						" RealSize=%4:RealSize "
 						"WHERE"
