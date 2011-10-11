@@ -263,7 +263,7 @@ struct operation_data
 				p_detail->files_map.erase(itr);
 			}
 
-			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(p_detail->current_file_format)+".",
+			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(format)+".",
 					std::size_t(0), get_tmp_fstream()->get_directory()));
 			p_detail->files_map.insert(std::make_pair(format, ret));
 		}
