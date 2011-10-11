@@ -403,9 +403,8 @@ private:
 
 									policy_id_ = rml::utils::strtoll(itr->second.c_str());
 									if( policy_id_ != policy::pseudo_id::do_not_archive ) {
-										// make sure we can handle this before CollectD start sending data
-										p_policy = cached_policy_finder_(std::make_pair(orgID, policy_id_));
-										if(!p_policy) {
+										// make sure we can handle this PolicyID before CollectD start sending data
+										if(!cached_policy_finder_(std::make_pair(orgID, policy_id_))) {
 											cached_policy_finder_.forget(std::make_pair(orgID, policy_id_));
 											throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID % policy_id_));
 										}
