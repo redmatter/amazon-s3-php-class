@@ -125,11 +125,11 @@ public:
 					}
 					catch(const std::exception& e) {
 						LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first));
-						throw;
 					}
 				}
 
 				if(converted_ok) {
+					opdata->p_detail->retry = 0;
 					opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 					opdata->p_detail->real_size = opdata->get_tmp_fstream()->get_size();
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
