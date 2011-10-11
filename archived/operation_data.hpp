@@ -144,6 +144,11 @@ struct operation_state
 		return operation_state_t((state & 0xff0) | outcome);
 	}
 
+	static inline bool is_outcome_ok(const operation_state_t& state)
+	{
+		return operation_outcome::ok == operation_outcome::operation_outcome_t(state & 0x00f);
+	}
+
 	static inline operation_state_t make(const operation_state_t& state, const bool& outcome_ok)
 	{
 		return make(state, outcome_ok? operation_outcome::ok: operation_outcome::error);
