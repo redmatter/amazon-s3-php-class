@@ -234,18 +234,7 @@ struct operation_data
 	// Pointer to the detail structure
 	detail::pointer p_detail;
 
-	// -------------------- statics -----------------
-
-	static std::string temp_files_base_directory;
-
 	// -------------------- functions -----------------
-
-	static void describe_config(boost::program_options::options_description& optsDesc)
-	{
-		optsDesc.add_options()
-		("temp_files.base_directory", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving/temp")), "base directory in which temp files will be put")
-		;
-	}
 
 	rml::utils::tmp_fstream::pointer get_tmp_fstream()
 	{
@@ -274,7 +263,8 @@ struct operation_data
 				p_detail->files_map.erase(itr);
 			}
 
-			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier, std::size_t(0), temp_files_base_directory));
+			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(p_detail->current_file_format)+".",
+					std::size_t(0), get_tmp_fstream()->get_directory()));
 			p_detail->files_map.insert(std::make_pair(format, ret));
 		}
 
