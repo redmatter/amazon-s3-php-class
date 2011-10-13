@@ -164,9 +164,9 @@ public:
 				const data::multiset_t::const_iterator& end(data.end());
 
 				data::multiset_t::const_iterator batch_itr = data.begin();
-				const archiving::org_id_t& org(batch_itr->org);
 				while(batch_itr != end) {
 					std::pair< data::multiset_t::const_iterator, data::multiset_t::const_iterator > batch_range = data.equal_range(*batch_itr);
+					const archiving::org_id_t& org(batch_itr->org);
 
 					mysqlpp::Query query = conn->query();
 					query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
