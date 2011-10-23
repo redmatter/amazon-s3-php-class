@@ -218,7 +218,13 @@ struct operation_data
 		// state info: retry in the current operation state
 		uint8_t retry;
 
-		detail() {}
+		detail() :
+			arrival_time(0), identifier(), p_metadata(),
+			policy(), p_endpoint(), target_file_format(types::file_format::unknown),
+			clear_size(0), real_size(0), current_file_format(types::file_format::unknown),
+			files_map(), database_id(0), state(operation_state::init), retry(0)
+		{
+		}
 
 		detail(const time_t& arrival_time, const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org,
 				const std::string& uuid, const std::string& metadata, const policy::pointer& policy,
