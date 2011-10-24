@@ -154,7 +154,6 @@ mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
-cp common/coreapi.conf %{buildroot}/etc/archiving/conf.d/coreapi.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/ 
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 

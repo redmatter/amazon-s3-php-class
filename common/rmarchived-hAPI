@@ -11,7 +11,6 @@ MYSQL_USER=archiving
 CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
 CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
-CONFIG_COREAPI=/etc/archiving/conf.d/coreapi.conf
 CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
@@ -73,10 +72,6 @@ if [ -f $CONFIG_ARCHIVED ]; then
 	fi
 fi
 
-if [ -f $CONFIG_COREAPI ]; then
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COREAPI											|| Die "Unable to set coreapi.url in $CONFIG_COREAPI"
-fi
-
 if [ -f $CONFIG_COLLECTD ]; then
 	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTD				|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTD"
 
@@ -88,5 +83,6 @@ fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
 	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTSMSD			|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTSMSD"
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COLLECTSMSD											|| Die "Unable to set coreapi.url in $CONFIG_COLLECTSMSD"
 fi
 
