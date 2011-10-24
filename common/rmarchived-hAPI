@@ -11,6 +11,7 @@ MYSQL_USER=archiving
 CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
 CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
+CONFIG_COREAPI=/etc/archiving/conf.d/coreapi.conf
 CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
@@ -70,6 +71,10 @@ if [ -f $CONFIG_ARCHIVED ]; then
 	if `hapi get HostType QA || hapi get HostType DEV`; then
 		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_ARCHIVED ||  Die "Unable to set log.level in $CONFIG_ARCHIVED"
 	fi
+fi
+
+if [ -f $CONFIG_COREAPI ]; then
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COREAPI											|| Die "Unable to set coreapi.url in $CONFIG_COREAPI"
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
