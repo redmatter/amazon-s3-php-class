@@ -217,7 +217,7 @@ int main(int argc, char* argv[]) try
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("sms.directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/rmfs/archiving-import/sms")), "sms directory")
+				("sms.directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/cdrfs/archiving-import-sms")), "sms directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "collect-smsd service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
