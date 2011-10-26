@@ -16,6 +16,7 @@
  */
 define('APP_NAME_', 'rm-archiving-checker');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
+define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
 require_once "s3/S3.php";
 require_once 'rmapp/class.BaseApp.php';
