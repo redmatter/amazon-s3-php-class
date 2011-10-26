@@ -72,13 +72,10 @@ class ArchivingEndpoint
 
 		$this->encryptionKey = $row->EncryptionKey;
 
-		if ($this->id)
-		{
-			LogDebug($sql = "SELECT Type, Encrypted, Compressed, RetentionManaged FROM Archiving.StorageEndpoint WHERE ID={$this->id}", 'SQL');
-			$res = $this->_dbc->query($sql);
-			if (!($row = $res->fetch_object()))
-				throw new Exception('Endpoint not found (2)');
-		}
+		LogDebug($sql = "SELECT Type, Encrypted, Compressed, RetentionManaged FROM Archiving.StorageEndpoint WHERE ID={$this->id}", 'SQL');
+		$res = $this->_dbc->query($sql);
+		if (!($row = $res->fetch_object()))
+			throw new Exception('Endpoint not found (2)');
 
 		$this->type = $row->Type;
 		$this->encrypted = $row->Encrypted;
