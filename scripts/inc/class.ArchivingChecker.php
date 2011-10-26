@@ -91,7 +91,7 @@ class ArchivingChecker
 	private function _check()
 	{
 		if (!$this->rmOrgID)
-		throw new Exception("No rmOrgID given");
+			throw new Exception("No rmOrgID given");
 
 		// if you need to inspect any of the temporary files that get created
 		// during the serving of an archived file, set this to true
@@ -103,79 +103,73 @@ class ArchivingChecker
 		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
 		$identifier = "{$this->fileTypeName}/{$this->rmOrgID}/{$this->uuid}";
 		LogMessage("bucket:{$endpoint->bucket} key:$identifier: Lookup on S3");
-		if (($info = $s3->getObjectInfo($endpoint->bucket, $identifier)) !== false)
-		{
-			LogMessage($info, "$identifier found on S3");
 
-			$s3Size = $info['size'];
-
-			$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
-			if (false === $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath()))
+		$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
+		if (false === $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath()))
 			throw new Exception("Failed to retrieve file");
 
-			$resPath = new TempPath($identifier.'.', null, $keepTemp);
+		$resPath = new TempPath($identifier.'.', null, $keepTemp);
 
-			$descriptorSpec = array(
+		$descriptorSpec = array(
 			0 => array('pipe', 'r'),
 			1 => array('pipe', 'w'),
 			2 => array('pipe', 'w')
-			);
+		);
 
-			$command = implode(
-				' ',
-				array(
-			 		'/usr/bin/archiving-convert',
-			 		'--source', $resPathS3->getPath(),
-					'--target', $resPath->getPath(),
-					'--key', base64_encode($endpoint->encryptionKey),
-					'--log.file_path', 'syslog',
-					'--log.level', 6,
-					'--log.syslog-tag', APP_NAME_,
-					'--temp-dir', config::get('app.TempDir', '/tmp')
-				)
-			);
-			LogMessage($command, 'command');
-			$pHandle = proc_open($command, $descriptorSpec, $pipes);
-			if (false == $pHandle)
+		$command = implode(
+			' ',
+			array(
+		 		'/usr/bin/archiving-convert',
+		 		'--source', $resPathS3->getPath(),
+				'--target', $resPath->getPath(),
+				'--key', base64_encode($endpoint->encryptionKey),
+				'--log.file_path', 'syslog',
+				'--log.level', 6,
+				'--log.syslog-tag', APP_NAME_,
+				'--temp-dir', config::get('app.TempDir', '/tmp')
+			)
+		);
+
+		LogMessage($command, 'command');
+		$pHandle = proc_open($command, $descriptorSpec, $pipes);
+		if (false == $pHandle)
 			throw new Exception('Failed opening archiving-convert');
 
+		$procStatus = proc_get_status($pHandle);
+		$pid = $procStatus['pid'];
+		// work around for http://bugs.php.net/bug.php?id=39992
+		posix_setpgid($pid, $pid);
+
+		$timeout = 30000; /* 30000 * 10ms (5mins)*/
+		LogVerbose($timeout, "Set convert-timeout (seconds*100)");
+
+		while ($procStatus['running'] && $timeout--)
+		{
+			usleep(10/*ms*/ * 1000);
 			$procStatus = proc_get_status($pHandle);
-			$pid = $procStatus['pid'];
+		}
+
+		fclose($pipes[0]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+
+		if (!$timeout && $procStatus['running'])
+		{
+			LogWarning("Archiving-convert timed-out; killing it");
+
 			// work around for http://bugs.php.net/bug.php?id=39992
-			posix_setpgid($pid, $pid);
+			posix_kill(-$pid, 9);
 
-			$timeout = (int)(5/*s*/ + ($s3Size / (5 * 1024 * 1024))) * 10;
-			LogVerbose($timeout, "Set convert-timeout (seconds*10)");
-
-			while ($procStatus['running'] && $timeout--)
-			{
-				usleep(100/*ms*/ *1000);
-				$procStatus = proc_get_status($pHandle);
-			}
-
-			fclose($pipes[0]);
-			fclose($pipes[1]);
-			fclose($pipes[2]);
-
-			if (!$timeout && $procStatus['running'])
-			{
-				LogWarning("Archiving-convert timed-out; killing it");
-
-				// proc_terminate($pHandle);
-				// work around for http://bugs.php.net/bug.php?id=39992
-				posix_kill(-$pid, 9);
-			}
-			elseif (0 !== $procStatus['exitcode'])
-			{
-				LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
-				throw new Exception("Failed 'convert' of file");
-			}
-			else
-			{
-				LogVerbose("Successfully converted the file");
-			}
+			throw new Exception("Failed 'convert' of file (timeout)");
+		}
+		elseif (0 !== $procStatus['exitcode'])
+		{
+			LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
+			throw new Exception("Failed 'convert' of file");
 		}
 		else
-		LogMessage("$identifier NOT found on EndPoint:{$endpoint->EndpointID}");
+		{
+			LogVerbose("Successfully converted the file");
+		}
 	}
 }
