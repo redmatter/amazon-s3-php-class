@@ -105,8 +105,15 @@ class ArchivingChecker
 		LogMessage("bucket:{$endpoint->bucket} key:$identifier: Lookup on S3");
 
 		$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
-		$retry = 3;
-		while (($retry-- > 0) && (false === $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath())))
+
+		$retry = 3; $res = false;
+		while ($retry-- && (false === ($res = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath()))))
+		{
+			sleep(1);
+			continue;
+		}
+
+		if ($res === false)
 			throw new Exception("Failed to retrieve file");
 
 		$resPath = new TempPath($identifier.'.', null, $keepTemp);
