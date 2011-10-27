@@ -42,15 +42,15 @@ class ArchivingCheckerApp extends BaseApp
 
 	/**
 	 * Ctor
-	 * 
+	 *
 	 * @param string $configfile conf
-	 * 
+	 *
 	 * @throws Exception
 	 */
 	public function __construct($configfile)
 	{
 		parent::__construct($configfile);
-		
+
 		if (false === ($this->_infp = fopen(CLI::get('--in', 'php://stdin'), 'r')))
 			throw new Exception('Unable to open input');
 
@@ -70,18 +70,20 @@ class ArchivingCheckerApp extends BaseApp
 			$uuid = trim($row[0]);
 			if (empty($uuid))
 				break;
-			
+
 			$rmOrgID = isset($row[1])? $row[1]: 1;
 			$fileType = isset($row[2])? $row[2]: 1;
-			if (false === fputcsv($this->_outfp, array($uuid, $rmOrgID, $fileType, ArchivingChecker::Check($fileType, $rmOrgID, $uuid))))
+			$date = isset($row[3])? $row[3]: 'unknown-date';
+			$host = isset($row[4])? $row[4]: 'unknown-host';
+			if (false === fputcsv($this->_outfp, array($uuid, $rmOrgID, $fileType, $date, $host, ArchivingChecker::Check($fileType, $rmOrgID, $uuid))))
 			{
 				LogError('Failed writing output');
 				exit(1);
 			}
 		}
-		
+
 		exit(0);
 	}
 }
 
-ArchivingCheckerApp::getInstance(CLI::get('--conf', dirname(__FILE__).'/checker.conf'))->run();
+ArchivingCheckerApp::getInstance(CLI::get('--conf', getenv('PWD').'/checker.conf'))->run();
