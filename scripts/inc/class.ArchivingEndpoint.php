@@ -1,8 +1,5 @@
 <?php
 
-// NoSniff
-
-
 /**
  * Controller using the REST architecture
  *
@@ -41,24 +38,27 @@ class ArchivingEndpoint
 	public $bucket;
 
 	private static $_objs = array();
-	
+
 	/**
 	 * Cached getter of instance
-	 * 
+	 *
 	 * @param dbc $dbc dbc
 	 * @param int $org org
 	 * @param int $id  id
-	 * 
+	 *
 	 * @return ArchivingEndpoint
 	 */
 	public static function Get($dbc, $org, $id)
 	{
 		if (!isset(self::$_objs[$id]))
-			self::$_objs[$id] = new ArchivingEndpoint($dbc, $org, $id);
-		
-		return self::$_objs[$id];
+			self::$_objs[$id] = array();
+
+		if (!isset(self::$_objs[$id][$org]))
+			self::$_objs[$id][$org] = new ArchivingEndpoint($dbc, $org, $id);
+
+		return self::$_objs[$id][$org];
 	}
-	
+
 	/**
 	 * updateFromDb
 	 *
@@ -85,42 +85,42 @@ class ArchivingEndpoint
 		$details_loaded = false;
 		switch($this->type)
 		{
-			case 's3':
-				$res = $this->_dbc->query("SELECT AccessKey, SecretKey, Bucket, Region FROM Archiving.StorageEndpointS3 WHERE ID={$this->id}");
-				if ($row = $res->fetch_object())
-				{
-					$this->accessKey = $row->AccessKey;
-					$this->secretKey = $row->SecretKey;
-					$this->bucket = $row->Bucket;
-					$this->region = $row->Region;
+		case 's3':
+			$res = $this->_dbc->query("SELECT AccessKey, SecretKey, Bucket, Region FROM Archiving.StorageEndpointS3 WHERE ID={$this->id}");
+			if ($row = $res->fetch_object())
+			{
+				$this->accessKey = $row->AccessKey;
+				$this->secretKey = $row->SecretKey;
+				$this->bucket = $row->Bucket;
+				$this->region = $row->Region;
 
-					$details_loaded = true;
-				}
-				break;
+				$details_loaded = true;
+			}
+			break;
 
-			case 'file-system':
-				$res = $this->_dbc->query("SELECT BasePath, SlowMedium FROM Archiving.StorageEndpointFileSystem WHERE ID={$this->id}");
-				if ($row = $res->fetch_object())
-				{
-					$this->basePath = $row->BasePath;
-					$this->slowMedium = $row->SlowMedium;
+		case 'file-system':
+			$res = $this->_dbc->query("SELECT BasePath, SlowMedium FROM Archiving.StorageEndpointFileSystem WHERE ID={$this->id}");
+			if ($row = $res->fetch_object())
+			{
+				$this->basePath = $row->BasePath;
+				$this->slowMedium = $row->SlowMedium;
 
-					$details_loaded = true;
-				}
-				break;
-				
-			case 's3-emulation':
-				$res = $this->_dbc->query("SELECT AccessKey, SecretKey, Bucket, BaseURI FROM Archiving.StorageEndpointS3Emulation WHERE ID={$this->id}");
-				if ($row = $res->fetch_object())
-				{
-					$this->accessKey = $row->AccessKey;
-					$this->secretKey = $row->SecretKey;
-					$this->bucket = $row->Bucket;
-					$this->baseURI = $row->BaseURI;
+				$details_loaded = true;
+			}
+			break;
 
-					$details_loaded = true;
-				}
-				break;
+		case 's3-emulation':
+			$res = $this->_dbc->query("SELECT AccessKey, SecretKey, Bucket, BaseURI FROM Archiving.StorageEndpointS3Emulation WHERE ID={$this->id}");
+			if ($row = $res->fetch_object())
+			{
+				$this->accessKey = $row->AccessKey;
+				$this->secretKey = $row->SecretKey;
+				$this->bucket = $row->Bucket;
+				$this->baseURI = $row->BaseURI;
+
+				$details_loaded = true;
+			}
+			break;
 		}
 
 		if (false === $details_loaded)
@@ -131,11 +131,11 @@ class ArchivingEndpoint
 
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param dbc $dbc        dbc
 	 * @param int $rmOrgId    org
 	 * @param int $endpointID id
-	 * 
+	 *
 	 * @throws Exception
 	 */
 	function __construct($dbc, $rmOrgId, $endpointID)
@@ -143,7 +143,7 @@ class ArchivingEndpoint
 		$this->_dbc = $dbc;
 		$this->org = $rmOrgId;
 		$this->id = $endpointID;
-		
+
 		if (false === $this->updateFromDb())
 			throw new Exception('Storage Endpoint not found');
 	}
