@@ -17,7 +17,7 @@ Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
 Requires: RM-%{appname}-common = %{version}-%{release}
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-15501, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-15602, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
 
 %package collectd
 Summary: Archiving CollectD
@@ -60,7 +60,7 @@ Group: RedMatter/Archiving
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: RM-php-rmapp >= 0.0.1-15359
+Requires: RM-php-rmapp >= 0.0.1-15914
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 
 # ------------ description---------------
@@ -160,6 +160,7 @@ cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 # Scripts
 cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
 cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
+cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
 cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-checker.conf
 
@@ -323,6 +324,7 @@ fi
 %defattr(-,root,root) 
 /usr/share/php/archiving/*
 /usr/bin/archiving-checker
+/usr/bin/archiving-checker-feed.sh
 /usr/share/archiving/archiving-checker.conf.sample
 /etc/rsyslog.d/11-archiving-checker.conf
 
