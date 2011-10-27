@@ -82,8 +82,6 @@ public:
 
 				LogDebug("Loading from directory...");
 
-				unsigned int item_count = max_items;
-
 				int items_added = 0, items_tidied = 0;
 
 				struct dirent *dp;
@@ -91,7 +89,7 @@ public:
 				{
 					if (*(dp->d_name) != '.') // leave hidden files, . and .. alone
 					{
-						if (!--item_count)
+						if (items_added == max_items)
 						{
 							LogMessage("Processed " << max_items << " messages, leaving the rest for later");
 							break;
