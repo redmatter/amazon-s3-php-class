@@ -39,16 +39,8 @@ class ArchivingChecker
 	 */
 	public static function Check($fileType, $rmOrgID, $uuid)
 	{
-		try
-		{
-			$checker = new ArchivingChecker($fileType, $rmOrgID, $uuid);
-			$checker->_check();
-			return 'OK';
-		}
-		catch (Exception $e)
-		{
-			return $e->getMessage();
-		}
+		$checker = new ArchivingChecker($fileType, $rmOrgID, $uuid);
+		return $checker->_check();
 	}
 
 	/**
@@ -90,118 +82,150 @@ class ArchivingChecker
 	 */
 	private function _check()
 	{
-		if (!$this->rmOrgID)
-			throw new Exception("No rmOrgID given");
-
-		// if you need to inspect any of the temporary files that get created
-		// during the serving of an archived file, set this to true
-		$keepTemp = ('true' === config::get('app.keep_temp_files', 'false'));
-
-		$retention = ArchivingRetention::Find(MySQLiConnection::Get('retention_ro'), $this->rmOrgID, $this->fileType, $this->uuid_hex);
-		$endpoint = ArchivingEndpoint::Get(MySQLiConnection::Get('coreapi_ro'), $this->rmOrgID, $retention->EndpointID);
-
-		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
-		$identifier = "{$this->fileTypeName}/{$this->rmOrgID}/{$this->uuid}";
-
-		$lc = new SysLogContext($identifier);
-
-		$lc->LogMessage("bucket:{$endpoint->bucket}: Lookup on S3");
-
-		$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
-
-		$retry = 3; $res = false;
-		while (true)
+		try
 		{
-			if (false !== ($res = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath())))
-			{
-				$md5 = md5_file($resPathS3->getPath());
-				$lc->LogVerbose($res->headers['hash'], 'MD5 from S3');
-				$lc->LogVerbose($md5, 'MD5 from downloaded copy');
+			$start_time = microtime(true);
 
-				if ($res->headers['hash'] === $md5)
+			$res = array(
+				'message' => 'Unknown Error',
+				'time-taken' => 0,
+				'time-taken-s3' => 0,
+				'time-taken-convert' => 0,
+				'retry-s3' => 0,
+				'bytes-s3' => 0,
+				'bytes' => 0
+			);
+
+			if (!$this->rmOrgID)
+				throw new Exception("No rmOrgID given");
+
+			// if you need to inspect any of the temporary files that get created
+			// during the serving of an archived file, set this to true
+			$keepTemp = ('true' === config::get('app.keep_temp_files', 'false'));
+
+			$retention = ArchivingRetention::Find(MySQLiConnection::Get('retention_ro'), $this->rmOrgID, $this->fileType, $this->uuid_hex);
+			$endpoint = ArchivingEndpoint::Get(MySQLiConnection::Get('coreapi_ro'), $this->rmOrgID, $retention->EndpointID);
+
+			$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+			$identifier = "{$this->fileTypeName}/{$this->rmOrgID}/{$this->uuid}";
+
+			$lc = new SysLogContext($identifier);
+
+			$lc->LogMessage("bucket:{$endpoint->bucket}: Lookup on S3");
+
+			$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
+
+			$retry = 0; $resS3 = false;
+			while (true)
+			{
+				$s3_start_time = microtime(true);
+				if (false !== ($resS3 = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath())))
 				{
-					$lc->LogVerbose('MD5 matched');
-					break;
+					$md5 = md5_file($resPathS3->getPath());
+					$lc->LogVerbose($resS3->headers['hash'], 'MD5 from S3');
+					$lc->LogVerbose($md5, 'MD5 from downloaded copy');
+
+					if ($resS3->headers['hash'] === $md5)
+					{
+						$lc->LogVerbose('MD5 matched');
+						$res['retry-s3'] = $retry;
+						$res['bytes-s3'] = filesize($resPathS3->getPath());
+						$res['time-taken-s3'] = (microtime(true) - $s3_start_time);
+						break;
+					}
+					else
+						$lc->LogWarning('MD5 mismatch');
+				}
+
+				if ($retry++ <= 3)
+				{
+					$lc->LogWarning('Download from S3 failed; retrying...');
+					sleep(1);
+					continue;
 				}
 				else
-					$lc->LogWarning('MD5 mismatch');
+				{
+					$lc->LogError('Download from S3 failed');
+					throw new Exception("Failed to retrieve file");
+				}
 			}
 
-			if ($retry--)
+			$convert_start_time = microtime(true);
+
+			$resPath = new TempPath($identifier.'.', null, $keepTemp);
+
+			$descriptorSpec = array(
+				0 => array('pipe', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w')
+			);
+
+			$command = implode(
+				' ',
+				array(
+					'/usr/bin/archiving-convert',
+					'--source', $resPathS3->getPath(),
+					'--target', $resPath->getPath(),
+					'--key', base64_encode($endpoint->encryptionKey),
+					'--log.file_path', 'syslog',
+					'--log.level', 6,
+					'--log.syslog-tag', APP_NAME_,
+					'--temp-dir', config::get('app.TempDir', '/tmp')
+				)
+			);
+
+			$lc->LogMessage($command, 'command');
+			$pHandle = proc_open($command, $descriptorSpec, $pipes);
+			if (false == $pHandle)
+				throw new Exception('Failed opening archiving-convert');
+
+			$procStatus = proc_get_status($pHandle);
+			$pid = $procStatus['pid'];
+			// work around for http://bugs.php.net/bug.php?id=39992
+			posix_setpgid($pid, $pid);
+
+			$timeout = 30000; /* 30000 * 10ms (5mins)*/
+			$lc->LogVerbose($timeout, "Set convert-timeout (seconds*100)");
+
+			while ($procStatus['running'] && $timeout--)
 			{
-				$lc->LogWarning('Download from S3 failed; retrying...');
-				sleep(1);
-				continue;
+				usleep(10/*ms*/ * 1000);
+				$procStatus = proc_get_status($pHandle);
+			}
+
+			fclose($pipes[0]);
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+
+			if (!$timeout && $procStatus['running'])
+			{
+				$lc->LogWarning("Archiving-convert timed-out; killing it");
+
+				// work around for http://bugs.php.net/bug.php?id=39992
+				posix_kill(-$pid, 9);
+
+				throw new Exception("Failed 'convert' of file (timeout)");
+			}
+			elseif (0 !== $procStatus['exitcode'])
+			{
+				$lc->LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
+				throw new Exception("Failed 'convert' of file");
 			}
 			else
 			{
-				$lc->LogError('Download from S3 failed');
-				throw new Exception("Failed to retrieve file");
+				$res['bytes'] = filesize($resPath->getPath());
+				$res['time-taken-convert'] = (microtime(true) - $convert_start_time);
+				$res['message'] = 'OK';
+				$lc->LogVerbose("Successfully converted the file");
 			}
+
+			$res['time-taken'] = (microtime(true) - $start_time);
 		}
-
-		$resPath = new TempPath($identifier.'.', null, $keepTemp);
-
-		$descriptorSpec = array(
-			0 => array('pipe', 'r'),
-			1 => array('pipe', 'w'),
-			2 => array('pipe', 'w')
-		);
-
-		$command = implode(
-			' ',
-			array(
-		 		'/usr/bin/archiving-convert',
-		 		'--source', $resPathS3->getPath(),
-				'--target', $resPath->getPath(),
-				'--key', base64_encode($endpoint->encryptionKey),
-				'--log.file_path', 'syslog',
-				'--log.level', 6,
-				'--log.syslog-tag', APP_NAME_,
-				'--temp-dir', config::get('app.TempDir', '/tmp')
-			)
-		);
-
-		$lc->LogMessage($command, 'command');
-		$pHandle = proc_open($command, $descriptorSpec, $pipes);
-		if (false == $pHandle)
-			throw new Exception('Failed opening archiving-convert');
-
-		$procStatus = proc_get_status($pHandle);
-		$pid = $procStatus['pid'];
-		// work around for http://bugs.php.net/bug.php?id=39992
-		posix_setpgid($pid, $pid);
-
-		$timeout = 30000; /* 30000 * 10ms (5mins)*/
-		$lc->LogVerbose($timeout, "Set convert-timeout (seconds*100)");
-
-		while ($procStatus['running'] && $timeout--)
+		catch(Exception $e)
 		{
-			usleep(10/*ms*/ * 1000);
-			$procStatus = proc_get_status($pHandle);
+			$res['message'] = $e->getMessage();
 		}
 
-		fclose($pipes[0]);
-		fclose($pipes[1]);
-		fclose($pipes[2]);
-
-		if (!$timeout && $procStatus['running'])
-		{
-			$lc->LogWarning("Archiving-convert timed-out; killing it");
-
-			// work around for http://bugs.php.net/bug.php?id=39992
-			posix_kill(-$pid, 9);
-
-			throw new Exception("Failed 'convert' of file (timeout)");
-		}
-		elseif (0 !== $procStatus['exitcode'])
-		{
-			$lc->LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
-			throw new Exception("Failed 'convert' of file");
-		}
-		else
-		{
-			$lc->LogVerbose("Successfully converted the file");
-		}
+		return $res;
 	}
 }

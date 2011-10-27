@@ -75,7 +75,9 @@ class ArchivingCheckerApp extends BaseApp
 			$fileType = isset($row[2])? $row[2]: 1;
 			$date = isset($row[3])? $row[3]: 'unknown-date';
 			$host = isset($row[4])? $row[4]: 'unknown-host';
-			if (false === fputcsv($this->_outfp, array($uuid, $rmOrgID, $fileType, $date, $host, ArchivingChecker::Check($fileType, $rmOrgID, $uuid))))
+
+			$res = ArchivingChecker::Check($fileType, $rmOrgID, $uuid);
+			if (false === fputcsv($this->_outfp, array($uuid, $rmOrgID, $fileType, $date, $host, $res['message'], $res['time-taken'], $res['time-taken-s3'], $res['time-taken-convert'], $res['retry-s3'], $res['bytes-s3'], $res['bytes'])))
 			{
 				LogError('Failed writing output');
 				exit(1);
