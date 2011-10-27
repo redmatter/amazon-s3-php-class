@@ -102,19 +102,43 @@ class ArchivingChecker
 
 		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
 		$identifier = "{$this->fileTypeName}/{$this->rmOrgID}/{$this->uuid}";
-		LogMessage("bucket:{$endpoint->bucket} key:$identifier: Lookup on S3");
+
+		$lc = new SysLogContext($identifier);
+
+		$lc->LogMessage("bucket:{$endpoint->bucket}: Lookup on S3");
 
 		$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
 
 		$retry = 3; $res = false;
-		while ($retry-- && (false === ($res = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath()))))
+		while (true)
 		{
-			sleep(1);
-			continue;
-		}
+			if (false !== ($res = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath())))
+			{
+				$md5 = md5_file($resPathS3->getPath());
+				$lc->LogVerbose($res->headers['hash'], 'MD5 from S3');
+				$lc->LogVerbose($md5, 'MD5 from downloaded copy');
 
-		if ($res === false)
-			throw new Exception("Failed to retrieve file");
+				if ($res->headers['hash'] === $md5)
+				{
+					$lc->LogVerbose('MD5 matched');
+					break;
+				}
+				else
+					$lc->LogWarning('MD5 mismatch');
+			}
+
+			if ($retry--)
+			{
+				$lc->LogWarning('Download from S3 failed; retrying...');
+				sleep(1);
+				continue;
+			}
+			else
+			{
+				$lc->LogError('Download from S3 failed');
+				throw new Exception("Failed to retrieve file");
+			}
+		}
 
 		$resPath = new TempPath($identifier.'.', null, $keepTemp);
 
@@ -138,7 +162,7 @@ class ArchivingChecker
 			)
 		);
 
-		LogMessage($command, 'command');
+		$lc->LogMessage($command, 'command');
 		$pHandle = proc_open($command, $descriptorSpec, $pipes);
 		if (false == $pHandle)
 			throw new Exception('Failed opening archiving-convert');
@@ -149,7 +173,7 @@ class ArchivingChecker
 		posix_setpgid($pid, $pid);
 
 		$timeout = 30000; /* 30000 * 10ms (5mins)*/
-		LogVerbose($timeout, "Set convert-timeout (seconds*100)");
+		$lc->LogVerbose($timeout, "Set convert-timeout (seconds*100)");
 
 		while ($procStatus['running'] && $timeout--)
 		{
@@ -163,7 +187,7 @@ class ArchivingChecker
 
 		if (!$timeout && $procStatus['running'])
 		{
-			LogWarning("Archiving-convert timed-out; killing it");
+			$lc->LogWarning("Archiving-convert timed-out; killing it");
 
 			// work around for http://bugs.php.net/bug.php?id=39992
 			posix_kill(-$pid, 9);
@@ -172,12 +196,12 @@ class ArchivingChecker
 		}
 		elseif (0 !== $procStatus['exitcode'])
 		{
-			LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
+			$lc->LogError("Failed to convert file copied from S3 - exit-code:{$procStatus['exitcode']}");
 			throw new Exception("Failed 'convert' of file");
 		}
 		else
 		{
-			LogVerbose("Successfully converted the file");
+			$lc->LogVerbose("Successfully converted the file");
 		}
 	}
 }
