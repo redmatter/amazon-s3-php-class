@@ -102,7 +102,8 @@ int main(int argc, char *argv[])
 	char longdate[64], pathdate[9];
 
 	int emailaddresscount = 1;
-	char *emailaddress[] = { "BESUser@galaxkey.com" };
+	char *defemailaddress[] = { "BESUser@galaxkey.com" };
+	char **emailaddress = defemailaddress;
 
 	char *Type = NULL;
 	char *To = NULL;
@@ -183,7 +184,8 @@ int main(int argc, char *argv[])
 			case 'e':
 			{
 				emailaddresscount = 0;
-				for (char *ptr = strtok(argv[arg+1], ","); ptr != NULL; ptr = strtok(NULL, ","), ++emailaddresscount);
+				char *argcopy = strdup(argv[arg+1]);
+				for (char *ptr = strtok(argcopy, ",\""); ptr != NULL; ptr = strtok(NULL, ",\""), ++emailaddresscount);
 				if (emailaddresscount == 0)
 				{
 					fprintf(stderr, "Invalid email address list: %s. Must be quoted, eg \"a@r.com,b@r.com\"\n", argv[arg+1]);
@@ -191,12 +193,15 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					*emailaddress = (char *) malloc (emailaddresscount*sizeof(char));
+					free(argcopy);
+					char *argcopy = strdup(argv[arg+1]);
+					emailaddress = (char **) malloc (emailaddresscount*sizeof(char*));
 					int k = 0;
-					for (char *ptr = strtok(argv[arg+1], ","); ptr != NULL; ptr = strtok(NULL, ","), ++k)
+					for (char *ptr = strtok(argcopy, ",\""); ptr != NULL; ptr = strtok(NULL, ",\""), ++k)
 						emailaddress[k] = strdup(ptr);
 					fprintf(stdout, "using list of %d email addresses\n", emailaddresscount);
 				}
+				free(argcopy);
 				break;
 			}
 
