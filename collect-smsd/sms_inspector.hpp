@@ -220,18 +220,14 @@ namespace app
 						}
 						else
 						{
-							LogCritical("sms:" << archivable_sms->get_uuid() << " - No rmOrgID found");
+							LogWarning("sms:" << archivable_sms->get_uuid() << " - No rmOrgID found");
 							archivable_sms->set_done(true);
 
-							int retry = 0;
-							while (!internal_db_.save(archivable_sms) && !app::quit)
-							{
-								LogMessage(*archivable_sms << " [retry: " << retry << "] Save states to DB failed; retrying in 15 seconds ...");
-								boost::this_thread::sleep(boost::posix_time::seconds(15));
-								retry++;
-							}
+							if (!internal_db_.save(archivable_sms))
+								LogWarning(*archivable_sms << " Save states to DB failed; queueing for retry");
+							else
+								archivable_busy_set_.remove(archivable_sms);
 
-							archivable_busy_set_.remove(archivable_sms);
 							continue;
 						}
 
@@ -271,8 +267,7 @@ namespace app
 						}
 						catch(rml::exception &e)
 						{
-							LogWarning("sms:" << archivable_sms->get_uuid() << " - policy cache lookup (" << rmOrgID << ",-2) threw an exception: " << e.what());
-							LogWarning("sms:" << archivable_sms->get_uuid() << " - we'll try again later");
+							LogWarning("sms:" << archivable_sms->get_uuid() << " - policy cache lookup (" << rmOrgID << ",-2) threw an exception: " << e.what() << ". queuing for retry.");
 							continue;
 						}
 
@@ -286,12 +281,10 @@ namespace app
 						archivable_sms->set_policy_id(looked_up_policy_id);
 						archivable_sms->set_current_state(archiving::archivable::state::inspected);
 
-						int retry = 0;
-						while (!internal_db_.save(archivable_sms) && !app::quit)
+						if (!internal_db_.save(archivable_sms))
 						{
-							LogMessage(*archivable_sms << " [retry: " << retry << "] Save states to DB failed; retrying in 15 seconds ...");
-							boost::this_thread::sleep(boost::posix_time::seconds(15));
-							retry++;
+							LogWarning(*archivable_sms << " Save states to DB failed; queueing for retry.");
+							continue;
 						}
 
 						out_channel.produce(archivable_sms);

@@ -338,7 +338,7 @@ int main(int argc, char* argv[]) try
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
-			if(more_to_load_from_db && !(ticks % 10))
+			if(true /*more_to_load_from_db*/ && !(ticks % 10))
 				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
 						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
 

@@ -89,7 +89,7 @@ public:
 				{
 					if (*(dp->d_name) != '.') // leave hidden files, . and .. alone
 					{
-						if (items_added == max_items)
+						if (items_added == (int) max_items)
 						{
 							LogMessage("Processed " << max_items << " messages, leaving the rest for later");
 							break;
