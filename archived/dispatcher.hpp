@@ -95,7 +95,7 @@ public:
 						continue;
 					}
 
-					if(opdata->p_detail->state == operation_state::put_file_convert_ok) {
+					if(opdata->p_detail->state == operation_state::put_file_convert_ok || opdata->p_detail->state == operation_state::put_file_save) {
 						opdata->p_detail->state = operation_state::put_file_save;
 						operation_channel_.produce(
 								storage::operation_ex(
