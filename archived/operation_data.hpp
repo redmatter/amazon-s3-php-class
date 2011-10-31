@@ -139,6 +139,109 @@ struct operation_state
 		all_done               = (0x0f << 8) | (operation_coarse::finished << 4) | operation_outcome::ok
 	};
 
+	/**
+	 * Silly, but helps debugging!
+	 */
+	static inline const char* to_string(const operation_state_t& s)
+	{
+		switch(s)
+		{
+		case init:
+			return "init";
+			break;
+
+		case get_received:
+			return "get_received";
+			break;
+
+		case get_file_retrieve:
+			return "get_file_retrieve";
+			break;
+		case get_file_retrieve_ok:
+			return "get_file_retrieve_ok";
+			break;
+		case get_file_retrieve_err:
+			return "get_file_retrieve_err";
+			break;
+
+		case get_file_convert:
+			return "get_file_convert";
+			break;
+		case get_file_convert_ok:
+			return "get_file_convert_ok";
+			break;
+		case get_file_convert_err:
+			return "get_file_convert_err";
+			break;
+
+		case get_file_send:
+			return "get_file_send";
+			break;
+		case get_file_sent_ok:
+			return "get_file_sent_ok";
+			break;
+		case get_file_sent_err:
+			return "get_file_sent_err";
+			break;
+
+
+		// --------------------------
+
+
+		case put_received:
+			return "put_received";
+			break;
+
+		case put_file_convert:
+			return "put_file_convert";
+			break;
+		case put_file_convert_ok:
+			return "put_file_convert_ok";
+			break;
+		case put_file_convert_err:
+			return "put_file_convert_err";
+			break;
+
+		case put_file_save:
+			return "put_file_save";
+			break;
+		case put_file_save_ok:
+			return "put_file_save_ok";
+			break;
+		case put_file_save_err:
+			return "put_file_save_err";
+			break;
+
+		case put_retention_save:
+			return "put_retention_save";
+			break;
+		case put_retention_save_ok:
+			return "put_retention_save_ok";
+			break;
+		case put_retention_save_err:
+			return "put_retention_save_err";
+			break;
+
+		case put_usage_save:
+			return "put_usage_save";
+			break;
+		case put_usage_save_ok:
+			return "put_usage_save_ok";
+			break;
+		case put_usage_save_err:
+			return "put_usage_save_err";
+			break;
+
+		// -------------------------
+
+		case all_done:
+			return "all_done";
+			break;
+		}
+
+		return "unknown";
+	}
+
 	static inline operation_state_t make(const operation_state_t& state, const operation_outcome::operation_outcome_t& outcome)
 	{
 		return operation_state_t((state & 0xff0) | outcome);
@@ -238,7 +341,7 @@ struct operation_data
 			clear_size(clear_size), real_size(real_size), current_file_format(current_file_format),
 			files_map(files_map), database_id(database_id), state(state), retry(retry)
 		{
-			LogVerbose("Loading "<<identifier);
+			LogVerbose("Loading "<<identifier<<" state:"<<operation_state::to_string(state));
 		}
 
 		detail(const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org, const std::string& uuid) :
