@@ -265,6 +265,16 @@ struct operation_data
 
 	// -------------------- functions -----------------
 
+	inline void hibernate()
+	{
+		try {
+			get_tmp_fstream()->close();
+		}
+		catch(const std::exception& e) {
+			LogWarning(p_detail->identifier<<" Failed to hibernate; err:"<<e.what());
+		}
+	}
+
 	rml::utils::tmp_fstream::pointer get_tmp_fstream()
 	{
 		if(p_detail->current_file_format == types::file_format::unknown)
