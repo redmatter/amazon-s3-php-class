@@ -48,6 +48,8 @@ public:
 
 	void queue_for_retention_save(operation_data::pointer opdata, const storage::operation_result::operation_result_t& storage_opr_result)
 	{
+		opdata->hibernate();
+
 		if(storage_opr_result == storage::operation_result::success) {
 			LogMessage(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
 			opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
