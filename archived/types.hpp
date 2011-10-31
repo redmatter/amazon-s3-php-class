@@ -462,9 +462,6 @@ class metadata : public std::multimap<std::string, std::string>
 				"\0"
 		};
 
-		LogDebug("sizeof(single_occurance_keys)  "<<sizeof(single_occurance_keys));
-		LogDebug("key: "<<key);
-
 		bool validate_single_occurance = false;
 		for(unsigned int i = 0; '\0' != single_occurance_keys[i][0]; ++i) {
 			if(key == single_occurance_keys[i]) {
@@ -504,9 +501,6 @@ public:
 
 	inline void add(const std::string& key, const std::string& value)
 	{
-		LogDebug("key: "<<key);
-		LogDebug("value: "<<value);
-
 		if(!validate(key))
 			THROW_RML_EXCEPTION("metadata key '"<<key<<"' can occur only once");
 
@@ -535,7 +529,6 @@ public:
 			} while(first_itr != last);
 
 			headers.insert(std::make_pair(map_key, map_value));
-			LogDebug(map_key<<'='<<map_value);
 		}
 	}
 
@@ -574,8 +567,6 @@ private:
 				assert(*cr_itr == '\r');
 				line.erase(cr_itr);
 			}
-
-			LogDebug("line: "<<++line_number<<": "<<line);
 
 			std::size_t colon_pos;
 			if((colon_pos = line.find(": ")) == std::string::npos) {
