@@ -61,15 +61,19 @@ public:
 			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
 				error = true;
 				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
-				LogError(opdata->p_detail->identifier<<": Failed store after "<<opdata->p_detail->retry<<" retry(s)");
+				LogError(opdata->p_detail->identifier<<": Failed store after "<<int(opdata->p_detail->retry)<<" retry(s)");
 			}
 			else
-				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::unknown); // setup retry
+				opdata->p_detail->state = operation_state::put_file_convert_ok; // setup retry
 
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
-			if(!error)
-				convert_done_channel_.produce(opdata);
+			if(!error) {
+				if (!convert_done_channel_.produce(opdata))
+					LogWarning(opdata->p_detail->identifier<<": setup of retry failed");
+			}
+			else
+				LogError(opdata->p_detail->identifier<<": retry > 3; discarding...");
 		}
 	}
 
