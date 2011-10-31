@@ -341,6 +341,8 @@ struct operation_data
 			clear_size(clear_size), real_size(real_size), current_file_format(current_file_format),
 			files_map(files_map), database_id(database_id), state(state), retry(retry)
 		{
+			LogDebug("Loading "<<identifier<<" *original* state:"<<operation_state::to_string(state));
+			state = operation_state::make(state, operation_outcome::unknown);
 			LogVerbose("Loading "<<identifier<<" state:"<<operation_state::to_string(state));
 		}
 
