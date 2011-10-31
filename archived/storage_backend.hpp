@@ -203,7 +203,8 @@ protected:
 			p_tmpfs_(p_tmpfs),
 			to_be_copied(p_tmpfs->get_size())
 		{
-			p_tmpfs_->seekg(0);
+			p_tmpfs_->re_open();
+
 			CryptoPP::Weak1::MD5 hash;
 			CryptoPP::FileSource f(*p_tmpfs_, true,
 					new CryptoPP::HashFilter(hash,
