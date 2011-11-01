@@ -194,6 +194,7 @@ public:
 
 					if((archivable_cdr->get_type() != archiving::archivable::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
 						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
+						archivable_cdr->hibernate();
 						out_channel.produce(archivable_cdr);
 						continue;
 					}
@@ -419,7 +420,7 @@ public:
 													throw rml::exception("Quit flagged during database retry");
 											}
 
-
+											archivable_recording->hibernate();
 											out_channel.produce(archivable_recording);
 										}
 										catch(const std::exception& e) {
@@ -524,6 +525,7 @@ public:
 								throw rml::exception("Quit flagged during database retry");
 						}
 
+						archivable_cdr->hibernate();
 						out_channel.produce(archivable_cdr);
 					}
 				}
