@@ -110,7 +110,7 @@ public:
 						LogDebug("Ignoring directory "<<file_path);
 						continue;
 					}
-					else if((time(0) - s.st_ctime) < 3) // lets ignore any freshies for 3secs
+					else if((time(0) - s.st_ctime) <= 30) // lets ignore any freshies for 30secs
 						continue;
 
 					if (!is_loaded_(file_path)) {
