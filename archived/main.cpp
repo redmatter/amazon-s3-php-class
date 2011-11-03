@@ -292,6 +292,10 @@ int main(int argc, char **argv) try
 			if(have_more_to_load && (0 == (ticker % 20)))
 				internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
 
+
+			if(!(ticker % 60))
+				LogMessage("Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
+
 			ticker++;
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));

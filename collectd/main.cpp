@@ -348,6 +348,9 @@ int main(int argc, char* argv[]) try
 					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
 			}
 
+			if(!(ticks % 60))
+				LogMessage("IN:"<<in_channel.count()<<" OUT:"<<out_channel.count()<<" DBLoading:"<<RML_YES_NO(more_to_load_from_db));
+
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 
 			ticks++;
