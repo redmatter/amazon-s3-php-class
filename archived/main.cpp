@@ -294,7 +294,7 @@ int main(int argc, char **argv) try
 
 
 			if(!(ticker % 60))
-				LogMessage("Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
+				LogMessage("[statistics] Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
 
 			ticker++;
 
