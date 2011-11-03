@@ -424,10 +424,15 @@ public:
 											out_channel.produce(archivable_recording);
 										}
 										catch(const std::exception& e) {
-											LogWarning("Failed producing archivable item; error: "<<e.what());
-											// add a flag to signal this
+											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
+											if(is_recording_active == "true")
+												LogError("Failed to open recording file; "<<e.what());
+											else
+												LogVerbose("Recording never started (rmCallRecordingActive_X == false); ignoring.");
 
+											// add a flag to signal this
 											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value("true");
+
 											modified = true;
 										}
 									}
