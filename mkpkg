@@ -8,10 +8,10 @@ else
 	spec=$( echo $spec | cut -d ' ' -f1 )
 fi
 
-nameroot=$( echo $spec | awk -F'.spec' '{print $1}' )     # name from spec-filename
+nameroot=$( echo $spec | awk -F'.spec' '{print $1}' )           # name from spec-filename
 
-pkg_version=$( awk '/^\%define +version +/ {print $NF}' ) # lookup in spec file
-pkg_version=${pkg_version:-0.0.1}                         # failed? use 0.0.1
+pkg_version=$( awk '/^\%define +version +/ {print $NF}' $spec ) # lookup in spec file
+pkg_version=${pkg_version:-0.0.1}                               # failed? use 0.0.1
 
 name=$nameroot-$pkg_version
 
