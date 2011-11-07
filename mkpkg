@@ -1,21 +1,38 @@
 #!/bin/sh
 
-nameroot=RM-archiving
-name=$nameroot-0.0.1
+spec="$( echo *.spec )"
+if [ "${spec:0:2}" = "*." ]; then
+	echo spec file not found in the current directory.
+	exit 1;
+else
+	spec=$( echo $spec | cut -d ' ' -f1 )
+fi
 
-#rm -rf $name
+nameroot=$( echo $spec | awk -F'.spec' '{print $1}' )     # name from spec-filename
+
+pkg_version=$( awk '/^\%define +version +/ {print $NF}' ) # lookup in spec file
+pkg_version=${pkg_version:-0.0.1}                         # failed? use 0.0.1
+
+name=$nameroot-$pkg_version
+
+ver=`svnversion | sed "s/M//g"`
+echo "Version $ver"
+
+# honour rpmmacros ( override using ~/.rpmmacros )
+__rpm="rpm --define '%name $nameroot' --define '%version $pkg_version'"
+src_dir="$( eval $__rpm --eval '%{echo:%{_sourcedir}}' 2>&1 )"
+rpm_dir="$( eval $__rpm --eval '%{echo:%{_rpmdir}/%{_arch}}' 2>&1 )"
+
 rm -rf *.rpm
 rm -rf /tmp/$name
-rm -rf /usr/src/redhat/RPMS/x86_64/$nameroot-*
+rm -rf $rpm_dir/$nameroot-*
 mkdir /tmp/$name
 cp -r * /tmp/$name
 pushd /tmp
-tar -czf /usr/src/redhat/SOURCES/$name.tar.gz --exclude=.svn $name/*
+tar -czf $src_dir/$name.tar.gz --exclude=.svn $name/*
 rm -rf $name
 popd
-ver=`svnversion | sed "s/M//g"`
-echo "Version $ver"
-sed "s/Release: 0/Release: $ver/g" $nameroot.spec > $nameroot.spec.tmp
-rpmbuild -bb $nameroot.spec.tmp
-rm -rf $nameroot.spec.tmp
-cp -fv /usr/src/redhat/RPMS/x86_64/$nameroot-* .
+sed "s/Release: 0/Release: $ver/g" $spec > /tmp/$spec.tmp
+rpmbuild -bb /tmp/$spec.tmp
+rm -f /tmp/$spec.tmp
+cp -fv $rpm_dir/$nameroot-* .
