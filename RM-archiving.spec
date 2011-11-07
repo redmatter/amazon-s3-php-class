@@ -218,19 +218,19 @@ fi
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 %post collectd
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 %post collect-smsd
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
@@ -241,16 +241,16 @@ fi
 #%post migrationd
 #/sbin/chkconfig --add rmmigrationd
 #/sbin/chkconfig rmmigrationd on
-#[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+#[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 %post scripts
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || echo "**WARNING** rsyslog not found; consider installing it."
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 
 # ----------
 
 %postun
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog restart || /bin/true
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || /bin/true
 
 # ----------
 
