@@ -414,6 +414,24 @@ struct operation_data
 		return ret;
 	}
 
+	void remove_tmp_fstream(const types::file_format::file_format_t format, const rml::utils::tmp_fstream::pointer& fs = rml::utils::tmp_fstream::pointer())
+	{
+		if(p_detail->current_file_format == format)
+			throw rml::exception("Removal of current format nor allowed");
+
+		const files_map_t::iterator& end = p_detail->files_map.end();
+		files_map_t::iterator itr = p_detail->files_map.find(format);
+		if(itr != end) {
+			if(fs && (fs.get() != itr->second.get())) {
+				LogWarning("removal aborted; requested object did not match");
+				return;
+			}
+
+			itr->second->set_persistent(false);
+			p_detail->files_map.erase(itr);
+		}
+	}
+
 	struct pointer_compare_lt
 	{
 		bool operator()(const pointer& lhs, const pointer& rhs) const

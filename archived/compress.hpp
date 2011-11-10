@@ -90,18 +90,10 @@ public:
 		if(types::file_format::is_compressed(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already compressed");
 
-		try {
-			compress(opdata->get_tmp_fstream(),
-					opdata->get_tmp_fstream(compressed_format, true, true),
-					opdata->p_detail->current_file_format,
-					opdata->p_detail->identifier);
-		}
-		catch(...) {
-			// TODO device an auto cleanup of the compressed_format; this will only close the file handle, still leaves file around till we either retry or shutdown process
-			opdata->get_tmp_fstream()->close();
-			opdata->get_tmp_fstream(compressed_format)->close();
-			throw;
-		}
+		compress(opdata->get_tmp_fstream(),
+				opdata->get_tmp_fstream(compressed_format, true, true),
+				opdata->p_detail->current_file_format,
+				opdata->p_detail->identifier);
 
 		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = compressed_format;

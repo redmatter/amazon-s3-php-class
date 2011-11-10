@@ -45,6 +45,12 @@ public:
 	{
 	}
 
+	static void cleanup_step(app::operation_data::pointer& opdata, const app::types::file_format::file_format_t& failed_format)
+	{
+		opdata->get_tmp_fstream()->close();
+		opdata->remove_tmp_fstream(failed_format);
+	}
+
 	void run()
 	{
 		app::impl::crypto crypto;
@@ -92,6 +98,8 @@ public:
 							break;
 						}
 
+						rml::utils::sentry sentry(boost::bind(cleanup_step, opdata, next.second));
+
 						// lets convert
 						switch(next.first) {
 
@@ -122,9 +130,10 @@ public:
 						LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
 
 						opdata->p_detail->current_file_format = next.second;
+						sentry.cancel();
 					}
 					catch(const std::exception& e) {
-						LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first));
+						LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first)<<" error:"<<e.what());
 					}
 				}
 

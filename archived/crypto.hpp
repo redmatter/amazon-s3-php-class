@@ -127,19 +127,11 @@ public:
 		if(types::file_format::is_encrypted(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already encrypted");
 
-		try {
-			encrypt(opdata->get_tmp_fstream(),
-					opdata->get_tmp_fstream(encrypted_format, true, true),
-					opdata->p_detail->current_file_format,
-					opdata->p_detail->identifier,
-					opdata->p_detail->p_endpoint->encryption_key);
-		}
-		catch(...) {
-			// TODO device an auto cleanup of the encrypted_format; this will only close the file handle, still leaves file around till we either retry or shutdown process
-			opdata->get_tmp_fstream()->close();
-			opdata->get_tmp_fstream(encrypted_format)->close();
-			throw;
-		}
+		encrypt(opdata->get_tmp_fstream(),
+				opdata->get_tmp_fstream(encrypted_format, true, true),
+				opdata->p_detail->current_file_format,
+				opdata->p_detail->identifier,
+				opdata->p_detail->p_endpoint->encryption_key);
 
 		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = encrypted_format;
