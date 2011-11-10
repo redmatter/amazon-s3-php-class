@@ -557,7 +557,6 @@ private:
 	void read_data(std::istream& istr)
 	{
 		std::string line;
-		int line_number = 0;
 		while(std::getline(istr, line)) {
 			if(line[0] == '\r')
 				break;
