@@ -181,16 +181,16 @@ namespace app
 					{
 						// pull XML metadata out of SMS and add it to archivable
 
+						pugi::xml_document doc;
+
 						rml::utils::tmp_fstream::pointer ifs = archivable_sms->get_fstream_ptr();
 						ifs->re_open();
 
-						pugi::xml_document doc;
+						pugi::xml_parse_result res = doc.load(*ifs);
+						if (!res)
+							THROW_RML_EXCEPTION("Error parsing SMS; error:" << res.description());
 
-						{
-							pugi::xml_parse_result res = doc.load(*ifs);
-							if (!res)
-								THROW_RML_EXCEPTION("Error parsing SMS; error:" << res.description());
-						}
+						archivable_sms->hibernate();
 
 						// start epoch
 
