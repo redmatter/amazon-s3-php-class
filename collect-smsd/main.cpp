@@ -302,6 +302,12 @@ int main(int argc, char* argv[]) try
 		bool more_to_load_from_db = false;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 
+		// make sure we pre-load the outstanding items before the directory loader finds the file on disk and
+		// we end up with a double-load and a key clash on insert when the archivable is saved ...
+		// the function loads max 100 at a time, so we need to loop round to get them all into play
+		while (more_to_load_from_db)
+			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
