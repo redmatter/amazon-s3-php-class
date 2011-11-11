@@ -60,7 +60,8 @@ void usage()
 CHAR *chartoCHAR(iconv_t handle, const char *str)
 {
 	size_t inlen = strlen(str), outlen = inlen*sizeof(CHAR);
-	CHAR *outbuff = (CHAR*) malloc(outlen+sizeof(CHAR)), *outbufptr = outbuff;
+	CHAR *outbuff = (CHAR*) malloc(outlen+sizeof(CHAR));
+	CHAR *outbufptr = outbuff;
 
 	if (!outbuff)
 	{
