@@ -283,7 +283,26 @@ namespace app
 
 						if (!internal_db_.save(archivable_sms))
 						{
-							LogWarning(*archivable_sms << " Save states to DB failed; queueing for retry.");
+							LogWarning(*archivable_sms << " Save states to DB failed; checking if we already processed it ...");
+
+							try
+							{
+								archiving::archivable::pointer another_sms = internal_db_.load_archivable_by_uuid(archivable_sms->get_uuid());
+
+								LogWarning(*archivable_sms << " Yes we did - state " << another_sms->get_current_state());
+
+								if (another_sms->get_current_state() == archiving::archivable::state::stored ||
+									another_sms->get_current_state() == archiving::archivable::state::discarded)
+								{
+									LogWarning(*archivable_sms << " Trying to delete it");
+									another_sms->set_done(another_sms->get_current_state() == archiving::archivable::state::discarded);
+								}
+							}
+							catch(rml::exception &e)
+							{
+								LogWarning("sms:" << archivable_sms->get_uuid() << " threw an exception: " << e.what() << "so it doesn't exist, or there was a DB error, so we'll queue for retry");
+							}
+
 							continue;
 						}
 

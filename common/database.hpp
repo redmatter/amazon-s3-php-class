@@ -328,13 +328,18 @@ public:
 	}
 
 	/**
-	 * Load archivable by its database id
+	 * Load archivable by a key/value pair
 	 *
-	 * @param id
+	 * @param key
+	 * @param value
 	 * @param p_parent
 	 * @return
 	 */
-	archiving::archivable::pointer load_archivable_by_id(const uint64_t& id, archiving::archivable::pointer p_parent = archiving::archivable::pointer())
+	archiving::archivable::pointer load_archivable_by_key_value(
+			const std::string &key,
+			const std::string &value,
+			archiving::archivable::pointer p_parent
+			)
 	{
 		try{
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
@@ -356,17 +361,16 @@ public:
 					" StartEpoch,"
 					" HostName,"
 					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID,"
-					" UserIDs "
+					" UserIDs,"
+					" ID "
 					"FROM ArchivingInternal." << tableName_ << " "
-					"WHERE ID=%0:ID";
+					"WHERE %0:key=%1:value";
 			query.parse();
+			query.store(key, value);
 
-			mysqlpp::SQLQueryParms qp;
-			qp << id;
+			std::cout << "SQL: "<<query.str() << std::endl;
 
-			std::cout << "SQL: "<<query.str(qp) << std::endl;
-
-			mysqlpp::UseQueryResult res = query.use(qp);
+			mysqlpp::UseQueryResult res = query.use();
 			if(mysqlpp::Row row = res.fetch_row()) {
 				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
 					throw rml::exception("No parent given");
@@ -389,6 +393,7 @@ public:
 						archiving::archivable::state::from_string(row[6].c_str())
 					));
 
+				const uint64_t& id = rml::utils::strtoull(row[16].c_str(), 0ULL);
 				p_arc->set_database_id(id);
 				archiving::owner_info owner((archiving::org_id_t)rml::utils::strtoull(row[2].c_str(), 0ULL));
 				if(row[15] != "NULL") {
@@ -410,7 +415,39 @@ public:
 			LogWarning("Exception: "<<e.what());
 		}
 
-		THROW_RML_EXCEPTION("Archivable object not found; ID:"<<id);
+		THROW_RML_EXCEPTION("Archivable object not found: " << key << " == " << value);
+	}
+
+	/**
+	 * Load archivable by its database id
+	 *
+	 * @param id
+	 * @param p_parent
+	 * @return
+	 */
+	archiving::archivable::pointer load_archivable_by_id(
+			const uint64_t& id,
+			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
+			)
+	{
+		std::ostringstream oss;
+		oss << id;
+		return load_archivable_by_key_value (std::string("ID"), oss.str(), p_parent);
+	}
+
+	/**
+	 * Load archivable by its uuid
+	 *
+	 * @param uuid
+	 * @param p_parent
+	 * @return
+	 */
+	archiving::archivable::pointer load_archivable_by_uuid(
+			const std::string &uuid,
+			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
+			)
+	{
+		return load_archivable_by_key_value (std::string("UUID"), uuid, p_parent);
 	}
 
 	struct purgedef
