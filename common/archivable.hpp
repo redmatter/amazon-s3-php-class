@@ -383,6 +383,21 @@ public:
 		hibernate();
 	}
 
+	inline void move_to_subdir(const std::string& sub_dir)
+	{
+		rml::utils::tmp_fstream::pointer p_fs;
+		if(!is_modified_)
+			p_fs = p_fstream_;
+		else
+			p_fs.reset(new rml::utils::tmp_fstream(file_path_, std::fstream::in | std::fstream::out | std::fstream::binary));
+
+		const std::string& new_path(p_fs->get_directory()+"/"+sub_dir+"/"+p_fs->get_filename(true));
+		if(!p_fs->safe_move(new_path))
+			LogWarning("Moving file failed; ignoring...");
+		else
+			file_path_ = new_path;
+	}
+	
 	void set_originator_uuid(const std::string& new_originator_uuid)
 	{
 		originator_uuid = new_originator_uuid;
