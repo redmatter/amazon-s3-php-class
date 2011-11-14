@@ -68,7 +68,7 @@ CHAR *chartoCHAR(iconv_t handle, const char *str)
 		fprintf(stderr, "chartoCHAR: error allocating %lu bytes\n", (unsigned long) outlen+sizeof(CHAR));
 		exit(1);
 	}
-	else if (iconv (handle, &str, &inlen, (char **) &outbufptr, &outlen) == (size_t) -1)
+	else if (iconv (handle, (char **) &str, &inlen, (char **) &outbufptr, &outlen) == (size_t) -1)
 	{
 		fprintf(stderr, "chartoCHAR: iconv failed: %s\n", strerror(errno));
 		exit(1);
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
 					chartoCHAR(ichandle, longdate),
 					chartoCHAR(ichandle, longdate),
 					chartoCHAR(ichandle, Status ? Status : (Outgoing ? (include_dead_messages ? status[rand()%3] : "Tx_Sent") : "Rx_Received")),
-					chartoCHAR(ichandle, Update ? Update : ((include_dead_messages || (rand()&7)) ? "Update" : "Add")),
+					chartoCHAR(ichandle, Update ? Update : ((include_dead_messages && !(rand()&7)) ? "Add" : "Update")),
 					chartoCHAR(ichandle, ID ? ID : idbuff)
 			};
 
