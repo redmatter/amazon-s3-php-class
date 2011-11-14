@@ -682,7 +682,7 @@ public:
 
 		if(is_modified_) {
 			if( 0 != chmod(file_path_.c_str(), 0666) )
-				LogWarning(*this<<' '<<file_path_ << " chmod for unlink failed - err:" << strerror(errno));
+				LogVerbose(*this<<' '<<file_path_ << " chmod for unlink failed - err:" << strerror(errno));
 
 			if( 0 != unlink(file_path_.c_str()) )
 				LogWarning(*this<<' '<<file_path_ << " unlink failed - err:" << strerror(errno));
