@@ -447,7 +447,7 @@ public:
 			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
 			)
 	{
-		return load_archivable_by_key_value (std::string("UUID"), uuid, p_parent);
+		return load_archivable_by_key_value (std::string("UUID"), std::string("\"" + uuid + "\""), p_parent);
 	}
 
 	struct purgedef
