@@ -364,13 +364,12 @@ public:
 					" UserIDs,"
 					" ID "
 					"FROM ArchivingInternal." << tableName_ << " "
-					"WHERE %0:key=%1:value";
+					"WHERE %0:key = %1:value";
 			query.parse();
-			query.store(key, value);
 
-			std::cout << "SQL: "<<query.str() << std::endl;
+			std::cout << "SQL: "<<query.str(key, value) << std::endl;
 
-			mysqlpp::UseQueryResult res = query.use();
+			mysqlpp::UseQueryResult res = query.use(key, value);
 			if(mysqlpp::Row row = res.fetch_row()) {
 				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
 					throw rml::exception("No parent given");
