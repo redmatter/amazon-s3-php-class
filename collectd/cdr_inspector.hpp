@@ -67,7 +67,6 @@ namespace app {
 
 class cdr_inspector : public boost::noncopyable
 {
-
 	archiving::archivable_channel_t& in_channel;
 	archiving::archivable_channel_t& out_channel;
 	archiving::archivable_busy_set_t& archivable_busy_set_;
@@ -198,7 +197,6 @@ public:
 						out_channel.produce(archivable_cdr);
 						continue;
 					}
-
 
 					// inspect and cleanup CDR
 					{
@@ -493,6 +491,8 @@ public:
 								}
 							}
 						}
+						else
+							LogMessage(*archivable_cdr<<" - Any recordings are ignored; handled by fseventfilemonitor");
 
 						// We need to strip out any unwanted tags using filtered_xpaths[]
 						if(!filtered_xpaths.empty()) {
@@ -518,6 +518,7 @@ public:
 						archivable_cdr->set_add_to_cdrmunch_cache(true);
 
 						archivable_cdr->set_current_state(archiving::archivable::state::inspected);
+						archivable_cdr->move_to_subdir("collected");
 						{
 							int retry = 0;
 							while(!internal_db_.save(archivable_cdr) && !app::quit) {
