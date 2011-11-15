@@ -298,23 +298,12 @@ int main(int argc, char* argv[]) try
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
-		// initialise the internal static variables before we load anything;
-		bool more_to_load_from_db = false;
-		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
-
-		// make sure we pre-load the outstanding items before the directory loader finds the file on disk and
-		// we end up with a double-load and a key clash on insert when the archivable is saved ...
-		// the function loads max 100 at a time, so we need to loop round to get them all into play
-		while (more_to_load_from_db)
-			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
-
-		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
-		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
-
-		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, io_service);
-		for(unsigned int i = app::confMap["sms_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
-			threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
-		sms_inspector.start();
+		{
+			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
+			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		}
 
 	    app::archived_client archived_client(
 	    		io_service,
@@ -325,12 +314,26 @@ int main(int argc, char* argv[]) try
 	    		internal_db,
 	    		app::quit);
 
-		{
-			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
-			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
-			while(0 < --n_threads)
-				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
-		}
+		// initialise the internal static variables before we load anything;
+		bool more_to_load_from_db = false, wait_for_first_run;
+		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+		wait_for_first_run = more_to_load_from_db;
+
+		// make sure we pre-load the outstanding items before the directory loader finds the file on disk and
+		// we end up with a double-load and a key clash on insert when the archivable is saved ...
+		// the function loads max 100 at a time, so we need to loop round to get them all into play
+		while (more_to_load_from_db)
+			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+
+		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, io_service);
+		threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
+		// this blocks until the thread has completed the first run, hopefully dealing with all outstanding items
+		LogMessage("Waiting for processing of all leftover data, if any ...");
+		sms_inspector.start(wait_for_first_run);
+		LogMessage("Leftover data, processed, continuing with initialisation");
+
+		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
+		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),
@@ -344,7 +347,7 @@ int main(int argc, char* argv[]) try
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
-			if(true /*more_to_load_from_db*/ && !(ticks % 10))
+			if(!(ticks++ % 10))
 				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
 						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
 

@@ -64,6 +64,8 @@ namespace app
 		boost::mutex log_queue_mutex_;
 		boost::asio::deadline_timer timer_;
 
+		bool first_run_complete_;
+
 	public:
 		/**
 		 * Describe confog
@@ -97,13 +99,17 @@ namespace app
 				in_channel(in_channel), out_channel(out_channel), archivable_busy_set_(archivable_busy_set), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
 						policy_cache_(boost::bind(&app::policy::finder, coreapi_, _1), "PolicyCache"),
-						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_)
+						io_service_(io_service), threads_(), log_queue_(), log_queue_mutex_(), timer_(io_service_),
+						first_run_complete_(false)
 		{
 		}
 
-		void start()
+		void start(bool wait_for_first_run)
 		{
 			threads_.create_thread(boost::bind(&app::sms_inspector::smslog, this));
+
+			while(wait_for_first_run && !first_run_complete_)
+				boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
 		void smslog()
@@ -288,14 +294,23 @@ namespace app
 							try
 							{
 								archiving::archivable::pointer another_sms = internal_db_.load_archivable_by_uuid(archivable_sms->get_uuid());
+								archivable_sms.swap(another_sms);
 
-								LogWarning(*archivable_sms << " Yes we did - state " << another_sms->get_current_state());
-
-								if (another_sms->get_current_state() == archiving::archivable::state::stored ||
-									another_sms->get_current_state() == archiving::archivable::state::discarded)
+								if (archivable_sms->get_current_state() == archiving::archivable::state::stored ||
+									archivable_sms->get_current_state() == archiving::archivable::state::discarded)
 								{
-									LogWarning(*archivable_sms << " Trying to delete it");
-									another_sms->set_done(another_sms->get_current_state() == archiving::archivable::state::discarded);
+									LogWarning(*archivable_sms << ": already stored/discarded: Trying to delete it");
+									archivable_sms->set_done(archivable_sms->get_current_state() == archiving::archivable::state::discarded);
+								}
+								else if (archivable_sms->get_current_state() == archiving::archivable::state::inspected)
+								{
+									LogWarning(*archivable_sms << ": already inspected: sending it to the archive");
+									out_channel.produce(archivable_sms);
+								}
+								else
+								{
+									LogWarning(*archivable_sms << ": already collected/unknown: re-queueing it for initial processing");
+									in_channel.produce(archivable_sms);
 								}
 							}
 							catch(rml::exception &e)
@@ -342,6 +357,8 @@ namespace app
 				{
 					LogCritical("unexpected exception");
 				}
+
+				first_run_complete_ = true;
 			}
 			LogMessage("finishing");
 		}
