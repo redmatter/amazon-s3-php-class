@@ -110,11 +110,11 @@ public:
 							if (!S_ISDIR(s.st_mode) && ((time(0) - s.st_ctime) > 3))
 							{
 								if (!in_dir_.insert(file_name).second)
-									LogError("We have already seen " << file_path);
+									LogDebug("We have already seen " << file_path);
 
 								if (handled_.find(file_name) != handled_.end())
 								{
-									LogMessage(file_path << " already handled");
+									LogDebug(file_path << " already handled");
 								}
 								// this is badly named it should be is_busy_()
 								// so a positive return means the file is busy
