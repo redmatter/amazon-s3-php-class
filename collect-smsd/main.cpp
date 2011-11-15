@@ -298,22 +298,6 @@ int main(int argc, char* argv[]) try
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
-		{
-			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
-			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
-			while(0 < --n_threads)
-				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
-		}
-
-	    app::archived_client archived_client(
-	    		io_service,
-	    		out_channel,
-	    		archivable_busy_set,
-	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db,
-	    		app::quit);
-
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
@@ -332,8 +316,24 @@ int main(int argc, char* argv[]) try
 		sms_inspector.start(wait_for_first_run);
 		LogMessage("Leftover data, processed, continuing with initialisation");
 
+	    app::archived_client archived_client(
+	    		io_service,
+	    		out_channel,
+	    		archivable_busy_set,
+	    		app::confMap["archived_client.server_host"].as<std::string>(),
+	    		app::confMap["archived_client.server_port"].as<std::string>(),
+	    		internal_db,
+	    		app::quit);
+
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
+
+		{
+			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
+			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
+			while(0 < --n_threads)
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+		}
 
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),
