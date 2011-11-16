@@ -47,6 +47,7 @@ public:
 
 	static void cleanup_step(app::operation_data::pointer& opdata, const app::types::file_format::file_format_t& failed_format)
 	{
+		LogDebug(opdata->p_detail->identifier<<": Sentry cleaning up");
 		opdata->get_tmp_fstream()->close();
 		opdata->remove_tmp_fstream(failed_format);
 	}
