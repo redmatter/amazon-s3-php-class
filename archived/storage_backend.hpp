@@ -219,6 +219,12 @@ protected:
 			p_tmpfs_->clear(); // clear eof
 			p_tmpfs_->seekg(0);
 		}
+		
+		~put_callback_data()
+		{
+			if(p_tmpfs_)
+				p_tmpfs_->close();
+		}
 	};
 
 	static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
