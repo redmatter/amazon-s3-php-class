@@ -470,6 +470,7 @@ private:
 
 		case states::put_receiving_file:
 			LogError(remote_ep_<<" "<<resource_id_<<": Invalid/Unexpected state states::put_receiving_file");
+			/* no break */
 		case states::put_receiving_file_err:
 		{
 			std::ostream ostr(&send_buffer_);
@@ -563,7 +564,7 @@ private:
 				// save the state of operation data
 				internal_db_.save(opdata);
 
-				// Put CDRs and those recordings needed for CDR processing on to GlusterFS
+				// Put CDRs and those recordings needed for CDR processing on to filesystem
 				// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
 				{
 					std::string pbx_hostname;
