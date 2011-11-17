@@ -110,7 +110,8 @@ public:
 					break;
 				}
 			}
-			catch(...) {
+			catch(const std::exception& e) {
+				LogWarning("Exception: "<<e.what());
 			}
 		}
 	}

@@ -473,7 +473,7 @@ namespace std {
 
 inline ostream& operator << (ostream& ostr, app::operation_data::pointer p_opdata)
 {
-	return ostr << p_opdata->p_detail->identifier << "#state:" << p_opdata->p_detail->state;
+	return ostr << p_opdata->p_detail->identifier << "#state:" << app::operation_state::to_string(p_opdata->p_detail->state);
 }
 
 }  // namespace std
