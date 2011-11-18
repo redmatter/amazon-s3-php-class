@@ -368,6 +368,7 @@ struct file_format
 	 */
 	static inline std::pair<convert_action::convert_action_t, file_format_t> get_next(const file_format_t& from, const file_format_t& to)
 	{
+/*
 		LogDebug("from  : " << RML_HEX(4, from));
 		LogDebug("to    : " << RML_HEX(4, to));
 #ifndef RML_NO_DEBUG
@@ -377,9 +378,10 @@ struct file_format
 		return std::make_pair(ret_action, file_format_t( ret_format )); \
 	} while(false)
 #else
+*/
 #define verbose_return( ret_action, ret_format ) \
 		return std::make_pair(ret_action, file_format_t( ret_format ));
-#endif
+//#endif
 
 		if(from == to)
 			verbose_return( convert_action::nothing, from );

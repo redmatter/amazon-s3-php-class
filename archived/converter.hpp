@@ -20,6 +20,7 @@ class converter
 {
 	app::operation_data::channel_t& convert_channel_;
 	app::operation_data::channel_t& convert_done_channel_;
+	app::operation_data::busy_set_t& operation_data_busy_set_;
 	database::internal& internal_db_;
 	volatile bool& quit_flag_;
 
@@ -36,10 +37,12 @@ public:
 	converter(
 			app::operation_data::channel_t& convert_channel,
 			app::operation_data::channel_t& convert_done_channel,
+			app::operation_data::busy_set_t& operation_data_busy_set,
 			database::internal& internal_db,
 			volatile bool& quit_flag) :
 				convert_channel_(convert_channel),
 				convert_done_channel_(convert_done_channel),
+				operation_data_busy_set_(operation_data_busy_set),
 				internal_db_(internal_db),
 				quit_flag_(quit_flag)
 	{
@@ -78,14 +81,14 @@ public:
 						break;
 					}
 
-					LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
-					LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
+					// LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+					// LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
 
 					std::pair<app::types::file_format::convert_action::convert_action_t, app::types::file_format::file_format_t> next =
 							app::types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format);
 
-					LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
-					LogDebug(identifier<<": next convert target:"<<app::types::file_format::to_string(next.second));
+					// LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
+					// LogDebug(identifier<<": next convert target:"<<app::types::file_format::to_string(next.second));
 
 					try {
 						if(next.second == app::types::file_format::unknown) {
@@ -135,6 +138,7 @@ public:
 					}
 					catch(const std::exception& e) {
 						LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first)<<" error:"<<e.what());
+						break;
 					}
 				}
 
@@ -142,6 +146,8 @@ public:
 					opdata->p_detail->retry = 0;
 					opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 					opdata->p_detail->real_size = opdata->get_tmp_fstream()->get_size();
+					opdata->get_tmp_fstream()->close();
+					
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
 					convert_done_channel_.produce(opdata);
 				}
@@ -158,7 +164,8 @@ public:
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
 
 					// put it back in; the channel will reduce its priority
-					convert_channel_.produce(opdata);
+					operation_data_busy_set_.remove(opdata);
+					convert_channel_.produce(opdata, 5);
 				}
 			}
 			catch(const app::operation_data::channel_t::finishing_exception& e) {

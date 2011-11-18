@@ -463,7 +463,8 @@ struct operation_data
 		}
 	};
 
-	typedef rml::pc_channel< operation_data::pointer, operation_data::pointer_compare_lt > channel_t;
+	//typedef rml::pc_channel< operation_data::pointer, operation_data::pointer_compare_lt > channel_t;
+	typedef rml::pc_channel_delayed< operation_data::pointer, 0, operation_data::pointer_compare_lt > channel_t;
 	typedef rml::busy_set< operation_data::pointer, pointer_compare_dedup_lt > busy_set_t;
 };
 

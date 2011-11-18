@@ -69,6 +69,10 @@ public:
 				io_service_(io_service),
 				acceptor_(io_service)
 	{
+	}
+	
+	void start()
+	{
 		const unsigned short& put_port = confMap_["archived.put_port"].as<unsigned short>();
 
 		// we could add an address to listen on; bit OTT for our use!
@@ -87,6 +91,19 @@ public:
 		acceptor_.async_accept(new_session->socket(),
 				boost::bind(&put_server::handle_accept, this, new_session,
 						boost::asio::placeholders::error));
+	}
+	
+	bool stop()
+	{
+		boost::system::error_code ec;
+		acceptor_.close(ec);
+		if(ec) {
+			LogWarning("Failed to close the acceptor! err:"<<ec.message());
+			return false;
+		}
+
+		LogMessage("PUT server stopped");
+		return true;
 	}
 
 	void handle_accept(put_session::pointer session, const boost::system::error_code& error)

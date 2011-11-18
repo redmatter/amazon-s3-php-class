@@ -201,8 +201,9 @@ private:
 		else if(!connected_ && (current_state_ == state::initialised)) {
 			resolver_.cancel();
 			if(socket_.is_open()) {
-				socket_.cancel();
-				socket_.close();
+				boost::system::error_code ec;
+				socket_.cancel(ec);
+				socket_.close(ec);
 			}
 			LogWarning("Distiller connection failed; retrying...");
 		}
@@ -247,7 +248,8 @@ private:
 		else {
 			LogWarning("Error connecting to Distiller host "<<distiller_host_<<" ( port "<<distiller_port_<<" ) - error:"<<error.message());
 			if (endpoint_iterator != boost::asio::ip::tcp::resolver::iterator()) {
-				socket_.close();
+				boost::system::error_code ec;
+				socket_.close(ec);
 
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				socket_.async_connect(endpoint,
@@ -442,10 +444,11 @@ private:
 			current_state_ = state::closed;
 			connected_ = false;
 
-			socket_.cancel();
-			socket_.close();
+			boost::system::error_code ec;
+			socket_.cancel(ec);
+			socket_.close(ec);
 			resolver_.cancel();
-			timer_.cancel();
+			timer_.cancel(ec);
 		}
 
 		if(reconnect) {

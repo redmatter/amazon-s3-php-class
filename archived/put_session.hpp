@@ -142,6 +142,12 @@ public:
 	{
 		//ctor
 	}
+	
+	~put_session()
+	{
+		LogVerbose(remote_ep_<<" destroying session");
+	}
+
 
 	boost::asio::ip::tcp::socket& socket()
 	{
@@ -509,8 +515,8 @@ private:
 
 				ofs_->re_open();
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
-				LogDebug(remote_ep_<<' '<<resource_id_<<" Original MD5: "<<md5_);
-				LogDebug(remote_ep_<<' '<<resource_id_<<" Computed MD5: "<<md5);
+//				LogDebug(remote_ep_<<' '<<resource_id_<<" Original MD5: "<<md5_);
+//				LogDebug(remote_ep_<<' '<<resource_id_<<" Computed MD5: "<<md5);
 
 				app::policy::pointer p_policy;
 
@@ -695,7 +701,7 @@ private:
 					xfrd_content_length_ += buf_length;
 					chunk_remaining -= buf_length;
 
-					LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
+//					LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
 				}
 				else {
 					if ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_)) {
@@ -717,9 +723,9 @@ private:
 						}
 					}
 					else {
-						LogDebug(remote_ep_<<' '<<resource_id_<<" chunk_remaining:"<<chunk_remaining);
-						LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_:"<<content_length_);
-						LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_:"<<xfrd_content_length_);
+//						LogDebug(remote_ep_<<' '<<resource_id_<<" chunk_remaining:"<<chunk_remaining);
+//						LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_:"<<content_length_);
+//						LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_:"<<xfrd_content_length_);
 						LogError(remote_ep_<<' '<<resource_id_<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
 						break;
 					}

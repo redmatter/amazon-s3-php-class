@@ -204,8 +204,8 @@ int main(int argc, char **argv) try
 		app::operation_data_dedup operation_data_dedup(operation_data_busy_set, internal_db);
 
 		app::operation_data::channel_t convert_channel(
-				boost::bind(&app::operation_data::busy_set_t::add, boost::ref(operation_data_busy_set), _1),
-				boost::bind(&app::operation_data::busy_set_t::is_busied, boost::ref(operation_data_busy_set), _1),
+				boost::protect(boost::bind(&app::operation_data::busy_set_t::add, boost::ref(operation_data_busy_set), _1)),
+				boost::protect(boost::bind(&app::operation_data::busy_set_t::is_busied, boost::ref(operation_data_busy_set), _1)),
 				0, "Convert");
 
 		app::operation_data::channel_t convert_done_channel("ConvertDone");
@@ -217,7 +217,8 @@ int main(int argc, char **argv) try
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
 		boost::asio::io_service io_service;
-
+		boost::asio::io_service::work work(io_service); // make sure we keep it proped up!
+		
 		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1), "CachedPolicyFinder");
@@ -226,7 +227,7 @@ int main(int argc, char **argv) try
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
-		app::converter converter(convert_channel, convert_done_channel, internal_db, app::quit);
+		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, app::quit);
 
@@ -275,6 +276,8 @@ int main(int argc, char **argv) try
 
 		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
+		
+		put_server.start();
 
 		unsigned int ticker = 1;
 		while(!app::quit) {
@@ -303,6 +306,8 @@ int main(int argc, char **argv) try
 
 		LogMessage("Quit flagged ... stopping channels");
 
+		(void)put_server.stop();
+		
 		convert_channel.set_finishing();
 		convert_done_channel.set_finishing();
 		storage_operation_channel.set_finishing();
