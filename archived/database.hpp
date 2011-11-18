@@ -203,7 +203,7 @@ public:
 					}
 					query << "ON DUPLICATE KEY UPDATE EndpointID=VALUES(EndpointID)";
 
-					std::cout << "SQL: "<<query.str()<< std::endl;
+					SQL_DEBUG(query.str());
 
 					mysqlpp::SimpleResult res = query.execute();
 					LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
@@ -250,7 +250,7 @@ public:
 					query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
 							"\n";
 
-					std::cout << "SQL: "<<query.str()<<"\n" << std::endl;
+					SQL_DEBUG(query.str());
 
 					mysqlpp::SimpleResult res = query.execute();
 					LogVerbose("Usage data added for Org:"<<org);
@@ -404,7 +404,7 @@ public:
 						<< opdetail.real_size
 						;
 
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 				query.execute(qp);
 
 				opdata->p_detail->database_id = query.insert_id();
@@ -438,7 +438,7 @@ public:
 						<< opdetail.identifier.uuid
 						;
 
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 				query.execute(qp);
 			}
 
@@ -462,7 +462,7 @@ public:
 				query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
 
 				query.parse();
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 
 				query.execute(qp);
 			}
@@ -508,7 +508,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << arcd_hostname << operation_state::all_done;
 
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row())
@@ -533,7 +533,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << arcd_hostname << operation_state::all_done << first_max_id << max_id;
 
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
@@ -569,7 +569,7 @@ public:
 
 							mysqlpp::SQLQueryParms qp;
 							qp << item_id;
-							std::cout << "SQL: "<<query.str(qp) << std::endl;
+							SQL_DEBUG(query.str(qp));
 
 							mysqlpp::UseQueryResult res = query.use(qp);
 							while(mysqlpp::Row row = res.fetch_row()) {
@@ -635,7 +635,7 @@ public:
 
 			query << ')';
 
-			std::cout << "SQL: "<<query.str() << std::endl;
+			SQL_DEBUG(query.str());
 
 			query.execute();
 			trans.commit();
@@ -674,7 +674,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << org_id << uuid << file_format << app::hostname;
 
-				std::cout << "SQL: "<<query.str(qp) << std::endl;
+				SQL_DEBUG(query.str(qp));
 
 				mysqlpp::UseQueryResult res = query.use(qp);
 
@@ -687,7 +687,7 @@ public:
 			if(!path.empty() && id) {
 				mysqlpp::Query query = conn->query();
 				query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
-				std::cout << "SQL: "<<query.str() << std::endl;
+				SQL_DEBUG(query.str());
 				query.execute();
 
 				return path;
@@ -742,7 +742,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no") << app::hostname;
 
-			std::cout << "SQL: "<<query.str(qp)<< std::endl;
+			SQL_DEBUG(query.str(qp));
 			query.execute(qp);
 
 			return true;
