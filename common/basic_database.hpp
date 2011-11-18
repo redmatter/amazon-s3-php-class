@@ -17,6 +17,9 @@
 
 #include <string>
 
+#define SQL_DEBUG(line) \
+	LogCoutIf(p_pool_->debug_enabled, "SQL: "<<line)
+
 namespace app {
 
 namespace database {
