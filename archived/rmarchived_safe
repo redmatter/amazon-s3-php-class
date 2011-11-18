@@ -190,6 +190,14 @@ while true; do
 	if [ "$__DISABLE_RESTART" = "true" ]; then
 		exit $exit_status;
 	else
+		if [ "$__ON_RESTART_NOTIFY_EMAILS" != "false" ]; then
+			__log debug "__ON_RESTART_NOTIFY_EMAILS: $__ON_RESTART_NOTIFY_EMAILS";
+			[ -x /bin/mail ] && /bin/mail -s "${program_name} Restarted on $(uname -n)" ${__ON_RESTART_NOTIFY_EMAILS} <<BODY
+$(date) - ${program_name} died ( status: $exit_status )
+Restarting...
+BODY
+		fi
+
 		__log warning "${program_name} died ( status: $exit_status ) Restarting...";
 	fi
 done;
