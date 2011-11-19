@@ -192,7 +192,7 @@ int main(int argc, char* argv[])
 						new CryptoPP::Base64Decoder(
 								new CryptoPP::ArraySink(&enc_key[0], app::storage::basic_endpoint::encryption_key_t::static_size)));
 
-				app::utils::crypto crypto;
+				app::crypto crypto;
 				crypto.decrypt(*p_source, *p_tmp, enc_key);
 				p_source = p_tmp;
 				p_tmp.reset(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
