@@ -57,7 +57,7 @@ public:
 
 	void run()
 	{
-		app::impl::crypto crypto;
+		app::crypto crypto;
 
 		while(!quit_flag_) {
 			try {

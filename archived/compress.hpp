@@ -248,65 +248,6 @@ public:
 		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = decompressed_format;
 	}
-
-	app::operation_data::channel_t& compress_channel_;
-	app::operation_data::channel_t& main_channel_;
-	volatile bool& quit_flag_;
-
-public:
-	bzip2(app::operation_data::channel_t& compress_channel, app::operation_data::channel_t& main_channel, volatile bool& quit_flag) :
-		compress_channel_(compress_channel), main_channel_(main_channel), quit_flag_(quit_flag)
-	{
-	}
-
-	void run()
-	{
-		while(!quit_flag_) {
-			try {
-				operation_data::pointer opdata = compress_channel_.consume();
-
-				if(opdata->p_detail->state != operation_state::get_file_convert || opdata->p_detail->state != operation_state::put_file_convert);
-					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
-
-				const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
-						types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
-
-				switch(next.first) {
-				case types::file_format::convert_action::compress:
-					compress(opdata, next.second);
-					break;
-
-				case types::file_format::convert_action::uncompress:
-					decompress(opdata, next.second);
-					break;
-
-				default:
-					THROW_RML_EXCEPTION(opdata->p_detail->identifier << " Invalid call sequence");
-				}
-
-				{
-					const std::pair<types::file_format::convert_action::convert_action_t, types::file_format::file_format_t>& next(
-							types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format));
-
-					if(next.first == types::file_format::convert_action::nothing) // we dont care if the format is good; at least no infinite loop here!
-						opdata->p_detail->state = operation_state::next_up(opdata->p_detail->state); // let it move on from "convert"
-				}
-
-				// put it back to the main channel
-				main_channel_.produce(opdata);
-			}
-			catch(const app::operation_data::channel_t::finishing_exception& e) {
-				LogMessage("Channel(s) finishing");
-				break;
-			}
-			catch(const std::exception& e) {
-				LogError("exception: "<<e.what());
-			}
-			catch(...) {
-				LogError("Unexpected exception");
-			}
-		}
-	}
 };
 
 }  // namespace app
