@@ -48,10 +48,8 @@ public:
 		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval_seconds) );
 		const unsigned int batch_size( std::max<unsigned int>(confMap_["directory_loader.batch_size"].as<unsigned int>(), min_batch_size) );
 
-		DIR* dh = 0;
-
 		while(!quit_) {
-
+			
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 			if(count++ % interval)
 				continue;
@@ -62,18 +60,14 @@ public:
 			}
 
 			try {
-				// if we are not already within a batch
-				if(!dh) {
-					dh = opendir(dir_path_.c_str());
-					if(!dh) {
-						LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
-						throw rml::exception("failed opening directory");
-					}
-					LogMessage("Loading from directory...");
-				}
-				else
-					LogMessage("Continuing loading from directory...");
-
+				LogMessage("Loading from directory "<<dir_path_);
+				DIR* dh = opendir(dir_path_.c_str());
+				if(!dh)
+					THROW_RML_EXCEPTION("failed opening directory err:"<<strerror(errno));
+				
+				rml::utils::sentry closedir_sentry(boost::bind(::closedir, dh));
+				
+				LogMessage("Loading from directory...");
 
 				struct dirent *dp;
 				unsigned int file_count = 0;
@@ -84,11 +78,6 @@ public:
 					if(!dp) {
 						if(errno) {
 							LogError("Failed to read directory - err:"<<strerror(errno));
-							dh = opendir(dir_path_.c_str());
-							if(!dh) {
-								LogError("Failed to open directory "<<dir_path_<<" - err:"<<strerror(errno));
-								throw rml::exception("failed opening directory");
-							}
 							continue;
 						}
 
@@ -102,7 +91,7 @@ public:
 
 					struct stat s;
 					if (-1 == stat(file_path.c_str(), &s)) {
-						LogVerbose("Failed to stat "<<file_path<<" - err: "<<strerror(errno));
+						LogMessage("Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
 						continue;
 					}
 
@@ -123,15 +112,7 @@ public:
 				}
 
 				LogVerbose("Loaded "<<file_count<<" files from "<<dir_path_);
-
-				// are we done with the batch ?
-				if (dh && !dp) {
-					closedir(dh);
-					dh = 0;
-					dp = 0;
-
-					LogMessage("Loading from directory; done");
-				}
+				LogMessage("Loading from directory; done");
 			}
 			catch(const std::exception& e) {
 				LogError(e.what());
