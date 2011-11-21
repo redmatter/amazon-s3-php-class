@@ -134,6 +134,9 @@ int main(int argc, char* argv[])
 		const bool show_averages((cli_confMap.count("averages") != 0) || (cli_confMap.count("samples") == 0));
 		const bool show_samples(cli_confMap.count("samples") != 0);
 
+		std::cout.precision(2);
+		std::cout.setf(std::ios::fixed, std::ios::floatfield);
+		
 		boost::interprocess::shared_memory_object shm(boost::interprocess::open_only, SHM_NAME, boost::interprocess::read_write);
 
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
