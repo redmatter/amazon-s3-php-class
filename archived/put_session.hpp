@@ -16,6 +16,7 @@
 #include "database.hpp"
 #include "cdrmunch_database.hpp"
 #include "whisper_client.hpp"
+#include "monitor.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
@@ -630,11 +631,15 @@ private:
 
 				// no need to keep the file open till we can process it
 				ofs_->close();
+				
+				monitor::increment_counter(monitor::counter_accessor::put);
 
 				if(p_policy) // if PolicyID < 0; it only needs to be local cached
 					channel_.produce(opdata);
-				else
+				else {
+					monitor::increment_counter(monitor::counter_accessor::cached_only);
 					LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
+				}
 			}
 			catch(const protocol_exception& e) {
 				LogMessage("Protocol Exception: "<<e.what());

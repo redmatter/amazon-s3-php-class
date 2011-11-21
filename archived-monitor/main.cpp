@@ -30,7 +30,7 @@ int main(int argc, char* argv[])
 		boost::interprocess::shared_memory_object shm(boost::interprocess::open_only, SHM_NAME, boost::interprocess::read_write);
 
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
-		app::monitor* monitor_data = static_cast<app::monitor*>(region.get_address());
+		app::monitor::monitor_t* monitor_data = static_cast<app::monitor::monitor_t*>(region.get_address());
 		
 		boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(500);
 		boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(monitor_data->mutex, till);
@@ -39,8 +39,8 @@ int main(int argc, char* argv[])
 				throw exception("No items");
 			
 			for(size_t i = 0; i < monitor_data->n_items; ++i) {
-				const app::monitor_item& item(monitor_data->items[i]); 
-				std::cout << item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no") << std::endl;
+				const app::monitor::monitor_t::item_t& item(monitor_data->items[i]); 
+				std::cout << item << std::endl;
 			}
 			
 			lock.unlock();

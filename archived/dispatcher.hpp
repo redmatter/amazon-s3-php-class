@@ -13,6 +13,7 @@
 
 #include "storage_operation.hpp"
 #include "operation_data.hpp"
+#include "monitor.hpp"
 
 #include <boost/bind.hpp>
 
@@ -55,6 +56,9 @@ public:
 			opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			retention_data_channel_.produce(opdata);
+			
+			monitor::increment_counter(monitor::counter_accessor::stored);
+			monitor::increment_counter(monitor::counter_accessor::stored_size, opdata->p_detail->real_size);
 		}
 		else {
 			bool error = false;

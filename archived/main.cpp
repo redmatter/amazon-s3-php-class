@@ -78,6 +78,9 @@
 
 namespace app {
 
+monitor::monitor_t::counter_t counter;
+boost::mutex counter_mutex;
+
 class operation_data_dedup
 {
 	const operation_data::busy_set_t& busy_set_;
@@ -267,9 +270,9 @@ int main(int argc, char **argv) try
 		
 		boost::interprocess::shared_memory_object shm(boost::interprocess::create_only, SHM_NAME, boost::interprocess::read_write);
 
-		shm.truncate(sizeof(app::monitor));
+		shm.truncate(sizeof(app::monitor::monitor_t));
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
-		app::monitor *monitor_data = new (region.get_address()) app::monitor;
+		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
 		
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -326,7 +329,7 @@ int main(int argc, char **argv) try
 				boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(monitor_data->mutex, till);
 				
 				if(lock) {
-					app::monitor_item item;
+					app::monitor::monitor_t::item_t item;
 					time(&item.sample_time);
 					item.convert_waiting = convert_channel.count();
 					item.convert_done_waiting = convert_done_channel.count();
@@ -336,11 +339,12 @@ int main(int argc, char **argv) try
 					item.whisper_waiting = whisper_channel.count();
 					
 					item.is_db_loading = have_more_to_load;
-					// ...
 					
+					item.counter = app::counter;
+
 					monitor_data->add_item(item);
 					
-					LogMessage("[statistics] Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
+					LogMessage("[statistics] "<<item);
 					
 					monitor_pending = false;
 				}
