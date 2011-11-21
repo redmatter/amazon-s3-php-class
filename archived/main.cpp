@@ -340,7 +340,7 @@ int main(int argc, char **argv) try
 					
 					item.is_db_loading = have_more_to_load;
 					
-					item.counter = app::counter;
+					item.counter = app::monitor::get_counter(true);
 
 					monitor_data->add_item(item);
 					

@@ -150,9 +150,16 @@ inline void increment_counter(const counter_accessor::counter_accessor_t& access
 	}
 }
 
-inline monitor_t::counter_t get_counter()
+inline monitor_t::counter_t get_counter(const bool reset = false)
 {
 	boost::unique_lock<boost::mutex> lock(counter_mutex);
+	if (reset) {
+		monitor_t::counter_t ret = counter;
+		counter = monitor_t::counter_t();
+		
+		return ret;
+	}
+	
 	return counter;
 }
 
