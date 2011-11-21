@@ -9,12 +9,14 @@ CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 DEFAULT_APP_LONG_NAME=ArchiveD Monitor
 CPPFLAGS += -DDEFAULT_APP_LONG_NAME='"$(DEFAULT_APP_LONG_NAME)"'
 
-LIBS +=
+LIBS += \
+	-lboost_program_options$(BOOST_NAME_EXT) \
+	-lrt \
 
 CXX_SRCS += \
 	main.cpp
 
-C_SRCS += -lrt
+C_SRCS += \
 
 BUILD_MODE=DEBUG
 
