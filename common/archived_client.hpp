@@ -273,8 +273,9 @@ private:
 	inline void connect_archived()
 	{
 		if(socket_.is_open()) {
-			socket_.cancel();
-			socket_.close();
+			boost::system::error_code ec;
+			socket_.cancel(ec);
+			socket_.close(ec);
 		}
 
 		connected_ = false;
@@ -324,7 +325,8 @@ private:
 		else {
 			LogWarning("Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
 			if (endpoint_iterator != tcp::resolver::iterator()) {
-				socket_.close();
+				boost::system::error_code ec;
+				socket_.close(ec);
 
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				socket_.async_connect(endpoint,
@@ -801,8 +803,9 @@ private:
 		timer_.cancel();
 		resolver_.cancel();
 		if(socket_.is_open()) {
-			socket_.cancel();
-			socket_.close();
+			boost::system::error_code ec;
+			socket_.cancel(ec);
+			socket_.close(ec);
 		}
 
 		if(put_archivable_ptr_) {
