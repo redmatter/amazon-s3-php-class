@@ -111,6 +111,7 @@ mkdir -p %{buildroot}/usr/share/php/archiving
 
 # ArchiveD
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
+cp archived-monitor/tmp-%{buildtype}-build/archived-monitor %{buildroot}/usr/bin/rmarchived-monitor
 cp archived/rmarchived_safe %{buildroot}/usr/bin/
 cp archived/rmarchived %{buildroot}/etc/rc.d/init.d/
 cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
@@ -258,6 +259,7 @@ fi
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root) 
 /usr/bin/rmarchived.bin
+/usr/bin/rmarchived-monitor
 /usr/bin/rmarchived_safe
 /usr/share/archiving/rmarchived.supp
 /etc/rc.d/init.d/rmarchived

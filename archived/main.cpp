@@ -13,6 +13,7 @@
 #include "whisper_client.hpp"
 #include "retention_data_flusher.hpp"
 #include "purge.hpp"
+#include "monitor.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -31,6 +32,11 @@
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
+#include <boost/interprocess/sync/named_mutex.hpp>
+#include <boost/interprocess/sync/named_condition.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -246,6 +252,25 @@ int main(int argc, char **argv) try
 		bool have_more_to_load = true;
 		internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
 
+		struct shm_remove
+		{
+			shm_remove()
+			{
+				boost::interprocess::shared_memory_object::remove(SHM_NAME);
+			}
+			
+			~shm_remove()
+			{
+				boost::interprocess::shared_memory_object::remove(SHM_NAME);
+			}
+		} remover;
+		
+		boost::interprocess::shared_memory_object shm(boost::interprocess::create_only, SHM_NAME, boost::interprocess::read_write);
+
+		shm.truncate(sizeof(app::monitor));
+		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
+		app::monitor *monitor_data = new (region.get_address()) app::monitor;
+		
 		initialized = true;
 		LogMessage("Initialisation complete");
 
@@ -280,6 +305,7 @@ int main(int argc, char **argv) try
 		put_server.start();
 
 		unsigned int ticker = 1;
+		bool monitor_pending = false;
 		while(!app::quit) {
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((ticker%2) ? "tik": "tok"));
@@ -289,15 +315,38 @@ int main(int argc, char **argv) try
 			if(0 == (ticker % 20)) {
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
-				ticker = 0;
 			}
 
 			if(have_more_to_load && (0 == (ticker % 20)))
 				internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
 
 
-			if(!(ticker % 60))
-				LogMessage("[statistics] Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
+			if(monitor_pending || !(ticker % 60)) {
+				boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(50);
+				boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(monitor_data->mutex, till);
+				
+				if(lock) {
+					app::monitor_item item;
+					time(&item.sample_time);
+					item.convert_waiting = convert_channel.count();
+					item.convert_done_waiting = convert_done_channel.count();
+					item.storage_ops_waiting = storage_operation_channel.count();
+					item.retention_store_waiting = retention_data_channel.count();
+					item.purge_waiting = purge_channel.count();
+					item.whisper_waiting = whisper_channel.count();
+					
+					item.is_db_loading = have_more_to_load;
+					// ...
+					
+					monitor_data->add_item(item);
+					
+					LogMessage("[statistics] Convert:"<<convert_channel.count()<<" ConvertDone:"<<convert_done_channel.count()<<" StorageOps:"<<storage_operation_channel.count()<<" RetentionData:"<<retention_data_channel.count()<<" Purge:"<<purge_channel.count()<<" Whisper:"<<whisper_channel.count()<<" DBLoading:"<<RML_YES_NO(have_more_to_load));
+					
+					monitor_pending = false;
+				}
+				else
+					monitor_pending = true;
+			}
 
 			ticker++;
 
