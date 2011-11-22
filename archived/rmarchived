@@ -77,7 +77,7 @@ _kill_program() {
 	kill $pid
 
 	# give enough time to die.
-	sleep $( [ "$__VALGRIND_RUN" = true ] && echo 10 || echo 3 );
+	sleep $( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 );
 
 	# if still alive cut its neck with -9
 	kill -0 $pid >/dev/null 2>&1 && kill -9 $pid
@@ -131,6 +131,8 @@ export __VALGRIND_TOOL="$( get_conf $config_file debug.valgrind_tool 1 memcheck 
 
 export __MALLOC_CHECK="$( get_conf $config_file debug.malloc_check 0 false )"
 
+export __CORE_ENABLED=$( [ $( get_conf $config_file app.max_core_size_mega_bytes 0 0 ) -gt 0 ] && echo 1 || echo 0 )
+export __CORE_NEED_SUID_FIX=$( [ -n "$( get_conf $config_file app.run_as_user 0 '' )$( get_conf $config_file app.run_as_group 0 '' )" ] && echo 1 || echo 0 )
 export __CORE_DIR="$( get_conf $config_file app.core_dump_dir 0 false )"
 
 export __NICE=${NICE:=$( which nice 2>/dev/null )}

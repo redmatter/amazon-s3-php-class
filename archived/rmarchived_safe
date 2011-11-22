@@ -104,10 +104,16 @@ _01st_crash_time=0
 
 echo $$ > $pid_file
 
-if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
-	[ -d "${__CORE_DIR}" ] || mkdir -p "${__CORE_DIR}"
-	chmod 777 "${__CORE_DIR}"
-	echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
+if [ "$__CORE_ENABLED" -eq 1 ]; then
+	if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
+		[ -d "${__CORE_DIR}" ] || mkdir -p "${__CORE_DIR}"
+		chmod 777 "${__CORE_DIR}"
+		echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
+	fi
+
+	if [ "$__CORE_NEED_SUID_FIX" -eq 1 ]; then
+		/sbin/sysctl fs.suid_dumpable=1
+	fi
 fi
 
 if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
