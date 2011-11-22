@@ -65,10 +65,11 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 fi
 
 if [ -f $CONFIG_ARCHIVED ]; then
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED											|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
-	sed -i "s/distiller_client.server_host\(.*\)/distiller_client.server_host = cdrmunch.$SEARCHDOMAIN/" $CONFIG_ARCHIVED				|| Die "Unable to set distiller_client.server_host in $CONFIG_ARCHIVED"
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED										|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
+	sed -i "s/distiller_client.server_host\(.*\)/distiller_client.server_host = cdrmunch.$SEARCHDOMAIN/" $CONFIG_ARCHIVED			|| Die "Unable to set distiller_client.server_host in $CONFIG_ARCHIVED"
 	if `hapi get HostType QA || hapi get HostType DEV`; then
 		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_ARCHIVED ||  Die "Unable to set log.level in $CONFIG_ARCHIVED"
+		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_ARCHIVED										|| Die "Unable to set debug.disable_restart in $CONFIG_ARCHIVED"
 	fi
 fi
 
@@ -77,12 +78,16 @@ if [ -f $CONFIG_COLLECTD ]; then
 
 	if `hapi get HostType QA || hapi get HostType DEV`; then
 		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_COLLECTD || Die "Unable to set log.level in $CONFIG_COLLECTD"
-		sed -i "s/cdr_handler.archiving_enabled_orgs\(.*\)/cdr_handler.archiving_enabled_orgs = 1/" $CONFIG_COLLECTD || Die "Unable to set cdr_handler.archiving_enabled_orgs in $CONFIG_COLLECTD"
+		sed -i "s/cdr_handler.archiving_enabled_orgs\(.*\)/cdr_handler.archiving_enabled_orgs = 1/" $CONFIG_COLLECTD 				|| Die "Unable to set cdr_handler.archiving_enabled_orgs in $CONFIG_COLLECTD"
+		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTD										|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTD"
 	fi
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
 	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTSMSD			|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTSMSD"
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COLLECTSMSD											|| Die "Unable to set coreapi.url in $CONFIG_COLLECTSMSD"
+	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COLLECTSMSD									|| Die "Unable to set coreapi.url in $CONFIG_COLLECTSMSD"
+	if `hapi get HostType QA || hapi get HostType DEV`; then
+		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTSMSD									|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTSMSD"
+	fi
 fi
 
