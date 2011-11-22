@@ -79,13 +79,24 @@ public:
 		boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), put_port);
 		boost::system::error_code ec;
 		acceptor_.open(endpoint.protocol());
-		acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
-		acceptor_.bind(endpoint);
-		acceptor_.listen(boost::asio::socket_base::max_connections, ec);
-		if(ec)
-			THROW_RML_EXCEPTION("Failed to listen on PUT port ["<<put_port<<"]; error:"<<ec.message());
 
-		LogMessage("PUT Listening ["<<put_port<<']');
+		{
+			boost::system::error_code ec;
+			acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true), ec);
+			if(ec)
+				THROW_RML_EXCEPTION("set_option:reuse_address err:"<<ec.message());
+		}
+		
+		acceptor_.bind(endpoint);
+		
+		{
+			boost::system::error_code ec;
+			acceptor_.listen(boost::asio::socket_base::max_connections, ec);
+			if(ec)
+				THROW_RML_EXCEPTION("Failed to listen on PUT port ["<<put_port<<"]; error:"<<ec.message());
+		}
+
+		LogMessage("PUT Listening on port "<<put_port);
 
 		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 		acceptor_.async_accept(new_session->socket(),

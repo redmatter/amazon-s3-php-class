@@ -164,8 +164,16 @@ public:
 
 	void start()
 	{
-		boost::asio::socket_base::receive_buffer_size option(16384);
-		socket_.set_option(option);
+		{
+			boost::system::error_code ec;
+			boost::asio::socket_base::receive_buffer_size option(16384);
+			socket_.set_option(option, ec);
+			if(ec) {
+				LogWarning("set_option failed; err:"<<ec.message());
+				io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
+				return;
+			}
+		}
 
 		{
 			std::ostringstream ostr;

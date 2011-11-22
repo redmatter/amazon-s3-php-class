@@ -277,8 +277,14 @@ private:
 			connected_ = true;
 
 			{
+				boost::system::error_code ec;
 				boost::asio::ip::tcp::socket::keep_alive option(true);
-				socket_.set_option(option);
+				socket_.set_option(option, ec);
+				if(ec) {
+					LogWarning("set_option failed; err:"<<ec.message());
+					io_service_.post(boost::bind(&whisper_client::do_close, this, true)); // reconnect
+					return;
+				}
 			}
 
 			current_state_ = state::ready_to_whisper;
@@ -372,6 +378,7 @@ private:
 		default:
 		case state::closed:
 			LogError("Invalid state; "<<current_state_);
+			/* no break */
 
 		case state::reconnect_init:
 		{

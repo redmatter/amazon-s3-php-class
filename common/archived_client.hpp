@@ -312,8 +312,14 @@ private:
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
 	{
 		if (!error) {
+			boost::system::error_code ec;
 			boost::asio::socket_base::send_buffer_size option(8192);
-			socket_.set_option(option);
+			socket_.set_option(option, ec);
+			if(ec) {
+				LogWarning("set_option:send_buffer_size failed; err:"<<ec.message());
+				run_statemachine(error);
+				return;
+			}
 
 			current_state_ = state::connecting;
 			timer_.cancel();
@@ -389,8 +395,11 @@ private:
 			connected_ = true;
 
 			{
+				boost::system::error_code ec;
 				tcp::socket::keep_alive option(true);
-				socket_.set_option(option);
+				socket_.set_option(option, ec);
+				if(ec)
+					run_statemachine(ec);
 			}
 
 			current_state_ = state::handshake_recv;
