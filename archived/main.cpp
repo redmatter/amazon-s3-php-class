@@ -124,7 +124,7 @@ volatile bool wasHUPed = false;
 
 }
 
-int main(int argc, char **argv) try
+int main(int argc, char *argv[]) try
 {
 	bool initialized = false;
 
