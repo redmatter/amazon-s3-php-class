@@ -16,6 +16,7 @@ License: Closed
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
+Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-16498, libs3-devel, cryptopp-devel, pugixml, cpp-netlib
 
@@ -25,7 +26,6 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fshooks >= 0.0.1-15219
 Provides: cdrpostd
@@ -37,7 +37,6 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
