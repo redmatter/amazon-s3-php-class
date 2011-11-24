@@ -74,13 +74,21 @@ _kill_program() {
 	[ -n "$pid" ] || return 0;
 	
 	# stab it with a kill
-	kill $pid
-
-	# give enough time to die.
-	sleep $( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 );
-
+	kill $pid &
+	
+	sleep_seconds=$( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 )
+	
+	# if pid file is gone, our daemon is dead
+	while [ -f "$pid_file" ] && [ "$sleep_seconds" -gt 0 ]; do
+		sleep_seconds=$(( $sleep_seconds - 1 ));
+		sleep 1;
+	done
+	
 	# if still alive cut its neck with -9
-	kill -0 $pid >/dev/null 2>&1 && kill -9 $pid
+	if [ "$sleep_seconds" -le 0 ] && kill -0 $pid &>/dev/null; then
+		kill -9 $pid
+		sleep 1
+	fi
 }
 
 _die() {
@@ -110,8 +118,6 @@ _stop() {
 
 	/usr/bin/${program_name}_safe stop
 	_kill_program "$1"
-
-	sleep 1;
 
 	_is_alive && return 1 || return 0;
 }

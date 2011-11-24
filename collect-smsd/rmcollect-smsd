@@ -74,13 +74,21 @@ _kill_program() {
 	[ -n "$pid" ] || return 0;
 	
 	# stab it with a kill
-	kill $pid
-
-	# give enough time to die.
-	sleep $( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 );
-
+	kill $pid &
+	
+	sleep_seconds=$( [ "$__VALGRIND_RUN" = true ] && echo 15 || echo 10 )
+	
+	# if pid file is gone, our daemon is dead
+	while [ -f "$pid_file" ] && [ "$sleep_seconds" -gt 0 ]; do
+		sleep_seconds=$(( $sleep_seconds - 1 ));
+		sleep 1;
+	done
+	
 	# if still alive cut its neck with -9
-	kill -0 $pid >/dev/null 2>&1 && kill -9 $pid
+	if [ "$sleep_seconds" -le 0 ] && kill -0 $pid &>/dev/null; then
+		kill -9 $pid
+		sleep 1
+	fi
 }
 
 _die() {
@@ -111,8 +119,6 @@ _stop() {
 	/usr/bin/${program_name}_safe stop
 	_kill_program "$1"
 
-	sleep 1;
-
 	_is_alive && return 1 || return 0;
 }
 
@@ -131,12 +137,16 @@ export __VALGRIND_TOOL="$( get_conf $config_file debug.valgrind_tool 1 memcheck 
 
 export __MALLOC_CHECK="$( get_conf $config_file debug.malloc_check 0 false )"
 
+export __CORE_ENABLED=$( [ $( get_conf $config_file app.max_core_size_mega_bytes 0 0 ) -gt 0 ] && echo 1 || echo 0 )
+export __CORE_NEED_SUID_FIX=$( [ -n "$( get_conf $config_file app.run_as_user 0 '' )$( get_conf $config_file app.run_as_group 0 '' )" ] && echo 1 || echo 0 )
 export __CORE_DIR="$( get_conf $config_file app.core_dump_dir 0 false )"
 
 export __NICE=${NICE:=$( which nice 2>/dev/null )}
 export __NICENESS="$( get_conf $config_file app.niceness 0 false )"
 
 export __DISABLE_RESTART="$( get_conf $config_file debug.disable_restart 0 false )"
+
+export __ON_RESTART_NOTIFY_EMAILS="$( get_conf $config_file app.on_restart_notify_emails 0 false )"
 
 case "$1" in
   start)
