@@ -17,6 +17,7 @@ struct ports {
 	enum ports_t {
 		put = 10100,
 		get = 10101,
+		collect_smsd_sync = 10102,
 
 		monitoring = 11111
 	};

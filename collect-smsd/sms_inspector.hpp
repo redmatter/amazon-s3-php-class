@@ -296,27 +296,22 @@ namespace app
 								archiving::archivable::pointer another_sms = internal_db_.load_archivable_by_uuid(archivable_sms->get_uuid());
 								archivable_sms.swap(another_sms);
 
-								if (!first_run_complete_)
+								if (archivable_sms->get_current_state() == archiving::archivable::state::stored ||
+									archivable_sms->get_current_state() == archiving::archivable::state::discarded)
 								{
-									if (archivable_sms->get_current_state() == archiving::archivable::state::stored ||
-										archivable_sms->get_current_state() == archiving::archivable::state::discarded)
-									{
-										LogWarning(*archivable_sms << ": already stored/discarded: Trying to delete it");
-										archivable_sms->set_done(archivable_sms->get_current_state() == archiving::archivable::state::discarded);
-									}
-									else if (archivable_sms->get_current_state() == archiving::archivable::state::inspected)
-									{
-										LogWarning(*archivable_sms << ": already inspected: sending it to the archive");
-										out_channel.produce(archivable_sms);
-									}
-									else
-									{
-										LogWarning(*archivable_sms << ": already collected/unknown: re-queueing it for initial processing");
-										in_channel.produce(archivable_sms);
-									}
+									LogWarning(*archivable_sms << ": already stored/discarded: Trying to delete it");
+									archivable_sms->set_done(archivable_sms->get_current_state() == archiving::archivable::state::discarded);
+								}
+								else if (archivable_sms->get_current_state() == archiving::archivable::state::inspected)
+								{
+									LogWarning(*archivable_sms << ": already inspected: sending it to the archive");
+									out_channel.produce(archivable_sms);
 								}
 								else
-									LogWarning(*archivable_sms << ": state " << archivable_sms->get_current_state() << ": re-queueing it for initial processing");
+								{
+									LogWarning(*archivable_sms << ": already collected/unknown: re-queueing it for initial processing");
+									in_channel.produce(archivable_sms);
+								}
 							}
 							catch(rml::exception &e)
 							{

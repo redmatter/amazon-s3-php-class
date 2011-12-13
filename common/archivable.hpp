@@ -65,6 +65,11 @@ struct owner_info
 
 class archivable_pointer_compare;
 
+void on_archivable_destruct_default(class archivable *ptr) {}
+
+typedef boost::function<void(class archivable *ptr)> archivable_fn;
+archivable_fn on_archivable_destruct = boost::bind(on_archivable_destruct_default, _1);
+
 class archivable
 {
 public:
@@ -381,6 +386,11 @@ public:
 		p_fstream_->set_persistent(true);
 
 		hibernate();
+	}
+
+	virtual ~archivable()
+	{
+		on_archivable_destruct(this);
 	}
 
 	inline void move_to_subdir(const std::string& sub_dir)
