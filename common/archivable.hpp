@@ -65,10 +65,8 @@ struct owner_info
 
 class archivable_pointer_compare;
 
-void on_archivable_destruct_default(class archivable *ptr) {}
-
 typedef boost::function<void(class archivable *ptr)> archivable_fn;
-archivable_fn on_archivable_destruct = boost::bind(on_archivable_destruct_default, _1);
+extern archivable_fn on_archivable_destruct;
 
 class archivable
 {
