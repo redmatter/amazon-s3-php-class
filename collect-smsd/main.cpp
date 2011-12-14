@@ -9,7 +9,6 @@
 #include "sms_inspector.hpp"
 #include "directory_loader.hpp"
 #include "../common/database.hpp"
-#include "syncserver.hpp"
 
 #include "../common/types.hpp"
 #include "sms_dir_monitor.hpp"
@@ -186,17 +185,6 @@ volatile bool wasHUPed = false;
 
 }
 
-void handle_archivable_destruct(SyncServer &sync, archiving::archivable *ptr)
-{
-	if (ptr->get_current_state() != archiving::archivable::state::unknown)
-	{
-		LogMessage(ptr->get_uuid() << ": " << *ptr);
-		sync.Release(ptr->get_uuid());
-	}
-	else
-		LogMessage(ptr->get_uuid() << ": not calling Release: " << *ptr);
-}
-
 int main(int argc, char* argv[]) try
 {
 	bool initialized = false;
@@ -230,7 +218,6 @@ int main(int argc, char* argv[]) try
 		optsDesc.add_options()
 				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
 				("sms.directory", boost::program_options::value<std::string>()->default_value(std::string("/mnt/cdrfs/archiving-import-sms")), "sms directory")
-				("sms.syncpartner", boost::program_options::value<std::string>()->default_value(std::string("sync.collect-smsd.redmatter.com")), "the other collect-smsd server")
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "collect-smsd service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
@@ -288,7 +275,6 @@ int main(int argc, char* argv[]) try
 				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
 				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
-		archiving::archivable_channel_t pre_channel("PRE");
 
 		app::database::internal internal_db(app::confMap, "CollectSmsDQueue");
 
@@ -298,13 +284,9 @@ int main(int argc, char* argv[]) try
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
 
-		SyncServer sync (io_service, app::confMap["sms.syncpartner"].as<std::string>(), archiving::ports::collect_smsd_sync, pre_channel, in_channel);
-
-		archiving::on_archivable_destruct = boost::bind(handle_archivable_destruct, boost::ref(sync), _1);
-
 		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
 
-		archiving::sms_dir_monitor sms_dir_monitor(pre_channel, app::hostname);
+		archiving::sms_dir_monitor sms_dir_monitor(in_channel, app::hostname);
 
 		app::directory_loader::loader_fn directory_loader_fn(
 				boost::bind(&archiving::sms_dir_monitor::add_path, boost::ref(sms_dir_monitor), _1));
@@ -318,14 +300,14 @@ int main(int argc, char* argv[]) try
 
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
-		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, pre_channel, more_to_load_from_db);
+		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 		wait_for_first_run = more_to_load_from_db;
 
 		// make sure we pre-load the outstanding items before the directory loader finds the file on disk and
 		// we end up with a double-load and a key clash on insert when the archivable is saved ...
 		// the function loads max 100 at a time, so we need to loop round to get them all into play
 		while (more_to_load_from_db)
-			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, pre_channel, more_to_load_from_db);
+			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
 
 		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, io_service);
 		threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
@@ -367,14 +349,13 @@ int main(int argc, char* argv[]) try
 
 			if(!(ticks++ % 10))
 				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
-						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(pre_channel), boost::ref(more_to_load_from_db)));
+						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db)));
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
 
 		in_channel.set_finishing();
 		out_channel.set_finishing();
-		pre_channel.set_finishing();
 
 		coreapi.logout();
 

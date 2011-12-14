@@ -21,8 +21,7 @@ CXX_SRCS += \
 		dir_monitor.cpp \
 		defines.cpp \
 		types.cpp \
-		archived_client.cpp \
-		archivable.cpp
+		archived_client.cpp
 
 C_SRCS += \
 
