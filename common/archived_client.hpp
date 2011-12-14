@@ -274,7 +274,6 @@ private:
 	{
 		if(socket_.is_open()) {
 			boost::system::error_code ec;
-			socket_.cancel(ec);
 			socket_.close(ec);
 		}
 
@@ -813,7 +812,6 @@ private:
 		resolver_.cancel();
 		if(socket_.is_open()) {
 			boost::system::error_code ec;
-			socket_.cancel(ec);
 			socket_.close(ec);
 		}
 

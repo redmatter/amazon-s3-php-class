@@ -338,6 +338,19 @@ struct file_format
 	 * @param dsf
 	 * @return
 	 */
+	static inline file_format_t make(const bool compressed, const bool encrypted, const file_format_t ff)
+	{
+		return make(compressed, encrypted, data_sub_format::data_sub_format_t(ff & 0xff));
+	}
+
+	/**
+	 * handy function to put the format components together
+	 *
+	 * @param compressed
+	 * @param encrypted
+	 * @param dsf
+	 * @return
+	 */
 	static inline file_format_t make(const bool compressed, const bool encrypted, const data_sub_format::data_sub_format_t dsf)
 	{
 		uint16_t df = data_format::clear;

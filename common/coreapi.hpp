@@ -176,10 +176,11 @@ public:
 	 * @param uri
 	 * @param use_authorization
 	 * @param h headers
+	 * @param authorization
 	 *
 	 * @return pair< status, body >
 	 */
-	response get(const std::string& uri, const bool use_authorization = true, const headers& h = headers()) const
+	response get(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
 	{
 		int attempts = 2;
 
@@ -189,11 +190,17 @@ public:
 		while(attempts--) {
 			http_client_request request(url);
 			if(use_authorization) {
-				if(true != get_authorized())
-					throw rml::exception("Not authorized; invalid call sequence");
-
-				request << boost::network::header("Authorization", authorization_);
-				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				if(authorization.empty()) {
+					if(true != get_authorized())
+						throw rml::exception("Not authorized; invalid call sequence");
+	
+					request << boost::network::header("Authorization", authorization_);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				}
+				else {
+					request << boost::network::header("Authorization", authorization);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
+				}
 			}
 
 			if(!h.empty()) {
@@ -216,7 +223,7 @@ public:
 
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
-			if(use_authorization && ( status == 401 || status == 403 )) {
+			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
 				authorization_error_ = true;
 				continue;
 			}
@@ -233,12 +240,14 @@ public:
 	 * @param uri
 	 * @param expected_status
 	 * @param use_authorization
+	 * @param h headers
+	 * @param authorization
 	 *
 	 * @return response
 	 */
-	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers()) const
+	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
 	{
-		const response& r(get(uri, use_authorization, h));
+		const response& r(get(uri, use_authorization, h, authorization));
 		if(expected_status && r.first != expected_status) {
 			LogError("Unexpected response status; status:"<<r.first<<" (expected status:"<<expected_status<<')');
 			throw rml::exception("Unexpected response status");
@@ -252,10 +261,12 @@ public:
 	 *
 	 * @param uri
 	 * @param use_authorization
+	 * @param h headers
+	 * @param authorization
 	 *
 	 * @return pair< status, body >
 	 */
-	response delete_(const std::string& uri, const bool use_authorization = true, const headers& h = headers()) const
+	response delete_(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
 	{
 		int attempts = 2;
 
@@ -265,11 +276,17 @@ public:
 		while(attempts--) {
 			http_client_request request(url);
 			if(use_authorization) {
-				if(true != get_authorized())
-					throw rml::exception("Not authorized; invalid call sequence");
-
-				request << boost::network::header("Authorization", authorization_);
-				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				if(authorization.empty()) {
+					if(true != get_authorized())
+						throw rml::exception("Not authorized; invalid call sequence");
+	
+					request << boost::network::header("Authorization", authorization_);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				}
+				else {
+					request << boost::network::header("Authorization", authorization);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
+				}
 			}
 
 			if(!h.empty()) {
@@ -292,7 +309,7 @@ public:
 
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
-			if(use_authorization && ( status == 401 || status == 403 )) {
+			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
 				if (uri.substr(0, 6) == "/auth/") {
 					LogWarning("DELETE "<<uri<<" failed");
 					throw rml::exception("DELETE failed");
@@ -315,10 +332,12 @@ public:
 	 * @param body
 	 * @param content_type
 	 * @param use_authorization
+	 * @param h headers
+	 * @param authorization
 	 *
 	 * @return pair< status, body >
 	 */
-	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers()) const
+	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
 	{
 		int attempts = 2;
 
@@ -328,11 +347,17 @@ public:
 		while(attempts--) {
 			http_client_request request(url);
 			if(use_authorization) {
-				if(true != get_authorized())
-					throw rml::exception("Not authorized; invalid call sequence");
-
-				request << boost::network::header("Authorization", authorization_);
-				LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				if(authorization.empty()) {
+					if(true != get_authorized())
+						throw rml::exception("Not authorized; invalid call sequence");
+	
+					request << boost::network::header("Authorization", authorization_);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				}
+				else {
+					request << boost::network::header("Authorization", authorization);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
+				}
 			}
 
 			if(!h.empty()) {
@@ -367,7 +392,7 @@ public:
 
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
-			if(use_authorization && ( status == 401 || status == 403 )) {
+			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
 				authorization_error_ = true;
 				continue;
 			}

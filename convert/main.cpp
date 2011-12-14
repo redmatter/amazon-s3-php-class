@@ -58,6 +58,7 @@ int main(int argc, char* argv[])
 					("log.syslog-tag", boost::program_options::value<std::string>(), "syslog tag to be used ( relevant for rsyslog filter )")
 					("temp-dir", boost::program_options::value<std::string>()->default_value("/tmp"), "Temporary files will be put here")
 					("help", "this help")
+					("version", "shows version information")
 					;
 			boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 			boost::program_options::notify(cli_confMap);
@@ -65,6 +66,11 @@ int main(int argc, char* argv[])
 			if (cli_confMap.count("help")) {
 				std::cout << cli_optsDesc << "\n";
 				exit(rml::utils::exit_codes::failure);
+			}
+
+			if(cli_confMap.count("version")) {
+				std::cout << boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string );
+				exit(rml::utils::exit_codes::normal);
 			}
 
 			if (cli_confMap.count("log.syslog-tag"))

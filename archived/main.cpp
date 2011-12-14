@@ -1,6 +1,7 @@
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
+#include "get_server.hpp"
 #include "storage.hpp"
 #include "storage_operation.hpp"
 #include "storage_runner.hpp"
@@ -25,6 +26,8 @@
 #include <rml/config.h>
 #include <rml/siginit.h>
 #include <rml/daemon.h>
+
+#include <fcgio.h>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -142,6 +145,7 @@ int main(int argc, char *argv[]) try
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
 				("help-conf", "conf file help")
 				("help", "this help")
+				("version", "shows version information")
 				;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 		boost::program_options::notify(cli_confMap);
@@ -172,10 +176,16 @@ int main(int argc, char *argv[]) try
 		app::whisper_client::describe_config(optsDesc);
 		app::retention_data_flusher::describe_config(optsDesc);
 		app::purge::describe_config(optsDesc);
+		app::get_server::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
-			return 1;
+			exit(rml::utils::exit_codes::normal);
+		}
+
+		if(cli_confMap.count("version")) {
+			std::cout << boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string );
+			exit(rml::utils::exit_codes::normal);
 		}
 
 		if(1 != cli_confMap.count("hostname"))
@@ -234,11 +244,14 @@ int main(int argc, char *argv[]) try
 		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
 				boost::bind(&app::storage::endpoint_finder, boost::ref(coreapi), _1), "CachedEndpointFinder");
 
+		app::retention_record::cached_finder_t cached_retention_record_finder(
+				boost::bind(&app::database::retention::get_retention, boost::ref(retention_db), _1), "CachedRetentionRecordFinder");
+
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
-				internal_db, app::quit);
+				internal_db, cached_endpoint_finder, app::quit);
 
 		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, app::quit);
 
@@ -274,15 +287,35 @@ int main(int argc, char *argv[]) try
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
 		
+		int fd_fcgi_listen = -1;
+		{
+			if(FCGX_Init())
+				throw rml::exception("FCGX_Init failed");
+
+			const unsigned int& listen_queue_depth( app::confMap["get_server.fcgi_listen_queue_depth"].as<unsigned int>() );
+			const std::string& listen_socket( app::confMap["get_server.fcgi_listen_socket"].as<std::string>() );
+			
+			fd_fcgi_listen = FCGX_OpenSocket(listen_socket.c_str(), listen_queue_depth);
+			if (-1 == fd_fcgi_listen)
+				throw rml::exception("failed to listen on fcgi_listen_socket");
+		}
+		
 		initialized = true;
 		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
 
+		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, app::quit);
+		{
+			unsigned int n_threads(std::max<unsigned int>(app::confMap["get_server.handler_threads"].as<unsigned int>(), app::get_server::min_handler_threads));
+			while(0 < n_threads--)
+				threads.create_thread(boost::bind(&app::get_server::run, boost::ref(get_server)));
+		}
+		
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["converter.threads"].as<unsigned int>(), app::converter::min_threads );
 			LogMessage("Starting "<<n_threads<<" converter threads");
-			while(0 < --n_threads)
+			while(0 < n_threads--)
 				threads.create_thread(boost::bind(&app::converter::run, boost::ref(converter)));
 		}
 
@@ -291,14 +324,14 @@ int main(int argc, char *argv[]) try
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );
 			LogMessage("Starting "<<n_threads<<" s3 threads");
-			while(0 < --n_threads)
+			while(0 < n_threads--)
 				threads.create_thread(boost::bind(&app::storage::s3::runner::run, boost::ref(s3runner)));
 		}
 
 		{
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
 			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
-			while(0 < --n_threads)
+			while(0 < n_threads--)
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
 
@@ -318,6 +351,7 @@ int main(int argc, char *argv[]) try
 			if(0 == (ticker % 20)) {
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
+				cached_retention_record_finder.clear_unused(10);
 			}
 
 			if(have_more_to_load && (0 == (ticker % 20)))
@@ -371,8 +405,13 @@ int main(int argc, char *argv[]) try
 		coreapi.logout();
 
 		io_service.stop();
+		
+		shutdown(fd_fcgi_listen, SHUT_RDWR);
+		close(fd_fcgi_listen);		
 
 		threads.join_all();
+
+		FCGX_ShutdownPending();
 
 		LogAlways("terminated normally");
 

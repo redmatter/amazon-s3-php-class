@@ -774,7 +774,6 @@ private:
 	{
 		current_state_ = states::closed;
 		boost::system::error_code ec;
-		socket_.cancel(ec);
 		socket_.close(ec);
 	}
 };

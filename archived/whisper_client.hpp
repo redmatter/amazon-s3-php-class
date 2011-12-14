@@ -202,7 +202,6 @@ private:
 			resolver_.cancel();
 			if(socket_.is_open()) {
 				boost::system::error_code ec;
-				socket_.cancel(ec);
 				socket_.close(ec);
 			}
 			LogWarning("Distiller connection failed; retrying...");
@@ -452,7 +451,6 @@ private:
 			connected_ = false;
 
 			boost::system::error_code ec;
-			socket_.cancel(ec);
 			socket_.close(ec);
 			resolver_.cancel();
 			timer_.cancel(ec);

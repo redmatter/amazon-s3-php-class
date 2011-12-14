@@ -16,9 +16,12 @@ License: Closed
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: libs3 = 1.4-11469
+Requires: libs3 = 1.4-16645
 Requires: RM-%{appname}-common = %{version}-%{release}
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-16498, libs3-devel = 1.4-11469, cryptopp-devel, pugixml, cpp-netlib
+Requires: fcgi
+Requires: httpd
+Requires: mod_fastcgi
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-17077, libs3-devel = 1.4-16645, cryptopp-devel, pugixml, cpp-netlib, fcgi-devel
 
 %package collectd
 Summary: Archiving CollectD
@@ -45,7 +48,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 #Summary: Archiving CollectD
 #Group: RedMatter/Archiving
 #Requires: RM-%{appname}-common = %{version}-%{release}
-#Requires: boost >= 1.45.0, mysql++ >= 3.1.0-14089, libs3 = 1.4-11469, cryptopp, php-s3, RM-php-rmapp >= 0.0.1-11853, RM-%{appname}-convert = %{version}-%{release}
+#Requires: boost >= 1.45.0, mysql++ >= 3.1.0-14089, libs3 = 1.4-16645, cryptopp, php-s3, RM-php-rmapp >= 0.0.1-11853, RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
 Summary: Archiving Convert Utility
@@ -90,11 +93,11 @@ Archiving Utility scripts for verification etc
 # ----------
 
 %prep
-%setup -q 
+%setup -q
 
 %build
 echo %{version} | awk -F\. '{print "VERSION_MA="$1"\nVERSION_MI="$2"\nVERSION_MIN="$3"\n"}' > version_info
-echo "BUILD_ID=%{release}" >> version_info 
+echo "BUILD_ID=%{release}" >> version_info
 make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 
 %install
@@ -109,6 +112,9 @@ mkdir -p %{buildroot}/var/run/archiving
 mkdir -p %{buildroot}/usr/share/php/archiving
 
 # ArchiveD
+mkdir -p %{buildroot}/var/www/rmarchived
+mkdir -p %{buildroot}/etc/httpd/conf.d
+cp archived/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchived.conf
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
 cp archived-monitor/tmp-%{buildtype}-build/archived-monitor %{buildroot}/usr/bin/rmarchived-monitor
 cp archived/rmarchived_safe %{buildroot}/usr/bin/
@@ -154,7 +160,7 @@ mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
-cp common/rmarchived-hAPI %{buildroot}/usr/bin/ 
+cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 #cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
 # Scripts
@@ -218,19 +224,33 @@ fi
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
+/sbin/chkconfig httpd on
+/etc/init.d/httpd condrestart
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 %post collectd
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 %post collect-smsd
 /usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
@@ -244,19 +264,41 @@ fi
 #[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
 
 %post scripts
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 
 # ----------
 
 %postun
-[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || /bin/true
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
+
+%postun collectd
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
+
+%postun collect-smsd
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
 
 # ----------
 
 %files
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
-%defattr(-,root,root) 
+%defattr(-,root,root)
 /usr/bin/rmarchived.bin
 /usr/bin/rmarchived-monitor
 /usr/bin/rmarchived_safe
@@ -269,10 +311,12 @@ fi
 /etc/rsyslog.d/11-rmarchived.conf
 /etc/archiving/conf.d/retention_database.conf
 /etc/archiving/conf.d/cdrmunch_database.conf
+/var/www/rmarchived
+/etc/httpd/conf.d/rmarchived.conf
 
 %files collectd
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
-%defattr(-,root,root) 
+%defattr(-,root,root)
 /usr/bin/rmcollectd.bin
 /usr/bin/rmcollectd_safe
 /usr/share/archiving/rmcollectd.supp
@@ -285,7 +329,7 @@ fi
 
 %files collect-smsd
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
-%defattr(-,root,root) 
+%defattr(-,root,root)
 /usr/bin/rmcollect-smsd.bin
 /usr/bin/rmcollect-smsd_safe
 /usr/share/archiving/rmcollect-smsd.supp
@@ -297,7 +341,7 @@ fi
 /etc/rsyslog.d/11-rmcollect-smsd.conf
 
 #%files migrationd
-#%defattr(-,root,root) 
+#%defattr(-,root,root)
 #/usr/bin/rmmigrationd.bin
 #/usr/bin/rmmigrationd_safe
 #/usr/share/archiving/rmmigrationd.supp
@@ -312,7 +356,7 @@ fi
 
 %files convert
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
-%defattr(-,root,root) 
+%defattr(-,root,root)
 /usr/bin/archiving-convert
 
 %files common
@@ -322,7 +366,7 @@ fi
 # /etc/archiving/migration_database.conf
 
 %files scripts
-%defattr(-,root,root) 
+%defattr(-,root,root)
 /usr/share/php/archiving/*
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh

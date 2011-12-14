@@ -21,12 +21,16 @@ namespace app {
 
 class dispatcher
 {
+	enum { max_retry = 5 };
+
 	operation_data::channel_t& convert_done_channel_;
 	storage::operation_channel_t& operation_channel_;
 	operation_data::channel_t& retention_data_channel_;
 	// operation_data::channel_t& get_data_ready_channel_;
 
 	database::internal& internal_db_;
+
+	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
 
 	volatile bool& quit_;
 
@@ -37,12 +41,14 @@ public:
 			operation_data::channel_t& retention_data_channel,
 			// operation_data::channel_t& get_data_ready_channel,
 			database::internal& internal_db,
+			storage::cached_endpoint_finder_t& cached_endpoint_finder,
 			volatile bool& quit) :
 				convert_done_channel_(convert_done_channel),
 				operation_channel_(operation_channel),
 				retention_data_channel_(retention_data_channel),
 				// get_data_ready_channel_(get_data_ready_channel),
 				internal_db_(internal_db),
+				cached_endpoint_finder_(cached_endpoint_finder),
 				quit_(quit)
 	{
 	}
@@ -52,7 +58,7 @@ public:
 		opdata->hibernate();
 
 		if(storage_opr_result == storage::operation_result::success) {
-			LogMessage(opdata->p_detail->identifier<<": Saved to S3; queueing for retention");
+			LogMessage(opdata->p_detail->identifier<<": Saved to storage; queueing for retention");
 			opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			retention_data_channel_.produce(opdata);
@@ -62,9 +68,9 @@ public:
 		}
 		else {
 			bool error = false;
-			LogWarning(opdata->p_detail->identifier<<": Saving to S3 failed");
+			LogWarning(opdata->p_detail->identifier<<": Saving to storage failed");
 			opdata->p_detail->retry++;
-			if(opdata->p_detail->retry > 3) { // max retry reached; mark error
+			if(opdata->p_detail->retry >= max_retry) {
 				error = true;
 				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
 				LogError(opdata->p_detail->identifier<<": Failed store after "<<int(opdata->p_detail->retry)<<" retry(s)");
@@ -75,11 +81,16 @@ public:
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
 			if(!error) {
-				if (!convert_done_channel_.produce(opdata))
+				// give configuration a chance to change!
+				// we will look it up before we retry
+				opdata->p_detail->p_endpoint.reset();
+				
+				// exponential retry ... 3 min, 12 mins, 27 mins, 
+				if (!convert_done_channel_.produce(opdata, 180 * opdata->p_detail->retry * opdata->p_detail->retry, 0, 0))
 					LogWarning(opdata->p_detail->identifier<<": setup of retry failed");
 			}
 			else
-				LogError(opdata->p_detail->identifier<<": retry > 3; discarding...");
+				LogError(opdata->p_detail->identifier<<": retry > "<<max_retry<<"; discarding...");
 		}
 	}
 
@@ -87,7 +98,7 @@ public:
 	{
 		while(!quit_) {
 			try {
-				operation_data::pointer opdata = convert_done_channel_.consume();
+				operation_data::pointer opdata = convert_done_channel_.consume(10);
 
 				const operation::operation_t& arcd_operation(operation::operation_t((opdata->p_detail->state & 0x0f00) >> 8));
 
@@ -101,6 +112,17 @@ public:
 
 					if(opdata->p_detail->state == operation_state::put_file_convert_ok || opdata->p_detail->state == operation_state::put_file_save) {
 						opdata->p_detail->state = operation_state::put_file_save;
+						
+						if(!opdata->p_detail->p_endpoint) {
+							const std::pair<archiving::org_id_t, archiving::endpoint_id_t>& lookup(
+									std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(
+											opdata->p_detail->identifier.org, opdata->p_detail->policy.p_policy->endpoint_id));
+							if(!(opdata->p_detail->p_endpoint = cached_endpoint_finder_(lookup))) {
+								cached_endpoint_finder_.forget(lookup);
+								THROW_RML_EXCEPTION("Endpoint not found "<<lookup.first<<'/'<<lookup.second);
+							}
+						}
+						
 						operation_channel_.produce(
 								storage::operation_ex(
 										app::operation::put_object,
@@ -113,6 +135,9 @@ public:
 					LogCritical("Not implemented; operation:"<<arcd_operation);
 					break;
 				}
+			}
+			catch(const operation_data::channel_t::consume_timed_out_exception& e) {
+				LogDebug("Timed-out on items to dispatch");
 			}
 			catch(const std::exception& e) {
 				LogWarning("Exception: "<<e.what());

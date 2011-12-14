@@ -21,7 +21,7 @@ __log() {
 }
 
 npipe=/tmp/${program_name}_safe_$$.tmp
-trap "rm -f $npipe" EXIT
+trap "rm -f $npipe /tmp/mail.$$" EXIT
 mknod $npipe p
 while read a_line_; do __log info "$a_line_"; done <$npipe &
 exec 1>&-
@@ -104,10 +104,16 @@ _01st_crash_time=0
 
 echo $$ > $pid_file
 
-if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
-	[ -d "${__CORE_DIR}" ] || mkdir -p "${__CORE_DIR}"
-	chmod 777 "${__CORE_DIR}"
-	echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
+if [ "$__CORE_ENABLED" -eq 1 ]; then
+	if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
+		[ -d "${__CORE_DIR}" ] || mkdir -p "${__CORE_DIR}"
+		chmod 777 "${__CORE_DIR}"
+		echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
+	fi
+
+	if [ "$__CORE_NEED_SUID_FIX" -eq 1 ]; then
+		/sbin/sysctl fs.suid_dumpable=1
+	fi
 fi
 
 if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
@@ -186,18 +192,61 @@ while true; do
 	fi
 
 	_crash_count=$(( $_crash_count + 1 ))
+	
+	if [ "$exit_status" -gt 128 ]; then
+		program_bin=${program##*/}
+		core="${__CORE_DIR}/core.${program_bin:0:15}.sig$(($exit_status - 128)).$(cat /var/run/archiving/${program_name}.pid)"
+		core_trace=${core}.backtrace
+
+		__log debug "core: $core trace: $core_trace";
+		
+		if [ -r "$core" ]; then
+			gdb -batch-silent \
+				-ex "set logging overwrite on" \
+				-ex "set logging file ${core_trace}" \
+				-ex "set logging on" \
+				-ex "set pagination off" \
+				-ex "handle SIG33 pass nostop noprint" \
+				-ex "echo backtrace:\n" \
+				-ex "backtrace full" \
+				-ex "echo \n\nregisters:\n" \
+				-ex "info registers" \
+				-ex "echo \n\ncurrent instructions:\n" \
+				-ex "x/16i \$pc" \
+				-ex "echo \n\nthreads backtrace:\n" \
+				-ex "thread apply all backtrace" \
+				-ex "set logging off" \
+				-ex "quit" \
+				--core $core $program
+		fi
+	fi
+
+	if [ "$__ON_RESTART_NOTIFY_EMAILS" != "false" ]; then
+		__log debug "__ON_RESTART_NOTIFY_EMAILS: $__ON_RESTART_NOTIFY_EMAILS";
+		
+		echo "$(date) - ${program_name} died ( status: $exit_status )" > /tmp/mail.$$
+		if [ "$__DISABLE_RESTART" = "true" ]; then
+			echo "NOT restarting; manual intervention needed"          >> /tmp/mail.$$
+		else
+			echo "Restarting in a few seconds; no action needed"       >> /tmp/mail.$$
+		fi
+		echo ""                                                        >> /tmp/mail.$$
+		if [ -n "$core_trace" ] && [ -r "$core_trace" ]; then
+			echo "--8<----------------- trace -------------------8<--" >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			echo "$( $program --version )"                             >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			echo "core: $core"                                         >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			cat "$core_trace"                                          >> /tmp/mail.$$
+		fi
+		
+		[ -x /bin/mail ] && /bin/mail -s "${program_name} died on $(uname -n)" ${__ON_RESTART_NOTIFY_EMAILS} < /tmp/mail.$$
+	fi
 
 	if [ "$__DISABLE_RESTART" = "true" ]; then
 		exit $exit_status;
 	else
-		if [ "$__ON_RESTART_NOTIFY_EMAILS" != "false" ]; then
-			__log debug "__ON_RESTART_NOTIFY_EMAILS: $__ON_RESTART_NOTIFY_EMAILS";
-			[ -x /bin/mail ] && /bin/mail -s "${program_name} Restarted on $(uname -n)" ${__ON_RESTART_NOTIFY_EMAILS} <<BODY
-$(date) - ${program_name} died ( status: $exit_status )
-Restarting...
-BODY
-		fi
-
 		__log warning "${program_name} died ( status: $exit_status ) Restarting...";
 	fi
 done;

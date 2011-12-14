@@ -405,13 +405,23 @@ struct operation_data
 				itr->second->set_persistent(false);
 				p_detail->files_map.erase(itr);
 			}
-
+			
+			rml::utils::tmp_fstream::pointer current = get_tmp_fstream();
 			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(format)+".",
-					std::size_t(0), get_tmp_fstream()->get_directory()));
+					std::size_t(0), current? current->get_directory() : "/tmp"));
 			p_detail->files_map.insert(std::make_pair(format, ret));
 		}
 
 		return ret;
+	}
+	
+	void cleanup()
+	{
+		files_map_t::iterator itr = p_detail->files_map.begin();
+		while(itr != p_detail->files_map.end()) {
+			itr->second->set_persistent(false);
+			p_detail->files_map.erase(itr++);
+		}
 	}
 
 	void remove_tmp_fstream(const types::file_format::file_format_t format, const rml::utils::tmp_fstream::pointer& fs = rml::utils::tmp_fstream::pointer())
@@ -437,7 +447,7 @@ struct operation_data
 		bool operator()(const pointer& lhs, const pointer& rhs) const
 		{
 			if(lhs->p_detail->retry != rhs->p_detail->retry)
-				return lhs->p_detail->retry > lhs->p_detail->retry; // bigger retry, lesser priority ( > comparison )
+				return lhs->p_detail->retry > rhs->p_detail->retry; // bigger retry, lesser priority ( > comparison )
 
 			if(lhs->p_detail->state != rhs->p_detail->state)
 				return lhs->p_detail->state < rhs->p_detail->state; // order of states in the enum dictates the order here

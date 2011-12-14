@@ -10,7 +10,7 @@
 
 #include "operation_data.hpp"
 #include "types.hpp"
-#include "retention.hpp"
+#include "retention_record.hpp"
 
 #include "../common/policy.hpp"
 #include "../common/basic_database.hpp"
@@ -24,6 +24,7 @@
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/algorithm/string/erase.hpp>
 
 #include <set>
 
@@ -91,47 +92,55 @@ public:
 	{
 	}
 
-	/// TODO NEED TO MAINTAIN THIS!!!
-	std::pair< bool, app::retention > get_retention(const archiving::org_id_t& org, const std::string& identifier)
+	retention_record::pointer get_retention(const archiving::archivable::identifier& identifier)
 	{
 		try {
+			std::string uuid_hex(identifier.uuid);
+			boost::algorithm::erase_all(uuid_hex, "-");
+			
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query << "SELECT"
-					" OrgID,"
-					" UserID,"
-					" PolicyID,"
-					" PolicyVersion, "
-					" DAYOFMONTH(CreationDate), MONTH(CreationDate), YEAR(CreationDate),"
-					" DAYOFMONTH(RetentionMinDate), MONTH(RetentionMinDate), YEAR(RetentionMinDate),"
-					" DAYOFMONTH(RetentionMaxDate), MONTH(RetentionMaxDate), YEAR(RetentionMaxDate)"
-					"FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-					"WHERE ReversedIdentifier=REVERSE(%0q:Identifier) AND OrgID=%1:OrgID"
-					" AND Purged='n' AND RetentionMaxDate >= CURDATE()"
+					" `UUID`, `LegUUID`, `Format`, `Type`, `OrgID`, `UserID`, `PolicyID`, `PolicyVersion`,"
+					" DAYOFMONTH(`CreationDate`), MONTH(`CreationDate`), YEAR(`CreationDate`),"
+					" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
+					" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
+					" `MidnightOffsetSeconds`, `EndpointID`,"
+					" `Purged`, `RetentionMaxDate` <= CURDATE() "
+					"FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
+					"WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
 					"LIMIT 1";
-			query.parse();
-			mysqlpp::SQLQueryParms qp;
-			qp << identifier << org;
 
-			mysqlpp::UseQueryResult res = query.use(qp);
+			SQL_DEBUG(query.str());
+			
+			mysqlpp::UseQueryResult res = query.use();
 			if(mysqlpp::Row row = res.fetch_row()) {
-				return std::make_pair(true, app::retention(
-						archiving::org_id_t(rml::utils::strtoull(row[0].c_str())),    // OrgID
-						archiving::user_id_t(rml::utils::strtoull(row[1].c_str())),   // UserID
-						policy::id_type(rml::utils::strtoull(row[2].c_str())),      // PolicyID
-						policy::version_type(rml::utils::strtoull(row[3].c_str())), // PolicyVersion
-						applied_policy::ymd_t(                                      // CreationDate
-								rml::utils::strtoull(row[4].c_str()),
-								rml::utils::strtoull(row[5].c_str()),
-								rml::utils::strtoull(row[6].c_str())),
-						applied_policy::ymd_t(                                      // RetentionMinDate
-								rml::utils::strtoull(row[7].c_str()),
-								rml::utils::strtoull(row[8].c_str()),
-								rml::utils::strtoull(row[9].c_str())),
-						applied_policy::ymd_t(                                      // RetentionMinDate
-								rml::utils::strtoull(row[10].c_str()),
-								rml::utils::strtoull(row[11].c_str()),
-								rml::utils::strtoull(row[12].c_str()))));
+				const applied_policy::ymd_t creation_date(                               // CreationDate
+						rml::utils::strtoull(row[10].c_str()),
+						rml::utils::strtoull(row[9].c_str()),
+						rml::utils::strtoull(row[8].c_str()));
+				const applied_policy::ymd_t retention_min_date(                          // RetentionMinDate
+						rml::utils::strtoull(row[13].c_str()),
+						rml::utils::strtoull(row[12].c_str()),
+						rml::utils::strtoull(row[11].c_str()));
+				const applied_policy::ymd_t retention_max_date(                          // RetentionMinDate
+						rml::utils::strtoull(row[16].c_str()),
+						rml::utils::strtoull(row[15].c_str()),
+						rml::utils::strtoull(row[14].c_str()));
+
+				return retention_record::pointer(new retention_record(
+						archiving::archivable::identifier(
+								archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[3].c_str())),
+								rml::utils::strtoull(row[4].c_str()), row[0].c_str()),// Identifier
+						types::file_format::file_format_t(rml::utils::strtoull(row[2].c_str())),
+						archiving::user_id_t(rml::utils::strtoull(row[5].c_str())),   // UserID
+						policy::id_type(rml::utils::strtoull(row[6].c_str())),      // PolicyID
+						policy::version_type(rml::utils::strtoull(row[7].c_str())), // PolicyVersion
+						creation_date, retention_min_date, retention_max_date,
+						rml::utils::strtoull(row[17].c_str()),
+						row[19] == "yes",
+						row[20] == "1",
+						rml::utils::strtoull(row[18].c_str())));
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -144,7 +153,7 @@ public:
 			LogError("Unknown Exception");
 		}
 
-		return std::make_pair(false, app::retention());
+		return retention_record::pointer();
 	}
 
 	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
@@ -502,7 +511,7 @@ public:
 			if(first) {
 				mysqlpp::Query query = conn->query();
 				query << "SELECT MAX(ID) FROM ArchivingInternal.ArchiveDQueue"
-						" WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone";
+						" WHERE HostName=%0q:HostName AND OpState!=%1:OpStateAllDone";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
@@ -525,7 +534,7 @@ public:
 						" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID,"
 						" TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime, ClearSize, RealSize "
 						"FROM ArchivingInternal.ArchiveDQueue "
-						"WHERE HostName=%0q:HostName AND RetryCount<3 AND OpState!=%1:OpStateAllDone "
+						"WHERE HostName=%0q:HostName AND OpState!=%1:OpStateAllDone "
 						" AND ID <= %2:FirstMaxID AND ID > %3:MaxID "
 						"LIMIT 100";
 				query.parse();
@@ -552,9 +561,14 @@ public:
 						const uint64_t& item_id(rml::utils::strtoull(row[0].c_str(), 0ULL));
 
 						// TODO Ignoring PolicyVersion here; we need to revisit this
-						const policy::pointer& p_policy(
-								fn_cached_policy_finder(std::make_pair< archiving::org_id_t, policy::id_type >(
-										org, policy::id_type(rml::utils::strtoull(row[3].c_str(), 0ULL)))));
+						const std::pair< archiving::org_id_t, policy::id_type >& lookup( std::make_pair< archiving::org_id_t, policy::id_type >(
+								org, policy::id_type(rml::utils::strtoull(row[3].c_str(), 0ULL))) );
+						const policy::pointer& p_policy(fn_cached_policy_finder(lookup));
+						if(!p_policy) {
+							fn_cached_policy_finder.forget(lookup);
+							LogWarning("Failed to lookup policy:"<<lookup.first<<'/'<<lookup.second);
+							continue;
+						}
 
 						const storage::basic_endpoint::pointer& p_endpoint(
 								fn_cached_endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(

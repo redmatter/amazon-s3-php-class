@@ -113,6 +113,7 @@ struct retention_period
 
 		default:
 			THROW_RML_EXCEPTION("Invalid retention_unit: "<<retention_units::to_string(unit));
+			/* no break */
 		}
 	}
 
@@ -142,24 +143,28 @@ struct policy
 	typedef int64_t id_type; // making it signed to accomodate the negative IDs passed in from FreeSwitch to denote NOT to archive
 	typedef uint16_t version_type;
 
-	id_type id;
-	version_type version; // for audit purpose ( during purge & GET for audit log )
+	const id_type id;
+	const version_type version; // for audit purpose ( during purge & GET for audit log )
 
-	retention_period min_retention;
-	retention_period max_retention;
+	const retention_period min_retention;
+	const retention_period max_retention;
 
-	archiving::endpoint_id_t endpoint_id;
+	const archiving::endpoint_id_t endpoint_id;
+	
+	const bool allow_unrestricted_access;
 
 	typedef boost::shared_ptr< policy > pointer;
 
 	policy(const id_type& id, const version_type& version,
 			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
 			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit,
-			const archiving::endpoint_id_t& endpoint_id) :
+			const archiving::endpoint_id_t& endpoint_id,
+			const bool& allow_unrestricted_access) :
 				id(id), version(version),
 				min_retention(min_retention_period, min_retention_unit),
 				max_retention(max_retention_period, max_retention_unit),
-				endpoint_id(endpoint_id)
+				endpoint_id(endpoint_id),
+				allow_unrestricted_access(allow_unrestricted_access)
 	{
 		//ctor
 	}
@@ -194,6 +199,8 @@ struct policy
 	    pugi::xpath_node max_retention_period_node = policy_node.select_single_node("RetentionMax");
 	    const char* max_retention_period_str = max_retention_period_node.node().select_single_node("text()").node().value();
 	    const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
+	    
+	    const bool allow_unrestricted_access ( 0 == strcmp("yes", policy_node.select_single_node("AllowUnrestrictedAccess/text()").node().value()) );
 
 	    // assign 0 if no endpoint-id set
 	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
@@ -202,7 +209,8 @@ struct policy
 				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str),
 				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
 				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
-				endpoint_id));
+				endpoint_id,
+				allow_unrestricted_access));
 	}
 	catch(const std::exception& e) {
 		LogCritical("Exception: "<<e.what()<<"; need to restart ArchiveD after fixing this");

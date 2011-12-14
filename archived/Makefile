@@ -54,7 +54,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri-parsers \
-	-lcryptopp -lpugixml -lmysqlpp -ls3 -lrml -larchiving_common
+	-lcryptopp -lpugixml -lmysqlpp -ls3 -lrml -larchiving_common -lfcgi++
 
 CXX_SRCS += \
 	main.cpp

@@ -212,14 +212,20 @@ int main(int argc, char* argv[]) try
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
 				("help-conf", "conf file help")
 				("help", "this help")
+				("version", "shows version information")
 				;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 		boost::program_options::notify(cli_confMap);
 
 		if (cli_confMap.count("help")) {
 			std::cout << cli_optsDesc << "\n";
-			return 1;
+			exit(rml::utils::exit_codes::normal);
 		}
+	}
+
+	if(cli_confMap.count("version")) {
+		std::cout << boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string );
+		exit(rml::utils::exit_codes::normal);
 	}
 
 	{

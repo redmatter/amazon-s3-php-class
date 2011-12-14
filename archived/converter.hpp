@@ -54,6 +54,80 @@ public:
 		opdata->get_tmp_fstream()->close();
 		opdata->remove_tmp_fstream(failed_format);
 	}
+	
+	static bool convert(operation_data::pointer opdata, app::crypto& crypto)
+	{
+		const archiving::archivable::identifier& identifier(opdata->p_detail->identifier);
+
+		opdata->get_tmp_fstream()->re_open();
+
+		while(true) {
+			if (opdata->p_detail->current_file_format == opdata->p_detail->target_file_format) {
+				LogMessage(identifier<<": No (more) conversion needed; current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+				return true;
+			}
+
+			// LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+			// LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
+
+			std::pair<app::types::file_format::convert_action::convert_action_t, app::types::file_format::file_format_t> next =
+					app::types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format);
+
+			// LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
+			// LogDebug(identifier<<": next convert target:"<<app::types::file_format::to_string(next.second));
+
+			try {
+				if(next.second == app::types::file_format::unknown) {
+					THROW_RML_EXCEPTION("Unknown format requested");
+				}
+
+				if(next.first == app::types::file_format::convert_action::nothing) {
+					LogVerbose(identifier<<": Done conversions");
+					return true;
+				}
+
+				rml::utils::sentry sentry(boost::bind(cleanup_step, opdata, next.second));
+
+				// lets convert
+				switch(next.first) {
+
+				case app::types::file_format::convert_action::compress:
+					app::bzip2::compress(opdata, next.second);
+					break;
+				case app::types::file_format::convert_action::uncompress:
+					app::bzip2::decompress(opdata, next.second);
+					break;
+
+				case app::types::file_format::convert_action::encrypt:
+					crypto.encrypt(opdata, next.second);
+					break;
+				case app::types::file_format::convert_action::decrypt:
+					crypto.decrypt(opdata, next.second);
+					break;
+
+				case app::types::file_format::convert_action::transcode:
+					throw rml::exception("Transcode NOT implemented!");
+					break;
+
+				case app::types::file_format::convert_action::nothing:
+					// lets keep the compiler happy!
+					break;
+				}
+
+				LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
+				LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
+
+				opdata->p_detail->current_file_format = next.second;
+				sentry.cancel();
+			}
+			catch(const std::exception& e) {
+				LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first)<<" error:"<<e.what());
+				break;
+			}
+		}
+		
+		return false;
+	}
 
 	void run()
 	{
@@ -63,86 +137,15 @@ public:
 			try {
 				app::operation_data::pointer opdata = convert_channel_.consume();
 
+				const archiving::archivable::identifier& identifier(opdata->p_detail->identifier);
+
 				if((operation_state::put_file_convert_ok == opdata->p_detail->state) || (((opdata->p_detail->state & 0x00f0) >> 4) > app::operation_coarse::file_convert)) {
 					LogVerbose(opdata->p_detail->identifier<<" already converted; shifting to next channel.");
 					convert_done_channel_.produce(opdata);
 					continue;
 				}
 
-				const archiving::archivable::identifier& identifier(opdata->p_detail->identifier);
-
-				opdata->get_tmp_fstream()->re_open();
-
-				bool converted_ok = (opdata->p_detail->current_file_format == opdata->p_detail->target_file_format);
-				while(true) {
-					if (opdata->p_detail->current_file_format == opdata->p_detail->target_file_format) {
-						converted_ok = true;
-						LogMessage(identifier<<": No (more) conversion needed; current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
-						break;
-					}
-
-					// LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
-					// LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
-
-					std::pair<app::types::file_format::convert_action::convert_action_t, app::types::file_format::file_format_t> next =
-							app::types::file_format::get_next(opdata->p_detail->current_file_format, opdata->p_detail->target_file_format);
-
-					// LogDebug(identifier<<": next convert action:"<<app::types::file_format::convert_action::to_string(next.first));
-					// LogDebug(identifier<<": next convert target:"<<app::types::file_format::to_string(next.second));
-
-					try {
-						if(next.second == app::types::file_format::unknown) {
-							THROW_RML_EXCEPTION("Unknown format requested");
-							break;
-						}
-
-						if(next.first == app::types::file_format::convert_action::nothing) {
-							LogVerbose(identifier<<": Done conversions");
-							converted_ok = true;
-							break;
-						}
-
-						rml::utils::sentry sentry(boost::bind(cleanup_step, opdata, next.second));
-
-						// lets convert
-						switch(next.first) {
-
-						case app::types::file_format::convert_action::compress:
-							app::bzip2::compress(opdata, next.second);
-							break;
-						case app::types::file_format::convert_action::uncompress:
-							app::bzip2::decompress(opdata, next.second);
-							break;
-
-						case app::types::file_format::convert_action::encrypt:
-							crypto.encrypt(opdata, next.second);
-							break;
-						case app::types::file_format::convert_action::decrypt:
-							crypto.decrypt(opdata, next.second);
-							break;
-
-						case app::types::file_format::convert_action::transcode:
-							throw rml::exception("Transcode NOT implemented!");
-							break;
-
-						case app::types::file_format::convert_action::nothing:
-							// lets keep the compiler happy!
-							break;
-						}
-
-						LogDebug(identifier<<": current format:"<<app::types::file_format::to_string(opdata->p_detail->current_file_format));
-						LogDebug(identifier<<": target format:"<<app::types::file_format::to_string(opdata->p_detail->target_file_format));
-
-						opdata->p_detail->current_file_format = next.second;
-						sentry.cancel();
-					}
-					catch(const std::exception& e) {
-						LogError(identifier<<": Convert failed; action:"<<app::types::file_format::convert_action::to_string(next.first)<<" error:"<<e.what());
-						break;
-					}
-				}
-
-				if(converted_ok) {
+				if(convert(opdata, crypto)) {
 					opdata->p_detail->retry = 0;
 					opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 					opdata->p_detail->real_size = opdata->get_tmp_fstream()->get_size();

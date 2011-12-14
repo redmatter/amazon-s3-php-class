@@ -33,7 +33,7 @@ template <
 	typename Result,
 	typename Arg_Compare = std::less< typename boost::remove_reference<Arg>::type >
 >
-class result_cache
+class result_cache : public boost::noncopyable
 {
 	typedef typename boost::remove_reference<Arg>::type key_type;
 	typedef Result val_type;
@@ -71,7 +71,7 @@ class result_cache
 
 	const std::string name_;
 
-	public:
+public:
 	result_cache (const function_type& fun, const std::string& name, const int& min_max_age_minutes = 5, const int& max_max_age_minutes = 10, const unsigned int& max_idle_seconds = 30) :
 		fun_(fun), rand_gen_(), rand_dist_(min_max_age_minutes*60, max_max_age_minutes*60), rander_(rand_gen_, rand_dist_), max_idle_seconds_(max_idle_seconds), name_(name+": ")
 	{
@@ -98,7 +98,7 @@ class result_cache
 		return t_value.value;
 	}
 
-	void forget(Arg arg, const unsigned int in_seconds = 0)
+	void forget(Arg arg, const unsigned int in_seconds = 0) const
 	{
 		boost::unique_lock<boost::mutex> lock(mutex_);
 

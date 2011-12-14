@@ -77,9 +77,14 @@ typedef std::basic_string<char, ci_char_traits> ci_string;
 }
 
 extern "C" {
-S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
-void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
+S3Status get_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+S3Status head_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+S3Status put_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+void get_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
+void head_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
+void put_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData);
+S3Status get_object_data_cb_(int bufferSize, const char *buffer, void *callbackData);
 }
 
 namespace app {
@@ -177,9 +182,14 @@ class backend : public basic_backend< backend >
 {
 	const boost::program_options::variables_map& confMap_;
 
-	friend S3Status ::response_properties_cb_(const S3ResponseProperties*, void*);
-	friend void ::response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend S3Status ::get_response_properties_cb_(const S3ResponseProperties*, void*);
+	friend S3Status ::head_response_properties_cb_(const S3ResponseProperties*, void*);
+	friend S3Status ::put_response_properties_cb_(const S3ResponseProperties*, void*);
+	friend void ::get_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend void ::head_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend void ::put_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
 	friend int ::put_object_data_cb_(int, char*, void*);
+	friend S3Status ::get_object_data_cb_(int, const char*, void*);
 
 protected:
 	backend(const boost::program_options::variables_map& confMap) :
@@ -195,13 +205,14 @@ protected:
 		S3Status status;
 		std::string base64_md5;
 
-		put_callback_data() : p_tmpfs_(), to_be_copied(0)
+		put_callback_data() : p_tmpfs_(), to_be_copied(0), status(S3StatusInternalError)
 		{
 		}
 
 		put_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) :
 			p_tmpfs_(p_tmpfs),
-			to_be_copied(p_tmpfs->get_size())
+			to_be_copied(p_tmpfs->get_size()),
+			status(S3StatusInternalError)
 		{
 			p_tmpfs_->re_open();
 
@@ -226,18 +237,140 @@ protected:
 				p_tmpfs_->close();
 		}
 	};
-
-	static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	
+	struct get_callback_data
 	{
-		string_map_t& p_str_map(*(string_map_t *)callbackData);
-		(void)p_str_map;
+		rml::utils::tmp_fstream::pointer p_tmpfs_;
+		S3Status status;
+		std::string md5; // TODO check MD5 after download
+
+		get_callback_data() : p_tmpfs_()
+		{
+		}
+
+		get_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) : p_tmpfs_(p_tmpfs), status(S3StatusInternalError)
+		{
+		}
+		
+		~get_callback_data()
+		{
+			if(p_tmpfs_)
+				p_tmpfs_->close();
+		}
+	};
+	
+	struct head_callback_data
+	{
+		S3Status status;
+		string_map_t& headers;
+		
+		head_callback_data(string_map_t& headers) : status(S3StatusInternalError), headers(headers)
+		{
+		}
+	};
+
+	static S3Status put_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	{
+		return S3StatusOK;
+	}
+
+	static S3Status head_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	{
+		head_callback_data *data = (head_callback_data *) callbackData;
+		
+		if(properties->requestId)
+			data->headers["request-id"] = properties->requestId;
+		
+		if(properties->requestId2)
+			data->headers["request-id2"] = properties->requestId2;
+		
+		if(properties->contentLength) {
+			std::ostringstream ostr;
+			ostr << properties->contentLength;
+			
+			data->headers["content-length"] = ostr.str();
+		}
+
+		if(properties->contentType)
+			data->headers["content-type"] = properties->contentType;
+
+		if(properties->server)
+			data->headers["server"] = properties->server;
+		
+		if(properties->eTag)
+			data->headers["etag"] = properties->eTag;
+		
+		if(properties->lastModified) {
+			std::ostringstream ostr;
+			ostr << properties->lastModified;
+			
+			data->headers["last-modified"] = ostr.str();
+		}
+		
+		if(properties->metaDataCount) {
+			for(int i = 0; i < properties->metaDataCount; ++i)
+				data->headers[properties->metaData[i].name] = properties->metaData[i].value;
+		}
 
 		return S3StatusOK;
 	}
 
-	static void response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	static S3Status get_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	{
+		return S3StatusOK;
+	}
+
+	static void put_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
 	{
 		put_callback_data *data = (put_callback_data *) callbackData;
+		data->status = status;
+
+		LogDebug("status: "<<S3_get_status_name(status));
+
+		if (error && error->message)
+			LogError("Error: "<<error->message);
+
+		if (error && error->resource)
+			LogError("Resource: "<<error->resource);
+
+		if (error && error->furtherDetails)
+			LogError("Further Details: "<<error->furtherDetails);
+
+		if (error && error->extraDetailsCount) {
+			LogError("Extra Details:");
+			int i;
+			for (i = 0; i < error->extraDetailsCount; i++)
+				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
+		}
+	}
+
+	static void head_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	{
+		head_callback_data *data = (head_callback_data *) callbackData;
+		data->status = status;
+
+		LogDebug("status: "<<S3_get_status_name(status));
+
+		if (error && error->message)
+			LogError("Error: "<<error->message);
+
+		if (error && error->resource)
+			LogError("Resource: "<<error->resource);
+
+		if (error && error->furtherDetails)
+			LogError("Further Details: "<<error->furtherDetails);
+
+		if (error && error->extraDetailsCount) {
+			LogError("Extra Details:");
+			int i;
+			for (i = 0; i < error->extraDetailsCount; i++)
+				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
+		}
+	}
+
+	static void get_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	{
+		get_callback_data *data = (get_callback_data *) callbackData;
 		data->status = status;
 
 		LogDebug("status: "<<S3_get_status_name(status));
@@ -275,6 +408,21 @@ protected:
 		return ret;
 	}
 
+
+	static S3Status get_object_data_cb(int bufferSize, const char *buffer, void *callbackData)
+	{
+		get_callback_data *data = (get_callback_data *) callbackData;
+
+		S3Status ret = S3StatusAbortedByCallback;
+		
+		if(data->p_tmpfs_->write(buffer, bufferSize))
+			ret = S3StatusOK;
+		else
+			LogWarning("Failed writing to file "<<data->p_tmpfs_->get_filename());
+
+		return ret;
+	}
+	
 public:
 
 	friend class basic_backend< backend >;
@@ -293,53 +441,57 @@ public:
 
 	void get(operation_data::pointer opdata)
 	{
-//		if(opdata->state != operation_states::get_file_retrieve)
-//			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state");
-//
-//		try {
-//			types::file_format::file_format_t s3_fileformat;
-//			types::file_format::file_format_t target_fileformat;
-//			{
-//				aws::HeadResponsePtr p_headRes = p_s3Conn->head(opdata->p_detail->p_endpoint->bucket, opdata->p_detail->identifier);
-//				const std::map<std::string, std::string>& metadata(p_headRes->getMetaData());
-//				std::map<std::string, std::string>::const_iterator itr_is_compressed = metadata.find("file-type-is-compressed");
-//				std::map<std::string, std::string>::const_iterator itr_is_encrypted  = metadata.find("file-type-is-encrypted");
-//				std::map<std::string, std::string>::const_iterator itr_filetype  = metadata.find("file-type");
-//				std::map<std::string, std::string>::const_iterator itr_end = metadata.end();
-//				types::data_sub_format::data_sub_format_t dsf = types::data_sub_format::binary;
-//				if(itr_filetype != itr_end) {
-//					dsf = types::data_sub_format::from_string(itr_filetype->second);
-//					if(dsf == types::data_sub_format::unknown) {
-//						LogError(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid header rm-file-type: "<<itr_filetype->second<<"; using 'binary' instead");
-//						dsf = types::data_sub_format::binary;
-//					}
-//				}
-//				else
-//					LogError(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": NO header rm-file-type; using 'binary'");
-//
-//				s3_fileformat = types::file_format::make(
-//						((itr_is_compressed != itr_end) && (itr_is_compressed->second == "true")),
-//						((itr_is_encrypted != itr_end) && (itr_is_encrypted->second == "true")),
-//						dsf);
-//
-//				target_fileformat = types::file_format::make(false, false, dsf);
-//			}
-//
-//			rml::utils::tmp_fstream::pointer fstr = opdata->get_tmp_fstream(s3_fileformat, true, true); // create & force new
-//			{
-//				aws::GetResponsePtr p_getRes = p_s3Conn->get(opdata->p_detail->p_endpoint->bucket, opdata->p_detail->identifier);
-//				*fstr << p_getRes->getInputStream().rdbuf();
-//			}
-//
-//			opdata->p_detail->current_file_format = s3_fileformat;
-//			opdata->p_detail->target_file_format = target_fileformat;
-//		}
-//		catch(const aws::HeadException& e) {
-//			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<" - GET failed - (HEAD) error:"<<e.what());
-//		}
-//		catch(const aws::GetException& e) {
-//			THROW_RML_EXCEPTION(opdata->p_detail->p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<" - GET failed - (GET) error:"<<e.what());
-//		}
+		if(opdata->p_detail->state != operation_state::get_file_retrieve && opdata->p_detail->retry > 0)
+			THROW_RML_EXCEPTION(opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
+		
+		rml::utils::tmp_fstream::pointer ofs = opdata->get_tmp_fstream(opdata->p_detail->current_file_format, true, true);
+		types::caseless_key_string_map headers;
+		
+		get(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), ofs, headers);
+	}
+	
+	inline void get(
+			const basic_endpoint::pointer p_endpoint,
+			const std::string& identifier,
+			rml::utils::tmp_fstream::pointer ofs,
+			types::caseless_key_string_map& headers)
+	{
+		S3BucketContext bucket_context;
+		
+		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
+		bucket_context.bucketName = &s3_endpoint->bucket[0];
+		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
+		bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
+		if(p_endpoint->type == endpoint_type::s3_compatible) {
+			s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
+			bucket_context.protocol = S3ProtocolHTTP;
+			bucket_context.uriStyle = S3UriStylePath;
+			bucket_context.baseHostname = &s3c_endpoint->host[0];
+			bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
+		}
+		else {
+			bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
+			bucket_context.uriStyle = S3UriStyleVirtualHost;
+			bucket_context.baseHostname = 0;
+			bucket_context.serviceURI = 0;
+		}
+
+	    S3GetObjectHandler get_handler;
+	    get_handler.responseHandler.completeCallback = &get_response_complete_cb_;
+	    get_handler.responseHandler.propertiesCallback = &get_response_properties_cb_;
+	    get_handler.getObjectDataCallback = &get_object_data_cb_;
+	    
+	    get_callback_data data(ofs);
+
+		int retry = 2;
+	    do {
+	        S3_get_object(&bucket_context, &identifier[0], 0, 0, 0, 0, &get_handler, &data);
+	    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
+
+		LogMessage(identifier<<": GET Result Status: "<<S3_get_status_name(data.status));
+
+		if(data.status != S3StatusOK)
+			throw rml::exception("GET failed");
 	}
 
 	void put(operation_data::pointer opdata)
@@ -416,8 +568,8 @@ public:
 		bucket_context.secretAccessKey = &p_endpoint->secret_key[0];
 
 		S3PutObjectHandler put_handler;
-		put_handler.responseHandler.completeCallback = &response_complete_cb_;
-		put_handler.responseHandler.propertiesCallback = &response_properties_cb_;
+		put_handler.responseHandler.completeCallback = &put_response_complete_cb_;
+		put_handler.responseHandler.propertiesCallback = &put_response_properties_cb_;
 		put_handler.putObjectDataCallback = &put_object_data_cb_;
 
 		int retry = 2;
@@ -433,7 +585,46 @@ public:
 
 	void stat(operation_data::pointer opdata, string_map_t& res)
 	{
+		stat(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, res);
+	}
+	
+	void stat(basic_endpoint::pointer p_endpoint, const std::string& identifier, string_map_t& res)
+	{
+		S3BucketContext bucket_context;
+		
+		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
+		bucket_context.bucketName = &s3_endpoint->bucket[0];
+		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
+		bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
+		if(p_endpoint->type == endpoint_type::s3_compatible) {
+			s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
+			bucket_context.protocol = S3ProtocolHTTP;
+			bucket_context.uriStyle = S3UriStylePath;
+			bucket_context.baseHostname = &s3c_endpoint->host[0];
+			bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
+		}
+		else {
+			bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
+			bucket_context.uriStyle = S3UriStyleVirtualHost;
+			bucket_context.baseHostname = 0;
+			bucket_context.serviceURI = 0;
+		}
 
+		S3ResponseHandler head_handler;
+		head_handler.completeCallback = &head_response_complete_cb_;
+		head_handler.propertiesCallback = &head_response_properties_cb_;
+	    
+	    head_callback_data data(res);
+
+		int retry = 2;
+	    do {
+	        S3_head_object(&bucket_context, &identifier[0], 0, &head_handler, &data);
+	    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
+
+		LogMessage(identifier<<": GET Result Status: "<<S3_get_status_name(data.status));
+
+		if(data.status != S3StatusOK)
+			throw rml::exception("GET failed");
 	}
 
 	void remove(operation_data::pointer opdata)
@@ -451,12 +642,12 @@ public:
 
 extern "C" {
 
-S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+S3Status put_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
 {
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
-		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
+		ret = app::storage::s3::backend::put_response_properties_cb(properties, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());
@@ -468,10 +659,70 @@ S3Status response_properties_cb_(const S3ResponseProperties *properties, void *c
 	return ret;
 }
 
-void response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
+S3Status head_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+{
+	S3Status ret = S3StatusErrorUnknown;
+
+	try {
+		ret = app::storage::s3::backend::head_response_properties_cb(properties, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
+}
+
+S3Status get_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+{
+	S3Status ret = S3StatusErrorUnknown;
+
+	try {
+		ret = app::storage::s3::backend::get_response_properties_cb(properties, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
+}
+
+void put_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
 {
 	try {
-		app::storage::s3::backend::response_complete_cb(status, error, callbackData);
+		app::storage::s3::backend::put_response_complete_cb(status, error, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+}
+
+void get_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
+{
+	try {
+		app::storage::s3::backend::get_response_complete_cb(status, error, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+}
+
+void head_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
+{
+	try {
+		app::storage::s3::backend::head_response_complete_cb(status, error, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());
@@ -487,6 +738,24 @@ int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
 
 	try {
 		ret = app::storage::s3::backend::put_object_data_cb(bufferSize, buffer, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
+}
+
+
+S3Status get_object_data_cb_(int bufferSize, const char *buffer, void *callbackData)
+{
+	S3Status ret = S3StatusAbortedByCallback;
+
+	try {
+		ret = app::storage::s3::backend::get_object_data_cb(bufferSize, buffer, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());

@@ -201,6 +201,21 @@ public:
 		file_type::file_type_t filetype;
 		org_id_t org;
 		std::string uuid;
+		
+		struct compare
+		{
+			bool operator() (const identifier& lhs, const identifier& rhs) const
+			{
+				if(lhs.filetype != rhs.filetype)
+					return lhs.filetype < rhs.filetype;
+				
+				if(lhs.org != rhs.org)
+					return lhs.org < rhs.org;
+				
+				return lhs.uuid < rhs.uuid;
+			}
+		};
+		
 
 		identifier() :
 			filetype(file_type::unknown), org(0), uuid()
