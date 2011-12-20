@@ -56,6 +56,7 @@ public:
 
 					default:
 						THROW_RML_EXCEPTION("Invalid operation ["<<op_obj.op<<']');
+						/* no break */
 					}
 				}
 				catch(const std::exception& e) {
@@ -92,7 +93,7 @@ public:
 	runner(s3::storage& storage, operation_channel_t& channel, volatile bool& quit) :
 		basic_runner<s3::storage, operation_channel_t>(storage, channel, quit)
 	{
-		LogMessage("S3 Runner created");
+		LogVerbose("S3 Runner created");
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc) {

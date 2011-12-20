@@ -120,64 +120,6 @@ public:
 
 namespace s3 {
 
-//namespace specific {
-//
-//class initialiser {
-//	mutable boost::mutex mutex_;
-//	boost::condition_variable cond_initialised_;
-//
-//	struct not_initialised {
-//		const initialiser& initialiser_;
-//
-//		not_initialised(const initialiser& initialiser) : initialiser_(initialiser)
-//		{
-//		}
-//
-//		bool operator() () const {
-//			return !initialiser_.initialised_;
-//		}
-//	};
-//
-//	friend struct not_initialised;
-//
-//protected:
-//	bool initialised_;
-//
-//public:
-//	initialiser() : initialised_(false)
-//	{
-//		boost::unique_lock<boost::mutex> lock(mutex_);
-//		S3Status status = S3_initialize("RedMatterArchive", S3_INIT_ALL);
-//		if(status != S3StatusOK)
-//			throw rml::exception("S3 initialisation failed");
-//
-//		initialised_ = true;
-//		cond_initialised_.notify_all();
-//	}
-//
-//	static void destroy()
-//	{
-//		static bool first = true;
-//		if(first) {
-//			first = false;
-//			S3_deinitialize();
-//		}
-//	}
-//
-//	void wait()
-//	{
-//		boost::unique_lock<boost::mutex> lock(mutex_);
-//		cond_initialised_.wait(lock, not_initialised(*this));
-//	}
-//
-//	~initialiser()
-//	{
-//		destroy();
-//	}
-//};
-//
-//} //namespace specific
-
 class backend : public basic_backend< backend >
 {
 	const boost::program_options::variables_map& confMap_;
@@ -496,24 +438,22 @@ public:
 
 	void put(operation_data::pointer opdata)
 	{
-		endpoint::pointer p_endpoint( boost::static_pointer_cast<endpoint>(opdata->p_detail->p_endpoint) );
-
 		if(opdata->p_detail->state != operation_state::put_file_save && opdata->p_detail->retry > 0)
-			THROW_RML_EXCEPTION(p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
+			THROW_RML_EXCEPTION(opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
 
 		rml::utils::tmp_fstream::pointer tmpfs = opdata->get_tmp_fstream(opdata->p_detail->target_file_format, false, false);
 		if(!tmpfs)
-			THROW_RML_EXCEPTION(p_endpoint->bucket<<'/'<<opdata->p_detail->identifier<<": No target format found in opdata");
+			THROW_RML_EXCEPTION(opdata->p_detail->identifier<<": No target format found in opdata");
 
 		assert(false == opdata->p_detail->p_metadata->empty());
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
-		put(p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
+		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
 	}
 
 	inline void put(
-			endpoint::pointer p_endpoint,
+			basic_endpoint::pointer p_endpoint,
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer tmpfs,
 			const types::file_format::file_format_t& target_file_format,
@@ -561,12 +501,25 @@ public:
 		put_props.cannedAcl = S3CannedAclPrivate;
 
 		S3BucketContext bucket_context;
-		bucket_context.bucketName = &p_endpoint->bucket[0];
-		bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-		bucket_context.uriStyle = S3UriStyleVirtualHost;
-		bucket_context.accessKeyId = &p_endpoint->access_key[0];
-		bucket_context.secretAccessKey = &p_endpoint->secret_key[0];
-
+		
+		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
+		bucket_context.bucketName = &s3_endpoint->bucket[0];
+		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
+		bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
+		if(p_endpoint->type == endpoint_type::s3_compatible) {
+			s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
+			bucket_context.protocol = S3ProtocolHTTP;
+			bucket_context.uriStyle = S3UriStylePath;
+			bucket_context.baseHostname = &s3c_endpoint->host[0];
+			bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
+		}
+		else {
+			bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
+			bucket_context.uriStyle = S3UriStyleVirtualHost;
+			bucket_context.baseHostname = 0;
+			bucket_context.serviceURI = 0;
+		}
+		
 		S3PutObjectHandler put_handler;
 		put_handler.responseHandler.completeCallback = &put_response_complete_cb_;
 		put_handler.responseHandler.propertiesCallback = &put_response_properties_cb_;

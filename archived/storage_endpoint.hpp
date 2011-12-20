@@ -42,7 +42,7 @@ struct endpoint_type
 			return s3;
 		else if(str == "file-system")
 			return file_system;
-		else if(str == "s3-compatible")
+		else if(str == "s3-compatible" || str == "s3-emulation")
 			return s3_compatible;
 
 		else
@@ -211,10 +211,14 @@ struct endpoint : public basic_endpoint
 
 namespace s3_compatible {
 
-struct endpoint : public s3::endpoint
+struct endpoint : public basic_endpoint
 {
-	std::string host;
-	std::string service_uri;
+	const std::string access_key;
+	const std::string secret_key;
+	const std::string bucket;
+
+	const std::string host;
+	const std::string service_uri;
 
 	typedef boost::shared_ptr<endpoint> pointer;
 
@@ -230,22 +234,27 @@ struct endpoint : public s3::endpoint
 			const std::string& bucket,
 			const std::string& host,
 			const std::string& service_uri) :
-		s3::endpoint(id, org, name, is_encrypted, is_compressed, encryption_key, access_key, secret_key, bucket),
-		host(host), service_uri(service_uri)
+				basic_endpoint(endpoint_type::s3_compatible, id, org, name, is_encrypted, is_compressed, encryption_key),
+				access_key(access_key), secret_key(secret_key), bucket(bucket),
+				host(host), service_uri(service_uri)
 	{
 	}
 
 	endpoint(const endpoint& t) :
-		s3::endpoint(static_cast<s3::endpoint>(t)),
+		basic_endpoint(static_cast<basic_endpoint>(t)),
+		access_key(t.access_key), secret_key(t.secret_key), bucket(t.bucket),
 		host(t.host), service_uri(t.service_uri)
 	{
 	}
 
 	bool operator==(const endpoint& rhs) const
 	{
-		return static_cast<s3::endpoint>(rhs) == static_cast<s3::endpoint>(*this) &&
-				rhs.host == host &&
-				rhs.service_uri == service_uri
+		return static_cast<basic_endpoint>(rhs) == static_cast<basic_endpoint>(*this) &&
+				access_key == rhs.access_key &&
+				secret_key == rhs.secret_key &&
+				bucket == rhs.bucket &&
+				host == rhs.host &&
+				service_uri == rhs.service_uri
 				;
 	}
 
@@ -392,6 +401,7 @@ static basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 
 	default:
 		THROW_RML_EXCEPTION("Unknown endpoint-type: "<<type_str<<" id: "<<id_str);
+		/* no break */
 	}
 
 
