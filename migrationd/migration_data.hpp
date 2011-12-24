@@ -52,7 +52,8 @@ struct migration_data
 	std::size_t clear_size;
 	std::size_t real_size;
 
-	storage::s3::endpoint::pointer p_endpoint;
+	storage::basic_endpoint::pointer p_endpoint;
+	policy::pointer p_policy;
 
 	state_t state;
 
@@ -63,12 +64,12 @@ struct migration_data
 	}
 
 	migration_data(
-			uint64_t id, std::string uuid, const std::string& path, const archiving::org_id_t& org, const archiving::user_id_t& user, const time_t& create_time,
-			storage::s3::endpoint::pointer p_endpoint, const time_t& next_attempt,
+			uint64_t id, const std::string& uuid, const std::string& path, const archiving::org_id_t& org, const archiving::user_id_t& user, const time_t& create_time,
+			storage::basic_endpoint::pointer p_endpoint, policy::pointer p_policy, const time_t& next_attempt,
 			const app::types::file_format::file_format_t& target_format = app::types::file_format::encrypted_compressed_wav,
 			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording) :
 
-			id(id), uuid(uuid), path(path), org(org), user(user), target_format(target_format), create_time(create_time), filetype(filetype), p_endpoint(p_endpoint), next_attempt(next_attempt)
+			id(id), uuid(uuid), path(path), org(org), user(user), target_format(target_format), create_time(create_time), filetype(filetype), p_endpoint(p_endpoint), p_policy(p_policy), next_attempt(next_attempt)
 	{
 		if(!p_endpoint)
 			throw rml::exception("Storage endpoint not found");
@@ -80,7 +81,7 @@ struct migration_data
 
 	struct compare
 	{
-		bool operator()(const migration_data& lhs, const migration_data& rhs)
+		bool operator()(const migration_data& lhs, const migration_data& rhs) const
 		{
 			if(lhs.next_attempt != rhs.next_attempt)
 				return lhs.next_attempt < rhs.next_attempt;

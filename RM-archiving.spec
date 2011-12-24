@@ -44,11 +44,17 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
 
-#%package migrationd
-#Summary: Archiving CollectD
-#Group: RedMatter/Archiving
-#Requires: RM-%{appname}-common = %{version}-%{release}
-#Requires: boost >= 1.45.0, mysql++ >= 3.1.0-14089, libs3 = 1.4-16645, cryptopp, php-s3, RM-php-rmapp >= 0.0.1-11853, RM-%{appname}-convert = %{version}-%{release}
+%package migrationd
+Summary: Archiving CollectD
+Group: RedMatter/Archiving
+Requires: RM-%{appname}-common >= %{version}-%{release}
+Requires: boost >= 1.45.0
+Requires: mysql++ >= 3.1.0-14089
+Requires: libs3 = 1.4-17269
+Requires: cryptopp
+Requires: php-s3
+Requires: RM-php-rmapp >= 0.0.1-11853
+Requires: RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
 Summary: Archiving Convert Utility
@@ -78,8 +84,8 @@ It also makes sense of archiving policy and passes that on to ArchiveD.
 Daemon that archives queued SMS messages from BES server via the callcontrol API.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
-#%description migrationd
-#Archiving MigrationD
+%description migrationd
+Archiving MigrationD
 
 %description convert
 Archiving Convert Utility; used by core-api to fetch files from S3
@@ -142,15 +148,15 @@ cp collect-smsd/rmcollect-smsd.conf %{buildroot}/etc/archiving/
 cp collect-smsd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-smsd
 cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
 
-## MigrationD
-#cp migrationd/tmp-%{buildtype}-build/migrationd %{buildroot}/usr/bin/rmmigrationd.bin
-#cp migrationd/rmmigrationd_safe %{buildroot}/usr/bin/
-#cp migrationd/rmmigrationd %{buildroot}/etc/rc.d/init.d/
-#cp migrationd/rmmigrationd.supp %{buildroot}/usr/share/archiving/
-#cp migrationd/scripts/* %{buildroot}/usr/share/archiving/migration-scripts/.
-#cp migrationd/rmmigrationd.conf %{buildroot}/etc/archiving/
-#cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
-#cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
+# MigrationD
+cp migrationd/tmp-%{buildtype}-build/migrationd %{buildroot}/usr/bin/rmmigrationd.bin
+cp migrationd/rmmigrationd_safe %{buildroot}/usr/bin/
+cp migrationd/rmmigrationd %{buildroot}/etc/rc.d/init.d/
+cp migrationd/rmmigrationd.supp %{buildroot}/usr/share/archiving/
+cp migrationd/scripts/* %{buildroot}/usr/share/archiving/migration-scripts/.
+cp migrationd/rmmigrationd.conf %{buildroot}/etc/archiving/
+cp migrationd/logrotate.conf %{buildroot}/etc/logrotate.d/rmmigrationd
+cp migrationd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmmigrationd.conf
 
 # Convert
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
@@ -161,7 +167,7 @@ cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_dat
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
-#cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
+cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
 
 # Scripts
 cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
@@ -205,16 +211,16 @@ if ! /usr/bin/id cdrmunch &>/dev/null; then
 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
 fi
 
-#%pre migrationd
-#if grep ^cdrmunch: /etc/group &>/dev/null; then
-#	: # group already exists
-#else
-#	/usr/sbin/groupadd -g 2051 cdrmunch || exit
-#fi
-#
-#if ! /usr/bin/id cdrmunch &>/dev/null; then
-#	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
-#fi
+%pre migrationd
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+fi
 
 #%pre common
 
@@ -258,10 +264,14 @@ fi
 %post common
 /usr/bin/rmarchived-hAPI
 
-#%post migrationd
-#/sbin/chkconfig --add rmmigrationd
-#/sbin/chkconfig rmmigrationd on
-#[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog condrestart || echo "**WARNING** rsyslog not found; consider installing it."
+%post migrationd
+/sbin/chkconfig --add rmmigrationd
+/sbin/chkconfig rmmigrationd on
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 %post scripts
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -340,19 +350,19 @@ fi
 /etc/logrotate.d/rmcollect-smsd
 /etc/rsyslog.d/11-rmcollect-smsd.conf
 
-#%files migrationd
-#%defattr(-,root,root)
-#/usr/bin/rmmigrationd.bin
-#/usr/bin/rmmigrationd_safe
-#/usr/share/archiving/rmmigrationd.supp
-#/etc/rc.d/init.d/rmmigrationd
-#%config(noreplace) /etc/archiving/rmmigrationd.conf
-#%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
-#%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
-#/etc/logrotate.d/rmmigrationd
-#/etc/rsyslog.d/11-rmmigrationd.conf
-#%dir /usr/share/archiving/migration-scripts
-#/usr/share/archiving/migration-scripts/*
+%files migrationd
+%defattr(-,root,root)
+/usr/bin/rmmigrationd.bin
+/usr/bin/rmmigrationd_safe
+/usr/share/archiving/rmmigrationd.supp
+/etc/rc.d/init.d/rmmigrationd
+%config(noreplace) /etc/archiving/rmmigrationd.conf
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+/etc/logrotate.d/rmmigrationd
+/etc/rsyslog.d/11-rmmigrationd.conf
+%dir /usr/share/archiving/migration-scripts
+/usr/share/archiving/migration-scripts/*
 
 %files convert
 %attr(755,root,root) /usr/bin/rmarchived-hAPI

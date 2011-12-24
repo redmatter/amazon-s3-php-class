@@ -1,12 +1,20 @@
-# default; override from commandline
-BUILD_MODE=DEBUG
-
 include ../version_info
 include /usr/share/librml/Makefile.macros
 
+LIBS += -L../common/$(TMP)
+
 TARGET=migrationd
 
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
+
 RML_LOG_SOURCE_LOCATION=YES
+
+CXX_INCLUDES += -I/usr/include/cpp-netlib
+
+MYSQLPP_MYSQL_HEADERS_BURIED=YES
+ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
+	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
+endif
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
 CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
@@ -30,11 +38,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-MYSQLPP_MYSQL_HEADERS_BURIED=YES
-ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
-CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
-endif
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -43,6 +46,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
+	-lcppnetlib-uri-parsers \
 	-lrml -lpugixml -lmysqlpp -lcryptopp -ls3
 
 CXX_SRCS += \
@@ -52,3 +56,10 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+
+../common/$(TMP)/libarchiving_common.a :
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
+
+clean_extra:
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
+

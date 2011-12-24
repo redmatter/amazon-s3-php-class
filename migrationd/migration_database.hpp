@@ -5,6 +5,7 @@
 #include "file_verify.hpp"
 
 #include "../archived/database.hpp"
+
 #include "../common/policy.hpp"
 
 #include <rml/utils.h>
@@ -35,7 +36,7 @@ class migration : public basic_database< migration >
 	file_verify::data::channel_t& verify_channel_;
 
 	const policy::cached_finder_t& cached_policy_finder_;
-	const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder_;
+	const storage::cached_endpoint_finder_t& cached_s3endpoint_finder_;
 
 	volatile bool& quit_;
 	const unsigned int host_count_;
@@ -84,7 +85,7 @@ public:
 			migration_data::busy_set_t& busied_set,
 			migration_data::channel_t& new_migratables_channel, migration_data::channel_t& channel_copy_to_s3_done, migration_data::channel_t& channel_save_status,
 			file_verify::data::channel_t& verify_channel,
-			const policy::cached_finder_t& cached_policy_finder, const storage::s3::endpoint::cached_finder_t& cached_s3endpoint_finder,
+			const policy::cached_finder_t& cached_policy_finder, const storage::cached_endpoint_finder_t& cached_s3endpoint_finder,
 			volatile bool& quit) :
 
 					basic_database< migration >(confMap), confMap_(confMap),
@@ -133,7 +134,7 @@ public:
 					continue;
 				}
 
-				rml::MySQLConnection conn(pool_);
+				rml::MySQLConnection conn(*p_pool_);
 				mysqlpp::Transaction transaction(*conn, false);
 
 				std::vector<uint64_t> ids;
@@ -181,6 +182,22 @@ public:
 						// make migration_data
 						archiving::org_id_t org = rml::utils::strtoull(row[3].c_str());
 						const uint64_t& id(rml::utils::strtoull(row[0].c_str()));
+						
+						storage::basic_endpoint::pointer p_endpoint = cached_s3endpoint_finder_(
+								std::make_pair(org, archiving::endpoint_id_t(0)/*default endpoint*/));
+						if(!p_endpoint) {
+							LogWarning("Endpoint not found for Org:"<<org);
+							cached_s3endpoint_finder_.forget(std::make_pair(org, archiving::endpoint_id_t(0)));
+							continue;
+						}
+						
+						policy::pointer p_policy = cached_policy_finder_(std::make_pair(org, policy::id_type(policy::pseudo_id::recording)));
+						if(!p_policy) {
+							LogWarning("Default recording policy not found for Org:"<<org);
+							cached_policy_finder_.forget(std::make_pair(org, policy::id_type(policy::pseudo_id::recording)));
+							continue;
+						}
+						
 						migration_data data(
 								id,
 								row[1].c_str(),
@@ -188,7 +205,8 @@ public:
 								org,
 								rml::utils::strtoull(row[4].c_str()),
 								rml::utils::strtoull(row[5].c_str()),
-								cached_s3endpoint_finder_(org),
+								p_endpoint,
+								p_policy,
 								rml::utils::strtoull(row[6].c_str()),
 								app::types::file_format::encrypted_compressed_wav,
 								archiving::archivable::file_type::recording);
@@ -299,7 +317,7 @@ public:
 			}
 
 			try {
-				rml::MySQLConnection conn(pool_);
+				rml::MySQLConnection conn(*p_pool_);
 				while(status_updates.begin() != status_updates.end()) {
 					mysqlpp::Transaction transaction(*conn, false);
 					status_update::multiset_t::iterator b_itr = status_updates.begin();
@@ -383,7 +401,8 @@ public:
 								retention.org = data.org;
 								retention.user = data.user;
 								retention.uuid = data.uuid;
-								retention.retention = app::applied_policy(cached_policy_finder_(std::make_pair(data.org, policy::id_type(0))), data.create_time);
+								retention.leg_uuid = data.uuid;
+								retention.retention = app::applied_policy(data.p_policy, data.create_time);
 								retention.endpoint_id = data.p_endpoint->id;
 
 								retention_set.insert(retention);
@@ -396,6 +415,7 @@ public:
 								usage.create_time = data.create_time;
 								usage.clear_size = data.clear_size;
 								usage.real_size = data.real_size;
+								usage.endpoint_id = data.p_endpoint->id;
 
 								usage_data_set.insert(usage);
 							}

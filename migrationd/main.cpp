@@ -42,6 +42,7 @@
 #include <boost/ref.hpp>
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
+#include <boost/asio.hpp>
 
 #include <cryptopp/crc.h>
 #include <cryptopp/files.h>
@@ -232,8 +233,6 @@ int main(int argc, char* argv[]) try
 		app::temp_files_base_directory = app::confMap["temp_files.base_directory"].as<std::string>();
 		app::rmfs_base_directory = app::confMap["rmfs.base_directory"].as<std::string>();
 
-		app::storage::s3::specific::initialiser libs3_initialiser;
-
 		app::migration_data::busy_set_t busied_set;
 
 		app::migration_data::channel_t channel_convert(
@@ -247,11 +246,13 @@ int main(int argc, char* argv[]) try
 		app::migration_data::channel_t channel_save_status("SaveStatus");
 		app::file_verify::data::channel_t channel_verify_data("VerifyData");
 
-		app::coreapi coreapi(app::confMap);
+		boost::asio::io_service io_service;
+		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
+		
 		app::policy::cached_finder_t cached_policy_finder(
-				boost::bind(&app::policy::finder, boost::ref(coreapi), _1));
-		app::storage::s3::endpoint::cached_finder_t cached_endpoint_finder(
-				boost::bind(&app::storage::s3::endpoint::finder, boost::ref(coreapi), _1));
+				boost::bind(&app::policy::finder, boost::ref(coreapi), _1), "cached_policy");
+		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
+				boost::bind(&app::storage::endpoint_finder, boost::ref(coreapi), _1), "cached_endpoint");
 
 		app::database::migration migration_db(app::confMap, busied_set, channel_convert, channel_copy_to_s3_done, channel_save_status, channel_verify_data, cached_policy_finder, cached_endpoint_finder, app::quit);
 		app::convert converter(channel_convert, channel_copy_to_s3, app::quit);
@@ -311,8 +312,6 @@ int main(int argc, char* argv[]) try
 		channel_verify_data.set_finishing();
 
 		threads.join_all();
-
-		libs3_initialiser.destroy();
 
 		LogMessage("Program terminated normally");
 

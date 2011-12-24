@@ -32,7 +32,7 @@ class convert
 	migration_data::channel_t& channel_copy_to_s3_;
 	volatile bool& quit_;
 
-	app::impl::crypto crypto_;
+	app::crypto crypto_;
 
 public:
 	/**

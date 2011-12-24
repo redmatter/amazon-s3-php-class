@@ -147,7 +147,7 @@ public:
 
 								std::string encryption_key_base64;
 								{
-									const std::vector<uint8_t>& encryption_key(data.md.p_endpoint->encryption_key);
+									const storage::basic_endpoint::encryption_key_t& encryption_key(data.md.p_endpoint->encryption_key);
 									CryptoPP::StringSource(&encryption_key[0], encryption_key.size(), true,
 											new CryptoPP::Base64Encoder(
 													new CryptoPP::StringSink(encryption_key_base64), false));
