@@ -176,14 +176,14 @@ struct policy
 
 		coreapi::response response(api.get(ostr.str(), true));
 		if(response.first != 200) {
-			LogCritical("Policy NOT found ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" ); need to restart ArchiveD after fixing this");
+			LogCritical("Policy NOT found ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" )");
 			return pointer();
 		}
 
 		// run xpath
 		pugi::xml_document doc;
 		if(!doc.load(response.second.c_str())) {
-			LogCritical("Unable to load response document ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" ); need to restart ArchiveD after fixing this");
+			LogCritical("Unable to load response document ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" )");
 			return pointer();
 		}
 
@@ -213,7 +213,7 @@ struct policy
 				allow_unrestricted_access));
 	}
 	catch(const std::exception& e) {
-		LogCritical("Exception: "<<e.what()<<"; need to restart ArchiveD after fixing this");
+		LogCritical("Exception: "<<e.what());
 		return pointer();
 	}
 
