@@ -264,10 +264,12 @@ namespace app
 
 						try
 						{
-							app::policy::pointer thepolicy = policy_cache_(std::make_pair(rmOrgID, app::policy::id_type(-2)));
-
-							if (thepolicy == app::policy::pointer())
+							app::policy::pointer thepolicy = policy_cache_(std::make_pair(rmOrgID, app::policy::id_type(app::policy::pseudo_id::sms)));
+							if (!thepolicy)
+							{
+								policy_cache_.forget(std::make_pair(rmOrgID, app::policy::id_type(app::policy::pseudo_id::sms)));
 								throw rml::exception("error trying to get the policy");
+							}
 
 							looked_up_policy_id = thepolicy->id;
 						}
