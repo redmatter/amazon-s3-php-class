@@ -167,7 +167,7 @@ cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_dat
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
-cp common/migration_database.conf %{buildroot}/etc/archiving/migration_database.conf
+cp common/migration_database.conf %{buildroot}/etc/archiving/conf.d/migration_database.conf
 
 # Scripts
 cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
