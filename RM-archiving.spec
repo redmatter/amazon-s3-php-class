@@ -373,7 +373,7 @@ fi
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
 /etc/archiving/conf.d/internal_database.conf
-# /etc/archiving/migration_database.conf
+/etc/archiving/conf.d/migration_database.conf
 
 %files scripts
 %defattr(-,root,root)
