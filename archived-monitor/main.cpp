@@ -19,8 +19,6 @@
 
 #include <signal.h>
 
-void handler(int sig) {}
-
 // from $(TMP)/version.c
 extern "C" {
 extern int version_number[3];
@@ -175,7 +173,7 @@ private:
 
 int main(int argc, char* argv[])
 {
-	signal(SIGPIPE, handler);
+	signal(SIGPIPE, SIG_IGN);
 
 	try
 	{
