@@ -96,6 +96,6 @@ if [ -f $CONFIG_COLLECTSMSD ]; then
 	if `hapi get HostType QA || hapi get HostType DEV`; then
 		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTSMSD									|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTSMSD"
 	fi
-	sed -i "s/sms.directory\(.*\)/sms.directory = /mnt/cdrfs/archiving-import-sms/$LOCNAME" $CONFIG_COLLECTSMSD			|| Die "Unable to set sms.directory in $CONFIG_COLLECTSMSD"
+	sed -i "s/sms.directory\(.*\)/sms.directory = \/mnt\/cdrfs\/archiving\-import\-sms\/$LOCNAME/" $CONFIG_COLLECTSMSD				|| Die "Unable to set sms.directory in $CONFIG_COLLECTSMSD"
 fi
 
