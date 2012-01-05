@@ -14,6 +14,7 @@
 
 #include <rml/logger.h>
 #include <rml/exception.h>
+#include <rml/pc_channel_delayed_retry.h>
 #include <rml/pc_channel.h>
 #include <rml/utils.h>
 
@@ -77,11 +78,6 @@ public:
 	};
 
 	typedef boost::shared_ptr<archivable> pointer;
-
-	static bool is_consumable(const pointer& p_arc)
-	{
-		return time(0) >= p_arc->next_attempt_time_;
-	}
 
 	friend class archivable_pointer_compare;
 	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
@@ -271,7 +267,6 @@ protected:
 	bool add_to_cdrmunch_cache;
 
 private:
-	time_t next_attempt_time_;
 	state::state_t state_;
 	std::string file_path_;
 	rml::utils::tmp_fstream::pointer p_fstream_;
@@ -291,7 +286,7 @@ private:
 	owner_info owners_;
 
 	uint64_t database_id_;
-	uint8_t retry;
+	mutable volatile unsigned int attempt_;
 
 	archivable();
 	archivable(const archivable& a);
@@ -323,7 +318,6 @@ public:
 		data_format("unknown"),
 		pbx_hostname(),
 		add_to_cdrmunch_cache(false),
-		next_attempt_time_(0),
 		state_(state::unknown),
 		file_path_(),
 		p_fstream_(),
@@ -334,7 +328,7 @@ public:
 		parent_(),
 		policy_id_(0),
 		database_id_(0),
-		retry(0)
+		attempt_(0)
 	{
 		// Just for the comparisons and find to work
 	}
@@ -371,7 +365,6 @@ public:
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
 	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
-	  next_attempt_time_(time(0)),
 	  state_(state),
 	  file_path_(file_path),
 	  p_fstream_(new rml::utils::tmp_fstream((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
@@ -382,7 +375,7 @@ public:
 	  parent_(parent),
 	  policy_id_(policy_id),
 	  database_id_(0),
-	  retry(0)
+	  attempt_(0)
 	{
 		if(md5.empty()) {
 			md5_ = md5hasher::hash(p_fstream_);
@@ -529,11 +522,6 @@ public:
 		return type_;
 	}
 
-	inline const time_t& get_next_attempt_time() const
-	{
-		return next_attempt_time_;
-	}
-
 	inline const std::string get_uuid() const
 	{
 		return uuid;
@@ -574,20 +562,35 @@ public:
 		database_id_ = id;
 	}
 
-	inline uint8_t get_retry() const
+	/**
+	 * Get the retry count
+	 * 
+	 * @return retry
+	 */
+	inline unsigned int get_attempt() const
 	{
-		return retry;
+		return attempt_;
+	}
+	
+	/**
+	 * Increment the retry number
+	 */
+	inline void set_next_attempt()
+	{
+		__sync_fetch_and_add(&attempt_, 1);		
 	}
 
-	inline bool set_retry()
+	/**
+	 * Setup and prepare for retry; it also makes sure we havent crossed the retry limit
+	 * 
+	 * @return bool
+	 */
+	inline bool setup_for_retry()
 	{
-		retry++;
-		next_attempt_time_ = time(0)+(retry_minutes*60);
-
 		hibernate();
 
 		if (retry_max_count)
-			return retry_max_count > retry;
+			return retry_max_count > attempt_;
 
 		return true;
 	}
@@ -712,17 +715,10 @@ public:
 /**
  * comparator for channel
  */
-class archivable_pointer_compare
+struct archivable_pointer_compare
 {
-public:
 	bool operator() (const archivable::pointer& lhs, const archivable::pointer& rhs) const
 	{
-		const time_t& lhs_next_attempt_time(lhs->get_next_attempt_time());
-		const time_t& rhs_next_attempt_time(rhs->get_next_attempt_time());
-
-		if (lhs_next_attempt_time && rhs_next_attempt_time && (lhs_next_attempt_time != rhs_next_attempt_time))
-			return lhs_next_attempt_time < rhs_next_attempt_time;
-
 		const archiving::archivable::file_type::file_type_t& lhs_file_type(lhs->get_type());
 		const archiving::archivable::file_type::file_type_t& rhs_file_type(rhs->get_type());
 
@@ -733,10 +729,38 @@ public:
 	}
 };
 
-typedef rml::pc_channel<archivable::pointer, archivable_pointer_compare> archivable_channel_t;
-typedef rml::busy_set<archivable::pointer, archivable_pointer_compare> archivable_busy_set_t;
+struct archivable_pointer_get_attempt
+{
+	unsigned int operator() (const archivable::pointer& i) const
+	{
+		return i->get_attempt();
+	}
+};
 
-typedef rml::busy_set< archivable::pointer, archivable_pointer_compare > archivable_set_t;
+struct archivable_pointer_set_next_attempt
+{
+	void operator() (const archivable::pointer& i) const
+	{
+		i->set_next_attempt();
+	}	
+};
+
+struct archivable_pointer_compute_retry_delay
+{
+	unsigned int operator() (const unsigned int& retry) const
+	{
+		return retry * archivable::retry_minutes * 60;
+	}
+};
+
+typedef rml::pc_channel_delayed_retry<
+		archivable::pointer, 
+		archivable_pointer_get_attempt, 
+		archivable_pointer_set_next_attempt, 
+		archivable_pointer_compute_retry_delay, 
+		archivable_pointer_compare> archivable_channel_t;
+
+typedef rml::busy_set< archivable::pointer, archivable_pointer_compare > archivable_busy_set_t;
 
 }  // namespace archiving
 

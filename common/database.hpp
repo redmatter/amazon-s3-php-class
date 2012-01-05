@@ -161,7 +161,7 @@ public:
 					<< mysqlpp::sql_enum(arc.get_add_to_cdrmunch_cache()? "true": "false")
 					<< mysqlpp::sql_char(arc.get_data_format())
 
-					<< mysqlpp::sql_int(arc.get_retry())
+					<< mysqlpp::sql_int(arc.get_attempt())
 
 					<< mysqlpp::sql_int(arc.get_start_epoch())
 					<< mysqlpp::sql_char(arc.get_hostname())
@@ -245,7 +245,7 @@ public:
 
 			if(first) {
 				mysqlpp::Query query = conn->query();
-				query << "SELECT MAX(ID) FROM ArchivingInternal." << tableName_ << " WHERE HostName=%0q:HostName AND Retry < 3 AND State NOT IN ('stored','discarded')";
+				query << "SELECT MAX(ID) FROM ArchivingInternal." << tableName_ << " WHERE HostName=%0q:HostName AND Retry < 5 AND State NOT IN ('stored','discarded')";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
@@ -269,7 +269,7 @@ public:
 						 "FROM"
 						 " ArchivingInternal." << tableName_ << " c LEFT JOIN ArchivingInternal." << tableName_ << " p ON c.ParentID=p.ID "
 						 "WHERE"
-						 " c.HostName=%0q:HostName AND c.Retry < 3 AND c.State NOT IN ('stored','discarded')"
+						 " c.HostName=%0q:HostName AND c.Retry < 5 AND c.State NOT IN ('stored','discarded')"
 						 " AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
 						 "LIMIT 100";

@@ -279,7 +279,7 @@ private:
 
 		connected_ = false;
 		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->set_retry())
+			if(put_archivable_ptr_->setup_for_retry())
 				channel_.produce(put_archivable_ptr_);
 
 			put_archivable_ptr_.reset();
@@ -558,7 +558,7 @@ private:
 			*/
 
 			if(put_archivable_ptr_) {
-				if(put_archivable_ptr_->set_retry())
+				if(put_archivable_ptr_->setup_for_retry())
 					channel_.produce(put_archivable_ptr_);
 
 				put_archivable_ptr_.reset();
@@ -707,7 +707,7 @@ private:
 				return;
 			}
 
-			put_archivable_ptr_ = channel_.consume(10/*seconds*/, 0/*micro seconds*/, boost::bind(archiving::archivable::is_consumable, _1));
+			put_archivable_ptr_ = channel_.consume(10/*seconds*/, 0/*micro seconds*/);
 			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Got from "<<channel_);
 
 			if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
@@ -816,7 +816,7 @@ private:
 		}
 
 		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->set_retry())
+			if(put_archivable_ptr_->setup_for_retry())
 				channel_.produce(put_archivable_ptr_);
 
 			put_archivable_ptr_.reset();
