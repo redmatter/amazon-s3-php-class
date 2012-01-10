@@ -194,7 +194,7 @@ public:
 					if((archivable_cdr->get_type() != archiving::archivable::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
 						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
 						archivable_cdr->hibernate();
-						out_channel.produce(archivable_cdr);
+						pc_produce(out_channel, archivable_cdr, 1);
 						continue;
 					}
 
@@ -419,7 +419,7 @@ public:
 											}
 
 											archivable_recording->hibernate();
-											out_channel.produce(archivable_recording);
+											pc_produce(out_channel, archivable_recording, 1);
 										}
 										catch(const std::exception& e) {
 											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
@@ -481,7 +481,7 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 
-									out_channel.produce(archivable_recording);
+									pc_produce(out_channel, archivable_recording, 1);
 								}
 								catch(const std::exception& e) {
 									LogWarning("Failed producing archivable item; error: "<<e.what());
@@ -532,7 +532,7 @@ public:
 						}
 
 						archivable_cdr->hibernate();
-						out_channel.produce(archivable_cdr);
+						pc_produce(out_channel, archivable_cdr, 1);
 					}
 				}
 				catch(const archiving::archivable_channel_t::finishing_exception& e) {

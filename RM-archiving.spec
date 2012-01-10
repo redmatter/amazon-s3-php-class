@@ -21,7 +21,7 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd
 Requires: mod_fastcgi
-BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-17545, libs3-devel >= 1.4-17269, cryptopp-devel, pugixml, cpp-netlib, fcgi-devel
+BuildRequires: boost-devel >= 1.45.0, mysql++-devel >= 3.1.0-14089, RM-librml-devel >= 0.0.1-17615, libs3-devel >= 1.4-17269, cryptopp-devel, pugixml, cpp-netlib, fcgi-devel
 
 %package collectd
 Summary: Archiving CollectD

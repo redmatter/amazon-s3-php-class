@@ -495,6 +495,9 @@ public:
 					detail->arrival_time = time(0);
 					detail->current_file_format = retention->file_format;
 					detail->target_file_format = types::file_format::make(false, false, retention->file_format); // XXX fudge; we need to read filetype!
+					if (policy->disallow_recording_download && (detail->target_file_format == types::file_format::clear_wav))
+						detail->target_file_format = types::file_format::clear_mp3;
+					
 					detail->state = operation_state::get_file_retrieve;
 
 					req->opdata = app::operation_data::pointer(new operation_data(detail));

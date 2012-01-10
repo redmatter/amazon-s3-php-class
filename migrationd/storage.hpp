@@ -50,7 +50,7 @@ public:
 					data.p_fstream->close();
 				}
 
-				channel_copy_to_s3_done_.produce(data);
+				pc_produce(channel_copy_to_s3_done_, data);
 			}
 		}
 		catch(const migration_data::channel_t::finishing_exception& e) {

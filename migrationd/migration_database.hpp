@@ -211,7 +211,7 @@ public:
 								app::types::file_format::encrypted_compressed_wav,
 								archiving::archivable::file_type::recording);
 						LogDebug("Migratable: "<<data);
-						new_migratables_channel_.produce(data);
+						pc_produce(new_migratables_channel_, data);
 						ids.push_back(id);
 					}
 				}
@@ -292,7 +292,7 @@ public:
 							verify_data.md = data;
 							verify_data.random = rand_one_to_1000();
 
-							verify_channel_.produce(verify_data);
+							pc_produce(verify_channel_, verify_data);
 						}
 					}
 				}
@@ -423,7 +423,7 @@ public:
 							data.state = migration_data::retention_info_saved;
 						}
 
-						channel_save_status_.produce(data);
+						pc_produce(channel_save_status_, data);
 					}
 					catch(const migration_data::channel_t::consume_timed_out_exception& e) {
 						break;

@@ -119,7 +119,7 @@ public:
 							data->p_detail->state = operation_state::all_done;
 						}
 
-						purge_channel_.produce(data);
+						pc_produce(purge_channel_, data);
 					}
 					catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 						break;

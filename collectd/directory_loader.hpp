@@ -19,6 +19,8 @@
 
 namespace app {
 
+extern const time_t startup_time;
+
 class directory_loader : public boost::noncopyable {
 
 public:
@@ -99,11 +101,19 @@ public:
 						LogDebug("Ignoring directory "<<file_path);
 						continue;
 					}
-					else if((time(0) - s.st_ctime) <= 30) // lets ignore any freshies for 30secs
-						continue;
+					else {
+						const time_t age_seconds(time(0) - s.st_ctime);
+						if ((s.st_ctime > startup_time) && age_seconds < 1800) {
+							if(age_seconds > 60)
+								LogDebug("WARNING: "<<file_path<<" not inspected for "<<age_seconds<<" seconds");
+							
+							continue;
+						}
+					}
 
 					if (!is_loaded_(file_path)) {
 						(void)loader_(file_path);
+						LogDebug(file_path<<" loaded.");
 						file_count++;
 					}
 					else {

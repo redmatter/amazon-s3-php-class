@@ -552,13 +552,16 @@ public:
 					const archiving::archivable::file_type::file_type_t file_type(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)));
 					const archiving::org_id_t org(rml::utils::strtoull(row[6].c_str(), 0ULL));
 					const std::string uuid(row[7].c_str());
-
+					
 					// lookup the busy-set to see if we already have this loaded
 					if(fn_is_already_loaded(operation_data::pointer(new operation_data(operation_data::detail::pointer(new operation_data::detail(file_type, org, uuid))))))
 						continue;
 
 					try {
 						const uint64_t& item_id(rml::utils::strtoull(row[0].c_str(), 0ULL));
+						const operation_state::operation_state_t saved_state(operation_state::operation_state_t(rml::utils::strtoull(row[12].c_str(), 0ULL)));
+
+						LogDebug("Trying to load ID:"<<item_id<<' '<<file_type<<'/'<<org<<'/'<<uuid<<" state:"<<operation_state::to_string(saved_state));
 
 						// TODO Ignoring PolicyVersion here; we need to revisit this
 						const std::pair< archiving::org_id_t, policy::id_type >& lookup( std::make_pair< archiving::org_id_t, policy::id_type >(
@@ -609,11 +612,11 @@ public:
 								rml::utils::strtoull(row[15].c_str(), 0ULL), rml::utils::strtoull(row[16].c_str(), 0ULL),
 								types::file_format::file_format_t(rml::utils::strtoull(row[10].c_str(), 0ULL)),
 								files_map,
-								operation_state::operation_state_t(rml::utils::strtoull(row[12].c_str(), 0ULL)),
+								saved_state,
 								item_id,
 								rml::utils::strtoull(row[11].c_str(), 0ULL)));
 
-						channel.produce(p_opdata);
+						pc_produce(channel, p_opdata);
 					}
 					catch(const std::exception& e) {
 						LogWarning("Exception: "<<e.what());

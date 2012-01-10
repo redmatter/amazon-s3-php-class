@@ -303,12 +303,12 @@ public:
 
 								if(!p_parent) {
 									p_parent = load_archivable_by_id(rml::utils::strtoull(row[3].c_str()));
-									in_channel.produce(p_parent);
+									pc_produce(in_channel, p_parent, p_parent->get_attempt() * 3);
 								}
 							}
 
 							p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()), p_parent);
-							in_channel.produce(p_child);
+							pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
 						}
 					}
 					catch(const std::exception& e) {

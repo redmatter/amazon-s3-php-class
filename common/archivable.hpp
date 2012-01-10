@@ -758,7 +758,8 @@ typedef rml::pc_channel_delayed_retry<
 		archivable_pointer_get_attempt, 
 		archivable_pointer_set_next_attempt, 
 		archivable_pointer_compute_retry_delay, 
-		archivable_pointer_compare> archivable_channel_t;
+		archivable_pointer_compare,
+		1 > archivable_channel_t;
 
 typedef rml::busy_set< archivable::pointer, archivable_pointer_compare > archivable_busy_set_t;
 

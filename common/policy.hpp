@@ -152,6 +152,7 @@ struct policy
 	const archiving::endpoint_id_t endpoint_id;
 	
 	const bool allow_unrestricted_access;
+	const bool disallow_recording_download;
 
 	typedef boost::shared_ptr< policy > pointer;
 
@@ -159,12 +160,13 @@ struct policy
 			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
 			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit,
 			const archiving::endpoint_id_t& endpoint_id,
-			const bool& allow_unrestricted_access) :
+			const bool& allow_unrestricted_access, const bool& disallow_recording_download) :
 				id(id), version(version),
 				min_retention(min_retention_period, min_retention_unit),
 				max_retention(max_retention_period, max_retention_unit),
 				endpoint_id(endpoint_id),
-				allow_unrestricted_access(allow_unrestricted_access)
+				allow_unrestricted_access(allow_unrestricted_access),
+				disallow_recording_download(disallow_recording_download)
 	{
 		//ctor
 	}
@@ -201,6 +203,7 @@ struct policy
 	    const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
 	    
 	    const bool allow_unrestricted_access ( 0 == strcmp("yes", policy_node.select_single_node("AllowUnrestrictedAccess/text()").node().value()) );
+	    const bool disallow_recording_download ( 0 == strcmp("yes", policy_node.select_single_node("DisallowRecordingDownload/text()").node().value()) );
 
 	    // assign 0 if no endpoint-id set
 	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
@@ -210,7 +213,8 @@ struct policy
 				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
 				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
 				endpoint_id,
-				allow_unrestricted_access));
+				allow_unrestricted_access,
+				disallow_recording_download));
 	}
 	catch(const std::exception& e) {
 		LogCritical("Exception: "<<e.what());

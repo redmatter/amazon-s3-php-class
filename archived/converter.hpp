@@ -141,7 +141,7 @@ public:
 
 				if((operation_state::put_file_convert_ok == opdata->p_detail->state) || (((opdata->p_detail->state & 0x00f0) >> 4) > app::operation_coarse::file_convert)) {
 					LogVerbose(opdata->p_detail->identifier<<" already converted; shifting to next channel.");
-					convert_done_channel_.produce(opdata);
+					pc_produce(convert_done_channel_, opdata);
 					continue;
 				}
 
@@ -152,7 +152,7 @@ public:
 					opdata->get_tmp_fstream()->close();
 					
 					internal_db_.save(opdata); // save before we potentially hand off to another thread
-					convert_done_channel_.produce(opdata);
+					pc_produce(convert_done_channel_, opdata);
 				}
 				else {
 					opdata->p_detail->retry++;
@@ -168,7 +168,7 @@ public:
 
 					// put it back in; the channel will reduce its priority
 					operation_data_busy_set_.remove(opdata);
-					convert_channel_.produce(opdata, 5);
+					pc_produce(convert_channel_, opdata, 5);
 				}
 			}
 			catch(const app::operation_data::channel_t::finishing_exception& e) {

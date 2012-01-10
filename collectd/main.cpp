@@ -183,7 +183,9 @@ boost::program_options::variables_map confMap;
 volatile bool quit = false;
 volatile bool wasHUPed = false;
 
-}
+const time_t startup_time(time(0));
+
+} // namespace app
 
 namespace {
 

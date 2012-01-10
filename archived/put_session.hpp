@@ -48,7 +48,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	{
 		enum state_t
 		{
-			accepting,
+			accepting = 0,
 //			accepted,
 //			disconnected, TODO
 
@@ -75,8 +75,51 @@ class put_session : public boost::enable_shared_from_this<put_session>
 			general_err,
 
 			closing,
-			closed
+			closed,
+			
+			n_states
 		};
+		
+		static const char* to_string(const state_t& state)
+		{
+			static const char* str[n_states+1] = {
+					"accepting",
+		//			"accepted",
+		//			"disconnected",
+
+					"handshake_sent",
+					"handshake_recv",
+					"handshake_err",
+					"handshake_recv_err",
+		//			"handshake_ack_ok",
+		//			"handshake_ack_err",
+
+					"ready_for_put",
+
+					"put_received",
+		//			"put_received_processing",
+					"put_received_ack_ok",
+					"put_received_ack_err",
+					"put_receiving_file",
+					"put_receiving_file_ok",
+					"put_receiving_file_err",
+		//			"put_check_received_file",
+					"put_check_received_file_ack_ok",
+					"put_check_received_file_ack_err",
+
+					"general_err",
+
+					"closing",
+					"closed",
+					
+					"invalid" // n_states
+			};
+			
+			if(state >= accepting && state < n_states)
+				return str[state];
+			
+			return str[n_states];
+		}
 	};
 
 	boost::program_options::variables_map& confMap_;
@@ -209,7 +252,7 @@ private:
 	{
 		if(error) {
 			//TODO deduce next action from current state & error
-			LogError(remote_ep_<<" run_statemachine [current_state:"<<current_state_<<"]: "<<error.message());
+			LogError(remote_ep_<<" run_statemachine [current_state:"<<states::to_string(current_state_)<<"]: "<<error.message());
 			current_state_ = states::general_err;
 		}
 
@@ -271,7 +314,7 @@ private:
 		case states::closing:
 		case states::closed:
 		{
-			LogError(remote_ep_<<" Invalid state: states::accepting / states::closed / states::closing (state:"<<current_state_<<')');
+			LogError(remote_ep_<<" Invalid state: states::accepting / states::closed / states::closing (state:"<<states::to_string(current_state_)<<')');
 			current_state_ = states::general_err;
 			run_statemachine(error);
 			break;
@@ -621,7 +664,7 @@ private:
 
 								if(file_type_ == archiving::archivable::file_type::cdr) {
 									whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
-									whisper_channel_.produce(p_whisper);
+									pc_produce(whisper_channel_, p_whisper);
 
 									// TODO XXX handle failure to insert into cdrmunch DB
 									if(!cdrmunch_db_.save(p_whisper))
@@ -643,7 +686,7 @@ private:
 				monitor::increment_counter(monitor::counter_accessor::put);
 
 				if(p_policy) // if PolicyID < 0; it only needs to be local cached
-					channel_.produce(opdata);
+					pc_produce(channel_, opdata);
 				else {
 					monitor::increment_counter(monitor::counter_accessor::cached_only);
 					LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
@@ -693,8 +736,6 @@ private:
 
 	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
 	{
-		const boost::asio::ip::tcp::socket::endpoint_type& remote_ep_( socket_.remote_endpoint() );
-
 		/*
 		LogDebug(remote_ep_<<' '<<resource_id_<<" error: "<<error<<" ---------------------------------------");
 		LogDebug(remote_ep_<<' '<<resource_id_<<" bytes_transferred: "<<bytes_transferred);

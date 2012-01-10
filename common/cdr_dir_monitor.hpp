@@ -61,7 +61,7 @@ public:
 	{
 		try {
 			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
-			channel_.produce(archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname_)));
+			pc_produce(channel_, archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::archivable::file_type::cdr, "xml", pbx_hostname_)));
 			return true;
 		}
 		catch(const std::exception& e) {

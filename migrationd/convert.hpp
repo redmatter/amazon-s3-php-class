@@ -115,7 +115,7 @@ public:
 						iter--;
 					}
 				}
-				channel_copy_to_s3_.produce(data);
+				pc_produce(channel_copy_to_s3_, data);
 			}
 		}
 		catch(const migration_data::channel_t::finishing_exception& e) {

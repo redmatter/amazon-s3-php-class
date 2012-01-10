@@ -61,7 +61,7 @@ public:
 			LogMessage(opdata->p_detail->identifier<<": Saved to storage; queueing for retention");
 			opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
-			retention_data_channel_.produce(opdata);
+			pc_produce(retention_data_channel_, opdata);
 			
 			monitor::increment_counter(monitor::counter_accessor::stored);
 			monitor::increment_counter(monitor::counter_accessor::stored_size, opdata->p_detail->real_size);
@@ -85,8 +85,10 @@ public:
 				// we will look it up before we retry
 				opdata->p_detail->p_endpoint.reset();
 				
+				bool ret(false);
+				pc_produce_get_result(ret, convert_done_channel_, opdata, (180 * opdata->p_detail->retry * opdata->p_detail->retry), 0, 0);
 				// exponential retry ... 3 min, 12 mins, 27 mins, 
-				if (!convert_done_channel_.produce(opdata, 180 * opdata->p_detail->retry * opdata->p_detail->retry, 0, 0))
+				if (!ret)
 					LogWarning(opdata->p_detail->identifier<<": setup of retry failed");
 			}
 			else
