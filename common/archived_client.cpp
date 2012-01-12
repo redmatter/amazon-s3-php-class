@@ -11,9 +11,8 @@
 
 namespace app {
 
-boost::mutex archived_client::mutex_;
-
-bool archived_client::is_archived_ok_ = false;
+unsigned int archived_client::n_instances_ = 0;
+unsigned int archived_client::n_ok_ = 0;
 
 }  // namespace app
 

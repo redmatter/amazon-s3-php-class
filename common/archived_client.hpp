@@ -27,14 +27,16 @@ using boost::asio::ip::tcp;
 class archived_client
 {
 private:
-	static boost::mutex mutex_;
-	static bool is_archived_ok_;
-
-	static void set_is_archived_ok(const bool ok)
+	static unsigned int n_instances_;
+	static unsigned int n_ok_;
+	
+	void set_is_archived_ok(const bool ok)
 	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
-		LogVerbose("set_is_archived_ok: "<<ok);
-		is_archived_ok_ = ok;
+		LogVerbose(instance_id_<<": set_is_archived_ok: "<<ok);
+		if(ok)
+			__sync_add_and_fetch(&n_ok_, 1);
+		else
+			__sync_sub_and_fetch(&n_ok_, 1);
 	}
 
 	enum constants
@@ -140,7 +142,11 @@ private:
 		}
 	};
 
+	const unsigned int instance_id_;
+
 	boost::asio::io_service& io_service_;
+	boost::asio::strand strand_;
+	
 	boost::asio::ip::tcp::resolver resolver_;
 	boost::shared_ptr< tcp::socket> p_socket_;
 	unsigned short int local_port_;
@@ -170,10 +176,12 @@ private:
 public:
 	typedef boost::shared_ptr<archived_client> pointer;
 
-	static bool get_is_archived_ok()
+	static float get_is_archived_ok()
 	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
-		return is_archived_ok_;
+		if(!n_instances_ || !n_ok_)
+			return 0.0;
+		
+		return (float)n_ok_ / (float)n_instances_;
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
@@ -192,7 +200,9 @@ public:
 			const std::string& archived_port,
 			database::internal& internal_db,
 			volatile bool& quit) :
+				instance_id_(__sync_add_and_fetch(&n_instances_, 1)),
 				io_service_(io_service),
+				strand_(io_service_),
 				resolver_(io_service_),
 				local_port_(0),
 				timer_(io_service_),
@@ -206,6 +216,7 @@ public:
 				internal_db_(internal_db),
 				quit_(quit)
 	{
+		LogVerbose("Instance created; ID:"<<instance_id_);
 		connect_archived();
 	}
 
@@ -227,9 +238,9 @@ public:
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr << "BYE\r\n\r\n";
 		boost::asio::async_write(*p_socket_, send_buffer_,
-				boost::bind(&archived_client::handle_write, this,
+				strand_.wrap(boost::bind(&archived_client::handle_write, this,
 						boost::asio::placeholders::error,
-						boost::asio::placeholders::bytes_transferred));
+						boost::asio::placeholders::bytes_transferred)));
 	}
 
 private:
@@ -237,8 +248,8 @@ private:
 	{
 		timer_.cancel();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
-		timer_.async_wait(boost::bind(&archived_client::connect_archived, this,
-				force_reconnect, true, boost::asio::placeholders::error));
+		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, this,
+				force_reconnect, true, boost::asio::placeholders::error)));
 	}
 
 	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error)
@@ -269,8 +280,11 @@ private:
 
 	inline void connect_archived()
 	{
-		if(p_socket_)
+		if(p_socket_) {
+			boost::system::error_code error_ignore;
+			p_socket_->cancel(error_ignore);
 			p_socket_.reset();
+		}
 
 		connected_ = false;
 		if(put_archivable_ptr_) {
@@ -283,9 +297,9 @@ private:
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
 		resolver_.cancel();
 		resolver_.async_resolve(query,
-				boost::bind(&archived_client::handle_resolve, this,
+				strand_.wrap(boost::bind(&archived_client::handle_resolve, this,
 						boost::asio::placeholders::error,
-						boost::asio::placeholders::iterator));
+						boost::asio::placeholders::iterator)));
 
 		set_reconnect_timer(10, false);
 	}
@@ -296,8 +310,8 @@ private:
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			p_socket_.reset(new tcp::socket(io_service_));
 			p_socket_->async_connect(endpoint,
-					boost::bind(&archived_client::handle_connect, this,
-							boost::asio::placeholders::error, ++endpoint_iterator));
+					strand_.wrap(boost::bind(&archived_client::handle_connect, this,
+							boost::asio::placeholders::error, ++endpoint_iterator)));
 		}
 		else {
 			LogWarning("Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
@@ -329,8 +343,8 @@ private:
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				p_socket_.reset(new tcp::socket(io_service_));
 				p_socket_->async_connect(endpoint,
-						boost::bind(&archived_client::handle_connect, this,
-								boost::asio::placeholders::error, ++endpoint_iterator));
+						strand_.wrap(boost::bind(&archived_client::handle_connect, this,
+								boost::asio::placeholders::error, ++endpoint_iterator)));
 			}
 		}
 	}
@@ -341,8 +355,8 @@ private:
 			if(current_state_ == state::nop_sent) {
 				current_state_ = state::nop_ack_wait;
 				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						boost::bind(&archived_client::run_statemachine, this,
-								boost::asio::placeholders::error));
+						strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+								boost::asio::placeholders::error)));
 
 				set_reconnect_timer(5, true);
 				return;
@@ -352,15 +366,15 @@ private:
 		if((current_state_ == state::closing_bye_wait) || (current_state_ == state::reconnecting_bye_wait)) {
 			if(!error) {
 				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						boost::bind(&archived_client::run_statemachine, this,
-								boost::asio::placeholders::error));
+						strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+								boost::asio::placeholders::error)));
 
 				timer_.expires_from_now(boost::posix_time::seconds(2));
 				timer_.async_wait(
-						boost::bind(&archived_client::timer_do_close, this,
+						strand_.wrap(boost::bind(&archived_client::timer_do_close, this,
 								current_state_ == state::reconnecting_bye_wait,
 								reconnect_delay_,
-								boost::asio::placeholders::error));
+								boost::asio::placeholders::error)));
 			}
 			else
 				do_close(current_state_ == state::reconnecting_bye_wait, reconnect_delay_);
@@ -411,8 +425,8 @@ private:
 			current_state_ = state::handshake_recv;
 
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(2, true);
 
@@ -450,8 +464,8 @@ private:
 			}
 
 			boost::asio::async_write(*p_socket_, send_buffer_,
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 
 			break;
 		}
@@ -467,8 +481,8 @@ private:
 		{
 			current_state_ = state::handshake_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(2, true);
 
@@ -580,8 +594,8 @@ private:
 		{
 			current_state_ = state::put_sent_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(10, true);
 
@@ -639,8 +653,8 @@ private:
 		{
 			current_state_ = state::put_sent_file_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(10, true);
 
@@ -755,8 +769,8 @@ private:
 
 			current_state_ = state::put_sent;
 			boost::asio::async_write(*p_socket_, send_buffer_,
-					boost::bind(&archived_client::run_statemachine, this,
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+							boost::asio::placeholders::error)));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
 			if(p_socket && p_socket->is_open()) {
@@ -765,9 +779,9 @@ private:
 				ostr << "NOP\r\n\r\n";
 				current_state_ = state::nop_sent;
 				boost::asio::async_write(*p_socket_, send_buffer_,
-						boost::bind(&archived_client::handle_write, this,
+						strand_.wrap(boost::bind(&archived_client::handle_write, this,
 								boost::asio::placeholders::error,
-								boost::asio::placeholders::bytes_transferred));
+								boost::asio::placeholders::bytes_transferred)));
 			}
 			else if(!quit_)
 				reconnect(false);
@@ -800,7 +814,7 @@ private:
 			}
 			
 			// post to avoid recursion
-			io_service_.post(boost::bind(&archived_client::run_statemachine, this, error));
+			strand_.post(boost::bind(&archived_client::run_statemachine, this, error));
 			return;
 		}
 
@@ -818,9 +832,9 @@ private:
 		ostr.write(&buf[0], buf_length);
 
 		boost::asio::async_write(*p_socket_, send_buffer_,
-				boost::bind(&archived_client::put_send_file, this,
+				strand_.wrap(boost::bind(&archived_client::put_send_file, this,
 						boost::asio::placeholders::error,
-						boost::asio::placeholders::bytes_transferred));
+						boost::asio::placeholders::bytes_transferred)));
 	}
 
 	void timer_do_close(const bool& reconnect, unsigned int reconnect_delay_seconds, const boost::system::error_code& error) {
@@ -836,8 +850,13 @@ private:
 
 		timer_.cancel();
 		resolver_.cancel();
-		p_socket_.reset();
 
+		if(p_socket_) {
+			boost::system::error_code error_ignore;
+			p_socket_->cancel(error_ignore);
+			p_socket_.reset();
+		}
+		
 		if(put_archivable_ptr_) {
 			if(put_archivable_ptr_->setup_for_retry())
 				pc_produce(channel_, put_archivable_ptr_);

@@ -190,8 +190,11 @@ const time_t startup_time(time(0));
 namespace {
 
 bool more_to_load_from_db = false;
-inline bool continue_loading_dir() {
-	return !more_to_load_from_db && app::archived_client::get_is_archived_ok();
+inline float continue_loading_dir() {
+	if(more_to_load_from_db)
+		return 0.0;
+	
+	return app::archived_client::get_is_archived_ok();
 }
 
 }
@@ -318,7 +321,7 @@ int main(int argc, char* argv[]) try
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
 		// initialise the internal static variables before we load anything;
-		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, 1.0);
 
 		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_loaded_fn, continue_loading_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
@@ -357,8 +360,9 @@ int main(int argc, char* argv[]) try
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
 			if(more_to_load_from_db && !(ticks % 10)) {
-				if(app::archived_client::get_is_archived_ok())
-					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db);
+				const float& loading_factor(app::archived_client::get_is_archived_ok());
+				if(loading_factor)
+					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, loading_factor);
 				else
 					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
 			}

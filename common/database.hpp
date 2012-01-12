@@ -234,7 +234,8 @@ public:
 			const std::string& pbx_hostname,
 			const boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)>& fn_get_loaded_instance,
 			archiving::archivable_channel_t& in_channel,
-			bool& have_more_to_load)
+			bool& have_more_to_load,
+			const float& loading_factor)
 	{
 		static bool first = true;
 		static uint64_t first_max_id = 0;
@@ -280,6 +281,8 @@ public:
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
+				unsigned int count(0);
+				
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
 					const uint64_t& child_id(rml::utils::strtoll(row[0].c_str()));
@@ -303,12 +306,14 @@ public:
 
 								if(!p_parent) {
 									p_parent = load_archivable_by_id(rml::utils::strtoull(row[3].c_str()));
-									pc_produce(in_channel, p_parent, p_parent->get_attempt() * 3);
+									if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
+										pc_produce(in_channel, p_parent, p_parent->get_attempt() * 3);
 								}
 							}
 
 							p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()), p_parent);
-							pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
+							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
+								pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
 						}
 					}
 					catch(const std::exception& e) {

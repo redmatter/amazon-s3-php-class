@@ -26,7 +26,7 @@ class directory_loader : public boost::noncopyable {
 public:
 	typedef boost::function<bool(const std::string&)> loader_fn;
 	typedef boost::function<bool(const std::string&)> is_loaded_fn;
-	typedef boost::function<bool()> continue_loading_fn;
+	typedef boost::function<float()> continue_loading_fn;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -56,8 +56,9 @@ public:
 			if(count++ % interval)
 				continue;
 
-			if(!continue_loading_()) {
-				LogMessage("Directory loading paused; waiting for ArchiveDs to come back online");
+			const float& factored_batch_size((float)batch_size * continue_loading_());
+			if(!factored_batch_size) {
+				LogMessage("Directory loading paused; waiting for ArchiveDs to come back online ["<<continue_loading_()<<']');
 				continue;
 			}
 
@@ -73,7 +74,7 @@ public:
 
 				struct dirent *dp;
 				unsigned int file_count = 0;
-				while((file_count < batch_size)) {
+				while((file_count < factored_batch_size)) {
 					errno = 0;
 					dp = readdir(dh);
 
@@ -112,6 +113,7 @@ public:
 					}
 
 					if (!is_loaded_(file_path)) {
+						
 						(void)loader_(file_path);
 						LogDebug(file_path<<" loaded.");
 						file_count++;

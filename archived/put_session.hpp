@@ -125,6 +125,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	boost::program_options::variables_map& confMap_;
 
 	boost::asio::io_service& io_service_;
+	boost::asio::strand strand_;
 
 	policy::cached_finder_t& cached_policy_finder_;
 	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
@@ -174,6 +175,7 @@ public:
 			boost::asio::io_service& io_service ) :
 				confMap_(confMap),
 				io_service_(io_service),
+				strand_(io_service_),
 				cached_policy_finder_(cached_policy_finder),
 				cached_endpoint_finder_(cached_endpoint_finder),
 				internal_db_(internal_db),
@@ -213,7 +215,8 @@ public:
 			socket_.set_option(option, ec);
 			if(ec) {
 				LogWarning("set_option failed; err:"<<ec.message());
-				io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
+				io_service_.post(
+						strand_.wrap(boost::bind(&put_session::do_close, shared_from_this())));
 				return;
 			}
 		}
@@ -242,9 +245,9 @@ public:
 		std::ostream ostr(&send_buffer_);
 		ostr << "ArchiveD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 		boost::asio::async_write(socket_, send_buffer_,
-				boost::bind(
+				strand_.wrap(boost::bind(
 						&put_session::run_statemachine, shared_from_this(),
-						boost::asio::placeholders::error));
+						boost::asio::placeholders::error)));
 	}
 
 private:
@@ -252,7 +255,7 @@ private:
 	{
 		if(error) {
 			//TODO deduce next action from current state & error
-			LogError(remote_ep_<<" run_statemachine [current_state:"<<states::to_string(current_state_)<<"]: "<<error.message());
+			LogError(remote_ep_<<" [current_state:"<<states::to_string(current_state_)<<"]: "<<error.message());
 			current_state_ = states::general_err;
 		}
 
@@ -262,8 +265,8 @@ private:
 		{
 			current_state_ = states::handshake_recv;
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error)));
 			break;
 		}
 
@@ -298,8 +301,8 @@ private:
 				}
 
 				boost::asio::async_write(socket_, send_buffer_,
-						boost::bind(&put_session::run_statemachine, shared_from_this(),
-								boost::asio::placeholders::error));
+						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error)));
 			}
 			else if(OK_or_ERR == "ERR") {
 				istr >> sp1; std::getline(istr, message, '\r'); istr >> lf;
@@ -327,7 +330,8 @@ private:
 		case states::put_check_received_file_ack_err:
 		{
 			current_state_ = states::closing;
-			io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
+			io_service_.post(
+					strand_.wrap(boost::bind(&put_session::do_close, shared_from_this())));
 			break;
 		}
 
@@ -350,8 +354,8 @@ private:
 
 			current_state_ = states::put_received;
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n\r\n",
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error)));
 			break;
 		}
 
@@ -386,7 +390,8 @@ private:
 					if(verb == "BYE") {
 						LogMessage(remote_ep_<<' '<<verb<<" received; Closing");
 						current_state_ = states::closing;
-						io_service_.post(boost::bind(&put_session::do_close, shared_from_this()));
+						io_service_.post(
+								strand_.wrap(boost::bind(&put_session::do_close, shared_from_this())));
 					}
 					else
 						current_state_ = states::ready_for_put;
@@ -505,8 +510,8 @@ private:
 			}
 
 			boost::asio::async_write(socket_, send_buffer_,
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error)));
 			break;
 		}
 
@@ -519,9 +524,9 @@ private:
 			recv_buffer_.prepare(8192);
 			boost::asio::async_read(socket_, recv_buffer_,
 					boost::asio::transfer_at_least(1),
-					boost::bind(&put_session::put_receive_file, shared_from_this(),
+					strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
 							boost::asio::placeholders::error,
-							boost::asio::placeholders::bytes_transferred));
+							boost::asio::placeholders::bytes_transferred)));
 
 			break;
 		}
@@ -551,8 +556,8 @@ private:
 			xfrd_ok_ = false;
 
 			boost::asio::async_write(socket_, send_buffer_,
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error)));
 			break;
 		}
 
@@ -726,8 +731,8 @@ private:
 			xfrd_ok_ = false;
 
 			boost::asio::async_write(socket_, send_buffer_,
-					boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error));
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error)));
 			break;
 		}
 
@@ -788,26 +793,29 @@ private:
 
 			if((xfrd_content_length_ == content_length_) && xfrd_ok_) {
 				current_state_ = states::put_receiving_file_ok;
-				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+				io_service_.post(
+						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
 			}
 			else if(chunk_remaining != 0) {
 				LogError(remote_ep_<<" Invalid state; chunk_remaining != 0");
 				current_state_ = states::put_receiving_file_err;
-				io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+				io_service_.post(
+						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
 			}
 			else {
 				recv_buffer_.prepare(8192);
 				boost::asio::async_read(socket_, recv_buffer_,
 						boost::asio::transfer_at_least(1),
-						boost::bind(&put_session::put_receive_file, shared_from_this(),
+						strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
 								boost::asio::placeholders::error,
-								boost::asio::placeholders::bytes_transferred));
+								boost::asio::placeholders::bytes_transferred)));
 			}
 		}
 		else {
 			LogError(remote_ep_<<" Error while receiving PUT data: "<<error.message());
 			current_state_ = states::put_receiving_file_err;
-			io_service_.post(boost::bind(&put_session::run_statemachine, shared_from_this(), error));
+			io_service_.post(
+					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
 		}
 	}
 
