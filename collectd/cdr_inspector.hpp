@@ -373,7 +373,11 @@ public:
 							pugi::xpath_node node;
 							if((node = variables_node.select_single_node("rmCallRecordingCount/text()"))) {
 								archiving::archivable::pointer archivable_recording;
+								
+								// did we actually endup recording in the course of the call progress?
+								const bool& session_recorded(get_xpath_single_value(variables_node, "rmDispSessionRecorded/text()", std::string("false")) == "true");
 
+								// how many call recordings were setup on the call (star-command/personal, policy-based, etc)
 								unsigned int recording_count( rml::utils::strtoull(node.node().value(), 0) );
 								if(recording_count) {
 									variables_node.append_child("rmArchivingEnabled").append_child(pugi::node_pcdata).set_value("true");
@@ -382,7 +386,7 @@ public:
 
 								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
-								for(; recording_count; recording_count--) {
+								for(; session_recorded && recording_count; recording_count--) {
 
 									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
 									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), 0LL) );
@@ -446,7 +450,9 @@ public:
 
 									std::string file_path(node.node().value());
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
-									archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
+									archivable_recording.reset(
+											new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, 
+													archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;
@@ -466,7 +472,7 @@ public:
 
 									archivable_recording->set_owners(*owners);
 
-									LogWarning(*archivable_cdr<<" - Archivable recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
+									LogWarning(*archivable_cdr<<" - Recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
 
 									archivable_recording->set_current_state(archiving::archivable::state::inspected);
 									{
