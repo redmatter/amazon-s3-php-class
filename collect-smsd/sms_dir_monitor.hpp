@@ -47,7 +47,7 @@ namespace archiving
 				else if (ev.type
 						& (dir_monitor::event::closed | dir_monitor::event::moved_to))
 				{
-					if (ev.type & dir_monitor::event::moved_to
+					if ((ev.type & dir_monitor::event::moved_to)
 							|| (files_created_waiting_close_.find(file_path)
 									!= files_created_waiting_close_.end()))
 					{
