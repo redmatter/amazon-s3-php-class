@@ -181,7 +181,7 @@ namespace app
 					if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
 					{
 						LogVerbose(*archivable_sms << " Already inspected; shifting to out channel");
-						pc_produce(out_channel, archivable_sms);
+						pc_produce(out_channel, archivable_sms, 0);
 					}
 					else
 					{
@@ -309,7 +309,7 @@ namespace app
 									else if (archivable_sms->get_current_state() == archiving::archivable::state::inspected)
 									{
 										LogWarning(*archivable_sms << ": already inspected: sending it to the archive");
-										pc_produce(out_channel, archivable_sms);
+										pc_produce(out_channel, archivable_sms, 0);
 									}
 									else
 									{
@@ -328,7 +328,7 @@ namespace app
 							continue;
 						}
 
-						pc_produce(out_channel, archivable_sms);
+						pc_produce(out_channel, archivable_sms, 0);
 
 						std::string FromNumber(doc.select_single_node("/SMS/FromNumber").node().child_value());
 						std::string ToNumber(doc.select_single_node("/SMS/ToNumber").node().child_value());
