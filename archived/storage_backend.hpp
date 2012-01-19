@@ -449,7 +449,7 @@ public:
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
-		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers);
+		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers, opdata->p_detail->clear_size, opdata->p_detail->real_size);
 	}
 
 	inline void put(
@@ -457,7 +457,9 @@ public:
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer tmpfs,
 			const types::file_format::file_format_t& target_file_format,
-			const types::caseless_key_string_map& headers = types::caseless_key_string_map())
+			const types::caseless_key_string_map& headers = types::caseless_key_string_map(),
+			const std::size_t& clear_size = 0,
+			const std::size_t& real_size = 0)
 	{
 		types::caseless_key_string_map s3headers = headers;
 		{
@@ -470,6 +472,12 @@ public:
 			s3headers.insert(std::make_pair(
 					"file-type",
 					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
+			
+			if(clear_size)
+				s3headers.insert(std::make_pair("clear-size", boost::lexical_cast<std::string>(clear_size)));
+			
+			if(real_size)
+				s3headers.insert(std::make_pair("real-size", boost::lexical_cast<std::string>(real_size)));
 		}
 
 

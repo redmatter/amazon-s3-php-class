@@ -4,6 +4,7 @@
 #include "migration_data.hpp"
 
 #include "../archived/storage_backend.hpp"
+#include "../archived/types.hpp"
 
 namespace app {
 
@@ -39,7 +40,7 @@ public:
 					data.p_fstream->re_open();
 
 					try {
-						put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format);
+						put(data.p_endpoint, data.identifier, data.p_fstream, data.target_format, types::caseless_key_string_map(), data.clear_size, data.real_size);
 						LogMessage(data.identifier<<": copied to S3");
 						data.state = migration_data::copied;
 					}
