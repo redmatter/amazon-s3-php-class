@@ -118,6 +118,8 @@ class whisper_client
 	};
 
 	boost::asio::io_service& io_service_;
+	boost::asio::io_service::strand strand_;
+
 	boost::asio::ip::tcp::resolver resolver_;
 	boost::asio::ip::tcp::socket socket_;
 
@@ -150,6 +152,7 @@ public:
 			const std::string& distiller_host,
 			const std::string& distiller_port) :
 				io_service_(io_service),
+				strand_(io_service_),
 				resolver_(io_service_),
 				socket_(io_service_),
 				timer_(io_service_),
@@ -161,13 +164,14 @@ public:
 	{
 		boost::asio::ip::tcp::resolver::query query(distiller_host_, distiller_port_);
 	    resolver_.async_resolve(query,
-	    		boost::bind(&whisper_client::handle_resolve, this,
+	    		strand_.wrap(boost::bind(&whisper_client::handle_resolve, this,
 	    				boost::asio::placeholders::error,
-	    				boost::asio::placeholders::iterator));
+	    				boost::asio::placeholders::iterator)));
 
 	    timer_.expires_from_now(boost::posix_time::seconds(10));
-	    timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
-	    		false, boost::asio::placeholders::error));
+	    timer_.async_wait(
+	    		strand_.wrap(boost::bind(&whisper_client::reconnect, this,
+	    				false, boost::asio::placeholders::error)));
 	}
 
 
@@ -178,9 +182,9 @@ public:
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr << "BYE\r\n";
 		boost::asio::async_write(socket_, send_buffer_,
-				boost::bind(&whisper_client::handle_write, this,
+				strand_.wrap(boost::bind(&whisper_client::handle_write, this,
 						boost::asio::placeholders::error,
-						boost::asio::placeholders::bytes_transferred));
+						boost::asio::placeholders::bytes_transferred)));
 	}
 
 private:
@@ -211,13 +215,14 @@ private:
 			LogMessage("Connecting to "<<distiller_host_<<':'<<distiller_port_);
 			boost::asio::ip::tcp::resolver::query query(distiller_host_, distiller_port_);
 		    resolver_.async_resolve(query,
-		    		boost::bind(&whisper_client::handle_resolve, this,
+		    		strand_.wrap(boost::bind(&whisper_client::handle_resolve, this,
 		    				boost::asio::placeholders::error,
-		    				boost::asio::placeholders::iterator));
+		    				boost::asio::placeholders::iterator)));
 
 		    timer_.expires_from_now(boost::posix_time::seconds(10));
-		    timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
-		    		false, boost::asio::placeholders::error));
+		    timer_.async_wait(
+		    		strand_.wrap(boost::bind(&whisper_client::reconnect, this,
+		    				false, boost::asio::placeholders::error)));
 		}
 	}
 
@@ -227,8 +232,8 @@ private:
 			LogDebug("Resolved "<<distiller_host_<<':'<<distiller_port_<<"; opening connection");
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			socket_.async_connect(endpoint,
-					boost::bind(&whisper_client::handle_connect, this,
-							boost::asio::placeholders::error, ++endpoint_iterator));
+					strand_.wrap(boost::bind(&whisper_client::handle_connect, this,
+							boost::asio::placeholders::error, ++endpoint_iterator)));
 		}
 		else {
 			LogWarning("Error resolving Distiller host "<<distiller_host_<<" ( port "<<distiller_port_<<" ) - error:"<<error.message());
@@ -252,8 +257,8 @@ private:
 
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				socket_.async_connect(endpoint,
-						boost::bind(&whisper_client::handle_connect, this,
-								boost::asio::placeholders::error, ++endpoint_iterator));
+						strand_.wrap(boost::bind(&whisper_client::handle_connect, this,
+								boost::asio::placeholders::error, ++endpoint_iterator)));
 			}
 		}
 	}
@@ -281,7 +286,8 @@ private:
 				socket_.set_option(option, ec);
 				if(ec) {
 					LogWarning("set_option failed; err:"<<ec.message());
-					io_service_.post(boost::bind(&whisper_client::do_close, this, true)); // reconnect
+					io_service_.post(
+							strand_.wrap(boost::bind(&whisper_client::do_close, this, true))); // reconnect
 					return;
 				}
 			}
@@ -310,15 +316,15 @@ private:
 			catch(const whisper::channel_t::finishing_exception& e) {
 				LogMessage(channel_<<e.what());
 				current_state_ = state::closing;
-				io_service_.post(boost::bind(&whisper_client::do_close, this));
+				io_service_.post(strand_.wrap(boost::bind(&whisper_client::do_close, this)));
 
 				return;
 			}
 
 			boost::asio::async_write(socket_, send_buffer_,
-					boost::bind(&whisper_client::handle_write, this,
+					strand_.wrap(boost::bind(&whisper_client::handle_write, this,
 							boost::asio::placeholders::error,
-							boost::asio::placeholders::bytes_transferred));
+							boost::asio::placeholders::bytes_transferred)));
 
 			break;
 		}
@@ -370,7 +376,7 @@ private:
 		case state::nop_ack_err:
 		case state::whisper_ack_err:
 		{
-			io_service_.post(boost::bind(&whisper_client::do_close, this, true));
+			io_service_.post(strand_.wrap(boost::bind(&whisper_client::do_close, this, true)));
 			break;
 		}
 
@@ -382,7 +388,7 @@ private:
 		case state::reconnect_init:
 		{
 			LogMessage("Reconnecting in "<<(int)reconnect_delay_seconds<<" seconds");
-			io_service_.post(boost::bind(&whisper_client::do_close, this, true, reconnect_delay_seconds));
+			io_service_.post(strand_.wrap(boost::bind(&whisper_client::do_close, this, true, reconnect_delay_seconds)));
 			break;
 		}
 
@@ -402,12 +408,12 @@ private:
 			if(current_state_ == state::nop_ack_wait || current_state_ == state::whisper_ack_wait) {
 
 				boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
-						boost::bind(&whisper_client::run_statemachine, this,
-								boost::asio::placeholders::error));
+						strand_.wrap(boost::bind(&whisper_client::run_statemachine, this,
+								boost::asio::placeholders::error)));
 
 				timer_.expires_from_now(boost::posix_time::seconds(current_state_ == state::nop_ack_wait? 2: 5));
-			    timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
-			    		true, boost::asio::placeholders::error));
+			    timer_.async_wait(strand_.wrap(boost::bind(&whisper_client::reconnect, this,
+			    		true, boost::asio::placeholders::error)));
 
 			    return;
 			}
@@ -416,12 +422,12 @@ private:
 		if(current_state_ == state::closing_bye_wait) {
 			if(!error) {
 				boost::asio::async_read_until(socket_, recv_buffer_, "\r\n",
-						boost::bind(&whisper_client::run_statemachine, this,
-								boost::asio::placeholders::error));
+						strand_.wrap(boost::bind(&whisper_client::run_statemachine, this,
+								boost::asio::placeholders::error)));
 
 				timer_.expires_from_now(boost::posix_time::seconds(2));
-				timer_.async_wait(boost::bind(&whisper_client::force_close, this,
-						boost::asio::placeholders::error));
+				timer_.async_wait(strand_.wrap(boost::bind(&whisper_client::force_close, this,
+						boost::asio::placeholders::error)));
 			}
 			else
 				io_service_.post(boost::bind(&whisper_client::force_close, this, error));
@@ -435,7 +441,7 @@ private:
 			LogError("Socket IO error: "<<error.message());
 
 		current_state_ = state::reconnect_init;
-		io_service_.post(boost::bind(&whisper_client::run_statemachine, this, error));
+		strand_.post(boost::bind(&whisper_client::run_statemachine, this, error));
 	}
 
 	void force_close(const boost::system::error_code& error)
@@ -460,8 +466,8 @@ private:
 			LogMessage("Reconnecting in "<<reconnect_delay_seconds<<" seconds");
 			current_state_ = state::reconnecting;
 			timer_.expires_from_now(boost::posix_time::seconds(reconnect_delay_seconds));
-			timer_.async_wait(boost::bind(&whisper_client::reconnect, this,
-					false, boost::asio::placeholders::error));
+			timer_.async_wait(strand_.wrap(boost::bind(&whisper_client::reconnect, this,
+					false, boost::asio::placeholders::error)));
 		}
 		else
 			LogMessage("Closing... (will NOT reconnect)");
