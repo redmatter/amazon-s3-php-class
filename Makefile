@@ -1,4 +1,4 @@
-COMPONENTS=collectd collect-smsd archived archived-monitor convert migrationd
+COMPONENTS=collectd collect-smsd archived archived-monitor convert
 
 RECENT_COMPONENT=$(shell ls -dt $(COMPONENTS) | head -1 )
 
