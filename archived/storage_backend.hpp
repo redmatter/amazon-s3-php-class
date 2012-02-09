@@ -449,7 +449,12 @@ public:
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
-		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs, opdata->p_detail->target_file_format, headers, opdata->p_detail->clear_size, opdata->p_detail->real_size);
+		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs,
+				opdata->p_detail->target_file_format, headers, opdata->p_detail->clear_size, opdata->p_detail->real_size,
+				opdata->p_detail->policy.get_creation_ymd(), opdata->p_detail->policy.get_min_retention_ymd(),
+				opdata->p_detail->policy.get_max_retention_ymd(),
+				opdata->p_detail->policy.p_policy->id, opdata->p_detail->policy.p_policy->version
+				);
 	}
 
 	inline void put(
@@ -457,9 +462,13 @@ public:
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer tmpfs,
 			const types::file_format::file_format_t& target_file_format,
-			const types::caseless_key_string_map& headers = types::caseless_key_string_map(),
-			const std::size_t& clear_size = 0,
-			const std::size_t& real_size = 0)
+			const types::caseless_key_string_map& headers,
+			const std::size_t& clear_size,
+			const std::size_t& real_size,
+			const applied_policy::ymd_t& creation_date,
+			const applied_policy::ymd_t& retention_min_date,
+			const applied_policy::ymd_t& retention_max_date,
+			const policy::id_type& policy_id, const policy::version_type& policy_version)
 	{
 		types::caseless_key_string_map s3headers = headers;
 		{
@@ -471,13 +480,26 @@ public:
 					types::file_format::is_encrypted(target_file_format)? "true": "false"));
 			s3headers.insert(std::make_pair(
 					"file-type",
-					types::data_sub_format::to_string(types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
+					types::data_sub_format::to_string(
+							types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
 			
-			if(clear_size)
-				s3headers.insert(std::make_pair("clear-size", boost::lexical_cast<std::string>(clear_size)));
-			
-			if(real_size)
-				s3headers.insert(std::make_pair("real-size", boost::lexical_cast<std::string>(real_size)));
+			s3headers.insert(std::make_pair(
+					"clear-size",
+					boost::lexical_cast<std::string>(clear_size)));
+			s3headers.insert(std::make_pair("real-size", boost::lexical_cast<std::string>(real_size)));
+
+#define PadZeroTwoDigit(num) \
+	(num <= 9? "0": "")+boost::lexical_cast<std::string>(num)
+
+#define YmdToString(ymd) \
+	boost::lexical_cast<std::string>(ymd.year)+'-'+PadZeroTwoDigit(ymd.month.as_number())+'-'+PadZeroTwoDigit(ymd.day)
+
+			s3headers.insert(std::make_pair("creation-date", YmdToString(creation_date)));
+			s3headers.insert(std::make_pair("retention-min-date", YmdToString(retention_min_date)));
+			s3headers.insert(std::make_pair("retention-max-date", YmdToString(retention_max_date)));
+
+			s3headers.insert(std::make_pair("policy-id", boost::lexical_cast<std::string>(policy_id)));
+			s3headers.insert(std::make_pair("policy-version", boost::lexical_cast<std::string>(policy_version)));
 		}
 
 
@@ -489,7 +511,7 @@ public:
 				metadata[i].name = &(*itr).first[0];
 				metadata[i].value = &(*itr).second[0];
 
-				LogVerbose(identifier<<": Metadata["<<i<<"] - name: "<<metadata[i].name<<" value: "<< metadata[i].value);
+				LogVerbose(identifier<<": Metadata["<<i<<"] - "<<metadata[i].name<<": "<< metadata[i].value);
 
 				i++;
 			}
