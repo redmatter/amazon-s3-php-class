@@ -119,6 +119,7 @@ mkdir -p %{buildroot}/etc/archiving/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
+mkdir -p %{buildroot}/usr/share/archiving
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
