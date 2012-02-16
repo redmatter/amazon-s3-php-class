@@ -68,15 +68,16 @@ public:
 		}
 		else {
 			bool error = false;
-			LogWarning(opdata->p_detail->identifier<<": Saving to storage failed");
 			opdata->p_detail->retry++;
 			if(opdata->p_detail->retry >= max_retry) {
 				error = true;
 				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
 				LogError(opdata->p_detail->identifier<<": Failed store after "<<int(opdata->p_detail->retry)<<" retry(s)");
 			}
-			else
+			else {
+				LogMessage(opdata->p_detail->identifier<<": Saving to storage failed; setting up retry");
 				opdata->p_detail->state = operation_state::put_file_convert_ok; // setup retry
+			}
 
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
