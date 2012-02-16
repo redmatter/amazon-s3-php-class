@@ -293,20 +293,22 @@ protected:
 
 		LogDebug("status: "<<S3_get_status_name(status));
 
-		if (error && error->message)
-			LogError("Error: "<<error->message);
+		if(error) {
+			if(error->message)
+				LogMessage("Error::Message: "<<error->message);
 
-		if (error && error->resource)
-			LogError("Resource: "<<error->resource);
+			if(error->resource)
+				LogMessage("Error::Resource: "<<error->resource);
 
-		if (error && error->furtherDetails)
-			LogError("Further Details: "<<error->furtherDetails);
+			if(error->furtherDetails)
+				LogMessage("Error::FurtherDetails: "<<error->furtherDetails);
 
-		if (error && error->extraDetailsCount) {
-			LogError("Extra Details:");
-			int i;
-			for (i = 0; i < error->extraDetailsCount; i++)
-				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
+			if(error->extraDetailsCount) {
+				LogMessage("Error::ExtraDetails:");
+				int i;
+				for (i = 0; i < error->extraDetailsCount; i++)
+					LogMessage("Error::ExtraDetails::"<<error->extraDetails[i].name << ": " << error->extraDetails[i].value);
+			}
 		}
 	}
 
