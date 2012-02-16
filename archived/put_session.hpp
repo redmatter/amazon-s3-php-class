@@ -610,7 +610,7 @@ private:
 				opdata->p_detail->retry = 0;
 				opdata->p_detail->database_id = 0;
 				opdata->p_detail->p_metadata = metadata_;
-				opdata->p_detail->state = operation_state::put_file_convert; // TODO fix this by adding a PUT / GET flag into operation data and make it work with bit-set enums
+				opdata->p_detail->state = operation_state::put_file_convert;
 				opdata->p_detail->arrival_time = time(0);
 
 				ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
@@ -624,8 +624,9 @@ private:
 
 				current_state_ = states::put_check_received_file_ack_ok;
 
-				// save the state of operation data
-				internal_db_.save(opdata);
+				// save the state of operation data only if we need to process it further ( not if policy == do_not_archive )
+				if( policy_id_ != policy::pseudo_id::do_not_archive )
+					internal_db_.save(opdata);
 
 				// Put CDRs and those recordings needed for CDR processing on to filesystem
 				// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
