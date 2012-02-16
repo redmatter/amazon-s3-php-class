@@ -488,6 +488,8 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 
+									archivable_recording->hibernate();
+									archivable_busy_set_.add(archivable_recording);
 									pc_produce(out_channel, archivable_recording, 1);
 								}
 								catch(const std::exception& e) {
