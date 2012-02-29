@@ -494,7 +494,7 @@ public:
 			query <<"SELECT"
 					" ID, FileType, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, Path, ModifiedPath "
 					"FROM ArchivingInternal." << tableName_ << " "
-					"WHERE HostName=%0q:HostName AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime AND ( State IN ('stored','discarded') OR %2:MaxAgeDays > StartEpoch )";
+					"WHERE HostName=%0q:HostName AND ( ( State IN ('stored','discarded') AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime ) OR %2:MaxAgeDays > StartEpoch )";
 			if(limit)
 				query << " LIMIT "<<limit;
 
