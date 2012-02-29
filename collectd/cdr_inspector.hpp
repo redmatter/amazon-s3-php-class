@@ -386,6 +386,7 @@ public:
 
 								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
+								std::set<std::string> recording_uuids; // to de-duplicate recordings
 								for(; session_recorded && recording_count; recording_count--) {
 
 									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
@@ -397,6 +398,16 @@ public:
 									if(!recording_location.empty()) {
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
+
+											// make sure we are not duplicating
+											{
+												const std::pair<std::set<std::string>::iterator, bool> res(recording_uuids.insert(uuid));
+												if (!res.second || archivable_busy_set_.is_busied(archiving::archivable::pointer(new archiving::archivable(uuid, archiving::archivable::file_type::recording)))) {
+													LogMessage(archivable_cdr<<" Recording [recording/"<<uuid<<"] already being processed; ignoring");
+													continue;
+												}
+											}
+
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
@@ -406,7 +417,7 @@ public:
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
-											if(recording_policy < 0 || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
+											if(recording_policy == policy::pseudo_id::do_not_archive || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
 												archivable_recording->set_add_to_cdrmunch_cache(true);
 
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
@@ -429,7 +440,7 @@ public:
 										catch(const std::exception& e) {
 											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
 											if(is_recording_active == "true")
-												LogError("Failed to open recording file; "<<e.what());
+												LogError("Failed to open recording file [rmCallRecordingActive_"<<recording_count<<"=true]; Error:"<<e.what());
 											else
 												LogVerbose("Recording never started (rmCallRecordingActive_X == false); ignoring.");
 
@@ -447,7 +458,9 @@ public:
 
 									LogMessage(*archivable_cdr<<" - Archivable recording found.");
 
-									const app::policy::id_type recording_policy( doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]")? 0: -1);
+									const app::policy::id_type recording_policy(
+											doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]")?
+													policy::pseudo_id::recording: policy::pseudo_id::do_not_archive);
 
 									std::string file_path(node.node().value());
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
@@ -458,6 +471,8 @@ public:
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;
 
+									LogWarning(*archivable_cdr<<" - Recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
+
 									{
 										// should we add this to CDRMunch Cache ?
 										const bool rmDispRecordEmailSend( "false" != get_xpath_single_value(variables_node, "rmDispRecordEmailSend/text()", std::string("false")) );
@@ -467,14 +482,14 @@ public:
 
 										if((rmDispRecordEmailSend && rmDispRecordToRecips) || (rmDispPersonalRecordEmailSend && rmDispPersonalRecordToRecips))
 											archivable_recording->set_add_to_cdrmunch_cache(true);
-										else if(recording_policy == -1)
-											throw rml::exception("NO recipients specified and NOT requested to retain");
+										else if(recording_policy == policy::pseudo_id::do_not_archive) {
+											LogWarning(archivable_recording<<" NO recipients specified and NOT requested to retain; failing safe by applying the default recording policy");
+											// recording_policy = policy::pseudo_id::recording;
+											archivable_recording->set_policy_id(policy::pseudo_id::recording);
+										}
 									}
 
 									archivable_recording->set_owners(*owners);
-
-									LogWarning(*archivable_cdr<<" - Recording found via the OLD variables; Beware of CDRMunch incompatibility! file: "<<*archivable_recording);
-
 									archivable_recording->set_current_state(archiving::archivable::state::inspected);
 									{
 										int retry = 0;
