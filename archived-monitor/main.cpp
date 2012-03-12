@@ -70,7 +70,6 @@ struct averaged_item
 	float counter_cached_only;
 	float counter_stored;
 	float counter_stored_size;
-	float counter_call_buffering;
 	
 	averaged_item(const float n_samples) :
 		n_samples(n_samples),
@@ -78,7 +77,7 @@ struct averaged_item
 		convert_waiting(0.0), convert_done_waiting(0.0), storage_ops_waiting(0.0), retention_store_waiting(0.0), purge_waiting(0.0), whisper_waiting(0.0), 
 		is_db_loading(false), 
 		store_put_count(0.0), store_put_size(0.0), store_convert_count(0.0), store_save_count(0.0), store_retention_count(0.0),
-		counter_put(0.0), counter_cached_only(0.0), counter_stored(0.0), counter_stored_size(0.0), counter_call_buffering(0.0)
+		counter_put(0.0), counter_cached_only(0.0), counter_stored(0.0), counter_stored_size(0.0)
 	{
 	}
 
@@ -110,7 +109,6 @@ struct averaged_item
 		counter_cached_only += (i.counter.cached_only / n_samples);
 		counter_stored += (i.counter.stored / n_samples);
 		counter_stored_size += (i.counter.stored_size / n_samples);
-		counter_call_buffering += (i.counter.call_buffering / n_samples);
 		
 		sample_count++;
 	}
@@ -120,7 +118,7 @@ struct averaged_item
 		if(item.sample_count != item.n_samples)
 			return os;
 		
-		return os << int(item.n_samples)<<" mins: "<<item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter_put<<'/'<<item.counter_cached_only<<'/'<<item.counter_stored<<' '<<item.counter_stored_size<<" CallBuffering:"<<item.counter_call_buffering << std::endl;
+		return os << int(item.n_samples)<<" mins: "<<item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter_put<<'/'<<item.counter_cached_only<<'/'<<item.counter_stored<<' '<<item.counter_stored_size << std::endl;
 	}
 };
 
@@ -135,7 +133,7 @@ struct averaged_item_cacti : public averaged_item
 		if(item.sample_count != item.n_samples)
 			return os << "ConvertQueue:0.00 ConvertDoneQueue:0.00 StorageOpsQueue:0.00 RetentionDataQueue:0.00 PurgeQueue:0.00 WhisperQueue:0.00 PutCount:0.00 CachedOnlyCount:0.00 StoredCount:0.00 StoredBytes:0.00" << std::endl;
 		
-		return os << "ConvertQueue:"<<item.convert_waiting<<" ConvertDoneQueue:"<<item.convert_done_waiting<<" StorageOpsQueue:"<<item.storage_ops_waiting<<" RetentionDataQueue:"<<item.retention_store_waiting<<" PurgeQueue:"<<item.purge_waiting<<" WhisperQueue:"<<item.whisper_waiting<<" PutCount:"<<item.counter_put<<" CachedOnlyCount:"<<item.counter_cached_only<<" StoredCount:"<<item.counter_stored<<" StoredBytes:"<<item.counter_stored_size<<" CallBuffering:"<<item.counter_call_buffering << std::endl;
+		return os << "ConvertQueue:"<<item.convert_waiting<<" ConvertDoneQueue:"<<item.convert_done_waiting<<" StorageOpsQueue:"<<item.storage_ops_waiting<<" RetentionDataQueue:"<<item.retention_store_waiting<<" PurgeQueue:"<<item.purge_waiting<<" WhisperQueue:"<<item.whisper_waiting<<" PutCount:"<<item.counter_put<<" CachedOnlyCount:"<<item.counter_cached_only<<" StoredCount:"<<item.counter_stored<<" StoredBytes:"<<item.counter_stored_size << std::endl;
 	}
 };
 

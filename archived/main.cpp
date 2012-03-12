@@ -3,7 +3,6 @@
 #include "put_server.hpp"
 #include "get_server.hpp"
 #include "storage.hpp"
-#include "call_buffering_recording.hpp"
 #include "storage_operation.hpp"
 #include "storage_runner.hpp"
 #include "converter.hpp"
@@ -146,17 +145,10 @@ int main(int argc, char *argv[]) try
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
 				("help-conf", "conf file help")
 				("help", "this help")
-				("help-constants", "print all magic numbers in ArchivingInternal database")
 				("version", "shows version information")
 				;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 		boost::program_options::notify(cli_confMap);
-
-		if (cli_confMap.count("help-constants")) {
-			std::cout << "- Operation States -" << "\n";
-			app::operation_state::print_all(std::cout);
-			return 1;
-		}
 
 		if (cli_confMap.count("help")) {
 			std::cout << cli_optsDesc << "\n";
@@ -167,7 +159,6 @@ int main(int argc, char *argv[]) try
 		optsDesc.add_options()
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
-				("call_buffering.base_dir", boost::program_options::value<std::string>()->default_value(std::string("/tmp")), "call-buffering base directory")
 				;
 		rml::daemon::describe_config(optsDesc);
 		rml::logger::describe_config(optsDesc);
@@ -186,7 +177,6 @@ int main(int argc, char *argv[]) try
 		app::retention_data_flusher::describe_config(optsDesc);
 		app::purge::describe_config(optsDesc);
 		app::get_server::describe_config(optsDesc);
-		app::call_buffering_recording::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -242,7 +232,6 @@ int main(int argc, char *argv[]) try
 		app::operation_data::channel_t retention_data_channel("RetentionData");
 		app::operation_data::channel_t purge_channel("Purge");
 		app::whisper::channel_t whisper_channel("Whisper");
-		app::call_buffering_recording::channel_t cbr_channel("CallBuffering");
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
@@ -258,7 +247,7 @@ int main(int argc, char *argv[]) try
 		app::retention_record::cached_finder_t cached_retention_record_finder(
 				boost::bind(&app::database::retention::get_retention, boost::ref(retention_db), _1), "CachedRetentionRecordFinder");
 
-		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
+		app::put_server put_server(app::confMap, convert_channel, whisper_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
@@ -348,7 +337,6 @@ int main(int argc, char *argv[]) try
 
 		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
-		threads.create_thread(boost::bind(app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder), boost::ref(cbr_channel), app::quit));
 		
 		put_server.start();
 

@@ -35,8 +35,6 @@ std::string operation_data::temp_files_base_directory;
 
 int main(int argc, char* argv[])
 {
-	bool fs_mode(false);
-
 	try
 	{
 		rml::logger::configure();
@@ -54,7 +52,6 @@ int main(int argc, char* argv[])
 					("source", boost::program_options::value<std::string>(), "Read from file")
 					("target", boost::program_options::value<std::string>(), "Write to file")
 					("verify", "Verify the source file by converting it to plain format and comparing checksum")
-					("fs", "Uses FreeSWITCH's system() invocation semantics along with return code")
 					("key", boost::program_options::value<std::string>(), "Encryption key")
 					("log.file_path", boost::program_options::value<std::string>()->default_value("console"), "Logging goes to a file or syslog or console")
 					("log.level", boost::program_options::value<int>()->default_value(4), "Logging level")
@@ -66,23 +63,14 @@ int main(int argc, char* argv[])
 			boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 			boost::program_options::notify(cli_confMap);
 
-#define fs_exit(code) \
-	do { \
-		if(fs_mode) \
-			std::cout << ((!code)? "OK": "ERR") << std::endl; \
-		exit(code); \
-	} while(false)
-
 			if (cli_confMap.count("help")) {
 				std::cout << cli_optsDesc << "\n";
-				fs_exit(rml::utils::exit_codes::failure);
+				exit(rml::utils::exit_codes::failure);
 			}
-
-			fs_mode = (cli_confMap.count("fs") != 0);
 
 			if(cli_confMap.count("version")) {
 				std::cout << boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string );
-				fs_exit(rml::utils::exit_codes::normal);
+				exit(rml::utils::exit_codes::normal);
 			}
 
 			if (cli_confMap.count("log.syslog-tag"))
@@ -127,7 +115,7 @@ int main(int argc, char* argv[])
 			}
 			else {
 				LogError("Unknown file format");
-				fs_exit(rml::utils::exit_codes::failure);
+				exit(rml::utils::exit_codes::failure);
 			}
 		}
 
@@ -223,12 +211,12 @@ int main(int argc, char* argv[])
 	}
 	catch(const std::exception& e) {
 		LogError("Exception: "<<e.what());
-		fs_exit(rml::utils::exit_codes::failure);
+		exit(rml::utils::exit_codes::failure);
 	}
 	catch(...) {
 		LogError("Unexpected exception");
-		fs_exit(rml::utils::exit_codes::failure);
+		exit(rml::utils::exit_codes::failure);
 	}
 
-	fs_exit(rml::utils::exit_codes::normal);
+	exit(rml::utils::exit_codes::normal);
 }

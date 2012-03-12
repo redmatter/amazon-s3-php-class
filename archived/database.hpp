@@ -36,21 +36,6 @@ extern std::string hostname;
 
 namespace database {
 
-class retention_ro : public basic_database< retention_ro >
-{
-public:
-	static inline const char* get_identifier()
-	{
-		static const char* identifier = "retention_ro";
-		return identifier;
-	}
-
-	retention_ro(const boost::program_options::variables_map& confMap) :
-		basic_database< retention_ro >(confMap)
-	{
-	}
-};
-
 class retention : public basic_database< retention >
 {
 public:
@@ -144,16 +129,18 @@ public:
 						rml::utils::strtoull(row[14].c_str()));
 
 				return retention_record::pointer(new retention_record(
-						identifier,                                                       // Identifier
+						archiving::archivable::identifier(
+								archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[3].c_str())),
+								rml::utils::strtoull(row[4].c_str()), row[0].c_str()),// Identifier
 						types::file_format::file_format_t(rml::utils::strtoull(row[2].c_str())),
-						archiving::user_id_t(rml::utils::strtoull(row[5].c_str())),       // UserID
-						policy::id_type(rml::utils::strtoull(row[6].c_str())),            // PolicyID
-						policy::version_type(rml::utils::strtoull(row[7].c_str())),       // PolicyVersion
-						creation_date, retention_min_date, retention_max_date,            // dates
-						rml::utils::strtoull(row[17].c_str()),                            // midnight_offset
-						row[19] == "yes",                                                 // purged ?
-						row[20] == "1",                                                   // expired ?
-						rml::utils::strtoull(row[18].c_str())));                          // endpoint-id
+						archiving::user_id_t(rml::utils::strtoull(row[5].c_str())),   // UserID
+						policy::id_type(rml::utils::strtoull(row[6].c_str())),      // PolicyID
+						policy::version_type(rml::utils::strtoull(row[7].c_str())), // PolicyVersion
+						creation_date, retention_min_date, retention_max_date,
+						rml::utils::strtoull(row[17].c_str()),
+						row[19] == "yes",
+						row[20] == "1",
+						rml::utils::strtoull(row[18].c_str())));
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
