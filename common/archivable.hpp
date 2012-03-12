@@ -265,6 +265,7 @@ protected:
 	std::string data_format;
 	std::string pbx_hostname;
 	bool add_to_cdrmunch_cache;
+	bool is_buffered_recording;
 
 private:
 	state::state_t state_;
@@ -318,6 +319,7 @@ public:
 		data_format("unknown"),
 		pbx_hostname(),
 		add_to_cdrmunch_cache(false),
+		is_buffered_recording(false),
 		state_(state::unknown),
 		file_path_(),
 		p_fstream_(),
@@ -357,7 +359,8 @@ public:
 			const bool& is_modified = false,
 			const std::string& modified_file_path = "",
 			const std::string& md5 = "",
-			const state::state_t& state = state::collected
+			const state::state_t& state = state::collected,
+			const bool& is_call_buffering_recording = false
 	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
@@ -365,6 +368,7 @@ public:
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
 	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
+	  is_buffered_recording(is_call_buffering_recording),
 	  state_(state),
 	  file_path_(file_path),
 	  p_fstream_(new rml::utils::tmp_fstream((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
@@ -486,6 +490,7 @@ public:
 				<< "DataFormat: "<<data_format<<"\r\n"
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
 				<< "AddToCDRMunchCache: "<<(add_to_cdrmunch_cache? "true": "false")<<"\r\n"
+				<< "BufferedRecording: "<<(is_buffered_recording? "true": "false")<<"\r\n"
 				;
 	}
 
@@ -540,6 +545,16 @@ public:
 	inline bool get_add_to_cdrmunch_cache() const
 	{
 		return add_to_cdrmunch_cache;
+	}
+
+	inline void set_is_buffered_recording(const bool& is_it = true)
+	{
+		is_buffered_recording = is_it;
+	}
+
+	inline bool get_is_buffered_recording() const
+	{
+		return is_buffered_recording;
 	}
 
 	inline std::string get_data_format() const

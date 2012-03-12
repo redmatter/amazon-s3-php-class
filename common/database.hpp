@@ -126,18 +126,19 @@ public:
 					" PolicyID=%9:PolicyID,"
 					" MD5=UNHEX(%10q:MD5),"
 					" AddToCDRMunchCache=%11q:AddToCDRMunchCache,"
-					" DataFormat=%12q:DataFormat,"
+					" BufferedRecording=%12q:BufferedRecording,"
+					" DataFormat=%13q:DataFormat,"
 
-					" Retry=%13:Retry,"
+					" Retry=%14:Retry,"
 
-					" StartEpoch=%14:StartEpoch,"
-					" HostName=%15q:HostName,"
+					" StartEpoch=%15:StartEpoch,"
+					" HostName=%16q:HostName,"
 
 					" UpdateTime=NOW()"
 					;
 
 			if(arc.get_database_id())
-				query << " WHERE ID=%16:ID";
+				query << " WHERE ID=%17:ID";
 
 			query.parse();
 
@@ -159,6 +160,7 @@ public:
 					<< mysqlpp::sql_int(arc.get_policy_id())
 					<< mysqlpp::sql_char(md5_str) // TODO use NULL if not set
 					<< mysqlpp::sql_enum(arc.get_add_to_cdrmunch_cache()? "true": "false")
+					<< mysqlpp::sql_enum(arc.get_is_buffered_recording()? "true": "false")
 					<< mysqlpp::sql_char(arc.get_data_format())
 
 					<< mysqlpp::sql_int(arc.get_attempt())
@@ -367,7 +369,8 @@ public:
 					" HostName,"
 					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID,"
 					" UserIDs,"
-					" ID "
+					" ID,"
+					" BufferedRecording "
 					"FROM ArchivingInternal." << tableName_ << " "
 					"WHERE %0:key = %1:value";
 			query.parse();
@@ -394,7 +397,8 @@ public:
 						row[5] != "NULL",
 						(row[5] != "NULL")? row[5].c_str(): "",
 						row[8].c_str(),
-						archiving::archivable::state::from_string(row[6].c_str())
+						archiving::archivable::state::from_string(row[6].c_str()),
+						row[17] == "true" // BufferedRecording
 					));
 
 				const uint64_t& id = rml::utils::strtoull(row[16].c_str(), 0ULL);

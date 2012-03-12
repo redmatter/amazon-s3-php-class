@@ -22,6 +22,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 
+#include <uuid/uuid.h>
+
 namespace {
 
 inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
@@ -366,6 +368,45 @@ public:
 							LogDebug("orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)): " << (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID)));
 						);
 
+						// Call buffering stuff goes here
+						{
+							pugi::xpath_node rmBufferedRecording_loc_node;
+							if((rmBufferedRecording_loc_node = variables_node.select_single_node("rmBufferedRecording_loc/text()"))) {
+								std::string cbr_path(rmBufferedRecording_loc_node.node().value());
+
+								std::string uuid(cbr_path, cbr_path.length() - (36/*uuid*/+4/*.wav*/), 36);
+								{
+									char cbr_uuid_str[37] = {'\0'};
+									unsigned char cbr_uuid[16];
+									uuid_generate(cbr_uuid); uuid_unparse(cbr_uuid, cbr_uuid_str); cbr_uuid_str[36] = '\0';
+
+									LogMessage(archivable_cdr<<" Call buffering identified; re-assigning call buffering uuid:"<<uuid<<" to new uuid:"<<cbr_uuid_str);
+									uuid = cbr_uuid_str;
+								}
+
+								archiving::archivable::pointer archivable_cbr;
+								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::do_not_archive));
+								archivable_cbr->set_owners(*owners);
+								archivable_cbr->set_add_to_cdrmunch_cache(false);
+								archivable_cbr->set_is_buffered_recording(true);
+								archivable_cbr->set_current_state(archiving::archivable::state::inspected);
+								{
+									int retry = 0;
+									while(!internal_db_.save(archivable_cbr) && !app::quit) {
+										LogMessage(*archivable_cbr<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
+										boost::this_thread::sleep(boost::posix_time::seconds(15));
+										retry++;
+									}
+
+									if(retry && app::quit)
+										throw rml::exception("Quit flagged during database retry");
+								}
+								archivable_cbr->hibernate();
+								archivable_busy_set_.add(archivable_cbr);
+								pc_produce(out_channel, archivable_cbr, 1);
+							}
+						}
+
 						if(orgs_enabled_all_ || (orgs_enabled_.end() != std::find(orgs_enabled_.begin(), orgs_enabled_.end(), owners->orgID))) {
 
 							// switch between the new variables and old
@@ -390,7 +431,7 @@ public:
 								for(; session_recorded && recording_count; recording_count--) {
 
 									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
-									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), 0LL) );
+									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), (long long int)app::policy::pseudo_id::recording) );
 
 									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);

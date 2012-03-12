@@ -32,8 +32,9 @@ struct monitor_t
 		size_t cached_only;
 		size_t stored;
 		size_t stored_size;
+		size_t call_buffering;
 		
-		counter_t() : put(0), cached_only(0), stored(0), stored_size(0)
+		counter_t() : put(0), cached_only(0), stored(0), stored_size(0), call_buffering(0)
 		{
 		}
 	};
@@ -83,7 +84,7 @@ struct monitor_t
 		
 		friend inline std::ostream& operator << (std::ostream& ostr, const item_t& item)
 		{
-			return ostr << item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter.put<<'/'<<item.counter.cached_only<<'/'<<item.counter.stored<<' '<<item.counter.stored_size;
+			return ostr << item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter.put<<'/'<<item.counter.cached_only<<'/'<<item.counter.stored<<' '<<item.counter.stored_size<<" CallBuffering:"<<item.counter.call_buffering;
 		}
 	};
 
@@ -122,7 +123,8 @@ struct counter_accessor
 		put,
 		cached_only,
 		stored,
-		stored_size
+		stored_size,
+		call_buffering
 	};
 };
 
@@ -146,6 +148,10 @@ inline void increment_counter(const counter_accessor::counter_accessor_t& access
 		
 	case counter_accessor::stored_size:
 		counter.stored_size += step;
+		break;
+
+	case counter_accessor::call_buffering:
+		counter.call_buffering += step;
 		break;
 	}
 }

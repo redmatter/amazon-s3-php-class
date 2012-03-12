@@ -15,6 +15,7 @@
 #include "clear_cache.hpp"
 #include "database.hpp"
 #include "cdrmunch_database.hpp"
+#include "call_buffering_recording.hpp"
 #include "whisper_client.hpp"
 #include "monitor.hpp"
 
@@ -157,8 +158,8 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	bool xfrd_ok_;
 
 	operation_data::channel_t& channel_;
-
 	whisper::channel_t& whisper_channel_;
+	call_buffering_recording::channel_t& cbr_channel_;
 
 public:
 	typedef boost::shared_ptr<put_session> pointer;
@@ -167,6 +168,7 @@ public:
 			boost::program_options::variables_map& confMap,
 			operation_data::channel_t& channel,
 			whisper::channel_t& whisper_channel,
+			call_buffering_recording::channel_t& cbr_channel,
 			policy::cached_finder_t& cached_policy_finder,
 			storage::cached_endpoint_finder_t& cached_endpoint_finder,
 			database::internal& internal_db,
@@ -184,7 +186,8 @@ public:
 				socket_(io_service),
 				current_state_(states::accepting),
 				channel_(channel),
-				whisper_channel_(whisper_channel)
+				whisper_channel_(whisper_channel),
+				cbr_channel_(cbr_channel)
 	{
 		//ctor
 	}
@@ -644,45 +647,63 @@ private:
 
 					// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
 					types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
-					if(itr != opdata->p_detail->p_metadata->end()) {
+					if(itr != opdata->p_detail->p_metadata->end() && itr->second == "true") {
+						LogVerbose(remote_ep_<<' '<<resource_id_<<" AddToCDRMunchCache requested");
+						std::string whisper_path = boost::str(
+								boost::format("%1%/%2%/%3%_%4%_%5%")
+										% confMap_["distiller_client.base_dir"].as<std::string>()
+										% creation_date_yyyymmdd_
+										% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
+										% opdata->p_detail->identifier.org
+										% opdata->p_detail->identifier.uuid);
 
-						if( itr->second == "true" ) {
-							LogVerbose(remote_ep_<<' '<<resource_id_<<" AddToCDRMunchCache requested");
-							std::string whisper_path = boost::str(
-									boost::format("%1%/%2%/%3%_%4%_%5%")
-											% confMap_["distiller_client.base_dir"].as<std::string>()
-											% creation_date_yyyymmdd_
-											% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
-											% opdata->p_detail->identifier.org
-											% opdata->p_detail->identifier.uuid);
+						rml::utils::directory_ready(whisper_path);
+						std::ofstream whisper_ofs(whisper_path.c_str(), std::ios_base::out | std::ios_base::binary);
+						if(whisper_ofs) {
+							whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
 
-							rml::utils::directory_ready(whisper_path);
-							std::ofstream whisper_ofs(whisper_path.c_str(), std::ios_base::out | std::ios_base::binary);
-							if(whisper_ofs) {
-								whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
+							ofs_->re_open();
+							std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
+							whisper_ofs.flush();
+							whisper_ofs.close();
 
-								ofs_->re_open();
-								std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
-								whisper_ofs.flush();
-								whisper_ofs.close();
+							LogMessage(remote_ep_<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
 
-								LogMessage(remote_ep_<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
+							if(file_type_ == archiving::archivable::file_type::cdr) {
+								whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
+								pc_produce(whisper_channel_, p_whisper);
 
-								if(file_type_ == archiving::archivable::file_type::cdr) {
-									whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
-									pc_produce(whisper_channel_, p_whisper);
-
-									// TODO XXX handle failure to insert into cdrmunch DB
-									if(!cdrmunch_db_.save(p_whisper))
-										LogWarning(remote_ep_<<" Failed to add CDR into distiller queue (table: CDR.cdr_queue)");
-								}
+								// TODO XXX handle failure to insert into cdrmunch DB
+								if(!cdrmunch_db_.save(p_whisper))
+									LogWarning(remote_ep_<<" Failed to add CDR into distiller queue (table: CDR.cdr_queue)");
 							}
-							else
-								LogError(remote_ep_<<" Failed to create whisper! error:"<<strerror(errno));
 						}
+						else
+							LogError(remote_ep_<<" Failed to create whisper! error:"<<strerror(errno));
 
-						// we do not need to store the AddToCDRMunchCache header
-						// opdata->p_detail->p_metadata->erase("AddToCDRMunchCache");
+						if(!p_policy) {
+							monitor::increment_counter(monitor::counter_accessor::cached_only);
+							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
+						}
+					}
+
+					// Buffered Recording ?!
+					{
+						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("BufferedRecording");
+						if(itr != opdata->p_detail->p_metadata->end() && itr->second == "true" && opdata->p_detail->identifier.filetype == archiving::archivable::file_type::recording) {
+							LogVerbose(remote_ep_<<" Call-buffering recording received; spooling locally");
+
+							std::string luuid;
+							{
+								types::metadata::const_iterator luuid_itr = opdata->p_detail->p_metadata->find("LegUUID");
+								if(luuid_itr != opdata->p_detail->p_metadata->end())
+									luuid = luuid_itr->second;
+							}
+							pc_produce(cbr_channel_, call_buffering_recording::pointer(new call_buffering_recording(opdata->p_detail->identifier.org, opdata->p_detail->identifier.uuid, luuid, creation_time_, ofs_)));
+
+							monitor::increment_counter(monitor::counter_accessor::call_buffering);
+							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; (call-buffering)");
+						}
 					}
 				}
 
@@ -693,10 +714,6 @@ private:
 
 				if(p_policy) // if PolicyID < 0; it only needs to be local cached
 					pc_produce(channel_, opdata);
-				else {
-					monitor::increment_counter(monitor::counter_accessor::cached_only);
-					LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
-				}
 			}
 			catch(const protocol_exception& e) {
 				LogMessage("Protocol Exception: "<<e.what());
