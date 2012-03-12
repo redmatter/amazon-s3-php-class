@@ -30,6 +30,7 @@ class put_server
 	boost::program_options::variables_map& confMap_;
 	operation_data::channel_t& channel_;
 	whisper::channel_t& whisper_channel_;
+	call_buffering_recording::channel_t& cbr_channel_;
 	policy::cached_finder_t& cached_policy_finder_;
 	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
 	database::internal& internal_db_;
@@ -52,6 +53,7 @@ public:
 			boost::program_options::variables_map& confMap,
 			operation_data::channel_t& channel,
 			whisper::channel_t& whisper_channel,
+			call_buffering_recording::channel_t& cbr_channel,
 			policy::cached_finder_t& cached_policy_finder,
 			storage::cached_endpoint_finder_t& cached_endpoint_finder,
 			database::internal& internal_db,
@@ -61,6 +63,7 @@ public:
 				confMap_(confMap),
 				channel_(channel),
 				whisper_channel_(whisper_channel),
+				cbr_channel_(cbr_channel),
 				cached_policy_finder_(cached_policy_finder),
 				cached_endpoint_finder_(cached_endpoint_finder),
 				internal_db_(internal_db),
@@ -98,7 +101,7 @@ public:
 
 		LogMessage("PUT Listening on port "<<put_port);
 
-		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
+		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 		acceptor_.async_accept(new_session->socket(),
 				boost::bind(&put_server::handle_accept, this, new_session,
 						boost::asio::placeholders::error));
@@ -121,7 +124,7 @@ public:
 	{
 		if (!error) {
 			session->start();
-			put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
+			put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 			acceptor_.async_accept(new_session->socket(),
 					boost::bind(&put_server::handle_accept, this, new_session,
 							boost::asio::placeholders::error));

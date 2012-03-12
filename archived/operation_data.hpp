@@ -270,6 +270,32 @@ struct operation_state
 
 		return operation_state_t((state & 0xf00) | (((state & 0x0f0) >> 8) + 1) | operation_outcome::unknown);
 	}
+
+	static inline void print_all(std::ostream& os)
+	{
+		os << get_file_retrieve << '\t' << to_string(get_file_retrieve) << '\n';
+		os << get_file_retrieve_ok << '\t' << to_string(get_file_retrieve_ok) << '\n';
+		os << get_file_retrieve_err << '\t' << to_string(get_file_retrieve_err) << '\n';
+		os << get_file_convert << '\t' << to_string(get_file_convert) << '\n';
+		os << get_file_convert_ok << '\t' << to_string(get_file_convert_ok) << '\n';
+		os << get_file_convert_err << '\t' << to_string(get_file_convert_err) << '\n';
+		os << get_file_send << '\t' << to_string(get_file_send) << '\n';
+		os << get_file_sent_ok << '\t' << to_string(get_file_sent_ok) << '\n';
+		os << get_file_sent_err << '\t' << to_string(get_file_sent_err) << '\n';
+		os << put_file_convert << '\t' << to_string(put_file_convert) << '\n';
+		os << put_file_convert_ok << '\t' << to_string(put_file_convert_ok) << '\n';
+		os << put_file_convert_err << '\t' << to_string(put_file_convert_err) << '\n';
+		os << put_file_save << '\t' << to_string(put_file_save) << '\n';
+		os << put_file_save_ok << '\t' << to_string(put_file_save_ok) << '\n';
+		os << put_file_save_err << '\t' << to_string(put_file_save_err) << '\n';
+		os << put_retention_save << '\t' << to_string(put_retention_save) << '\n';
+		os << put_retention_save_ok << '\t' << to_string(put_retention_save_ok) << '\n';
+		os << put_retention_save_err << '\t' << to_string(put_retention_save_err) << '\n';
+		os << put_usage_save << '\t' << to_string(put_usage_save) << '\n';
+		os << put_usage_save_ok << '\t' << to_string(put_usage_save_ok) << '\n';
+		os << put_usage_save_err << '\t' << to_string(put_usage_save_err) << '\n';
+		os << all_done << '\t' << to_string(all_done) << '\n';
+	}
 };
 
 struct operation_data
@@ -405,7 +431,7 @@ struct operation_data
 				itr->second->set_persistent(false);
 				p_detail->files_map.erase(itr);
 			}
-			
+
 			rml::utils::tmp_fstream::pointer current = get_tmp_fstream();
 			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(format)+".",
 					std::size_t(0), current? current->get_directory() : "/tmp"));
@@ -414,7 +440,7 @@ struct operation_data
 
 		return ret;
 	}
-	
+
 	void cleanup()
 	{
 		files_map_t::iterator itr = p_detail->files_map.begin();
