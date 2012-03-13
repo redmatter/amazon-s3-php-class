@@ -136,7 +136,7 @@ struct call_buffering_recording
 					strftime(&creation_date_yyyymmdd[0], 9, "%Y%m%d", timeinfo);
 				}
 
-				const std::string& dest_path(boost::str(boost::format("%1%/%2%/%3%") % cb_base_dir % p_cbr->org % creation_date_yyyymmdd % p_cbr->uuid));
+				const std::string& dest_path(boost::str(boost::format("%1%/%2%/%3%/%4%") % cb_base_dir % p_cbr->org % creation_date_yyyymmdd % p_cbr->uuid));
 				rml::utils::directory_ready(dest_path);
 				if (!p_ecw->safe_move(dest_path, true)) {
 					LogError("Saving buffered recording failed");
