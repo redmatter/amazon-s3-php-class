@@ -129,11 +129,14 @@ struct call_buffering_recording
 				app::converter::convert(p_opdata, crypto);
 
 				rml::utils::tmp_fstream::pointer p_ecw = p_opdata->get_tmp_fstream(types::file_format::encrypted_compressed_wav, false, false);
+
 				std::string creation_date_yyyymmdd;
 				{
-					creation_date_yyyymmdd.reserve(10);
+					char str[10];
 					struct tm * timeinfo = localtime(&p_cbr->creation_time);
-					strftime(&creation_date_yyyymmdd[0], 9, "%Y%m%d", timeinfo);
+					strftime(str, 10, "%Y%m%d", timeinfo);
+
+					creation_date_yyyymmdd = str;
 				}
 
 				const std::string& dest_path(boost::str(boost::format("%1%/%2%/%3%/%4%") % cb_base_dir % p_cbr->org % creation_date_yyyymmdd % p_cbr->uuid));
