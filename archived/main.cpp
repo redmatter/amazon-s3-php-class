@@ -160,7 +160,6 @@ int main(int argc, char *argv[]) try
 		optsDesc.add_options()
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
-				("call_buffering.base_dir", boost::program_options::value<std::string>()->default_value(std::string("/tmp")), "call-buffering base directory")
 				;
 		rml::daemon::describe_config(optsDesc);
 		rml::logger::describe_config(optsDesc);
