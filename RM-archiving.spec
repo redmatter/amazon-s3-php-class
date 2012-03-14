@@ -23,7 +23,7 @@ Requires: httpd
 Requires: mod_fastcgi
 BuildRequires: boost-devel >= 1.45.0
 BuildRequires: mysql++-devel >= 3.1.0-14089
-BuildRequires: RM-librml-devel >= 0.0.1-17615
+BuildRequires: RM-librml-devel >= 0.0.1-19233
 BuildRequires: libs3-devel >= 1.4-17269
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
