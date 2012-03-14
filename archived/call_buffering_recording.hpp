@@ -126,34 +126,30 @@ struct call_buffering_recording
 				app::operation_data::pointer p_opdata(new operation_data(detail));
 
 				app::crypto crypto;
-				app::converter::convert(p_opdata, crypto);
-
-				rml::utils::tmp_fstream::pointer p_ecw = p_opdata->get_tmp_fstream(types::file_format::encrypted_compressed_wav, false, false);
-
-				// a differently reference counted instance
-				rml::utils::tmp_fstream::re_open(p_ecw);
-
-				std::string creation_date_yyyymmdd;
+				bool done = false;
+				if (app::converter::convert(p_opdata, crypto))
 				{
-					char str[10];
-					struct tm * timeinfo = localtime(&p_cbr->creation_time);
-					strftime(str, 10, "%Y%m%d", timeinfo);
+					rml::utils::tmp_fstream::pointer p_ecw = p_opdata->get_tmp_fstream(types::file_format::encrypted_compressed_wav, false, false);
+					p_ecw->set_persistent(true);
 
-					creation_date_yyyymmdd = str;
-				}
+					// a differently reference counted instance
+					rml::utils::tmp_fstream::re_open(p_ecw);
 
-				const std::string& dest_path(boost::str(boost::format("%1%/%2%/%3%/%4%") % cb_base_dir % p_cbr->org % creation_date_yyyymmdd % p_cbr->uuid));
-				rml::utils::directory_ready(dest_path);
-				if (!p_ecw->safe_move(dest_path, true)) {
-					LogError("Saving buffered recording failed");
+					{
+						std::string creation_date_yyyymmdd;
+						{
+							char str[10];
+							struct tm * timeinfo = localtime(&p_cbr->creation_time);
+							strftime(str, 10, "%Y%m%d", timeinfo);
 
-					p_cbr->fs->set_persistent(true);
-					p_cbr->fs->close();
+							creation_date_yyyymmdd = str;
+						}
+						const std::string& dest_path(boost::str(boost::format("%1%/%2%/%3%/%4%") % cb_base_dir % p_cbr->org % creation_date_yyyymmdd % p_cbr->uuid));
+						rml::utils::directory_ready(dest_path);
+						done = p_ecw->safe_move(dest_path, true);
 
-					pc_produce(channel, p_cbr);
-				}
-				else {
-					LogMessage(detail->identifier<<" Buffered call saved OK");
+						LogMessage(detail->identifier<<" Buffered call saved OK");
+					}
 
 					// keep the encrypted copy
 					p_ecw->set_persistent(true);
@@ -163,6 +159,13 @@ struct call_buffering_recording
 
 					// get rid of intermediates
 					p_opdata->cleanup();
+				}
+
+				if (!done) {
+					LogError("Saving buffered recording failed; setting up retry");
+					p_cbr->fs->set_persistent(true);
+					p_cbr->fs->close();
+					pc_produce(channel, p_cbr);
 				}
 			}
 			catch(std::exception& e)
