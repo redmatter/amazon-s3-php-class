@@ -85,7 +85,6 @@ if [ -f $CONFIG_COLLECTD ]; then
 
 	if `hapi get HostType QA || hapi get HostType DEV`; then
 		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_COLLECTD || Die "Unable to set log.level in $CONFIG_COLLECTD"
-		sed -i "s/cdr_handler.archiving_enabled_orgs\(.*\)/cdr_handler.archiving_enabled_orgs = 1/" $CONFIG_COLLECTD 				|| Die "Unable to set cdr_handler.archiving_enabled_orgs in $CONFIG_COLLECTD"
 		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTD										|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTD"
 	fi
 fi
