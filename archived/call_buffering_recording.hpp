@@ -130,6 +130,9 @@ struct call_buffering_recording
 
 				rml::utils::tmp_fstream::pointer p_ecw = p_opdata->get_tmp_fstream(types::file_format::encrypted_compressed_wav, false, false);
 
+				// a differently reference counted instance
+				rml::utils::tmp_fstream::re_open(p_ecw);
+
 				std::string creation_date_yyyymmdd;
 				{
 					char str[10];
@@ -151,6 +154,14 @@ struct call_buffering_recording
 				}
 				else {
 					LogMessage(detail->identifier<<" Buffered call saved OK");
+
+					// keep the encrypted copy
+					p_ecw->set_persistent(true);
+
+					// get rid of the plain copy
+					p_cbr->fs->set_persistent(false);
+
+					// get rid of intermediates
 					p_opdata->cleanup();
 				}
 			}
