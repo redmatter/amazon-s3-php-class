@@ -33,6 +33,10 @@ std::string operation_data::temp_files_base_directory;
 }
 */
 
+#ifndef DEFAULT_APP_LONG_NAME
+#define DEFAULT_APP_LONG_NAME "Archiving Convert"
+#endif
+
 int main(int argc, char* argv[])
 {
 	bool fs_mode(false);
@@ -103,7 +107,19 @@ int main(int argc, char* argv[])
 
 		app::types::header_precrypt ph;
 
-		rml::utils::tmp_fstream::pointer p_source(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::fstream::in | std::fstream::binary));
+		rml::utils::tmp_fstream::pointer p_source;
+		{
+			p_source = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::fstream::in | std::fstream::binary));
+
+			const std::string tmp_source_path(cli_confMap["temp-dir"].as<std::string>() + "/" + p_source->get_filename(true));
+			if (!p_source->quick_copy(tmp_source_path))
+				throw rml::exception("Failed to create temporary copy of source file");
+
+			p_source.reset();
+
+			p_source = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(tmp_source_path, std::fstream::in | std::fstream::binary));
+			p_source->set_persistent(false);
+		}
 
 		unsigned int iter = 0;
 		{
@@ -135,9 +151,9 @@ int main(int argc, char* argv[])
 		if(cli_confMap.count("target"))
 			p_target.reset(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
 		else if(cli_confMap.count("verify"))
-			p_target.reset(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+			p_target.reset(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
 
-		rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+		rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
 
 		while(iter) {
 			p_source->seekg(0);
@@ -213,7 +229,7 @@ int main(int argc, char* argv[])
 				app::crypto crypto;
 				crypto.decrypt(*p_source, *p_tmp, enc_key);
 				p_source = p_tmp;
-				p_tmp.reset(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+				p_tmp.reset(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
 				iter--;
 				break;
 			}
