@@ -179,6 +179,7 @@ cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Scripts
 cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
+cp scripts/archiving.sh %{buildroot}/usr/bin/archiving
 cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
@@ -225,7 +226,7 @@ fi
 # else
 # 	/usr/sbin/groupadd -g 2051 cdrmunch || exit
 # fi
-# 
+#
 # if ! /usr/bin/id cdrmunch &>/dev/null; then
 # 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
 # fi
@@ -386,6 +387,7 @@ fi
 %files scripts
 %defattr(-,root,root)
 /usr/share/php/archiving/*
+/usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
 /usr/share/archiving/archiving-checker.conf.sample
