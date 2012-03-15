@@ -404,6 +404,9 @@ public:
 								archivable_cbr->hibernate();
 								archivable_busy_set_.add(archivable_cbr);
 								pc_produce(out_channel, archivable_cbr, 1);
+
+								variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
+								modified = true;
 							}
 						}
 
