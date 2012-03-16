@@ -168,11 +168,18 @@ struct call_buffering_recording
 					pc_produce(channel, p_cbr);
 				}
 			}
-			catch(std::exception& e)
-			{
-				LogDError(e.what(), "IGEX");
+			catch(channel_t::consume_timed_out_exception& e) {
+				continue;
+			}
+			catch(channel_t::finishing_exception& e) {
+				break;
+			}
+			catch(std::exception& e) {
+				LogDError("Exception: "<<e.what(), "IGEX");
 			}
 		}
+
+		LogMessage("terminating thread");
 	}
 };
 
