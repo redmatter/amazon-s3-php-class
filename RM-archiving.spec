@@ -236,7 +236,6 @@ fi
 # ----------
 
 %post
-/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
@@ -248,7 +247,6 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collectd
-/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -258,7 +256,6 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collect-smsd
-/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -316,7 +313,6 @@ fi
 # ----------
 
 %files
-%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root)
 /usr/bin/rmarchived.bin
 /usr/bin/rmarchived-monitor
@@ -334,7 +330,6 @@ fi
 /etc/httpd/conf.d/rmarchived.conf
 
 %files collectd
-%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root)
 /usr/bin/rmcollectd.bin
 /usr/bin/rmcollectd_safe
@@ -347,7 +342,6 @@ fi
 /etc/rsyslog.d/11-rmcollectd.conf
 
 %files collect-smsd
-%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root)
 /usr/bin/rmcollect-smsd.bin
 /usr/bin/rmcollect-smsd_safe
@@ -374,7 +368,6 @@ fi
 # /usr/share/archiving/migration-scripts/*
 
 %files convert
-%attr(755,root,root) /usr/bin/rmarchived-hAPI
 %defattr(-,root,root)
 /usr/bin/archiving-convert
 
