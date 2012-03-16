@@ -2,6 +2,8 @@
 <?php
 //NoSniff
 
+define('SYSPATH', 'bla');
+
 /**
  * Updates
  *
