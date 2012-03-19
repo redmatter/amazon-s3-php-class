@@ -98,3 +98,5 @@ if [ -f $CONFIG_COLLECTSMSD ]; then
 	sed -i "s/sms.directory\(.*\)/sms.directory = \/mnt\/cdrfs\/archiving\-import\-sms\/$LOCNAME/" $CONFIG_COLLECTSMSD				|| Die "Unable to set sms.directory in $CONFIG_COLLECTSMSD"
 fi
 
+exit 0
+
