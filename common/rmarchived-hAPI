@@ -1,6 +1,13 @@
 #!/bin/sh
 
-[ $( uname -n | cut -d. -f1 ) = 'londev08' ] && exit 0;
+PKG=RM-archiving
+MYSQL_USER=archiving
+CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
+CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
+CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
+CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
+CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
+CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 
 function Die
 {
@@ -8,14 +15,22 @@ function Die
 	exit 1
 }
 
-MYSQL_USER=archiving
+function ChangeConfig
+{
+	CFG=$1
+	KEY=$2
+	VAL=$3
 
-CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
-CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
-CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
-CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
-CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
-CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
+	if `egrep "^${PKG}\$" /etc/RedMatterCfgExclude &> /dev/null`; then
+		return
+	fi
+
+	if `egrep "^${PKG}:${KEY}\$" /etc/RedMatterCfgExclude &> /dev/null`; then
+		return
+	fi
+
+	sed -i "s#${KEY}\(.*\)#${KEY} = ${VAL}#" $CFG || Die "Unable to set ${KEY} = ${VAL} in ${CFG}"
+}
 
 HOSTTYPE=`hapi get HostType`
 if [ $? != 0 ]; then
@@ -41,8 +56,8 @@ if [ -f $CONFIG_DB_INTERNAL ]; then
 	hapi mysql $MYSQL_USER $MYSQL_DB test ro || echo "TEST FAILED TO RO DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 	hapi mysql $MYSQL_USER $MYSQL_DB test rw || echo "TEST FAILED TO RW DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 
-	sed -i "s/mysql_internal.host\(.*\)/mysql_internal.host = $MYSQL_RW/" $CONFIG_DB_INTERNAL 						|| Die "Unable to set mysql_internal.host in $CONFIG_DB_INTERNAL"
-	sed -i "s/mysql_internal.password\(.*\)/mysql_internal.password = $MYSQL_PW/" $CONFIG_DB_INTERNAL				|| Die "Unable to set mysql.password in $CONFIG_DB_INTERNAL"
+	ChangeConfig $CONFIG_DB_INTERNAL mysql_internal.host $MYSQL_RW
+	ChangeConfig $CONFIG_DB_INTERNAL mysql_internal.password $MYSQL_PW
 fi
 
 if [ -f $CONFIG_DB_CDRMUNCH ]; then
@@ -54,8 +69,8 @@ if [ -f $CONFIG_DB_CDRMUNCH ]; then
 	hapi mysql $MYSQL_USER $MYSQL_DB test ro || echo "TEST FAILED TO RO DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 	hapi mysql $MYSQL_USER $MYSQL_DB test rw || echo "TEST FAILED TO RW DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 
-	sed -i "s/mysql_cdrmunch.host\(.*\)/mysql_cdrmunch.host = $MYSQL_RW/" $CONFIG_DB_CDRMUNCH						|| Die "Unable to set mysql_cdrmunch.host in $CONFIG_DB_CDRMUNCH"
-	sed -i "s/mysql_cdrmunch.password\(.*\)/mysql_cdrmunch.password = $MYSQL_PW/" $CONFIG_DB_CDRMUNCH				|| Die "Unable to set mysql_cdrmunch.password in $CONFIG_DB_CDRMUNCH"
+	ChangeConfig $CONFIG_DB_CDRMUNCH mysql_cdrmunch.host $MYSQL_RW
+	ChangeConfig $CONFIG_DB_CDRMUNCH mysql_cdrmunch.password $MYSQL_PW
 fi
 
 if [ -f $CONFIG_DB_RETENTION ]; then
@@ -67,35 +82,32 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 	hapi mysql $MYSQL_USER $MYSQL_DB test ro || echo "TEST FAILED TO RO DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 	hapi mysql $MYSQL_USER $MYSQL_DB test rw || echo "TEST FAILED TO RW DATABASE CONNECTION: ${MYSQL_USER}@${MYSQL_DB}"
 
-	sed -i "s/mysql_retention.host\(.*\)/mysql_retention.host = $MYSQL_RW/" $CONFIG_DB_RETENTION					|| Die "Unable to set mysql_retention.host in $CONFIG_DB_RETENTION"
-	sed -i "s/mysql_retention.password\(.*\)/mysql_retention.password = $MYSQL_PW/" $CONFIG_DB_RETENTION			|| Die "Unable to set mysql_retention.password in $CONFIG_DB_RETENTION"
+	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.host $MYSQL_RW
+	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.password $MYSQL_PW
 fi
 
 if [ -f $CONFIG_ARCHIVED ]; then
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_ARCHIVED										|| Die "Unable to set coreapi.url in $CONFIG_ARCHIVED"
-	sed -i "s/distiller_client.server_host\(.*\)/distiller_client.server_host = cdrmunch.$SEARCHDOMAIN/" $CONFIG_ARCHIVED			|| Die "Unable to set distiller_client.server_host in $CONFIG_ARCHIVED"
-	if `hapi get HostType QA || hapi get HostType DEV`; then
-		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_ARCHIVED ||  Die "Unable to set log.level in $CONFIG_ARCHIVED"
-		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_ARCHIVED										|| Die "Unable to set debug.disable_restart in $CONFIG_ARCHIVED"
-	fi
+	ChangeConfig $CONFIG_ARCHIVED coreapi.url "http://api.redmatter.com/"
+	ChangeConfig $CONFIG_ARCHIVED distiller_client.server_host "cdrmunch.${SEARCHDOMAIN}"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED log.level 6
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED debug.disable_restart true
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED app.on_restart_notify_emails "dino@redmatter.com"
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
-	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTD				|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTD"
-
-	if `hapi get HostType QA || hapi get HostType DEV`; then
-		sed -i "s/log.level\(.*\)/log.level = 6/" $CONFIG_COLLECTD || Die "Unable to set log.level in $CONFIG_COLLECTD"
-		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTD										|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTD"
-	fi
+	ChangeConfig $CONFIG_COLLECTD archived_client.server_host "archived.${SEARCHDOMAIN}"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com"
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
-	sed -i "s/archived_client.server_host\(.*\)/archived_client.server_host = archived.$SEARCHDOMAIN/" $CONFIG_COLLECTSMSD			|| Die "Unable to set archived_client.server_host in $CONFIG_COLLECTSMSD"
-	sed -i "s/coreapi.url\(.*\)/coreapi.url = http\:\/\/api.$SEARCHDOMAIN\//" $CONFIG_COLLECTSMSD									|| Die "Unable to set coreapi.url in $CONFIG_COLLECTSMSD"
-	if `hapi get HostType QA || hapi get HostType DEV`; then
-		sed -i "s/debug.disable_restart\(.*\)/debug.disable_restart = true/" $CONFIG_COLLECTSMSD									|| Die "Unable to set debug.disable_restart in $CONFIG_COLLECTSMSD"
-	fi
-	sed -i "s/sms.directory\(.*\)/sms.directory = \/mnt\/cdrfs\/archiving\-import\-sms\/$LOCNAME/" $CONFIG_COLLECTSMSD				|| Die "Unable to set sms.directory in $CONFIG_COLLECTSMSD"
+	ChangeConfig $CONFIG_COLLECTSMSD archived_client.server_host "archived.${SEARCHDOMAIN}"
+	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://api.redmatter.com/"
+	ChangeConfig $CONFIG_COLLECTSMSD sms.directory "/mnt/cdrfs/archiving-import-sms/$LOCNAME/"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com"
 fi
 
 exit 0
