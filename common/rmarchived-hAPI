@@ -87,7 +87,7 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 fi
 
 if [ -f $CONFIG_ARCHIVED ]; then
-	ChangeConfig $CONFIG_ARCHIVED coreapi.url "http://api.redmatter.com/"
+	ChangeConfig $CONFIG_ARCHIVED coreapi.url "http://api.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_ARCHIVED distiller_client.server_host "cdrmunch.${SEARCHDOMAIN}"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED debug.disable_restart true
@@ -103,7 +103,7 @@ fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
 	ChangeConfig $CONFIG_COLLECTSMSD archived_client.server_host "archived.${SEARCHDOMAIN}"
-	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://api.redmatter.com/"
+	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://api.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_COLLECTSMSD sms.directory "/mnt/cdrfs/archiving-import-sms/$LOCNAME/"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
