@@ -218,6 +218,12 @@ while true; do
 				-ex "set logging off" \
 				-ex "quit" \
 				--core $core $program
+				
+			# hide any sensitive information from core trace
+			[ -w "$core_trace" ] && /bin/sed -i \
+					-e 's/\(accessKeyId = [^"]*\)"[^"]*"/\1"**hidden**"/'     \
+					-e 's/\(secretAccessKey = [^"]*\)"[^"]*"/\1"**hidden**"/' \
+					"$core_trace"
 		fi
 	fi
 
