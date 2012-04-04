@@ -236,6 +236,7 @@ fi
 # ----------
 
 %post
+/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
@@ -247,6 +248,7 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collectd
+/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -256,6 +258,7 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collect-smsd
+/usr/bin/rmarchived-hAPI
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -266,9 +269,6 @@ fi
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
-
-%post common
-/usr/bin/rmarchived-hAPI
 
 # %post migrationd
 # /sbin/chkconfig --add rmmigrationd
