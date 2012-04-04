@@ -75,7 +75,8 @@ Group: RedMatter/Archiving
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: RM-php-rmapp >= 0.0.1-15914
+Requires: RM-php-rmapp >= 0.0.1-19667
+Requires: RM-php-eventlog
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 
 # ------------ description---------------
@@ -184,6 +185,9 @@ cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
 cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-checker.conf
+cp scripts/extract.php %{buildroot}/usr/bin/archiving-extract
+cp scripts/extract.conf %{buildroot}/usr/share/archiving/archiving-extract.conf.sample
+cp scripts/archiving-extract-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-extract.conf
 
 # ----------
 
