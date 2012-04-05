@@ -387,9 +387,11 @@ fi
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
+/usr/bin/archiving-extract
 /usr/share/archiving/archiving-checker.conf.sample
+/usr/share/archiving/archiving-extract.conf.sample
 /etc/rsyslog.d/11-archiving-checker.conf
-
+/etc/rsyslog.d/11-archiving-extract.conf
 
 # ----------
 
