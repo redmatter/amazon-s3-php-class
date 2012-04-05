@@ -13,6 +13,7 @@
 #include "storage_backend.hpp"
 #include "crypto.hpp"
 #include "converter.hpp"
+#include "coreapi_user.hpp"
 
 #include "../common/coreapi.hpp"
 
@@ -365,11 +366,11 @@ public:
 	
 	get_server(const boost::program_options::variables_map& confMap, const int& fd_listen, const app::coreapi& api,
 			const retention_record::cached_finder_t& retention_record_cached_finder, storage::cached_endpoint_finder_t& storage_endpoint_finder,
-			const policy::cached_finder_t& cached_policy_finder, volatile bool& quit) :
+			const policy::cached_finder_t& cached_policy_finder, const coreapi_user::cached_finder_t& coreapi_user_finder, volatile bool& quit) :
 		fd_listen_(fd_listen), mode_(confMap["get_server.debug"].as<std::string>() == "true"? mode::debug: mode::normal),
 		confMap_(confMap), api_(api), retention_record_cached_finder_(retention_record_cached_finder), 
 		storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
-		quit_(quit)
+		coreapi_user_finder_(coreapi_user_finder), quit_(quit)
 	{
 	}
 	
@@ -443,22 +444,14 @@ public:
 
 				if(!req->authorization.empty())
 				{
-					const coreapi::response& res(api_.get("/users/me", true, coreapi::headers(), req->authorization));
-					if(res.first != 200)
-						throw http_exception(res.first, "", res.second);
-					
-					pugi::xml_document doc;
-					{
-						pugi::xml_parse_result r = doc.load_buffer(&res.second[0], res.second.length());
-						if(!r)
-							throw http_exception(500, "Invalid API response for user lookup");
+					coreapi_user::pointer p_user;
+					if (!(p_user = coreapi_user_finder_(req->authorization))) {
+						coreapi_user_finder_.forget(req->authorization);
+						throw http_exception(403, "Failed to validate auth token");
 					}
 
-					user_id = doc.select_single_node("/Users/User").node().attribute("ID").as_int();
-					user_org_id = doc.select_single_node("/Users/User").node().attribute("HomeOrgID").as_uint();
-
-					if (!user_id || !user_org_id)
-						throw http_exception(500, "Invalid API response for user lookup");
+					user_id = p_user->id;
+					user_org_id = p_user->org_id;
 					
 					Timing("User verified");
 				}
@@ -565,6 +558,7 @@ private:
 	const retention_record::cached_finder_t& retention_record_cached_finder_;
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 	const policy::cached_finder_t& cached_policy_finder_;
+	const coreapi_user::cached_finder_t& coreapi_user_finder_;
 	
 	volatile bool& quit_;
 	

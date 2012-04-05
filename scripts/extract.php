@@ -69,6 +69,9 @@ class ArchivingExtractApp extends BaseApp
 		
 		$passcode = cli::get('--passcode', null);
 		
+		$startDate = cli::get('--start-date', $config->get('extract.start_date', null));
+		$endDate = cli::get('--end-date', $config->get('extract.end_date', null));
+		
 		$authorization = null;
 		$coreapi = $config->get('coreapi.url', 'http://api.redmatter.com');
 		$hash = urlencode(sha1(utf8_encode(mb_strtolower($username, 'UTF-8'))).sha1(utf8_encode($password)).(isset($passcode)? $passcode: ''));
@@ -77,10 +80,11 @@ class ArchivingExtractApp extends BaseApp
 		{
 			$xpath = new XPath($stream->getContents());
 			$authorization = $xpath('/Success/ResourceID');
+			LogVerbose('Authenticated');
 		}
 		elseif ($stream)
 		{
-			LogMessage($stream->getContents(), $stream->httpCode);
+			LogDebug($stream->getContents(), $stream->httpCode);
 		}
 		
 		unset($stream);
@@ -90,17 +94,45 @@ class ArchivingExtractApp extends BaseApp
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
 		
+		$authorization_sentry = new ScopeSentry(
+			/**
+			 * Cleanup function for auth
+			 */
+			function() use ($authorization, $coreapi)
+			{
+				$stream = HTTPStream::Make('DELETE', "{$coreapi}/auth", null, array('Authorization'=>$authorization));
+				LogDebug($stream->getContents(), $stream->httpCode);
+				LogVerbose('Auth deleted', $authorization);
+			}
+		);
+		
 		ArchiveD::Init(self::getConf(), $authorization, $caseRef);
 		
 		if ((!is_dir($outDir) && (false === mkdir($outDir, 0755, true))) || !is_writable($outDir))
 			throw new Exception("Failed to find / make usable output dir:$outDir");
 		
+		$where = '';
+		if (!is_null($startDate))
+			$where = "retention.CreationDate >= '{$startDate}'";
+		if (!is_null($endDate))
+			$where = ($where? "{$where} AND ": '')."retention.CreationDate <= '{$endDate}'";
+		
+		$where = $where? "AND ( {$where} )": '';
+		
 		$dbc = MySQLiConnection::Get('retention_ro');
 		do
 		{
 			$rows = 0;
-			$dbc->query("SELECT ID, Type, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} LIMIT 100")->for_each(
-				function($row) use (&$maxId, &$rows, $outDir, $orgId)
+			$dbc->query(
+				"SELECT ID, Type, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` ".
+					"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} {$where} LIMIT 100"
+			)->for_each(
+				/**
+				 * Handler for each row
+				 * 
+				 * @param MySQLiResult_Row $row row from the result set
+				 */
+				function(MySQLiResult_Row $row) use (&$maxId, &$rows, $outDir, $orgId)
 				{
 					$rows++;
 					$maxId = $row->ID;
@@ -125,7 +157,6 @@ class ArchivingExtractApp extends BaseApp
 					}
 				}
 			);
-			LogMessage($rows, '$rows?');
 		} while($rows == 100);
 		
 		exit(0);

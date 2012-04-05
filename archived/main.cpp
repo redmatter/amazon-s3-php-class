@@ -16,6 +16,7 @@
 #include "retention_data_flusher.hpp"
 #include "purge.hpp"
 #include "monitor.hpp"
+#include "coreapi_user.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -248,7 +249,10 @@ int main(int argc, char *argv[]) try
 				boost::bind(&app::storage::endpoint_finder, boost::ref(coreapi), _1), "CachedEndpointFinder");
 
 		app::retention_record::cached_finder_t cached_retention_record_finder(
-				boost::bind(&app::database::retention::get_retention, boost::ref(retention_db), _1), "CachedRetentionRecordFinder");
+				boost::bind(&app::database::retention::get_retention, boost::ref(retention_db), _1), "CachedRetentionRecordFinder", 1, 2, 10);
+
+		app::coreapi_user::cached_finder_t cached_coreapi_user_finder(
+				boost::bind(app::coreapi_user::find, boost::ref(coreapi), _1), "CachedUserFinder", 1, 2, 10);
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
@@ -308,7 +312,7 @@ int main(int argc, char *argv[]) try
 
 		boost::thread_group threads;
 
-		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, app::quit);
+		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, cached_coreapi_user_finder, app::quit);
 		{
 			unsigned int n_threads(std::max<unsigned int>(app::confMap["get_server.handler_threads"].as<unsigned int>(), app::get_server::min_handler_threads));
 			while(0 < n_threads--)
@@ -356,6 +360,7 @@ int main(int argc, char *argv[]) try
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
 				cached_retention_record_finder.clear_unused(10);
+				cached_coreapi_user_finder.clear_unused(10);
 			}
 
 			if(have_more_to_load && (0 == (ticker % 20)))

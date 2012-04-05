@@ -74,6 +74,7 @@ class ArchiveD
 			throw new Exception('No case refrence given');
 		
 		$this->_evLog = EventLog::Message($this->_org, 'Archiving', 'BulkExtract', "Bulk extraction performed under case-ref:{$caseRef}", $this->_user, null, null, $authorization);
+		LogMessage("Event log ID for the extraction is {$this->_evLog->id}");
 	}
 	
 	/**
