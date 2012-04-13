@@ -79,6 +79,11 @@ Requires: RM-php-rmapp >= 0.0.1-19719
 Requires: RM-php-eventlog
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 
+%package gateway
+Summary: Archiving / Storage gateway
+Group: RedMatter/Archiving
+Requires: RM-php-fluid >= 0.0.1-19760
+
 # ------------ description---------------
 
 %description
@@ -104,6 +109,9 @@ Archiving common config files, etc.
 %description scripts
 Archiving Utility scripts for verification etc
 
+%description gateway
+Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesystem
+
 # ----------
 
 %prep
@@ -125,6 +133,8 @@ mkdir -p %{buildroot}/usr/share/archiving
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
 mkdir -p %{buildroot}/usr/share/php/archiving
+mkdir -p %{buildroot}/usr/share/php/rmarchgateway
+mkdir -p %{buildroot}/var/www/rmarchgateway
 
 # ArchiveD
 mkdir -p %{buildroot}/var/www/rmarchived
@@ -188,6 +198,13 @@ cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archivin
 cp scripts/extract.php %{buildroot}/usr/bin/archiving-extract
 cp scripts/extract.conf %{buildroot}/usr/share/archiving/archiving-extract.conf.sample
 cp scripts/archiving-extract-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-extract.conf
+
+# Gateway
+rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgateway
+cp gateway/index.php %{buildroot}/var/www/rmarchgateway/.
+cp gateway/gateway.conf %{buildroot}/etc/archiving/.
+cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
+cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
 
 # ----------
 
@@ -290,6 +307,14 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
 
+%post scripts
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+
+	/etc/init.d/httpd condrestart
+fi
 
 # ----------
 
@@ -312,6 +337,15 @@ if [ "$1" -eq 0 ]; then
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
 		/bin/true
+fi
+
+%postun gateway
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+
+	/etc/init.d/httpd condrestart
 fi
 
 # ----------
@@ -392,6 +426,14 @@ fi
 /usr/share/archiving/archiving-extract.conf.sample
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
+
+%files gateway
+%defattr(-,root,root)
+/usr/share/php/rmarchgateway/*
+/var/www/rmarchgateway/index.php
+/etc/archiving/gateway.conf
+/etc/httpd/conf.d/rmarchgateway.conf
+/etc/rsyslog.d/11-rmarchgateway.conf
 
 # ----------
 
