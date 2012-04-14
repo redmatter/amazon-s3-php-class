@@ -1,5 +1,17 @@
 <?php
-
+/**
+ * Archiving Gateway
+ *
+ * PHP version 5
+ *
+ * @category  ArchivingGateway
+ * @package   RedMatter_ArchivingGateway
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2012 Red Matter Ltd (UK)
+ * @license   http://www.redmatter.com/license private
+ * @version   SVN: <svn_id>
+ * @link      http://www.redmatter.com
+ */
 namespace rmarchgateway
 {
 
@@ -15,6 +27,16 @@ use fluid\Http404NotFound;
 
 use \config;
 
+/**
+ * Storage Item
+ *
+ * @category  ArchivingGateway
+ * @package   RedMatter_ArchivingGateway
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2012 RedMatter
+ * @license   http://www.redmatter.com/license private
+ * @link      http://www.redmatter.com
+ */
 class StorageItem
 {
 	const LOCK_STALE_SECONDS = 3600;
@@ -42,6 +64,19 @@ class StorageItem
 	
 	protected $lc;
 	
+	/**
+	 * Ctor
+	 * 
+	 * @param string   $bucket
+	 * @param string   $org
+	 * @param string   $type
+	 * @param string   $uuid
+	 * @param array    $metadata
+	 * @param resource $stream
+	 * @param string   $md5_base64
+	 * 
+	 * @throws HttpException
+	 */
 	public function __construct($bucket, $org, $type, $uuid, $metadata=null, $stream=null, $md5_base64=null)
 	{
 		$this->org = $org;
@@ -86,6 +121,18 @@ class StorageItem
 		}
 	}
 	
+	/**
+	 * Render item
+	 * 
+	 * @param string $requestId
+	 * @param bool   $withBody
+	 * @param bool   $withMetadata
+	 * 
+	 * @throws HttpException
+	 * @throws Exception
+	 * 
+	 * @return none
+	 */
 	public function Render($requestId, $withBody=false, $withMetadata=false)
 	{
 		if ($this->lock_path != $this->_LockPath(self::LOCK_MODE_RO))
@@ -123,6 +170,12 @@ class StorageItem
 		}
 	}
 	
+	/**
+	 * Write stream to item's location on disk
+	 * 
+	 * @throws \Exception
+	 * @throws HttpException
+	 */
 	public function Write()
 	{
 		if (!$this->stream)
@@ -158,6 +211,11 @@ class StorageItem
 		$this->stream = null;
 	}
 	
+	/**
+	 * Commit it
+	 * 
+	 * @throws StorageError
+	 */
 	public function Commit()
 	{
 		if (isset($this->given_md5_base64) && $this->given_md5_base64 != base64_encode($this->md5 = md5_file($this->path, true)))
@@ -175,6 +233,10 @@ class StorageItem
 		$this->commited = true;
 	}
 	
+	/**
+	 * Destructor
+	 * Unlink's if not commited
+	 */
 	public function __destruct()
 	{
 		$this->Unlock();
@@ -191,12 +253,28 @@ class StorageItem
 		}
 	}
 	
+	/**
+	 * Lock path according to type
+	 * 
+	 * @param string $mode see self::consts
+	 * 
+	 * @return string
+	 */
 	private function _LockPath($mode)
 	{
 		$lock_base = config::get('storage.lock_base_path', '/tmp').DIRECTORY_SEPARATOR.$this->type.'_'.$this->org.'_'.$this->uuid.'.lock';
 		return "{$lock_base}-{$mode}";
 	}
 	
+	/**
+	 * Is locked?
+	 * 
+	 * @param string $mode see self::consts
+	 * 
+	 * @throws \Exception
+	 * 
+	 * @return bool
+	 */
 	private function _Locked($mode)
 	{
 		$lock_path = $this->_LockPath($mode);
@@ -218,7 +296,15 @@ class StorageItem
 		
 		return false;
 	}
-	
+
+	/**
+	 * Lock it!
+	 * 
+	 * @param string $mode see self::consts
+	 * 
+	 * @throws \Exception
+	 * @throws HttpException
+	 */
 	protected function Lock($mode)
 	{
 		if (!in_array($mode, array(self::LOCK_MODE_RO, self::LOCK_MODE_RW)))
@@ -238,6 +324,9 @@ class StorageItem
 		$this->lock_path = $lock_path;
 	}
 	
+	/**
+	 * Unlock it
+	 */
 	protected function Unlock()
 	{
 		if ($lock_path = $this->lock_path)
@@ -289,6 +378,13 @@ class StorageItem
 		}
 	}
 	
+	/**
+	 * Generate path fragment according to config
+	 * 
+	 * @param string $uuid
+	 * 
+	 * @return string
+	 */
 	protected static function UuidToPath($uuid)
 	{
 		$uuid_levels = min(config::get('storage.path_uuid_levels', 0), 10);

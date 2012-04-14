@@ -1,5 +1,17 @@
 <?php
-
+/**
+ * Archiving Gateway
+ *
+ * PHP version 5
+ *
+ * @category  ArchivingGateway
+ * @package   RedMatter_ArchivingGateway
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2012 Red Matter Ltd (UK)
+ * @license   http://www.redmatter.com/license private
+ * @version   SVN: <svn_id>
+ * @link      http://www.redmatter.com
+ */
 namespace rmarchgateway\renderables
 {
 	
@@ -7,6 +19,16 @@ use fluid\HttpException;
 
 use fluid\Renderable;
 
+/**
+ * Storage Error response definition
+ *
+ * @category  ArchivingGateway
+ * @package   RedMatter_ArchivingGateway
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2012 RedMatter
+ * @license   http://www.redmatter.com/license private
+ * @link      http://www.redmatter.com
+ */
 class StorageError extends HttpException implements Renderable
 {
 	const AccessDenied = 'AccessDenied';
@@ -93,6 +115,14 @@ class StorageError extends HttpException implements Renderable
 	protected $resource;
 	protected $requestId;
 	
+	/**
+	 * Ctor
+	 * 
+	 * @param string $code      result code
+	 * @param object $resource  storage item only for now
+	 * @param string $requestId request id
+	 * @param array  $headers   headers to send back to client
+	 */
 	public function __construct($code, $resource, $requestId, $headers=null)
 	{
 		$this->awsCode = $code;
@@ -103,6 +133,10 @@ class StorageError extends HttpException implements Renderable
 		parent::__construct(self::$responseDefs[$code][0], $code);
 	}
 	
+	/**
+	 * (non-PHPdoc)
+	 * @see \fluid\Renderable::render()
+	 */
 	public function render()
 	{
 		$body = new \DOMMaker('Error');
@@ -123,6 +157,9 @@ class StorageError extends HttpException implements Renderable
 		echo $body;
 	}
 	
+	/**
+	 * Static initialiser
+	 */
 	public static function Init()
 	{
 		if (is_null(self::$responseDefs))
