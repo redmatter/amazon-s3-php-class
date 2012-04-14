@@ -167,7 +167,7 @@ class StorageError extends HttpException implements Renderable
 	 * 
 	 * @return StorageError
 	 */
-	public static function FromException(Exception $e)
+	public static function FromException(\Exception $e)
 	{
 		return new self(self::InternalError, 'unknown', Request::Get('id'), $e);
 	}
