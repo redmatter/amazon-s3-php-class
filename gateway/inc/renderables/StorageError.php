@@ -15,6 +15,8 @@
 namespace rmarchgateway\renderables
 {
 	
+use fluid\Request;
+
 use fluid\HttpException;
 
 use fluid\Renderable;
@@ -106,7 +108,8 @@ class StorageError extends HttpException implements Renderable
 	const UnexpectedContent = 'UnexpectedContent';
 	const UnresolvableGrantByEmailAddress = 'UnresolvableGrantByEmailAddress';
 	const UserKeyMustBeSpecified = 'UserKeyMustBeSpecified';
-
+	
+	const ObjectLocked = 'ObjectLocked';
 	const PutOK = 'PutOK';
 	
 	protected static $responseDefs = null;
@@ -123,14 +126,14 @@ class StorageError extends HttpException implements Renderable
 	 * @param string $requestId request id
 	 * @param array  $headers   headers to send back to client
 	 */
-	public function __construct($code, $resource, $requestId, $headers=null)
+	public function __construct($code, $resource, $requestId, $headers=null, $previous=null)
 	{
 		$this->awsCode = $code;
 		$this->resource = $resource;
 		$this->requestId = $requestId;
 		$this->headers = $headers;
 		
-		parent::__construct(self::$responseDefs[$code][0], $code);
+		parent::__construct(self::$responseDefs[$code][0], $code, $previous);
 	}
 	
 	/**
@@ -142,7 +145,7 @@ class StorageError extends HttpException implements Renderable
 		$body = new \DOMMaker('Error');
 		$body->nodeCreate('Code', $this->awsCode);
 		$body->nodeCreate('Message', self::$responseDefs[$this->awsCode][1]);
-		$body->nodeCreate('Resource', $this->resource->id);
+		$body->nodeCreate('Resource', is_object($this->resource)? $this->resource->id: $this->resource);
 		$body->nodeCreate('RequestId', $this->requestId);
 		$body = $body->getDOMDocument()->saveXML();
 		
@@ -155,6 +158,18 @@ class StorageError extends HttpException implements Renderable
 				call_user_func_array('header', is_array($header)? $header: array($header));
 		
 		echo $body;
+	}
+
+	/**
+	 * Make internal error respinse for Exceptions
+	 * 
+	 * @param Exception $e
+	 * 
+	 * @return StorageError
+	 */
+	public static function FromException(Exception $e)
+	{
+		return new self(self::InternalError, 'unknown', Request::Get('id'), $e);
 	}
 	
 	/**
@@ -240,7 +255,8 @@ class StorageError extends HttpException implements Renderable
 				self::UnexpectedContent => array(400, 'This request does not support content.'),
 				self::UnresolvableGrantByEmailAddress => array(400, 'The e-mail address you provided does not match any account on record.'),
 				self::UserKeyMustBeSpecified => array(400, 'The bucket POST must contain the specified field name. If it is specified, please check the order of the fields.'),
-					
+
+				self::ObjectLocked => array(423, 'Object already locked or failed to acquire an appropriate lock'),
 				self::PutOK => array(200, 'PUT successful')
 			);
 		}

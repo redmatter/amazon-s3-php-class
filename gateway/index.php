@@ -17,6 +17,10 @@
 // $hAPI = new HAPIDBCreds('rmarchgateway', LOG_WARNING);
 // define('IN_PRODUCTION', $hAPI->InProduction());
 
+use rmarchgateway\renderables\StorageError;
+
+use fluid\renderables\Response;
+
 define('APP_NAME_', 'rm-archiving-gateway');
 define('APP_BASE_NAMESPACE', 'rmarchgateway');
 define('APP_CONFIG_FILE', '/etc/archiving/gateway.conf');
@@ -83,14 +87,14 @@ class ArchivingGatewayApp extends BaseApp
 			
 			if (isset($e->DebugMessage))
 				LogDebug($e->DebugMessage, 'HttpException');
-
-			$response = \rmarchgateway\renderables\StorageError::FromHttpException($e);
+			
+			$response = Response::FromHttpException($e);
 		}
 		catch (Exception $e)
 		{
 			LogWarning($e);
 			LogDebug("\n".$e->getTraceAsString());
-			$response = \rmarchgateway\renderables\StorageError::FromException($e);
+			$response = StorageError::FromException($e);
 		}
 
 		// render the response

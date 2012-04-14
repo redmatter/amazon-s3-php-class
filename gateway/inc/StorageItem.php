@@ -96,10 +96,16 @@ class StorageItem
 		if (!is_null($stream))
 		{
 			if (is_null($md5_base64))
-				throw new HttpException(400, 'No MD5 given');
+			{
+				LogError('No MD5 given', $this->id);
+				throw new StorageError(StorageError::PreconditionFailed, $this->id, Request::Get('id'));
+			}
 
 			if (is_null($metadata) || (is_array($metadata) && !count($metadata)))
-				throw new HttpException(400, 'No Metadata');
+			{
+				LogError('No Metadata given', $this->id);
+				throw new StorageError(StorageError::PreconditionFailed, $this->id, Request::Get('id'));
+			}
 				
 			$this->metadata = $metadata;
 				
@@ -136,7 +142,10 @@ class StorageItem
 	public function Render($requestId, $withBody=false, $withMetadata=false)
 	{
 		if ($this->lock_path != $this->_LockPath(self::LOCK_MODE_RO))
-			throw new HttpException(500, 'Not RO locked');
+		{
+			LogError('Not RO locked', $this->id);
+			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+		}
 		
 		$meta = new \XPath(file_get_contents($this->path_meta));
 		
@@ -182,7 +191,10 @@ class StorageItem
 			throw new \Exception('Stream not found');
 		
 		if ($this->lock_path != $this->_LockPath(self::LOCK_MODE_RW))
-			throw new HttpException(500, 'Not RW locked');
+		{
+			LogError('Not RW locked', $this->id);
+			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+		}
 		
 		$this->commited = false;
 		
@@ -311,14 +323,14 @@ class StorageItem
 			throw new \Exception('Unknown lock mode');
 
 		if ($this->_Locked($mode) && $mode != self::LOCK_MODE_RO)
-			throw new HttpException(423);
+			throw new StorageError(StorageError::ObjectLocked, $this->id, Request::Get('id'));
 
 		$lock_path = $this->_LockPath($mode);
 				
 		if (false === file_put_contents($lock_path, getmygid().'@'.gethostname()."\n", FILE_APPEND))
 		{
 			$this->lc->LogError("Failed creating lock file:{$lock_path}");
-			throw new HttpException(423);
+			throw new StorageError(StorageError::ObjectLocked, $this->id, Request::Get('id'));
 		}
 		
 		$this->lock_path = $lock_path;
