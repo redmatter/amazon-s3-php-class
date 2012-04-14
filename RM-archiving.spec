@@ -29,6 +29,7 @@ BuildRequires: cryptopp-devel
 BuildRequires: pugixml
 BuildRequires: cpp-netlib
 BuildRequires: fcgi-devel
+BuildRequires: rsync >= 3.0.8
 
 %package collectd
 Summary: Archiving CollectD
