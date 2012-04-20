@@ -73,7 +73,12 @@ class ArchiveD
 		if (!$caseRef)
 			throw new Exception('No case refrence given');
 		
-		$this->_evLog = EventLog::Message($this->_org, 'Archiving', 'BulkExtract', "Bulk extraction performed under case-ref:{$caseRef}", $this->_user, null, null, $authorization);
+		if (false === ($this->_evLog = EventLog::Message($this->_org, 'Archiving', 'BulkExtract', "Bulk extraction performed under case-ref:{$caseRef}", $this->_user, null, null, $authorization)))
+		{
+			$this->_evLog = null;
+			throw new Exception('Failed to create Audit Log; please see log for details');
+		}
+
 		LogMessage("Event log ID for the extraction is {$this->_evLog->id}");
 	}
 	
