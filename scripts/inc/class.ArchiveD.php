@@ -55,7 +55,7 @@ class ArchiveD
 	private function __construct($host, $authorization, $coreapi, $caseRef, $port=null, $vhost='archived', $protocol='http')
 	{
 		$this->_baseUrl = sprintf('%s://%s%s', $protocol, $host, (!is_null($port)? ":$port": ''));
-		$this->_headers = array(array("Host: {$vhost}"));
+		$this->_headers = array("Host: {$vhost}");
 		$this->_authorization = $authorization;
 		
 		
@@ -120,7 +120,7 @@ class ArchiveD
 		$itemUrl = sprintf('%s/%s/%d/%s?authorization=%s&audit-token=%d', $this->_baseUrl, $fileType, $this->_org, $uuid, $this->_authorization, $this->_evLog->id);
 		try
 		{
-			$stream = HTTPStream::Make('GET', $itemUrl);
+			$stream = HTTPStream::Make('GET', $itemUrl, null, $this->_headers);
 			if ($stream->httpCode != 200 || !$stream->contentLength)
 			{
 				LogWarning($stream->getContents(), "[httpCode:{$stream->httpCode} contentLength:{$stream->contentLength}]");
