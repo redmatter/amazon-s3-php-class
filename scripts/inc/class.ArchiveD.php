@@ -55,7 +55,7 @@ class ArchiveD
 	private function __construct($host, $authorization, $coreapi, $caseRef, $port=null, $vhost='archived', $protocol='http')
 	{
 		$this->_baseUrl = sprintf('%s://%s%s', $protocol, $host, (!is_null($port)? ":$port": ''));
-		$this->_headers = array("Host: {$vhost}");
+		$this->_headers = array("Host"=>$vhost);
 		$this->_authorization = $authorization;
 		
 		
