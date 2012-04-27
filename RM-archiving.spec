@@ -261,7 +261,6 @@ fi
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
-/etc/init.d/httpd condrestart
 if [ "$1" -eq 1 ]; then # package just got installed ?
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
@@ -312,8 +311,6 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
 		echo "**WARNING** rsyslog not found; consider installing it."
-
-	/etc/init.d/httpd condrestart
 fi
 
 # ----------
@@ -344,8 +341,6 @@ if [ "$1" -eq 0 ]; then
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
 		/bin/true
-
-	/etc/init.d/httpd condrestart
 fi
 
 # ----------
