@@ -19,8 +19,7 @@ Requires: cryptopp
 Requires: libs3 = 1.4-17269
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
-Requires: httpd
-Requires: mod_fastcgi
+Requires: httpd >= 2.4
 BuildRequires: boost-devel >= 1.45.0
 BuildRequires: mysql++-devel >= 3.1.0-14089
 BuildRequires: RM-librml-devel >= 0.0.1-19233
