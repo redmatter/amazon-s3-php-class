@@ -402,18 +402,21 @@ public:
 				archiving::archivable::identifier identifier;
 				{
 					std::vector<std::string> path;
-					const char* path_info = FCGX_GetParam("PATH_INFO", req->fcgi_req.envp);
-					if(path_info) {
-						Debug("path_info: "<<path_info);
-						boost::split(path, path_info, boost::algorithm::is_any_of("/"));
-						if(path.size() != 4)
-							throw http_exception(404, "Invalid URL");
-						
-						boost::algorithm::erase_all(path[3], "-");
-						path[3] = std::string(path[3], 0, 8)+'-'+std::string(path[3], 8, 4)+'-'+std::string(path[3], 12, 4)+
-								'-'+std::string(path[3], 16, 4)+'-'+std::string(path[3], 20);
-					}
+					char* path_info;
 					
+					if(!(path_info = FCGX_GetParam("PATH_INFO", req->fcgi_req.envp)))
+						if(!(path_info = FCGX_GetParam("SCRIPT_NAME", req->fcgi_req.envp)))
+							throw http_exception(500, "Variables missing in environment");
+
+					Debug("path_info: "<<path_info);
+					boost::split(path, path_info, boost::algorithm::is_any_of("/"));
+					if(path.size() != 4)
+						throw http_exception(404, "Invalid URL");
+					
+					boost::algorithm::erase_all(path[3], "-");
+					path[3] = std::string(path[3], 0, 8)+'-'+std::string(path[3], 8, 4)+'-'+std::string(path[3], 12, 4)+
+							'-'+std::string(path[3], 16, 4)+'-'+std::string(path[3], 20);
+
 					identifier = archiving::archivable::identifier(archiving::archivable::file_type::from_string(path[1]),
 							archiving::org_id_t(rml::utils::strtoull(path[2].c_str(), 0ULL)), path[3]);
 				}
