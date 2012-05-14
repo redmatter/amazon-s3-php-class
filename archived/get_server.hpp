@@ -209,6 +209,7 @@ public:
 		
 		http_method::http_method_t method;
 		std::string authorization;
+		std::string remote_ip;
 		uint64_t audit_token;
 		
 		operation_data::pointer opdata;
@@ -256,6 +257,8 @@ public:
 					BOOST_FOREACH(std::string qry_str_piece, qry_str_pieces) {
 						if(boost::starts_with(qry_str_piece, "authorization="))
 							authorization = std::string(qry_str_piece, 14);
+						if(boost::starts_with(qry_str_piece, "remote-ip="))
+							remote_ip = std::string(qry_str_piece, 10);
 						else if(boost::starts_with(qry_str_piece, "audit-token=")) {
 							std::string token(qry_str_piece, 12);
 							audit_token = rml::utils::strtoull(&token[0], 0ULL);
@@ -448,9 +451,12 @@ public:
 				if(!req->authorization.empty())
 				{
 					coreapi_user::pointer p_user;
-					if (!(p_user = coreapi_user_finder_(req->authorization))) {
-						coreapi_user_finder_.forget(req->authorization);
-						throw http_exception(403, "Failed to validate auth token");
+					{
+						const coreapi_user::lookup& param( std::make_pair(req->authorization, req->remote_ip) );
+						if (!(p_user = coreapi_user_finder_(param))) {
+							coreapi_user_finder_.forget(param);
+							throw http_exception(403, "Failed to validate auth token");
+						}
 					}
 
 					user_id = p_user->id;

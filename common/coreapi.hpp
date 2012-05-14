@@ -16,6 +16,7 @@
 #include <pugixml/pugixml.hpp>
 
 #include <boost/thread/mutex.hpp>
+#include <boost/asio.hpp>
 
 #include <utility>
 #include <map>
@@ -45,9 +46,43 @@ private:
 	mutable http_client client_;
 
 	static boost::mutex mutex_;
+	static std::string ip_;
 	static std::string authorization_;
 	static time_t auth_attempt_time_;
 	static bool authorization_error_;
+
+	inline std::string get_my_ip() const
+	{
+		try {
+			const size_t& hostname_begin(base_url_.find('/')+2);
+			const size_t& hostname_end(base_url_.find('/', hostname_begin));
+
+			std::string api_host(base_url_, hostname_begin, hostname_end - hostname_begin);
+			std::string api_protocol(base_url_, 0, base_url_.find(':'));
+			{
+				const size_t& proto_colon(api_host.rfind(':'));
+				if(proto_colon != std::string::npos) {
+					api_protocol = std::string(api_host, proto_colon+1);
+					api_host.erase(proto_colon);
+				}
+			}
+
+			// connect to API and get local IP
+		    boost::asio::ip::tcp::resolver resolver(io_service_);
+		    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), api_host, api_protocol);
+		    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
+
+		    boost::asio::ip::tcp::socket s(io_service_);
+		    s.connect(*iterator);
+
+		    return s.local_endpoint().address().to_string();
+		}
+		catch(const std::exception& e) {
+			LogWarning("Exception"<<e.what());
+		}
+
+		return "";
+	}
 
 	inline bool get_authorized() const
 	{
@@ -59,14 +94,12 @@ private:
 		if(authorization_.empty() || authorization_error_) {
 
 			authorization_.clear();
+			ip_ = get_my_ip();
 
 			try {
 				time(&auth_attempt_time_);
 
-				headers hdr;
-				hdr.insert(std::make_pair<std::string, std::string>("UIVERSION", ui_version_));
-
-				const response& res( get(std::string("/auth/")+auth_hash_, false, hdr) );
+				const response& res( get(std::string("/auth/")+auth_hash_, false) );
 
 				// run xpath
 				pugi::xml_document doc;
@@ -92,9 +125,9 @@ private:
 		return true;
 	}
 
-	inline void init()
+	inline void init(const unsigned int retry = 3)
 	{
-		int attempts = 3;
+		int attempts = retry;
 		while(attempts--) {
 			if(get_authorized())
 				break;
@@ -154,10 +187,15 @@ public:
 	 */
 	inline bool logout() const
 	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+
 		if(!authorization_.empty() && !authorization_error_) {
 			try {
 				const response& res( delete_("/auth/", true) );
-				return (res.first >= 200 && res.first < 300);
+				const bool& ok(res.first >= 200 && res.first < 300);
+				if(ok)
+					authorization_.clear();
+				return ok;
 			}
 			catch(const std::exception& e) {
 				LogWarning("Delete failed: exception: "<<e.what());
@@ -180,7 +218,7 @@ public:
 	 *
 	 * @return pair< status, body >
 	 */
-	response get(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
+	response get(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
 	{
 		int attempts = 2;
 
@@ -202,6 +240,12 @@ public:
 					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
 				}
 			}
+
+			request << boost::network::header("UIVERSION", ui_version_);
+			if (!ip.empty())
+				request << boost::network::header("IP", ip);
+			else if (!ip_.empty())
+				request << boost::network::header("IP", ip_);
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -245,7 +289,7 @@ public:
 	 *
 	 * @return response
 	 */
-	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
+	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
 	{
 		const response& r(get(uri, use_authorization, h, authorization));
 		if(expected_status && r.first != expected_status) {
@@ -266,7 +310,7 @@ public:
 	 *
 	 * @return pair< status, body >
 	 */
-	response delete_(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
+	response delete_(const std::string& uri, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
 	{
 		int attempts = 2;
 
@@ -288,6 +332,12 @@ public:
 					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
 				}
 			}
+
+			request << boost::network::header("UIVERSION", ui_version_);
+			if (!ip.empty())
+				request << boost::network::header("IP", ip);
+			else if (!ip_.empty())
+				request << boost::network::header("IP", ip_);
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -337,7 +387,7 @@ public:
 	 *
 	 * @return pair< status, body >
 	 */
-	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string()) const
+	response post(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
 	{
 		int attempts = 2;
 
@@ -359,6 +409,12 @@ public:
 					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
 				}
 			}
+
+			request << boost::network::header("UIVERSION", ui_version_);
+			if (!ip.empty())
+				request << boost::network::header("IP", ip);
+			else if (!ip_.empty())
+				request << boost::network::header("IP", ip_);
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -406,6 +462,9 @@ public:
 
 template < typename Tag >
 boost::mutex coreapi< Tag >::mutex_;
+
+template < typename Tag >
+std::string coreapi< Tag >::ip_;
 
 template < typename Tag >
 std::string coreapi< Tag >::authorization_;
