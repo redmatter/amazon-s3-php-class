@@ -7,7 +7,7 @@ include ../common/Makefile.macros
 
 FREESWITCH_DIR=/opt/freeswitch
 
-CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I/usr/include/cpp-netlib
+CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
@@ -54,7 +54,7 @@ LIBS += \
 	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common -luuid
+	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common -luuid -lmysqlclient_r
 
 # -lcrypt -luuid \
 

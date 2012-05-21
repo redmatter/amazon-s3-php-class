@@ -9,7 +9,7 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
 RML_LOG_SOURCE_LOCATION=YES
 
-CXX_INCLUDES += -I/usr/include/cpp-netlib
+CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -47,7 +47,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri-parsers \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -ls3
+	-lrml -lpugixml -lmysqlpp -lcryptopp -ls3 -lmysqlclient_r
 
 CXX_SRCS += \
 	main.cpp

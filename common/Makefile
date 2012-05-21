@@ -4,7 +4,7 @@ include Makefile.macros
 
 TARGET=libarchiving_common.a
 
-CXX_INCLUDES += -I/usr/include/cpp-netlib
+CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
