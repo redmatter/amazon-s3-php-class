@@ -230,6 +230,8 @@ public:
 		
 		~request()
 		{
+			FCGX_Free(&fcgi_req, 1);
+
 			if(opdata)
 				opdata->cleanup();
 		}
