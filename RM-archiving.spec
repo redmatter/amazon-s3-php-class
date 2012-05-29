@@ -59,7 +59,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 # Requires: mysql++ >= 3.1.0-14089
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
-# Requires: php-s3
+# Requires: php-s3 >= 0.4.0-20785
 # Requires: RM-php-rmapp >= 0.0.1-11853
 # Requires: RM-%{appname}-convert = %{version}-%{release}
 
