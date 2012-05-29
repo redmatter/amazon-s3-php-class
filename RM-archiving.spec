@@ -198,6 +198,10 @@ cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archivin
 cp scripts/extract.php %{buildroot}/usr/bin/archiving-extract
 cp scripts/extract.conf %{buildroot}/usr/share/archiving/archiving-extract.conf.sample
 cp scripts/archiving-extract-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-extract.conf
+cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
+cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
+cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
+cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
 
 # Gateway
 rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgateway
@@ -417,10 +421,14 @@ fi
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
 /usr/bin/archiving-extract
+/usr/bin/archiving-headerspatch
 /usr/share/archiving/archiving-checker.conf.sample
 /usr/share/archiving/archiving-extract.conf.sample
+/usr/share/archiving/archiving-headerspatch.conf.sample
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
+/etc/rsyslog.d/11-archiving-headerspatch.conf
+/etc/archiving/scripts-retention_ro.conf
 
 %files gateway
 %defattr(-,root,root)
