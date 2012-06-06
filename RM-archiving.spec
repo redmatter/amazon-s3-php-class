@@ -77,6 +77,7 @@ Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.1-19719
 Requires: RM-php-eventlog
+Requires: php-s3 >= 0.4.0-20785
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 
 %package gateway
@@ -304,11 +305,8 @@ fi
 # fi
 
 %post scripts
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."
 
 %post gateway
 if [ "$1" -eq 1 ]; then # package just got installed ?
