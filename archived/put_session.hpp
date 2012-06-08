@@ -471,7 +471,9 @@ private:
 										// make sure we can handle this PolicyID before CollectD start sending data
 										if(!cached_policy_finder_(std::make_pair(orgID, policy_id_))) {
 											cached_policy_finder_.forget(std::make_pair(orgID, policy_id_));
-											throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID % policy_id_));
+											throw protocol_exception(
+													boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
+															% orgID % policy_id_));
 										}
 									}
 								}
@@ -486,7 +488,8 @@ private:
 								}
 
 								// open the file
-								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.", content_length, confMap_["archived.cache_dir"].as<std::string>()));
+								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
+										content_length, confMap_["archived.cache_dir"].as<std::string>()));
 
 								uuid_ = uuid;
 								orgID_ = orgID;
@@ -584,7 +587,9 @@ private:
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
 					if(!p_policy) {
 						cached_policy_finder_.forget(std::make_pair(orgID_, policy_id_));
-						throw protocol_exception(boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )") % orgID_ % policy_id_));
+						throw protocol_exception(
+								boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
+										% orgID_ % policy_id_));
 					}
 				}
 
@@ -601,8 +606,11 @@ private:
 
 				if(p_policy) {
 					opdata->p_detail->policy = applied_policy(p_policy, creation_time_);
-					opdata->p_detail->p_endpoint = cached_endpoint_finder_(std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(orgID_, opdata->p_detail->policy.p_policy->endpoint_id));
-					opdata->p_detail->target_file_format = types::file_format::make(opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
+					opdata->p_detail->p_endpoint = cached_endpoint_finder_(
+							std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(
+									orgID_, opdata->p_detail->policy.p_policy->endpoint_id));
+					opdata->p_detail->target_file_format = types::file_format::make(
+							opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);
 				}
 
 				opdata->p_detail->identifier = archiving::archivable::identifier(file_type_, orgID_, uuid_);
@@ -645,7 +653,7 @@ private:
 							pbx_hostname = itr->second;
 					}
 
-					// TODO Add AddToCDRMunchCache header in CollectD based on CDRMunch-compatibility rules
+					// add recordings and CDR to the CDRMunch cache, for further processing (distilling, emailing, etc )
 					types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("AddToCDRMunchCache");
 					if(itr != opdata->p_detail->p_metadata->end() && itr->second == "true") {
 						LogVerbose(remote_ep_<<' '<<resource_id_<<" AddToCDRMunchCache requested");
@@ -663,14 +671,17 @@ private:
 							whisper_ofs.exceptions(std::ios::badbit | std::ios::failbit);
 
 							ofs_->re_open();
-							std::copy(std::istream_iterator<unsigned char>(*ofs_), std::istream_iterator<unsigned char>(), std::ostream_iterator<unsigned char>(whisper_ofs, ""));
+							std::copy(std::istream_iterator<unsigned char>(*ofs_),
+									std::istream_iterator<unsigned char>(),
+									std::ostream_iterator<unsigned char>(whisper_ofs, ""));
 							whisper_ofs.flush();
 							whisper_ofs.close();
 
 							LogMessage(remote_ep_<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
 
 							if(file_type_ == archiving::archivable::file_type::cdr) {
-								whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname, opdata->p_detail->identifier.uuid, creation_time_));
+								whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname,
+										opdata->p_detail->identifier.uuid, creation_time_));
 								pc_produce(whisper_channel_, p_whisper);
 
 								// TODO XXX handle failure to insert into cdrmunch DB
@@ -682,15 +693,23 @@ private:
 							LogError(remote_ep_<<" Failed to create whisper! error:"<<strerror(errno));
 
 						if(!p_policy) {
+							// nudge the monitor's cached_only counter
 							monitor::increment_counter(monitor::counter_accessor::cached_only);
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 						}
 					}
 
+					// MUST close it before we pass it over to a thread via the pc_channel!
+					// NO need to keep the file open till we can process it in another thread
+					ofs_->close();
+
 					// Buffered Recording ?!
 					{
 						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("BufferedRecording");
-						if(itr != opdata->p_detail->p_metadata->end() && itr->second == "true" && opdata->p_detail->identifier.filetype == archiving::archivable::file_type::recording) {
+						if(itr != opdata->p_detail->p_metadata->end()
+								&& itr->second == "true"
+										&& opdata->p_detail->identifier.filetype == archiving::archivable::file_type::recording) {
+
 							LogVerbose(remote_ep_<<" Call-buffering recording received; spooling locally");
 
 							std::string luuid;
@@ -699,17 +718,19 @@ private:
 								if(luuid_itr != opdata->p_detail->p_metadata->end())
 									luuid = luuid_itr->second;
 							}
-							pc_produce(cbr_channel_, call_buffering_recording::pointer(new call_buffering_recording(opdata->p_detail->identifier.org, opdata->p_detail->identifier.uuid, luuid, creation_time_, ofs_)));
 
+							pc_produce(cbr_channel_, call_buffering_recording::pointer(
+									new call_buffering_recording(opdata->p_detail->identifier.org, opdata->p_detail->identifier.uuid,
+											luuid, creation_time_, ofs_)));
+
+							// nudge the monitor's call_buffering counter
 							monitor::increment_counter(monitor::counter_accessor::call_buffering);
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; (call-buffering)");
 						}
 					}
 				}
 
-				// no need to keep the file open till we can process it
-				ofs_->close();
-				
+				// nudge the monitor's PUT counter (for all)
 				monitor::increment_counter(monitor::counter_accessor::put);
 
 				if(p_policy) // if PolicyID < 0; it only needs to be local cached
