@@ -58,7 +58,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-			std::cout << "SQL: "<<query.str(qp)<<std::endl;
+			SQL_DEBUG(query.str(qp));
 			query.execute(qp);
 
 			return true;
