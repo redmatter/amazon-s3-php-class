@@ -31,6 +31,12 @@
 
 #include <fcgio.h>
 
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/base64.h>
+#include <cryptopp/hex.h>
+#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
+
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
@@ -214,6 +220,12 @@ int main(int argc, char *argv[]) try
 			LogError("Initialisation Error - exception: "<<e.what());
 			exit(rml::utils::exit_codes::initialization_error);
 		}
+
+		// to avoid race condition arising from lack of thread-safety in code
+		CryptoPP::HexDecoder hexDecoder; (void)hexDecoder;
+		CryptoPP::HexEncoder hexEncoder(0, false); (void)hexEncoder;
+		CryptoPP::Base64Encoder b64Encoder; (void)b64Encoder;
+		CryptoPP::Base64Decoder b64Decoder; (void)b64Decoder;
 	}
 
 	try {
