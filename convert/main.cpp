@@ -89,12 +89,7 @@ int main(int argc, char* argv[])
 				fs_exit(rml::utils::exit_codes::normal);
 			}
 
-			if (cli_confMap.count("log.syslog-tag"))
-				rml::logger::set_app_name(cli_confMap["log.syslog-tag"].as<std::string>());
-			else
-				rml::logger::set_app_name(basename(argv[0]));
-
-			rml::logger::configure(cli_confMap);
+			rml::logger::configure(cli_confMap, cli_confMap.count("log.syslog-tag")? cli_confMap["log.syslog-tag"].as<std::string>().c_str(): basename(argv[0]));
 		}
 
 		if(1 != cli_confMap.count("source"))
@@ -109,7 +104,7 @@ int main(int argc, char* argv[])
 
 		rml::utils::tmp_fstream::pointer p_source;
 		{
-			p_source = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(cli_confMap["source"].as<std::string>(), std::fstream::in | std::fstream::binary));
+			p_source = rml::utils::tmp_fstream::create(cli_confMap["source"].as<std::string>(), std::fstream::in | std::fstream::binary);
 
 			const std::string tmp_source_path(cli_confMap["temp-dir"].as<std::string>() + "/" + p_source->get_filename(true));
 			if (!p_source->quick_copy(tmp_source_path))
@@ -117,7 +112,7 @@ int main(int argc, char* argv[])
 
 			p_source.reset();
 
-			p_source = rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(tmp_source_path, std::fstream::in | std::fstream::binary));
+			p_source = rml::utils::tmp_fstream::create(tmp_source_path, std::fstream::in | std::fstream::binary);
 			p_source->set_persistent(false);
 		}
 
@@ -149,11 +144,11 @@ int main(int argc, char* argv[])
 
 		rml::utils::tmp_fstream::pointer p_target;
 		if(cli_confMap.count("target"))
-			p_target.reset(new rml::utils::tmp_fstream(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
+			p_target = rml::utils::tmp_fstream::create(cli_confMap["target"].as<std::string>(), std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc);
 		else if(cli_confMap.count("verify"))
-			p_target.reset(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+			p_target = rml::utils::tmp_fstream::create(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>());
 
-		rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+		rml::utils::tmp_fstream::pointer p_tmp = rml::utils::tmp_fstream::create(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>());
 
 		while(iter) {
 			p_source->seekg(0);
@@ -229,7 +224,7 @@ int main(int argc, char* argv[])
 				app::crypto crypto;
 				crypto.decrypt(*p_source, *p_tmp, enc_key);
 				p_source = p_tmp;
-				p_tmp.reset(new rml::utils::tmp_fstream(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>()));
+				p_tmp = rml::utils::tmp_fstream::create(p_source->get_filename(), std::size_t(0), cli_confMap["temp-dir"].as<std::string>());
 				iter--;
 				break;
 			}

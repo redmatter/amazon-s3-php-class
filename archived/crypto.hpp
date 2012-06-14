@@ -152,8 +152,8 @@ public:
 			LogMessage(identifier<<" Not compressed; adding precrypt header");
 
 			// lets get a new temporary file inside the same location as the encrypted_fstream
-			rml::utils::tmp_fstream::pointer p_tmp(new rml::utils::tmp_fstream(encrypted_fstream->get_filename()+".pch_"/*XXXXXX*/, std::size_t(0), "/",
-					std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc));
+			rml::utils::tmp_fstream::pointer p_tmp = rml::utils::tmp_fstream::create(encrypted_fstream->get_filename()+".pch_"/*XXXXXX*/, std::size_t(0), "/",
+					std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc);
 
 			types::header_precrypt precrypt_hdr;
 			precrypt_hdr.inflated_size = current_fstream->get_size();

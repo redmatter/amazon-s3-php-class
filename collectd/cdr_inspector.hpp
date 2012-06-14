@@ -575,7 +575,7 @@ public:
 
 						// did we modify the CDR during the above inspection?
 						if(modified) {
-							rml::utils::tmp_fstream::pointer tmp_fsptr(new rml::utils::tmp_fstream(archivable_cdr->get_fstream_ptr()->get_filename(true)+'.', 0U, temp_files_base_directory));
+							rml::utils::tmp_fstream::pointer tmp_fsptr = rml::utils::tmp_fstream::create(archivable_cdr->get_fstream_ptr()->get_filename(true)+'.', 0U, temp_files_base_directory);
 							doc.save(*tmp_fsptr, "  ");
 							archivable_cdr->set_fstream(tmp_fsptr);
 							LogVerbose(*archivable_cdr<<" modified");

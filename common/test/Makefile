@@ -8,6 +8,9 @@ TARGET=test
 
 LIBS += -L../$(TMP)
 
+CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
+CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+
 DEFAULT_APP_NAME=test
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 
@@ -31,7 +34,6 @@ LIBS += \
 	-lboost_thread$(BOOST_NAME_EXT) \
 	-lboost_system$(BOOST_NAME_EXT) \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
-	-lboost_log$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lrml -larchiving_common

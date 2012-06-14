@@ -6,6 +6,9 @@ TARGET=libarchiving_common.a
 
 CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
 
+CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
+CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
 	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED

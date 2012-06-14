@@ -407,8 +407,8 @@ struct operation_data
 			}
 			
 			rml::utils::tmp_fstream::pointer current = get_tmp_fstream();
-			ret.reset(new rml::utils::tmp_fstream(p_detail->identifier.uuid+"."+types::file_format::to_string(format)+".",
-					std::size_t(0), current? current->get_directory() : "/tmp"));
+			ret = rml::utils::tmp_fstream::create(p_detail->identifier.uuid+"."+types::file_format::to_string(format)+".",
+					std::size_t(0), current? current->get_directory() : "/tmp");
 			p_detail->files_map.insert(std::make_pair(format, ret));
 		}
 

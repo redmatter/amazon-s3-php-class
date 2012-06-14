@@ -3,6 +3,9 @@ include /usr/share/librml/Makefile.macros
 
 TARGET=archived-monitor
 
+CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
+CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+
 DEFAULT_APP_NAME=rm$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 

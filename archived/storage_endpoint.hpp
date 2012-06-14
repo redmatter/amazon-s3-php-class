@@ -268,7 +268,7 @@ struct endpoint : public basic_endpoint
 }  // namespace s3_compatible
 
 
-static basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< archiving::org_id_t, archiving::endpoint_id_t >& endpoint_def)
+basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< archiving::org_id_t, archiving::endpoint_id_t >& endpoint_def)
 {
 	const archiving::org_id_t& org_id(endpoint_def.first);
 	const archiving::endpoint_id_t& endpoint_id(endpoint_def.second);

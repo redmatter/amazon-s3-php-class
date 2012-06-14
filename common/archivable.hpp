@@ -371,7 +371,7 @@ public:
 	  is_buffered_recording(is_call_buffering_recording),
 	  state_(state),
 	  file_path_(file_path),
-	  p_fstream_(new rml::utils::tmp_fstream((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
+	  p_fstream_(rml::utils::tmp_fstream::create((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
 	  is_modified_(is_modified),
 	  type_(type),
 	  n_children_(0),
@@ -401,7 +401,7 @@ public:
 		if(!is_modified_)
 			p_fs = p_fstream_;
 		else
-			p_fs.reset(new rml::utils::tmp_fstream(file_path_, std::fstream::in | std::fstream::out | std::fstream::binary));
+			p_fs = rml::utils::tmp_fstream::create(file_path_, std::fstream::in | std::fstream::out | std::fstream::binary);
 
 		const std::string& new_path(p_fs->get_directory()+"/"+sub_dir+"/"+p_fs->get_filename(true));
 		if(!p_fs->safe_move(new_path))

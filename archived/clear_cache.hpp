@@ -69,7 +69,7 @@ public:
 			const std::string& path(db_.clear_cache_get_path(identifier.org, identifier.uuid, file_format));
 			LogDebug(identifier<<": Got from DB path:"<<path<<"; opening it...");
 
-			return rml::utils::tmp_fstream::pointer(new rml::utils::tmp_fstream(path, std::ios_base::in | std::ios_base::binary));
+			return rml::utils::tmp_fstream::create(path, std::ios_base::in | std::ios_base::binary);
 		}
 		catch(const std::exception& e) {
 			LogMessage("Not found in cache ["<<e.what()<<']');

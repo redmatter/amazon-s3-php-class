@@ -106,7 +106,7 @@ public:
 					" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
 					" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
 					" `MidnightOffsetSeconds`, `EndpointID`,"
-					" `Purged`, `RetentionMaxDate` <= CURDATE() "
+					" IF(`State`='Available', 'no', 'yes') `Purged`, `RetentionMaxDate` <= CURDATE() "
 					"FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
 					"WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
 					"LIMIT 1";
@@ -592,10 +592,9 @@ public:
 							while(mysqlpp::Row row = res.fetch_row()) {
 								const std::pair<files_map_t::iterator, bool>& ret(files_map.insert(std::make_pair< types::file_format::file_format_t, rml::utils::tmp_fstream::pointer >(
 										types::file_format::file_format_t(rml::utils::strtoull(row[0].c_str(), 0ULL)),
-										rml::utils::tmp_fstream::pointer(
-												new rml::utils::tmp_fstream(
+										rml::utils::tmp_fstream::create(
 														row[1].c_str(),
-														std::ios_base::openmode(std::fstream::in | std::fstream::out | std::fstream::binary))))));
+														std::ios_base::openmode(std::fstream::in | std::fstream::out | std::fstream::binary)))));
 								if(ret.second)
 									ret.first->second->close();
 							}

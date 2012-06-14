@@ -326,6 +326,8 @@ private:
 			break;
 		}
 
+		case states::n_states: // unexpected! just to shut the compiler up!
+			LogError(remote_ep_<<" Invalid state:"<<states::to_string(current_state_)<<" closing..!");
 		case states::general_err:
 		case states::handshake_err:
 		case states::handshake_recv_err:
@@ -488,8 +490,8 @@ private:
 								}
 
 								// open the file
-								ofs_.reset(new rml::utils::tmp_fstream(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
-										content_length, confMap_["archived.cache_dir"].as<std::string>()));
+								ofs_ = rml::utils::tmp_fstream::create(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
+										content_length, confMap_["archived.cache_dir"].as<std::string>());
 
 								uuid_ = uuid;
 								orgID_ = orgID;
