@@ -106,7 +106,7 @@ public:
 					" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
 					" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
 					" `MidnightOffsetSeconds`, `EndpointID`,"
-					" IF(`State`='Available', 'no', 'yes') `Purged`, `RetentionMaxDate` <= CURDATE() "
+					" `Purged`, `RetentionMaxDate` <= CURDATE() "
 					"FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
 					"WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
 					"LIMIT 1";
