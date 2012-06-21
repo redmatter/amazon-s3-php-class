@@ -101,14 +101,17 @@ public:
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query << "SELECT"
-					" `UUID`, `LegUUID`, `Format`, `Type`, `OrgID`, `UserID`, `PolicyID`, `PolicyVersion`,"
-					" DAYOFMONTH(`CreationDate`), MONTH(`CreationDate`), YEAR(`CreationDate`),"
-					" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
-					" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
-					" `MidnightOffsetSeconds`, `EndpointID`,"
-					" `Purged`, `RetentionMaxDate` <= CURDATE() "
+						" `UUID`, `LegUUID`, `Format`, `Type`, `OrgID`, `UserID`, `PolicyID`, `PolicyVersion`,"
+						" DAYOFMONTH(`CreationDate`), MONTH(`CreationDate`), YEAR(`CreationDate`),"
+						" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
+						" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
+						" `MidnightOffsetSeconds`, `EndpointID`,"
+						" `Purged`, `RetentionMaxDate` <= CURDATE() "
 					"FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
-					"WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
+					"WHERE "
+						// comments for easy grepping in logs; hex for performance
+						"`UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/"
+						" AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" "
 					"LIMIT 1";
 
 			SQL_DEBUG(query.str());
