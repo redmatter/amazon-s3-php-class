@@ -63,6 +63,7 @@ int main(int argc, char* argv[])
 					("temp-dir", boost::program_options::value<std::string>()->default_value("/tmp"), "Temporary files will be put here")
 					("help", "this help")
 					("version", "shows version information")
+					("log.syslog-tag", boost::program_options::value<std::string>(), "syslog tag to be used ( relevant for rsyslog filter )")
 					;
 			rml::logger::describe_config(cli_optsDesc);
 
