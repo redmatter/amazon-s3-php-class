@@ -60,13 +60,12 @@ int main(int argc, char* argv[])
 					("verify", "Verify the source file by converting it to plain format and comparing checksum")
 					("fs", "Uses FreeSWITCH's system() invocation semantics along with return code")
 					("key", boost::program_options::value<std::string>(), "Encryption key")
-					("log.file_path", boost::program_options::value<std::string>()->default_value("console"), "Logging goes to a file or syslog or console")
-					("log.level", boost::program_options::value<int>()->default_value(4), "Logging level")
-					("log.syslog-tag", boost::program_options::value<std::string>(), "syslog tag to be used ( relevant for rsyslog filter )")
 					("temp-dir", boost::program_options::value<std::string>()->default_value("/tmp"), "Temporary files will be put here")
 					("help", "this help")
 					("version", "shows version information")
 					;
+			rml::logger::describe_config(cli_confMap);
+
 			boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 			boost::program_options::notify(cli_confMap);
 
