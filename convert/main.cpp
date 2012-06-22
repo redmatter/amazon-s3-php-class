@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
 					("help", "this help")
 					("version", "shows version information")
 					;
-			rml::logger::describe_config(cli_confMap);
+			rml::logger::describe_config(cli_optsDesc);
 
 			boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 			boost::program_options::notify(cli_confMap);
