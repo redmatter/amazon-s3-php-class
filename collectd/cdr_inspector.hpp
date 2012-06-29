@@ -266,13 +266,12 @@ public:
 								originator_uuid = cdr_uuid;
 							}
 							else {
-								pugi::xpath_node OriginatorUUID_node = variables_node.select_single_node("rmOriginatorUUID/text()");
-								if(OriginatorUUID_node) {
-									originator_uuid = OriginatorUUID_node.node().value();
+								if(pugi::xpath_node node = variables_node.select_single_node("rmOriginatorUUID/text()")) {
+									originator_uuid = node.node().value();
 									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/rmOriginatorUUID "<<originator_uuid);
 								}
-								else if(pugi::xpath_node originator_node = variables_node.select_single_node("originator/text()")) {
-									originator_uuid = originator_node.node().value();
+								else if(pugi::xpath_node node = variables_node.select_single_node("originator/text()")) {
+									originator_uuid = node.node().value();
 									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/originator "<<originator_uuid);
 								}
 								else {
