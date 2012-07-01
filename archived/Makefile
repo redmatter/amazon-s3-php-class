@@ -1,4 +1,4 @@
-include ../version_info
+VERSION_FILE=../version_info
 include /usr/share/librml/Makefile.macros
 
 LIBS += -L../common/$(TMP)

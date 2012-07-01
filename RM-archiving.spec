@@ -119,7 +119,7 @@ Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesyst
 %setup -q
 
 %build
-echo %{version} | awk -F\. '{print "VERSION_MA="$1"\nVERSION_MI="$2"\nVERSION_MIN="$3"\n"}' > version_info
+echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
 make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 

@@ -1,5 +1,6 @@
+VERSION_FILE=../version_info
+
 include /usr/share/librml/Makefile.macros
-include ../version_info
 include Makefile.macros
 
 TARGET=libarchiving_common.a

@@ -1,7 +1,7 @@
 # default; override from commandline
 BUILD_MODE=DEBUG
+VERSION_FILE=../version_info
 
-include ../version_info
 include /usr/share/librml/Makefile.macros
 include ../common/Makefile.macros
 
