@@ -91,14 +91,14 @@ if [ -f $CONFIG_ARCHIVED ]; then
 	ChangeConfig $CONFIG_ARCHIVED distiller_client.server_host "cdrmunch.${SEARCHDOMAIN}"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED app.on_restart_notify_emails "dino@redmatter.com"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
 	ChangeConfig $CONFIG_COLLECTD archived_client.server_host "archived.${SEARCHDOMAIN}"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
@@ -107,7 +107,7 @@ if [ -f $CONFIG_COLLECTSMSD ]; then
 	ChangeConfig $CONFIG_COLLECTSMSD sms.directory "/mnt/cdrfs/archiving-import-sms/$LOCNAME/"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com"
+	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
 fi
 
 exit 0
