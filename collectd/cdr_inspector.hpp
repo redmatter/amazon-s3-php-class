@@ -442,6 +442,10 @@ public:
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
 
+											// capture the UUID for cdrmunch; steps after this might not succeed as this recording might have been already found and queued for archiving
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
+											modified = true;
+
 											// make sure we are not duplicating
 											{
 												const std::pair<std::set<std::string>::iterator, bool> res(recording_uuids.insert(uuid));
@@ -452,9 +456,6 @@ public:
 											}
 
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
-
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
-											modified = true;
 
 											archivable_recording->set_owners(*owners);
 
