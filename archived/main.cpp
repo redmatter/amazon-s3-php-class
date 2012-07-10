@@ -87,6 +87,10 @@
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
 
+extern "C" {
+extern void OS_ShutdownPending();
+}
+
 namespace app {
 
 monitor::monitor_t::counter_t counter;
@@ -132,6 +136,30 @@ volatile bool quit = false;
 
 // was HUPed
 volatile bool wasHUPed = false;
+
+void sigint(int s) {
+    LogMessage("SIGINT: Trying a clean exit");
+    quit = true;
+    OS_ShutdownPending();
+}
+
+void sighup(int s) {
+    LogMessage("SIGHUPed");
+    wasHUPed = true;
+}
+
+void sigterm(int s) {
+    LogMessage("SIGTERM: Trying a clean exit");
+    quit = true;
+    OS_ShutdownPending();
+}
+
+/* save */
+void sigusr1(int s) {
+    LogMessage("SIGUSR1: Trying a clean exit");
+    quit = true;
+    OS_ShutdownPending();
+}
 
 }
 
@@ -213,8 +241,12 @@ int main(int argc, char *argv[]) try
 			LogAlways("built on "<<version_date<<' '<<build_host);
 
 			// set the signal handlers
-			rml::siginit();
-			rml::daemon::initialise(app::confMap, PID_FILE_PATH);
+            rml::siginit(4,
+                        SIGINT, app::sigint,
+                        SIGHUP, app::sighup,
+                        SIGTERM, app::sigterm,
+                        SIGUSR1, app::sigusr1);
+            rml::daemon::initialise(app::confMap, PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
 			LogError("Initialisation Error - exception: "<<e.what());
