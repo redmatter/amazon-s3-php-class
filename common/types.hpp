@@ -8,7 +8,6 @@
 #ifndef ARCHIVING_TYPES_HPP_
 #define ARCHIVING_TYPES_HPP_
 
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/filters.h>
 #include <cryptopp/modes.h>
@@ -16,7 +15,6 @@
 #include <cryptopp/md5.h>
 #include <cryptopp/base64.h>
 #include <cryptopp/hex.h>
-#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <boost/array.hpp>
 
