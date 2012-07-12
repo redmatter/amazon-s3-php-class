@@ -16,14 +16,12 @@
 
 #include <libs3.h>
 
-#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/filters.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/files.h>
 #include <cryptopp/md5.h>
 #include <cryptopp/base64.h>
-#undef CRYPTOPP_ENABLE_NAMESPACE_WEAK
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
