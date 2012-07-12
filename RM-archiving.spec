@@ -22,7 +22,7 @@ Requires: fcgi
 Requires: httpd >= 2.4
 BuildRequires: boost-devel >= 1.49.0
 BuildRequires: mysql++-devel >= 3.1.0-14089
-BuildRequires: RM-librml-devel >= 0.0.1-20797
+BuildRequires: RM-librml-devel >= 0.0.1-21435
 BuildRequires: libs3-devel >= 1.4-17269
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
