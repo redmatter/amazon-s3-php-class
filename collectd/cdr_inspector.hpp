@@ -240,9 +240,9 @@ public:
 							pugi::xpath_node rmAssumeALeg_node = variables_node.select_single_node("rmAssumeALeg/text()");
 							RML_DEBUG(
 								if(!rmAssumeALeg_node)
-									LogDebug(*archivable_cdr<<" /cdr/channel_data/rmAssumeALeg NOT found");
+									LogDebug(*archivable_cdr<<" /cdr/variables/rmAssumeALeg NOT found");
 								else
-									LogDebug(*archivable_cdr<<" /cdr/channel_data/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
+									LogDebug(*archivable_cdr<<" /cdr/variables/rmAssumeALeg = "<<rmAssumeALeg_node.node().value());
 							);
 
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
