@@ -1,0 +1,53 @@
+#include <mysql/mysqld_error.h>
+#include <pugixml/pugixml.hpp>
+
+#include <cryptopp/base64.h>
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/files.h>
+#include <cryptopp/filters.h>
+#include <cryptopp/hex.h>
+#include <cryptopp/md5.h>
+#include <cryptopp/modes.h>
+
+#include <boost/array.hpp>
+#include <boost/asio.hpp>
+#include <boost/bimap.hpp>
+#include <boost/bind.hpp>
+#include <boost/date_time/gregorian/gregorian_types.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/foreach.hpp>
+#include <boost/format.hpp>
+#include <boost/function.hpp>
+#include <boost/network/protocol/http.hpp>
+#include <boost/noncopyable.hpp>
+#include <boost/program_options.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/random/variate_generator.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/type_traits/remove_reference.hpp>
+#include <boost/uuid/uuid.hpp>
+
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/inotify.h>
+#include <time.h>
+
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
