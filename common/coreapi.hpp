@@ -23,6 +23,8 @@
 
 namespace app {
 
+extern volatile bool quit;
+
 namespace impl {
 
 template < typename Tag >
@@ -128,15 +130,15 @@ private:
 	inline void init(const unsigned int retry = 3)
 	{
 		int attempts = retry;
-		while(attempts--) {
+		while(attempts-- && !quit) {
 			if(get_authorized())
-				break;
+				return;
 
-			if(!attempts)
-				throw rml::exception("failed to get authorized with CoreAPI");
-
-			sleep(10);
+			boost::this_thread::sleep(boost::posix_time::seconds(10));
 		}
+
+		if (!quit)
+			throw rml::exception("failed to get authorized with CoreAPI");
 	}
 
 public:

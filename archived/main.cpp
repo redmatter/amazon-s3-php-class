@@ -9,7 +9,7 @@
 #include "converter.hpp"
 #include "dispatcher.hpp"
 #include "database.hpp"
-#include "cdrmunch_database.hpp"
+#include "database_cdrmunch.hpp"
 #include "clear_cache.hpp"
 #include "operation_data.hpp"
 #include "whisper_client.hpp"
@@ -17,6 +17,7 @@
 #include "purge.hpp"
 #include "monitor.hpp"
 #include "coreapi_user.hpp"
+#include "state_reactor.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -60,6 +61,10 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+
+#ifndef inline_
+#define inline_ inline
+#endif
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-archived"
@@ -105,7 +110,7 @@ public:
 	{
 	}
 
-	inline bool is_loaded(operation_data::pointer p_opdata) const
+	inline_ bool is_loaded(operation_data::pointer p_opdata) const
 	{
 		const bool& is_busied(busy_set_.is_busied(p_opdata));
 		LogDebug(p_opdata<<" is_archivable_loaded [busied]: "<<is_busied);
@@ -113,12 +118,12 @@ public:
 		return is_busied;
 	}
 
-	inline bool is_identifier_loaded(const archiving::archivable::file_type::file_type_t& type, const archiving::org_id_t& org, const std::string& uuid) const
+	inline_ bool is_identifier_loaded(const archiving::archivable::file_type::file_type_t& type, const archiving::org_id_t& org, const std::string& uuid) const
 	{
 		return is_loaded(operation_data::pointer(new operation_data(operation_data::detail::pointer(new operation_data::detail(type, org, uuid)))));
 	}
 
-	inline operation_data::pointer get_loaded_instance(const operation_data::pointer& p_lookup) const
+	inline_ operation_data::pointer get_loaded_instance(const operation_data::pointer& p_lookup) const
 	{
 		return busy_set_.get_item(p_lookup);
 	}
@@ -212,6 +217,7 @@ int main(int argc, char *argv[]) try
 		app::purge::describe_config(optsDesc);
 		app::get_server::describe_config(optsDesc);
 		app::call_buffering_recording::describe_config(optsDesc);
+		app::state_reactor::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -280,6 +286,8 @@ int main(int argc, char *argv[]) try
 		app::call_buffering_recording::channel_t cbr_channel("CallBuffering");
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
+
+		app::state_reactor state_runner(app::confMap);
 
 		boost::asio::io_service io_service;
 		boost::asio::io_service::work work(io_service); // make sure we keep it proped up!

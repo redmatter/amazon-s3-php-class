@@ -44,7 +44,7 @@ struct operation
 		n_operation
 	};
 
-	static inline const char* to_string(const operation_t& op)
+	static inline_ const char* to_string(const operation_t& op)
 	{
 		static const char* str[] = {
 				"invalid",
@@ -67,7 +67,8 @@ struct operation_outcome
 	{
 		unknown = 0,
 		ok = 1,
-		error = 2
+		error = 2,
+		interrupted = 3
 	};
 };
 
@@ -136,13 +137,37 @@ struct operation_state
 
 		// -------------------------
 
+		purge_start            = (operation::delete_object << 8),
+
+		purge_init             = purge_start | (operation_coarse::init_purge << 4) | operation_outcome::unknown,
+		purge_init_ok          = purge_init | operation_outcome::ok,
+		purge_init_err         = purge_init | operation_outcome::error,
+
+		purge_approve          = purge_start | (operation_coarse::approve_purge << 4) | operation_outcome::unknown,
+		purge_approve_ok       = purge_approve | operation_outcome::ok,
+		purge_approve_err      = purge_approve | operation_outcome::error,
+
+		purge_file             = purge_start | (operation_coarse::file_purge << 4) | operation_outcome::unknown,
+		purge_file_ok          = purge_file | operation_outcome::ok,
+		purge_file_err         = purge_file | operation_outcome::error,
+
+		purge_usage            = purge_start | (operation_coarse::usage_purge << 4) | operation_outcome::unknown,
+		purge_usage_ok         = purge_usage | operation_outcome::ok,
+		purge_usage_err        = purge_usage | operation_outcome::error,
+
+		purge_retention        = purge_start | (operation_coarse::retention_purge << 4) | operation_outcome::unknown,
+		purge_retention_ok     = purge_retention | operation_outcome::ok,
+		purge_retention_err    = purge_retention | operation_outcome::error,
+
+		// -------------------------
+
 		all_done               = (0x0f << 8) | (operation_coarse::finished << 4) | operation_outcome::ok
 	};
 
 	/**
 	 * Silly, but helps debugging!
 	 */
-	static inline const char* to_string(const operation_state_t& s)
+	static inline_ const char* to_string(const operation_state_t& s)
 	{
 		switch(s)
 		{
@@ -234,6 +259,42 @@ struct operation_state
 
 		// -------------------------
 
+		case purge_start:
+			return "purge_init";
+			break;
+
+		case purge_file:
+			return "purge_file";
+			break;
+		case purge_file_ok:
+			return "purge_file_ok";
+			break;
+		case purge_file_err:
+			return "purge_file_err";
+			break;
+
+		case purge_usage:
+			return "purge_usage";
+			break;
+		case purge_usage_ok:
+			return "purge_usage_ok";
+			break;
+		case purge_usage_err:
+			return "purge_usage_err";
+			break;
+
+		case purge_retention:
+			return "purge_retention";
+			break;
+		case purge_retention_ok:
+			return "purge_retention_ok";
+			break;
+		case purge_retention_err:
+			return "purge_retention_err";
+			break;
+
+		// -------------------------
+
 		case all_done:
 			return "all_done";
 			break;
@@ -242,22 +303,22 @@ struct operation_state
 		return "unknown";
 	}
 
-	static inline operation_state_t make(const operation_state_t& state, const operation_outcome::operation_outcome_t& outcome)
+	static inline_ operation_state_t make(const operation_state_t& state, const operation_outcome::operation_outcome_t& outcome)
 	{
 		return operation_state_t((state & 0xff0) | outcome);
 	}
 
-	static inline bool is_outcome_ok(const operation_state_t& state)
+	static inline_ bool is_outcome_ok(const operation_state_t& state)
 	{
 		return operation_outcome::ok == operation_outcome::operation_outcome_t(state & 0x00f);
 	}
 
-	static inline operation_state_t make(const operation_state_t& state, const bool& outcome_ok)
+	static inline_ operation_state_t make(const operation_state_t& state, const bool& outcome_ok)
 	{
 		return make(state, outcome_ok? operation_outcome::ok: operation_outcome::error);
 	}
 
-	static inline operation_state_t next_up(const operation_state_t& state)
+	static inline_ operation_state_t next_up(const operation_state_t& state)
 	{
 		if (state == init)
 			throw rml::exception("next_up NOT possible from 'init' state");
@@ -265,7 +326,7 @@ struct operation_state
 		if((state & 0x0f0) && (operation_outcome::ok != operation_outcome::operation_outcome_t(state & 0x00f)))
 			throw rml::exception("next_up NOT possible if outcome != ok");
 
-		if((state == get_file_sent_ok) || (state == put_usage_save_ok))
+		if((state == get_file_sent_ok) || (state == put_usage_save_ok) || (state == purge_retention_ok))
 			return all_done;
 
 		return operation_state_t((state & 0xf00) | (((state & 0x0f0) >> 8) + 1) | operation_outcome::unknown);
@@ -358,6 +419,9 @@ struct operation_data
 	// Pointer to the detail structure
 	detail::pointer p_detail;
 
+	typedef boost::function< void (const operation_outcome::operation_outcome_t) > OutcomeHandler;
+	OutcomeHandler handler;
+
 	// -------------------- ctor ----------------------
 	operation_data()
 	{
@@ -369,7 +433,7 @@ struct operation_data
 
 	// -------------------- functions -----------------
 
-	inline void hibernate()
+	inline_ void hibernate()
 	{
 		try {
 			get_tmp_fstream()->close();
@@ -482,7 +546,7 @@ struct operation_data
 
 namespace std {
 
-inline ostream& operator << (ostream& ostr, app::operation_data::pointer p_opdata)
+inline_ ostream& operator << (ostream& ostr, app::operation_data::pointer p_opdata)
 {
 	return ostr << p_opdata->p_detail->identifier << "#state:" << app::operation_state::to_string(p_opdata->p_detail->state);
 }

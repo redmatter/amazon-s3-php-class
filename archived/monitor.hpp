@@ -82,7 +82,7 @@ struct monitor_t
 		{
 		}
 		
-		friend inline std::ostream& operator << (std::ostream& ostr, const item_t& item)
+		friend inline_ std::ostream& operator << (std::ostream& ostr, const item_t& item)
 		{
 			return ostr << item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter.put<<'/'<<item.counter.cached_only<<'/'<<item.counter.stored<<' '<<item.counter.stored_size<<" CallBuffering:"<<item.counter.call_buffering;
 		}
@@ -128,7 +128,7 @@ struct counter_accessor
 	};
 };
 
-inline void increment_counter(const counter_accessor::counter_accessor_t& accessor, const size_t step = 1)
+inline_ void increment_counter(const counter_accessor::counter_accessor_t& accessor, const size_t step = 1)
 {
 	boost::unique_lock<boost::mutex> lock(counter_mutex);
 
@@ -156,7 +156,7 @@ inline void increment_counter(const counter_accessor::counter_accessor_t& access
 	}
 }
 
-inline monitor_t::counter_t get_counter(const bool reset = false)
+inline_ monitor_t::counter_t get_counter(const bool reset = false)
 {
 	boost::unique_lock<boost::mutex> lock(counter_mutex);
 	if (reset) {

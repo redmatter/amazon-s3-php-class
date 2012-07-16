@@ -33,7 +33,7 @@ class crypto
 	CryptoPP::AutoSeededRandomPool rng_;
 
 public:
-//	inline void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+//	inline_ void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
 //	{
 //		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
 //	}
@@ -78,7 +78,7 @@ public:
 		}
 	}
 
-	inline void decrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+	inline_ void decrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
 	{
 		decrypt(istr, ostr, detail->p_endpoint->encryption_key);
 	}
@@ -135,7 +135,7 @@ public:
 		opdata->p_detail->current_file_format = encrypted_format;
 	}
 
-	inline void encrypt(
+	inline_ void encrypt(
 			rml::utils::tmp_fstream::pointer current_fstream,
 			rml::utils::tmp_fstream::pointer encrypted_fstream,
 			const types::file_format::file_format_t& current_file_format,

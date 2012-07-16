@@ -252,6 +252,12 @@ protected:
 				data->headers[properties->metaData[i].name] = properties->metaData[i].value;
 		}
 
+		RML_DEBUG_START
+		const string_map_t::const_iterator& end(data->headers.end());
+		for(string_map_t::const_iterator itr = data->headers.begin(); itr != end; ++itr)
+			LogDebug("HEAD: "<<itr->first<<": "<<itr->second);
+		RML_DEBUG_END
+
 		return S3StatusOK;
 	}
 
@@ -392,7 +398,7 @@ public:
 		get(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), ofs, headers);
 	}
 	
-	inline void get(
+	inline_ void get(
 			const basic_endpoint::pointer p_endpoint,
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer ofs,
@@ -457,7 +463,7 @@ public:
 				);
 	}
 
-	inline void put(
+	inline_ void put(
 			basic_endpoint::pointer p_endpoint,
 			const std::string& identifier,
 			rml::utils::tmp_fstream::pointer tmpfs,
@@ -604,10 +610,10 @@ public:
 	        S3_head_object(&bucket_context, &identifier[0], 0, &head_handler, &data);
 	    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
-		LogMessage(identifier<<": GET Result Status: "<<S3_get_status_name(data.status));
+		LogMessage(identifier<<": HEAD Result Status: "<<S3_get_status_name(data.status));
 
 		if(data.status != S3StatusOK)
-			throw rml::exception("GET failed");
+			throw rml::exception("HEAD failed");
 	}
 
 	void remove(operation_data::pointer opdata)

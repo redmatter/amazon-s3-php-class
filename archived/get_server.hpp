@@ -40,7 +40,7 @@
 
 namespace {
 
-inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
+inline_ const char* get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const char* default_value)
 {
 	RML_DEBUG( LogDebug("xpath: "<<xpath<<" default_value:"<<default_value) );
 	pugi::xpath_node xpath_node = doc.select_single_node(xpath.c_str());
@@ -59,19 +59,19 @@ inline const char* get_xpath_single_value(pugi::xml_node& doc, const std::string
 	return default_value;
 }
 
-inline std::string get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const std::string& default_value = "")
+inline_ std::string get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const std::string& default_value = "")
 {
 	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return get_xpath_single_value(doc, xpath, default_value.c_str());
 }
 
-inline unsigned long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
+inline_ unsigned long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const unsigned long long& default_value = 0ULL)
 {
 	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return rml::utils::strtoull(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
-inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const long long default_value = 0LL)
+inline_ long long get_xpath_single_value(pugi::xml_node& doc, const std::string& xpath, const long long default_value = 0LL)
 {
 	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
@@ -188,7 +188,7 @@ public:
 			post
 		};
 		
-		static inline http_method_t from_string(const std::string& str)
+		static inline_ http_method_t from_string(const std::string& str)
 		{
 			if(str == "GET" || str == "get")
 				return get;

@@ -11,6 +11,8 @@
 #include "globals.h"
 
 #include "../common/defines.h"
+#include "../common/types.hpp"
+#include "../common/policy.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -103,7 +105,7 @@ struct data_sub_format
 		n_data_sub_format
 	};
 
-	static inline const char* to_string(const data_sub_format_t& data_sub_format)
+	static inline_ const char* to_string(const data_sub_format_t& data_sub_format)
 	{
 		static const char* str[] = {
 				"unknown",
@@ -119,7 +121,7 @@ struct data_sub_format
 		return str[0];
 	}
 
-	static inline data_sub_format_t from_string(const std::string& str)
+	static inline_ data_sub_format_t from_string(const std::string& str)
 	{
 		if(str == "binary")
 			return binary;
@@ -133,7 +135,7 @@ struct data_sub_format
 		return unknown;
 	}
 
-	static inline data_sub_format_t from_filename(const std::string& filename)
+	static inline_ data_sub_format_t from_filename(const std::string& filename)
 	{
 		std::size_t pos = filename.rfind('.');
 		data_sub_format_t ret = unknown;
@@ -312,7 +314,7 @@ struct file_format
 			transcode /* wav -> mp3 OR mp3 -> wav */
 		};
 
-		static inline const char* to_string(const convert_action_t& convert_action)
+		static inline_ const char* to_string(const convert_action_t& convert_action)
 		{
 			static const char* str[] = {
 					"nothing",
@@ -338,7 +340,7 @@ struct file_format
 	 * @param dsf
 	 * @return
 	 */
-	static inline file_format_t make(const bool compressed, const bool encrypted, const file_format_t ff)
+	static inline_ file_format_t make(const bool compressed, const bool encrypted, const file_format_t ff)
 	{
 		return make(compressed, encrypted, data_sub_format::data_sub_format_t(ff & 0xff));
 	}
@@ -351,7 +353,7 @@ struct file_format
 	 * @param dsf
 	 * @return
 	 */
-	static inline file_format_t make(const bool compressed, const bool encrypted, const data_sub_format::data_sub_format_t dsf)
+	static inline_ file_format_t make(const bool compressed, const bool encrypted, const data_sub_format::data_sub_format_t dsf)
 	{
 		uint16_t df = data_format::clear;
 		if(compressed && (dsf != data_sub_format::mp3)) // XXX fix this special case
@@ -362,12 +364,12 @@ struct file_format
 		return file_format_t((df << 8 ) | dsf);
 	}
 
-	static inline bool is_encrypted(const file_format_t& ff)
+	static inline_ bool is_encrypted(const file_format_t& ff)
 	{
 		return ff & ( data_format_mask::encrypted << 8 );
 	}
 
-	static inline bool is_compressed(const file_format_t& ff)
+	static inline_ bool is_compressed(const file_format_t& ff)
 	{
 		return ff & ( data_format_mask::compressed << 8 );
 	}
@@ -379,7 +381,7 @@ struct file_format
 	 * @param to
 	 * @return
 	 */
-	static inline std::pair<convert_action::convert_action_t, file_format_t> get_next(const file_format_t& from, const file_format_t& to)
+	static inline_ std::pair<convert_action::convert_action_t, file_format_t> get_next(const file_format_t& from, const file_format_t& to)
 	{
 /*
 		LogDebug("from  : " << RML_HEX(4, from));
@@ -503,7 +505,7 @@ public:
 	}
 
 	template< typename T >
-	inline void add(const std::string& key, const T& value)
+	inline_ void add(const std::string& key, const T& value)
 	{
 		std::ostringstream ostr;
 		ostr << value;
@@ -514,7 +516,7 @@ public:
 		insert(std::make_pair(key, ostr.str()));
 	}
 
-	inline void add(const std::string& key, const std::string& value)
+	inline_ void add(const std::string& key, const std::string& value)
 	{
 		if(!validate(key))
 			THROW_RML_EXCEPTION("metadata key '"<<key<<"' can occur only once");
@@ -563,7 +565,7 @@ public:
 		return ostr.str();
 	}
 
-	inline operator std::string () const
+	inline_ operator std::string () const
 	{
 		return to_string();
 	}
@@ -656,6 +658,43 @@ struct header_precrypt
 	}
 };
 #pragma pack(pop)
+
+struct purge_def
+{
+	struct org_def
+	{
+		archiving::org_id_t org_id;
+		uint64_t max_retention_id;
+
+		org_def(const archiving::org_id_t& org_id, const uint64_t& max_retention_id = 0) : org_id(org_id), max_retention_id(last_purge_retention_max_date)
+		{
+		}
+
+		struct compare
+		{
+			bool operator()(const org_def& lhs, const org_def& rhs) const
+			{
+				if(lhs.org_id != rhs.org_id)
+					return lhs.org_id < rhs.org_id;
+
+				return lhs.max_retention_id < rhs.max_retention_id;
+			}
+		};
+	};
+
+	typedef std::set< org_def, org_def::compare > set_t;
+
+	set_t set;
+	unsigned int offset;
+	unsigned int limit;
+	time_t creation_time;
+
+	typedef boost::shared_ptr< purge_def > pointer;
+
+	purge_def(const time_t creation_time = 0) : offset(0), limit(0), creation_time(creation_time)
+	{
+	}
+};
 
 }  // namespace types
 

@@ -36,6 +36,8 @@ extern volatile bool quit;
 
 extern volatile bool wasHUPed;
 
+extern std::string hostname;
+
 }  // namespace app
 
 #endif /* GLOBALS_H_ */

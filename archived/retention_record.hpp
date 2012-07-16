@@ -17,6 +17,8 @@
 
 #include <boost/shared_ptr.hpp>
 
+#include <set>
+
 namespace app {
 
 struct retention_record
@@ -83,7 +85,41 @@ struct retention_record
 		//ctor
 	}
 	
+	struct pointer_compare
+	{
+		bool operator()( const pointer& lhs, const pointer& rhs )
+		{
+			if (lhs->creation_date.year != rhs->creation_date.year)
+				return lhs->creation_date.year < rhs->creation_date.year;
+
+			if (lhs->creation_date.month != rhs->creation_date.month)
+				return lhs->creation_date.month < rhs->creation_date.month;
+
+			if (lhs->creation_date.day != rhs->creation_date.day)
+				return lhs->creation_date.day < rhs->creation_date.day;
+
+			if (lhs->identifier.org != rhs->identifier.org)
+				return lhs->identifier.org < rhs->identifier.org;
+
+			if (lhs->identifier.filetype != rhs->identifier.filetype)
+				return lhs->identifier.filetype < rhs->identifier.filetype;
+
+			if (lhs->identifier.uuid != rhs->identifier.uuid)
+				return lhs->identifier.uuid < rhs->identifier.uuid;
+		}
+	};
+
+	struct pointer_filetype_compare
+	{
+		bool operator()( const pointer& lhs, const pointer& rhs )
+		{
+			return lhs->identifier.filetype < rhs->identifier.filetype;
+		}
+	};
+
 	typedef cache::result_cache<const archiving::archivable::identifier, pointer, archiving::archivable::identifier::compare> cached_finder_t;
+	typedef std::set< pointer, pointer_compare > set_t;
+	typedef std::multiset< pointer, pointer_filetype_compare > filetype_grouped_set_t;
 };
 
 }  // namespace app

@@ -33,7 +33,7 @@ namespace database {
 class cdrmunch : public basic_database< cdrmunch >
 {
 public:
-	static inline const char* get_identifier()
+	static inline_ const char* get_identifier()
 	{
 		static const char* identifier = "cdrmunch";
 		return identifier;

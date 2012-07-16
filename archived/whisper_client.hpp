@@ -188,7 +188,7 @@ public:
 	}
 
 private:
-	inline void reconnect(const bool& force_reconnect, const boost::system::error_code& error)
+	inline_ void reconnect(const bool& force_reconnect, const boost::system::error_code& error)
 	{
 		if(error != boost::asio::error::operation_aborted) {
 			LogVerbose("Timeout; reconnecting...");
@@ -196,7 +196,7 @@ private:
 		}
 	}
 
-	inline void reconnect(const bool& force_reconnect = false)
+	inline_ void reconnect(const bool& force_reconnect = false)
 	{
 		if(connected_ && force_reconnect) {
 			LogVerbose("Reconnecting...");
@@ -474,12 +474,12 @@ private:
 	}
 
 	// instead of default params; to keep boost::bind errors at bay
-	inline void do_close(const bool& reconnect) {
+	inline_ void do_close(const bool& reconnect) {
 		do_close(reconnect, 5);
 	}
 
 	// instead of default params; to keep boost::bind errors at bay
-	inline void do_close() {
+	inline_ void do_close() {
 		do_close(false);
 	}
 };

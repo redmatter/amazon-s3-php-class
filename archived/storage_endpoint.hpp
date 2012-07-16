@@ -36,7 +36,7 @@ struct endpoint_type
 		n_endpoint_types
 	};
 
-	static inline endpoint_type_t from_string(const std::string& str)
+	static inline_ endpoint_type_t from_string(const std::string& str)
 	{
 		if(str == "s3")
 			return s3;
@@ -49,7 +49,7 @@ struct endpoint_type
 			return unknown;
 	}
 
-	static inline const char* to_string(const endpoint_type_t t)
+	static inline_ const char* to_string(const endpoint_type_t t)
 	{
 		static const char* str[n_endpoint_types] = {
 				"unknown",
