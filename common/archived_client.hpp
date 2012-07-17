@@ -19,12 +19,13 @@
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
 
 namespace app {
 
 using boost::asio::ip::tcp;
 
-class archived_client
+class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
 	static unsigned int n_instances_;
@@ -238,7 +239,7 @@ public:
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr << "BYE\r\n\r\n";
 		boost::asio::async_write(*p_socket_, send_buffer_,
-				strand_.wrap(boost::bind(&archived_client::handle_write, this,
+				strand_.wrap(boost::bind(&archived_client::handle_write, shared_from_this(),
 						boost::asio::placeholders::error,
 						boost::asio::placeholders::bytes_transferred)));
 	}
@@ -248,7 +249,7 @@ private:
 	{
 		timer_.cancel();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
-		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, this,
+		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
 	}
 
@@ -291,13 +292,14 @@ private:
 			if(put_archivable_ptr_->setup_for_retry())
 				pc_produce(channel_, put_archivable_ptr_);
 
+			LogVerbose(local_port_<<" Reconnecting while processing "<<put_archivable_ptr_);
 			put_archivable_ptr_.reset();
 		}
 
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
 		resolver_.cancel();
 		resolver_.async_resolve(query,
-				strand_.wrap(boost::bind(&archived_client::handle_resolve, this,
+				strand_.wrap(boost::bind(&archived_client::handle_resolve, shared_from_this(),
 						boost::asio::placeholders::error,
 						boost::asio::placeholders::iterator)));
 
@@ -310,7 +312,7 @@ private:
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			p_socket_.reset(new tcp::socket(io_service_));
 			p_socket_->async_connect(endpoint,
-					strand_.wrap(boost::bind(&archived_client::handle_connect, this,
+					strand_.wrap(boost::bind(&archived_client::handle_connect, shared_from_this(),
 							boost::asio::placeholders::error, ++endpoint_iterator)));
 		}
 		else {
@@ -343,7 +345,7 @@ private:
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				p_socket_.reset(new tcp::socket(io_service_));
 				p_socket_->async_connect(endpoint,
-						strand_.wrap(boost::bind(&archived_client::handle_connect, this,
+						strand_.wrap(boost::bind(&archived_client::handle_connect, shared_from_this(),
 								boost::asio::placeholders::error, ++endpoint_iterator)));
 			}
 		}
@@ -355,7 +357,7 @@ private:
 			if(current_state_ == state::nop_sent) {
 				current_state_ = state::nop_ack_wait;
 				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 								boost::asio::placeholders::error)));
 
 				set_reconnect_timer(5, true);
@@ -366,12 +368,12 @@ private:
 		if((current_state_ == state::closing_bye_wait) || (current_state_ == state::reconnecting_bye_wait)) {
 			if(!error) {
 				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 								boost::asio::placeholders::error)));
 
 				timer_.expires_from_now(boost::posix_time::seconds(2));
 				timer_.async_wait(
-						strand_.wrap(boost::bind(&archived_client::timer_do_close, this,
+						strand_.wrap(boost::bind(&archived_client::timer_do_close, shared_from_this(),
 								current_state_ == state::reconnecting_bye_wait,
 								reconnect_delay_,
 								boost::asio::placeholders::error)));
@@ -425,7 +427,7 @@ private:
 			current_state_ = state::handshake_recv;
 
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(2, true);
@@ -464,7 +466,7 @@ private:
 			}
 
 			boost::asio::async_write(*p_socket_, send_buffer_,
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
 			break;
@@ -481,7 +483,7 @@ private:
 		{
 			current_state_ = state::handshake_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(2, true);
@@ -583,6 +585,7 @@ private:
 				if(put_archivable_ptr_->setup_for_retry())
 					pc_produce(channel_, put_archivable_ptr_);
 
+				LogVerbose(local_port_<<" Error while sending "<<put_archivable_ptr_);
 				put_archivable_ptr_.reset();
 			}
 
@@ -594,7 +597,7 @@ private:
 		{
 			current_state_ = state::put_sent_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(10, true);
@@ -653,7 +656,7 @@ private:
 		{
 			current_state_ = state::put_sent_file_ack_waiting;
 			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
 			set_reconnect_timer(10, true);
@@ -761,15 +764,19 @@ private:
 				break;
 			}
 			
-			if(!put_archivable_ptr_) // quit or socket closed
+			if(!put_archivable_ptr_) { // quit or socket closed
+				if(!p_socket || !p_socket->is_open())
+					reconnect(false);
+
 				return;
+			}
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			put_archivable_ptr_->shove_put_request(ostr);
 
 			current_state_ = state::put_sent;
 			boost::asio::async_write(*p_socket_, send_buffer_,
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, this,
+					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
@@ -779,7 +786,7 @@ private:
 				ostr << "NOP\r\n\r\n";
 				current_state_ = state::nop_sent;
 				boost::asio::async_write(*p_socket_, send_buffer_,
-						strand_.wrap(boost::bind(&archived_client::handle_write, this,
+						strand_.wrap(boost::bind(&archived_client::handle_write, shared_from_this(),
 								boost::asio::placeholders::error,
 								boost::asio::placeholders::bytes_transferred)));
 			}
@@ -799,6 +806,8 @@ private:
 	{
 		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
+		timer_.cancel();
+
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
 			if (!error && (put_sent_size_ == put_file_size_)) {
 				{
@@ -814,7 +823,7 @@ private:
 			}
 			
 			// post to avoid recursion
-			strand_.post(boost::bind(&archived_client::run_statemachine, this, error));
+			strand_.post(boost::bind(&archived_client::run_statemachine, shared_from_this(), error));
 			return;
 		}
 
@@ -832,9 +841,11 @@ private:
 		ostr.write(&buf[0], buf_length);
 
 		boost::asio::async_write(*p_socket_, send_buffer_,
-				strand_.wrap(boost::bind(&archived_client::put_send_file, this,
+				strand_.wrap(boost::bind(&archived_client::put_send_file, shared_from_this(),
 						boost::asio::placeholders::error,
 						boost::asio::placeholders::bytes_transferred)));
+
+		set_reconnect_timer(10, true);
 	}
 
 	void timer_do_close(const bool& reconnect, unsigned int reconnect_delay_seconds, const boost::system::error_code& error) {
@@ -861,6 +872,7 @@ private:
 			if(put_archivable_ptr_->setup_for_retry())
 				pc_produce(channel_, put_archivable_ptr_);
 
+			LogVerbose(local_port_<<" Closing while sending "<<put_archivable_ptr_);
 			put_archivable_ptr_.reset();
 		}
 
