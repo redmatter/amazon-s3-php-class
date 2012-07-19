@@ -165,7 +165,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 					$dbc->query(
 							"SELECT ID, IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted, IF(Format & (0x000f << 8), 'true', 'false') Compressed, Format & 0xff SubType, ".
 							"Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, ".
-							"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` ".
+							"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, ".
+							"LCASE(CONCAT(HEX(SUBSTR(LegUUID, 1, 4)),'-',HEX(SUBSTR(LegUUID, 5, 2)),'-',HEX(SUBSTR(LegUUID, 7, 2)),'-',HEX(SUBSTR(LegUUID, 9, 2)),'-',HEX(SUBSTR(LegUUID, 11)))) `LegUUID`, ISNULL(retention.LegUUID) `LegUUIDNull`".
 							"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} AND retention.CreationDate < '{$absoluteStopDate}' AND {$where} LIMIT ".self::BATCH_SIZE
 							)->for_each(
 									/**
@@ -204,7 +205,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 												'policy-version' => $row->PolicyVersion,
 												'real-size' => $real_size,
 												'retention-max-date' => $row->RetentionMaxDate,
-												'retention-min-date' => $row->RetentionMinDate
+												'retention-min-date' => $row->RetentionMinDate,
+												'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
 											);
 										
 										$header_mismatch = false;

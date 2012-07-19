@@ -455,11 +455,20 @@ public:
 		types::caseless_key_string_map headers;
 		opdata->p_detail->p_metadata->make_headers(headers);
 
+		std::string leg_uuid;
+		{
+			const types::metadata::pointer& p_metadata( opdata->p_detail->p_metadata );
+			types::metadata::const_iterator itr = p_metadata->find("LegUUID");
+			if(itr != p_metadata->end())
+				leg_uuid = itr->second;
+		}
+
 		put(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), tmpfs,
 				opdata->p_detail->target_file_format, headers, opdata->p_detail->clear_size, opdata->p_detail->real_size,
 				opdata->p_detail->policy.get_creation_ymd(), opdata->p_detail->policy.get_min_retention_ymd(),
 				opdata->p_detail->policy.get_max_retention_ymd(),
-				opdata->p_detail->policy.p_policy->id, opdata->p_detail->policy.p_policy->version
+				opdata->p_detail->policy.p_policy->id, opdata->p_detail->policy.p_policy->version,
+				leg_uuid
 				);
 	}
 
@@ -474,7 +483,8 @@ public:
 			const applied_policy::ymd_t& creation_date,
 			const applied_policy::ymd_t& retention_min_date,
 			const applied_policy::ymd_t& retention_max_date,
-			const policy::id_type& policy_id, const policy::version_type& policy_version)
+			const policy::id_type& policy_id, const policy::version_type& policy_version,
+			const std::string& leg_uuid)
 	{
 		types::caseless_key_string_map s3headers = headers;
 		{
@@ -506,6 +516,7 @@ public:
 
 			s3headers.insert(std::make_pair("policy-id", boost::lexical_cast<std::string>(policy_id)));
 			s3headers.insert(std::make_pair("policy-version", boost::lexical_cast<std::string>(policy_version)));
+			s3headers.insert(std::make_pair("leg-uuid", leg_uuid));
 		}
 
 
