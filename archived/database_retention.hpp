@@ -5,8 +5,8 @@
  *      Author: dkorah
  */
 
-#ifndef DATABASE_HPP_
-#define DATABASE_HPP_
+#ifndef DATABASE_RETENTION_HPP_
+#define DATABASE_RETENTION_HPP_
 
 #include "operation_data.hpp"
 #include "types.hpp"
@@ -466,4 +466,4 @@ public:
 
 }  // namespace app
 
-#endif /* DATABASE_HPP_ */
+#endif /* DATABASE_RETENTION_HPP_ */

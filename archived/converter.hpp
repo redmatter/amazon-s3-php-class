@@ -8,7 +8,7 @@
 #ifndef CONVERTER_HPP_
 #define CONVERTER_HPP_
 
-#include "database.hpp"
+#include "database_internal.hpp"
 #include "crypto.hpp"
 #include "compress.hpp"
 

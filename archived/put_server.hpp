@@ -13,7 +13,7 @@
 #include "storage_endpoint.hpp"
 #include "clear_cache.hpp"
 #include "whisper_client.hpp"
-#include "cdrmunch_database.hpp"
+#include "database_cdrmunch.hpp"
 
 #include "../common/types.hpp"
 #include "../common/defines.h"

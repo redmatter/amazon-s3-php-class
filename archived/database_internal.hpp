@@ -5,8 +5,8 @@
  *      Author: dkorah
  */
 
-#ifndef DATABASE_HPP_
-#define DATABASE_HPP_
+#ifndef DATABASE_INTERNAL_HPP_
+#define DATABASE_INTERNAL_HPP_
 
 #include "operation_data.hpp"
 #include "types.hpp"
@@ -295,10 +295,7 @@ public:
 							while(mysqlpp::Row row = res.fetch_row()) {
 								const std::pair<files_map_t::iterator, bool>& ret(files_map.insert(std::make_pair< types::file_format::file_format_t, rml::utils::tmp_fstream::pointer >(
 										types::file_format::file_format_t(rml::utils::strtoull(row[0].c_str(), 0ULL)),
-										rml::utils::tmp_fstream::pointer(
-												new rml::utils::tmp_fstream(
-														row[1].c_str(),
-														std::ios_base::openmode(std::fstream::in | std::fstream::out | std::fstream::binary))))));
+										rml::utils::tmp_fstream::create(row[1].c_str(), std::ios_base::openmode(std::fstream::in | std::fstream::out | std::fstream::binary)))));
 								if(ret.second)
 									ret.first->second->close();
 							}
@@ -518,7 +515,8 @@ public:
 				const unsigned int offset((previous->offset && !previous->set.empty())? (previous->offset + previous->limit): 0);
 
 				mysqlpp::Query query = conn->query();
-				query << "SELECT OrgID, DAYOFMONTH(`LastPurgeRetentionMaxDate`), MONTH(`LastPurgeRetentionMaxDate`), YEAR(`LastPurgeRetentionMaxDate`) FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
+				query << "SELECT OrgID, DAYOFMONTH(`LastPurgeRetentionMaxDate`), MONTH(`LastPurgeRetentionMaxDate`), YEAR(`LastPurgeRetentionMaxDate`) "
+						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 						"WHERE"
 						" LastPurgeRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) "
 						"ORDER BY LastPurgeRunTime "
@@ -588,4 +586,4 @@ public:
 
 }  // namespace app
 
-#endif /* DATABASE_HPP_ */
+#endif /* DATABASE_INTERNAL_HPP_ */

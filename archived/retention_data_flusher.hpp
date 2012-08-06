@@ -8,7 +8,7 @@
 #ifndef RETENTION_DATA_FLUSHER_HPP_
 #define RETENTION_DATA_FLUSHER_HPP_
 
-#include "database.hpp"
+#include "database_retention.hpp"
 
 namespace app {
 

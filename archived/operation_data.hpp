@@ -84,6 +84,12 @@ struct operation_coarse
 		retention_save = 0x05,
 		usage_save     = 0x06,
 
+		init_purge     = 0x07,
+		approve_purge  = 0x08,
+		file_purge     = 0x09,
+		usage_purge    = 0x0a,
+		retention_purge = 0x0b,
+
 		finished       = 0x0f
 	};
 

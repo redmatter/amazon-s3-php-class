@@ -666,7 +666,7 @@ struct purge_def
 		archiving::org_id_t org_id;
 		uint64_t max_retention_id;
 
-		org_def(const archiving::org_id_t& org_id, const uint64_t& max_retention_id = 0) : org_id(org_id), max_retention_id(last_purge_retention_max_date)
+		org_def(const archiving::org_id_t& org_id, const uint64_t& max_retention_id = 0) : org_id(org_id), max_retention_id(max_retention_id)
 		{
 		}
 

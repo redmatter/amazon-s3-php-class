@@ -8,7 +8,7 @@
 #ifndef CLEAR_CACHE_HPP_
 #define CLEAR_CACHE_HPP_
 
-#include "database.hpp"
+#include "database_internal.hpp"
 
 #include "../common/archivable.hpp"
 
