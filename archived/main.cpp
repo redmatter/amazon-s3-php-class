@@ -405,8 +405,6 @@ int main(int argc, char *argv[]) try
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((ticker%2) ? "tik": "tok"));
 
-			//TODO monitoring stuff goes in here
-
 			if(0 == (ticker % 20)) {
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
@@ -461,6 +459,7 @@ int main(int argc, char *argv[]) try
 		retention_data_channel.set_finishing();
 		purge_channel.set_finishing();
 		whisper_channel.set_finishing();
+		cbr_channel.set_finishing();
 
 		coreapi.logout();
 

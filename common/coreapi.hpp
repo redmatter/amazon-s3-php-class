@@ -80,7 +80,7 @@ private:
 		    return s.local_endpoint().address().to_string();
 		}
 		catch(const std::exception& e) {
-			LogWarning("Exception"<<e.what());
+			LogWarning("Exception: "<<e.what());
 		}
 
 		return "";
@@ -193,7 +193,7 @@ public:
 
 		if(!authorization_.empty() && !authorization_error_) {
 			try {
-				const response& res( delete_("/auth/", true) );
+				const response& res( delete_("/auth/", true, headers(), authorization_) );
 				const bool& ok(res.first >= 200 && res.first < 300);
 				if(ok)
 					authorization_.clear();
