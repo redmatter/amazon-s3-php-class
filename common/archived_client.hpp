@@ -771,13 +771,21 @@ private:
 				return;
 			}
 
-			std::ostream ostr(&send_buffer_); ostr.clear();
-			put_archivable_ptr_->shove_put_request(ostr);
+			try {
+				std::ostream ostr(&send_buffer_); ostr.clear();
+				put_archivable_ptr_->shove_put_request(ostr); // this could throw rml::utils::tmp_fstream::error
 
-			current_state_ = state::put_sent;
-			boost::asio::async_write(*p_socket_, send_buffer_,
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+				current_state_ = state::put_sent;
+				boost::asio::async_write(*p_socket_, send_buffer_,
+						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error)));
+			}
+			catch(const std::exception& e) {
+				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT init failed; error:"<<e.what());
+				put_archivable_ptr_.reset(); // so that it wouldnt retry!
+				strand_.post(boost::bind(&archived_client::get_archivable_for_put, shared_from_this())); // so that the statemachine continues!
+				return;
+			}
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
 			if(p_socket && p_socket->is_open()) {
