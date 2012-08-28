@@ -30,6 +30,7 @@ BuildRequires: pugixml
 BuildRequires: cpp-netlib >= 0.9.1-20788
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
+BuildRequires: threadpool
 
 %package collectd
 Summary: Archiving CollectD
