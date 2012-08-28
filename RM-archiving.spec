@@ -20,7 +20,7 @@ Requires: libs3 = 1.4-17269
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
-Requires: RM-daemonscripts
+Requires: RM-daemonscripts >= 0.0.1-22215
 BuildRequires: boost-devel >= 1.49.0
 BuildRequires: mysql++-devel >= 3.1.0-14089
 BuildRequires: RM-librml-devel >= 0.0.1-21435
@@ -38,7 +38,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: RM-daemonscripts
+Requires: RM-daemonscripts >= 0.0.1-22215
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fshooks >= 0.0.1-15219
 Provides: cdrpostd
@@ -50,7 +50,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.45.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: RM-daemonscripts
+Requires: RM-daemonscripts >= 0.0.1-22215
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
