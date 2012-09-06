@@ -62,7 +62,6 @@ public:
 		if (!allow_exec_direct || tp_.pending())
 			return tp_.schedule(boost::threadpool::prio_task_func(priority, action));
 
-
 		action();
 	}
 

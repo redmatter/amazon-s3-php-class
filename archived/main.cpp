@@ -19,6 +19,7 @@
 #include "monitor.hpp"
 #include "coreapi_user.hpp"
 #include "state_reactor.hpp"
+#include "retention_purge_runner.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
@@ -219,6 +220,7 @@ int main(int argc, char *argv[]) try
 		app::get_server::describe_config(optsDesc);
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor::describe_config(optsDesc);
+		app::retention_purge::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";

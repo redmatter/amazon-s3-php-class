@@ -173,7 +173,7 @@ struct operation_state
 	/**
 	 * Silly, but helps debugging!
 	 */
-	static inline_ const char* to_string(const operation_state_t& s)
+	static inline_ char const* to_string(const operation_state_t& s)
 	{
 		switch(s)
 		{
@@ -267,6 +267,26 @@ struct operation_state
 
 		case purge_start:
 			return "purge_init";
+			break;
+
+		case purge_init:
+			return "purge_init";
+			break;
+		case purge_init_ok:
+			return "purge_init_ok";
+			break;
+		case purge_init_err:
+			return "purge_init_err";
+			break;
+
+		case purge_approve:
+			return "purge_approve";
+			break;
+		case purge_approve_ok:
+			return "purge_approve_ok";
+			break;
+		case purge_approve_err:
+			return "purge_approve_err";
 			break;
 
 		case purge_file:

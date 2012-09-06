@@ -777,10 +777,6 @@ private:
 			break;
 		}
 
-		case states::n_states:
-			LogCritical("Invalid state ... !");
-			break;
-
 		}
 	}
 

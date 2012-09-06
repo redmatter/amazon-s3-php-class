@@ -3,7 +3,7 @@
 if (extension_loaded('xhprof'))
 {
 	$enabled_calls = array(
-		'/',
+		'/storage',
 	);
 	
 	$enabled_ips = array(

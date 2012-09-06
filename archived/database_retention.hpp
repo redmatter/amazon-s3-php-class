@@ -102,7 +102,7 @@ public:
 			" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
 			" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
 			" `MidnightOffsetSeconds`, `EndpointID`,"
-			" `Purged`, `RetentionMaxDate` <= CURDATE() ";
+			" `Purged`, `RetentionMaxDate` <= CURDATE(), ID ";
 	}
 
 	static inline_ retention_record::pointer make_retention_record(const mysqlpp::Row& row)
@@ -134,13 +134,14 @@ public:
 					rml::utils::strtoull(row[17].c_str()),
 					row[19] == "yes",
 					row[20] == "1",
-					rml::utils::strtoull(row[18].c_str())));
+					rml::utils::strtoull(row[18].c_str()),
+					rml::utils::strtoull(row[21].c_str())));
 		}
 
 		return ret;
 	}
 
-	retention_record::set_t get_retention(const archiving::org_id_t& org_id, const applied_policy::ymd_t& min_date, const applied_policy::ymd_t& max_date, const unsigned int limit)
+	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit)
 	{
 		retention_record::set_t ret;
 
@@ -148,8 +149,8 @@ public:
 		mysqlpp::Query query = conn->query();
 		query << "SELECT"
 				<< retention_select_fields() <<
-				"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` "
-				"WHERE RetentionMaxDate > '"<<min_date.year<<'-'<<min_date.month<<'-'<<min_date.day<<"' AND RetentionMaxDate <= '"<<max_date.year<<'-'<<max_date.month<<'-'<<max_date.day<<"' "
+				"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
+				"WHERE ID > "<<max_retention_id<<" AND r.RetentionMaxDate < CURDATE() "<<
 				"LIMIT "<<limit;
 
 		SQL_DEBUG(query.str());
@@ -221,7 +222,82 @@ public:
 		return ret;
 	}
 
-	void mark_purged(const retention_record::set_t& rets)
+	bool purge_usage(const archiving::org_id_t& org, const archiving::archivable::file_type::file_type_t& filetype, const uint64_t& endpoint_id, const int& count, const int64_t& clear_usage, const int64_t& real_usage)
+		__attribute__ ((warn_unused_result))
+	{
+		try {
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			{
+				mysqlpp::Query query = conn->query();
+				query << "SET time_zone = '+00:00'";
+				query.execute();
+			}
+
+			mysqlpp::Query query = conn->query();
+			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
+					"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+					" VALUES ("
+					<< " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
+					<< '\''<<filetype<<"', "
+					<< org<<", "
+					<< count<<", "
+					<< clear_usage<<", "
+					<< real_usage<<", "
+					<< endpoint_id
+					<< " ) "
+					<< "ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+					;
+
+			SQL_DEBUG(query.str());
+			query.execute();
+
+			return true;
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return false;
+	}
+
+	template < typename Iter, typename ExtractRetentionID >
+	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end)
+	{
+		try {
+			ExtractRetentionID extract_id;
+			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			mysqlpp::Query query = conn->query();
+			query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+			for(Iter itr = begin; itr != end; ++itr)
+				query << ((itr == begin)?' ':',')<<extract_id(*itr);
+			query << " )";
+
+			SQL_DEBUG(query.str());
+			query.execute();
+
+			return true;
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return false;
+	}
+
+	/*
+	void set_purged(const retention_record::set_t& rets)
 	{
 		retention_record::filetype_grouped_set_t grouped;
 
@@ -260,7 +336,7 @@ public:
 				for(retention_record::filetype_grouped_set_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
 					std::string uuid_hex((*itr)->identifier.uuid);
 					boost::algorithm::erase_all(uuid_hex, "-");
-					query << ((itr != batch_range.first)? ',': '\n') << "0x"<<uuid_hex << " /* "<<(*itr)->identifier.uuid<<" */ ";
+					query << ((itr != batch_range.first)? ',': '\n') << "0x"<<uuid_hex << " /""* "<<(*itr)->identifier.uuid<<" *""/ ";
 				}
 				query << ')';
 
@@ -284,6 +360,7 @@ public:
 			LogError("Unknown Exception");
 		}
 	}
+	*/
 
 	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
 	{

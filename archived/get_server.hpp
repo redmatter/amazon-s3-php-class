@@ -215,7 +215,7 @@ public:
 		operation_data::pointer opdata;
 		
 		FCGX_Request fcgi_req;
-		mode::mode_t mode;
+		mode::mode_t cur_mode;
 		boost::posix_time::ptime start_time;
 
 		request() : audit_token(0)
@@ -245,7 +245,7 @@ public:
 			}
 			
 			start_time = boost::posix_time::microsec_clock::local_time();
-			mode = conf_mode;
+			cur_mode = conf_mode;
 			method = http_method::from_string(FCGX_GetParam("REQUEST_METHOD", fcgi_req.envp));
 			
 			const boost::thread::id& thread_id = boost::this_thread::get_id();
@@ -266,7 +266,7 @@ public:
 							audit_token = rml::utils::strtoull(&token[0], 0ULL);
 						}
 						else if(boost::starts_with(qry_str_piece, "debug="))
-							mode = (conf_mode == mode::debug || '1' == qry_str_piece[6])? mode::debug : mode::normal;
+							cur_mode = (conf_mode == mode::debug || '1' == qry_str_piece[6])? mode::debug : mode::normal;
 					}
 				}
 			}
@@ -384,7 +384,7 @@ public:
 		const boost::thread::id& thread_id = boost::this_thread::get_id();
 				
 #define Debug(line) \
-		LogIf(req->mode == mode::debug, req->fcgi_req.requestId<<':'<<thread_id<<": "<<line);
+		LogIf(req->cur_mode == mode::debug, req->fcgi_req.requestId<<':'<<thread_id<<": "<<line);
 
 #define Timing(desc) \
 		Debug("timing - "<< boost::posix_time::to_simple_string(boost::posix_time::microsec_clock::local_time() - req->start_time ) << " - "<<desc)

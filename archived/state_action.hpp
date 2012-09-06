@@ -26,7 +26,7 @@ public:
 	{
 	}
 
-	void operator()()
+	void operator()() const
 	{
 		bool result = false;
 		try
@@ -53,8 +53,8 @@ public:
 	}
 
 private:
-	fn_action action_;
-	fn_outcome_handler outcome_handler_;
+	mutable fn_action action_;
+	mutable fn_outcome_handler outcome_handler_;
 };
 
 }  // namespace app

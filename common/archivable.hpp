@@ -198,6 +198,11 @@ public:
 		org_id_t org;
 		std::string uuid;
 		
+		bool operator==(const identifier& rhs) const
+		{
+			return filetype == rhs.filetype && org == rhs.org && uuid == rhs.uuid;
+		}
+
 		struct compare
 		{
 			bool operator() (const identifier& lhs, const identifier& rhs) const

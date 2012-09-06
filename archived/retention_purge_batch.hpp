@@ -13,10 +13,19 @@
 #include "types.hpp"
 
 #include <boost/smart_ptr.hpp>
+#include <boost/program_options.hpp>
 
 namespace app {
 
 namespace retention_purge {
+
+void describe_config(boost::program_options::options_description& optsDesc)
+{
+	optsDesc.add_options()
+			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
+			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
+			;
+}
 
 struct outcome
 {

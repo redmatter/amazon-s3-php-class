@@ -27,6 +27,7 @@
 #include <boost/algorithm/string/erase.hpp>
 
 #include <set>
+#include <algorithm>
 
 #include <time.h>
 
@@ -515,7 +516,7 @@ public:
 				const unsigned int offset((previous->offset && !previous->set.empty())? (previous->offset + previous->limit): 0);
 
 				mysqlpp::Query query = conn->query();
-				query << "SELECT OrgID, DAYOFMONTH(`LastPurgeRetentionMaxDate`), MONTH(`LastPurgeRetentionMaxDate`), YEAR(`LastPurgeRetentionMaxDate`) "
+				query << "SELECT OrgID, MaxRetentionID "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 						"WHERE"
 						" LastPurgeRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) "
@@ -524,13 +525,8 @@ public:
 				SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
 				while(mysqlpp::Row row = res.fetch_row()) {
-					p_ret->set.insert(
-							types::purge_def::org_def(
-									rml::utils::strtoull(row[0].c_str()),
-									applied_policy::ymd_t(
-											rml::utils::strtoull(row[3].c_str()),
-											rml::utils::strtoull(row[2].c_str()),
-											rml::utils::strtoull(row[1].c_str()))));
+					p_ret->set.insert(types::purge_def::org_def(
+							rml::utils::strtoull(row[0].c_str()), rml::utils::strtoull(row[1].c_str())));
 				}
 
 				p_ret->offset = offset;
@@ -557,7 +553,7 @@ public:
 			{
 				mysqlpp::Query query = conn->query();
 
-				query << "SELECT COUNT(*) QSize FROM ( SELECT 1 FROM RetentionPurgeQueue WHERE HostName=%0q:HostName LIMIT %1:MinQueueSizePlusOne ) x";
+				query << "SELECT COUNT(*) QSize FROM ( SELECT 1 FROM ArchiveDRetentionPurgeQueue WHERE HostName=%0q:HostName LIMIT %1:MinQueueSizePlusOne ) x";
 				mysqlpp::SQLQueryParms qp;
 				qp << hostname << (purge_min_queue_size + 1);
 
@@ -578,6 +574,91 @@ public:
 		}
 
 		return -1;
+	}
+
+	template< class Item >
+	void batch_save(const typename Item::pointer& p_item)
+	{
+		typename Item::weak_ptr wp_item(p_item);
+
+		boost::mutex::scoped_lock lock(Item::save_db_mutex);
+		if(!Item::is_saved(p_item)) // already pending?!
+			return;
+
+		Item::set_saved(p_item, false);
+		Item::save_db_set.insert(wp_item);
+	}
+
+	template< typename Item, typename ItemSetType >
+	void batch_save_run()
+	{
+		typedef ItemSetType item_set;
+		typedef typename ItemSetType::const_iterator item_set_iterator;
+
+		boost::mutex::scoped_lock lock(Item::save_db_mutex);
+
+		if(Item::save_db_set.begin() == Item::save_db_set.end()) // empty?
+			return;
+
+		rml::MySQLConnection conn(*p_pool_);
+		mysqlpp::Query query = conn->query();
+		mysqlpp::SQLQueryParms qp;
+
+		item_set copy_set;
+		std::swap(copy_set, Item::save_db_set);
+
+		Item::save_db_begin(query, qp);
+
+		for(item_set_iterator itr = Item::copy_set.begin(); itr != Item::copy_set.end(); ++itr) {
+			typename Item::pointer p_item(itr->lock());
+			if(p_item)
+				Item::save_db(p_item, query, qp);
+		}
+
+		Item::save_db_end(query, qp);
+
+		SQL_DEBUG(query.str(qp));
+		query.execute();
+
+		// mark all as saved!
+		for(item_set_iterator itr = Item::copy_set.begin(); itr != Item::copy_set.end(); ++itr) {
+			typename Item::pointer p_item(itr->lock());
+			if(p_item)
+				Item::set_saved(p_item, true);
+		}
+	}
+
+	template< typename Item, typename Iter, typename ExtractID >
+	bool delete_by_ids(const Iter& begin, const Iter& end, const std::string& table_name, const std::string& field_name="id")
+	{
+		// we need to lock the save actions because we are using the INSERT ... ON DUPLICATE KEY UPDATE statements
+		boost::mutex::scoped_lock lock(Item::save_db_mutex);
+
+		try {
+			ExtractID extract_id;
+			rml::MySQLConnection conn(*p_pool_);
+			mysqlpp::Query query = conn->query();
+			query << "DELETE FROM `ArchivingInternal`.`"<<table_name<<"` WHERE `"<<field_name<<"` IN (";
+			for(Iter itr = begin; itr != end; ++itr)
+				query << (itr == begin? ' ': ',') << extract_id(*itr);
+			query << " )";
+
+			SQL_DEBUG(query.str());
+			query.execute();
+
+			return true;
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return false;
 	}
 
 };
