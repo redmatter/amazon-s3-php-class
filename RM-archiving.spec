@@ -336,13 +336,6 @@ fi
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
-%post gateway
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
-
 # ----------
 
 %postun
