@@ -84,6 +84,11 @@ Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-20785
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 
+%package qascripts
+Summary: Archiving Utility Scripts for QA
+Group: RedMatter/Archiving
+Requires: RM-%{appname}-scripts >= %{version}-%{release}
+
 %package gateway
 Summary: Archiving / Storage gateway
 Group: RedMatter/Archiving
@@ -113,6 +118,9 @@ Archiving common config files, etc.
 
 %description scripts
 Archiving Utility scripts for verification etc
+
+%description qascripts
+Archiving QA scripts for verification etc
 
 %description gateway
 Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesystem
@@ -207,6 +215,11 @@ cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
 cp scripts/retention_ro.conf %{buildroot}/usr/share/archiving/scripts-retention_ro.conf.sample
+
+# QA Scripts
+cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
+cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
+
 
 # Gateway
 rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgateway
@@ -319,6 +332,17 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
 
+%post qascripts
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."
+
+%post gateway
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
+
 # ----------
 
 %postun
@@ -418,7 +442,12 @@ fi
 
 %files scripts
 %defattr(-,root,root)
-/usr/share/php/archiving/*
+/usr/share/php/archiving/class.ArchiveD.php
+/usr/share/php/archiving/class.Archiving.php
+/usr/share/php/archiving/class.ArchivingChecker.php
+/usr/share/php/archiving/class.ArchivingEndpoint.php
+/usr/share/php/archiving/class.ArchivingRetention.php
+/usr/share/php/archiving/class.HTTPStream.php
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
@@ -431,6 +460,11 @@ fi
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
+
+%files qascripts
+%defattr(-,root,root)
+/usr/bin/archiving-makepurgedata
+/usr/share/archiving/archiving-makepurgedata.conf.sample
 
 %files gateway
 %defattr(-,root,root)
