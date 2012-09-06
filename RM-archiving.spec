@@ -16,7 +16,7 @@ License: Closed
 Requires: boost >= 1.49.0
 Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
-Requires: libs3 = 1.4-17269
+Requires: libs3
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
