@@ -95,9 +95,6 @@ class MakePurgeDataApp extends BaseApp
 	
 	public static function BatchSaveRetentionObjs(&$retention_array, $obj = null)
 	{
-		if(!count($retention_array))
-			return;
-		
 		if(!is_null($obj))
 		{
 			$retention_array[] = $obj;
@@ -105,12 +102,15 @@ class MakePurgeDataApp extends BaseApp
 				return;
 		}
 
-		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` ( `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID` ) VALUES ";
+		if(!count($retention_array))
+			return;
+
+		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` ( `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID`, `UserID` ) VALUES ";
 		$sql_usage = "INSERT INTO `Usage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `OrgID`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
 		$first = true;
 		foreach($retention_array as $retention)
 		{
-			$sql_retention .= sprintf("\n%s( UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d )", $first? '': ', ', $retention->UUID, $retention->Format, Archiving::GetFileType($retention->Type), $retention->OrgID, $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID);
+			$sql_retention .= sprintf("\n%s( UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, 0 )", $first? '': ', ', $retention->UUID, $retention->Format, Archiving::GetFileType($retention->Type), $retention->OrgID, $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID);
 			$sql_usage .= sprintf("\n%s( '%s', '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, $retention->Type, $retention->OrgID, $retention->EndpointID, 1, 0, $retention->RealUsage);
 			$first = false;
 		}
