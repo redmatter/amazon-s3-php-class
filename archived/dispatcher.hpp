@@ -21,8 +21,6 @@ namespace app {
 
 class dispatcher
 {
-	enum { max_retry = 5 };
-
 	operation_data::channel_t& convert_done_channel_;
 	storage::operation_channel_t& operation_channel_;
 	operation_data::channel_t& retention_data_channel_;
@@ -67,33 +65,21 @@ public:
 			monitor::increment_counter(monitor::counter_accessor::stored_size, opdata->p_detail->real_size);
 		}
 		else {
-			bool error = false;
 			opdata->p_detail->retry++;
-			if(opdata->p_detail->retry >= max_retry) {
-				error = true;
-				opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::error);
-				LogError(opdata->p_detail->identifier<<": Failed store after "<<int(opdata->p_detail->retry)<<" retry(s)");
-			}
-			else {
-				LogMessage(opdata->p_detail->identifier<<": Saving to storage failed; setting up retry");
-				opdata->p_detail->state = operation_state::put_file_convert_ok; // setup retry
-			}
+			LogMessage(opdata->p_detail->identifier<<": Saving to storage failed; setting up retry");
+			opdata->p_detail->state = operation_state::put_file_convert_ok; // setup retry
 
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 
-			if(!error) {
-				// give configuration a chance to change!
-				// we will look it up before we retry
-				opdata->p_detail->p_endpoint.reset();
-				
-				bool ret(false);
-				pc_produce_get_result(ret, convert_done_channel_, opdata, (180 * opdata->p_detail->retry * opdata->p_detail->retry), 0, 0);
-				// exponential retry ... 3 min, 12 mins, 27 mins, 
-				if (!ret)
-					LogWarning(opdata->p_detail->identifier<<": setup of retry failed");
-			}
-			else
-				LogError(opdata->p_detail->identifier<<": retry > "<<max_retry<<"; discarding...");
+			// give configuration a chance to change!
+			// we will look it up before we retry
+			opdata->p_detail->p_endpoint.reset();
+			
+			bool ret(false);
+			// exponential retry ... 3 min, 12 mins, 27 mins, ... after 5 we retry every 2 hours
+			pc_produce_get_result(ret, convert_done_channel_, opdata, ((opdata->p_detail->retry > 5)? 7200: (180 * opdata->p_detail->retry * opdata->p_detail->retry)), 0, 0);
+			if (!ret)
+				LogError(opdata->p_detail->identifier<<": setup of retry failed");
 		}
 	}
 
