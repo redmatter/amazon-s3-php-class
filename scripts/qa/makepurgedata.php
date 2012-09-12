@@ -35,7 +35,7 @@ class MakePurgeDataApp extends BaseApp
 {
 	const DEFAULT_BATCH_SIZE = 1000;
 	
-	private static function getFileTypes($types_str)
+	private static function GetFileTypes($types_str)
 	{
 		$ret = array();
 
@@ -49,7 +49,12 @@ class MakePurgeDataApp extends BaseApp
 		return array_unique($ret);
 	}
 
-	private static function verifyOrgID($org)
+	/**
+	 * Verify Org
+	 * 
+	 * @param int $org
+	 */
+	private static function VerifyOrgID($org)
 	{
 		try
 		{
@@ -93,6 +98,12 @@ class MakePurgeDataApp extends BaseApp
 		);
 	}
 	
+	/**
+	 * Batch save retention objects
+	 * 
+	 * @param array  $retention_array
+	 * @param object $obj
+	 */
 	public static function BatchSaveRetentionObjs(&$retention_array, $obj = null)
 	{
 		if(!is_null($obj))
@@ -134,6 +145,14 @@ class MakePurgeDataApp extends BaseApp
 		}
 	}
 	
+	/**
+	 * Make metadata headers from retention record
+	 * 
+	 * @param array  $headers
+	 * @param object $retention
+	 * @param bool   $isLegacyMode
+	 * @param bool   $introduceErrors
+	 */
 	private static function MakeMetaHeaders(&$headers, $retention, $isLegacyMode=false, $introduceErrors=false)
 	{
 		$headers['x-amz-meta-file-type'] = $retention->Type;
@@ -182,12 +201,12 @@ class MakePurgeDataApp extends BaseApp
 		if (!$authHash)
 			throw new Exception('No authorization hash specified');
 		
-		$filetypes = self::getFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')));
+		$filetypes = self::GetFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')));
 		if (!count($filetypes))
 			throw new Exception('Invalid file types specified');
 
 		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
-		if (!self::verifyOrgID($org))
+		if (!self::VerifyOrgID($org))
 			throw new Exception('Invalid OrgID specified');
 		
 		if($org != 1 && in_array(Archiving::FILE_TYPE_CDR, $filetypes))
@@ -296,10 +315,12 @@ class MakePurgeDataApp extends BaseApp
 	}
 }
 
-function usage()
+try
 {
-	$prog = basename(__FILE__, '.php');
-	echo <<<USAGE
+	if (true === CLI::get('--help'))
+	{
+		$prog = basename(__FILE__, '.php');
+		echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
         --policy-id=< PolicyID[:PolicyVersion] > --batch-size=< N >
@@ -332,13 +353,6 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
 
 
 USAGE;
-}
-
-try
-{
-	if (true === CLI::get('--help'))
-	{
-		usage();
 		exit(0);
 	}
 	
