@@ -11,6 +11,8 @@
 #include "../common/archivable.hpp"
 #include "retention_record.hpp"
 
+#include <mysql++/mysql++.h>
+
 #include <boost/program_options.hpp>
 
 #include <list>
@@ -19,11 +21,12 @@ namespace app {
 
 namespace retention_purge {
 
-void describe_config(boost::program_options::options_description& optsDesc)
+inline void describe_config(boost::program_options::options_description& optsDesc)
 {
 	optsDesc.add_options()
 			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
+			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			;
 }
 
@@ -338,20 +341,21 @@ struct item
 	static weak_set_t save_db_set;
 	static boost::mutex save_db_mutex;
 
-	static void save_db_begin(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
+	static inline void save_db_begin(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
 	{
-		query << "INSERT INTO `ArchivingInternal`.`RetentionPurgeQueue` "
+		query << "INSERT INTO `ArchivingInternal`.`ArchiveDPurgeQueue` "
 				"("
 				"`State`, "
 				"`FileType`, `OrgID`, `UUID`, "
 				"`EndpointID`, "
 				"`RetentionID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, "
-				"`ClearSize`, `RealSize`"
+				"`ClearSize`, `RealSize`, "
+				"`HostName`"
 				") "
 				"VALUES ";
 	}
 
-	static void save_db(const pointer& p, mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
+	static inline void save_db(const pointer& p, mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp, const std::string& hostname)
 	{
 		query << '('
 				<< static_cast<int>(p->cur_state)<<','
@@ -370,12 +374,14 @@ struct item
 				<<'\''<<applied_policy::ymd_t::year_type::value_type(p->retention->retention_max_date.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(p->retention->retention_max_date.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(p->retention->retention_max_date.day)<<"', "
 
 				<< static_cast<int64_t>(p->clear_size)<<", "
-				<< static_cast<int64_t>(p->real_size)
+				<< static_cast<int64_t>(p->real_size)<<", "
+
+				<< '\''<<hostname<<'\''
 
 				<<')';
 }
 
-	static void save_db_end(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
+	static inline void save_db_end(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
 	{
 		query << " ON DUPLICATE KEY UPDATE `State`=VALUES(`State`)";
 	}

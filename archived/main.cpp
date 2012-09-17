@@ -142,10 +142,15 @@ volatile bool quit = false;
 // was HUPed
 volatile bool wasHUPed = false;
 
-void sigint(int s) {
-    LogMessage("SIGINT: Trying a clean exit");
+inline void shutdown()
+{
     quit = true;
     OS_ShutdownPending();
+}
+
+void sigint(int s) {
+    LogMessage("SIGINT: Trying a clean exit");
+    shutdown();
 }
 
 void sighup(int s) {
@@ -155,15 +160,13 @@ void sighup(int s) {
 
 void sigterm(int s) {
     LogMessage("SIGTERM: Trying a clean exit");
-    quit = true;
-    OS_ShutdownPending();
+    shutdown();
 }
 
 /* save */
 void sigusr1(int s) {
     LogMessage("SIGUSR1: Trying a clean exit");
-    quit = true;
-    OS_ShutdownPending();
+    shutdown();
 }
 
 }
@@ -219,7 +222,7 @@ int main(int argc, char *argv[]) try
 		app::purge::describe_config(optsDesc);
 		app::get_server::describe_config(optsDesc);
 		app::call_buffering_recording::describe_config(optsDesc);
-		app::state_reactor::describe_config(optsDesc);
+		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
@@ -290,8 +293,6 @@ int main(int argc, char *argv[]) try
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
-		app::state_reactor state_runner(app::confMap);
-
 		boost::asio::io_service io_service;
 		boost::asio::io_service::work work(io_service); // make sure we keep it proped up!
 		
@@ -320,6 +321,11 @@ int main(int argc, char *argv[]) try
 		app::storage::s3::storage s3storage(app::confMap);
 
 		app::storage::s3::runner s3runner(s3storage, storage_operation_channel, app::quit);
+
+		app::state_reactor<> purge_state_reactor(app::confMap);
+		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
+				new app::retention_purge::runner(
+						app::confMap, cached_endpoint_finder, purge_state_reactor, retention_db, internal_db, app::quit));
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
@@ -397,8 +403,11 @@ int main(int argc, char *argv[]) try
 
 		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
-		threads.create_thread(boost::bind(app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder), boost::ref(cbr_channel), app::quit));
-		
+		threads.create_thread(boost::bind(
+				app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder),
+				boost::ref(cbr_channel), app::quit));
+		threads.create_thread(boost::bind(&app::retention_purge::runner::feed_purge_queue, p_retention_purge_runner));
+
 		put_server.start();
 
 		unsigned int ticker = 1;
@@ -415,7 +424,12 @@ int main(int argc, char *argv[]) try
 			}
 
 			if(have_more_to_load && (0 == (ticker % 20)))
-				internal_db.find_retriables(app::hostname, cached_policy_finder, boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1), cached_endpoint_finder, convert_channel, have_more_to_load);
+				internal_db.find_retriables(app::hostname, cached_policy_finder,
+						boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1),
+						cached_endpoint_finder, convert_channel, have_more_to_load);
+
+			if(0 == (ticker % 30))
+				internal_db.batch_save_run< app::retention_purge::item, app::retention_purge::item::weak_set_t >();
 
 
 			if(monitor_pending || !(ticker % 60)) {

@@ -39,6 +39,17 @@ struct retention_record
 	
 	typedef boost::shared_ptr<retention_record> pointer;
 
+	friend inline std::ostream& operator<<(std::ostream& ostr, const retention_record& r)
+	{
+		return ostr << '{'<<r.identifier<<'('<<r.id<<')'<<' '
+				<<types::file_format::to_string(r.file_format)<<','
+				<<r.user_id<<','<<r.policy_id<<','<<r.policy_version<<','
+				<<r.creation_date.year<<'-'<<r.creation_date.month<<'-'<<r.creation_date.day<<','
+				<<r.retention_min_date.year<<'-'<<r.retention_min_date.month<<'-'<<r.retention_min_date.day<<','
+				<<r.retention_max_date.year<<'-'<<r.retention_max_date.month<<'-'<<r.retention_max_date.day<<','
+				<<r.midnight_offset<<','<<RML_YES_NO(r.purged)<<','<<RML_YES_NO(r.expired)<<','<<r.endpoint_id<<'}';
+	}
+
 	retention_record() :
 		identifier(),
 		file_format(types::file_format::unknown),
@@ -130,8 +141,7 @@ struct retention_record
 			if (lhs->identifier.filetype != rhs->identifier.filetype)
 				return lhs->identifier.filetype < rhs->identifier.filetype;
 
-			if (lhs->identifier.uuid != rhs->identifier.uuid)
-				return lhs->identifier.uuid < rhs->identifier.uuid;
+			return lhs->identifier.uuid < rhs->identifier.uuid;
 		}
 	};
 
@@ -149,5 +159,17 @@ struct retention_record
 };
 
 }  // namespace app
+
+namespace std {
+
+inline ostream& operator << (ostream& ostr, app::retention_record::pointer r)
+{
+	if(r)
+		return ostr << *r;
+
+	return ostr << "null";
+}
+
+}  // namespace std
 
 #endif /* RETENTION_RECORD_HPP_ */

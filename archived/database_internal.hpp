@@ -484,26 +484,27 @@ public:
 
 		try {
 			rml::MySQLConnection conn(*p_pool_);
+
+			if(!previous->set.empty())
 			{
 				mysqlpp::Query query = conn->query();
 
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` "
-						" (OrgID, TimeLastPurgeRun, MaxRetentionID) "
+						" (OrgID, MaxRetentionID, LastRunTime, LastResetTime) "
 						"VALUES ";
 				const types::purge_def::set_t::const_iterator& end(previous->set.end());
 				const types::purge_def::set_t::const_iterator& begin(previous->set.begin());
 				for(types::purge_def::set_t::const_iterator itr = begin; itr != end; ++itr) {
-					if (previous->limit || previous->offset) {
-						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", NOW(), "<<itr->max_retention_id<<")";
-					}
+					if (previous->limit || previous->offset)
+						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", "<<itr->max_retention_id<<", NOW(), NOW())";
 					else
-						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", '2009-01-01', 0)";
+						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", 0, '2009-01-01', '2009-01-01')";
 				}
 
 				if (previous->limit || previous->offset)
-					query << " ON DUPLICATE KEY UPDATE TimeLastPurgeRun=VALUES(TimeLastPurgeRun), MaxRetentionID=VALUES(MaxRetentionID)";
+					query << " ON DUPLICATE KEY UPDATE LastRunTime=VALUES(LastRunTime), MaxRetentionID=VALUES(MaxRetentionID), LastResetTime=IF(0 = VALUES(MaxRetentionID), NOW(), LastResetTime)";
 				else
-					query << " ON DUPLICATE KEY IGNORE";
+					query << " ON DUPLICATE KEY UPDATE OrgID=VALUES(OrgID)";
 
 				SQL_DEBUG(query.str());
 				query.execute();
@@ -519,8 +520,8 @@ public:
 				query << "SELECT OrgID, MaxRetentionID "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 						"WHERE"
-						" LastPurgeRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) "
-						"ORDER BY LastPurgeRunTime "
+						" LastRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) AND (MaxRetentionID = 0 AND LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY)) "
+						"ORDER BY LastRunTime "
 						"LIMIT "<<offset<<", "<<limit;
 				SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
@@ -553,7 +554,9 @@ public:
 			{
 				mysqlpp::Query query = conn->query();
 
-				query << "SELECT COUNT(*) QSize FROM ( SELECT 1 FROM ArchiveDRetentionPurgeQueue WHERE HostName=%0q:HostName LIMIT %1:MinQueueSizePlusOne ) x";
+				query << "SELECT COUNT(*) QSize FROM ( SELECT 1 FROM ArchiveDPurgeQueue WHERE HostName=%0q:HostName LIMIT %1:MinQueueSizePlusOne ) x";
+				query.parse();
+
 				mysqlpp::SQLQueryParms qp;
 				qp << hostname << (purge_min_queue_size + 1);
 
@@ -587,13 +590,15 @@ public:
 
 		Item::set_saved(p_item, false);
 		Item::save_db_set.insert(wp_item);
+
+		LogDebug(p_item<<" added to save_db_set");
 	}
 
-	template< typename Item, typename ItemSetType >
+	template< typename Item, typename ItemWeakSetType >
 	void batch_save_run()
 	{
-		typedef ItemSetType item_set;
-		typedef typename ItemSetType::const_iterator item_set_iterator;
+		typedef ItemWeakSetType item_set;
+		typedef typename ItemWeakSetType::const_iterator item_set_iterator;
 
 		boost::mutex::scoped_lock lock(Item::save_db_mutex);
 
@@ -601,30 +606,52 @@ public:
 			return;
 
 		rml::MySQLConnection conn(*p_pool_);
-		mysqlpp::Query query = conn->query();
-		mysqlpp::SQLQueryParms qp;
+		try {
+			mysqlpp::Transaction txn(*conn, false);
 
-		item_set copy_set;
-		std::swap(copy_set, Item::save_db_set);
+			mysqlpp::Query query = conn->query();
+			mysqlpp::SQLQueryParms qp;
 
-		Item::save_db_begin(query, qp);
+			Item::save_db_begin(query, qp);
 
-		for(item_set_iterator itr = Item::copy_set.begin(); itr != Item::copy_set.end(); ++itr) {
-			typename Item::pointer p_item(itr->lock());
-			if(p_item)
-				Item::save_db(p_item, query, qp);
+			item_set_iterator begin = Item::save_db_set.begin();
+			item_set_iterator end = Item::save_db_set.end();
+			for(item_set_iterator itr = begin; itr != end; ++itr) {
+				if(typename Item::pointer p_item = itr->lock()) {
+					query << (itr == begin? ' ': ',');
+					Item::save_db(p_item, query, qp, hostname);
+				}
+				else
+					LogDebug("Item expired; ignoring!");
+			}
+
+			Item::save_db_end(query, qp);
+
+			if(!qp.empty()) {
+				query.parse();
+				SQL_DEBUG(query.str(qp));
+				query.execute(qp);
+			}
+			else {
+				SQL_DEBUG(query.str());
+				query.execute();
+			}
+
+			txn.commit();
+
+			// mark all as saved!
+			for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
+				typename Item::pointer p_item(itr->lock());
+				if(p_item)
+					Item::set_saved(p_item, true);
+			}
+
+			// empty the set!
+			item_set empty_set;
+			std::swap(empty_set, Item::save_db_set);
 		}
-
-		Item::save_db_end(query, qp);
-
-		SQL_DEBUG(query.str(qp));
-		query.execute();
-
-		// mark all as saved!
-		for(item_set_iterator itr = Item::copy_set.begin(); itr != Item::copy_set.end(); ++itr) {
-			typename Item::pointer p_item(itr->lock());
-			if(p_item)
-				Item::set_saved(p_item, true);
+		catch(const std::exception& e) {
+			LogWarning(e.what());
 		}
 	}
 

@@ -141,23 +141,43 @@ public:
 		return ret;
 	}
 
-	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit)
+	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit, const unsigned int lag_days)
 	{
 		retention_record::set_t ret;
 
 		rml::MySQLConnection conn(*p_pool_); // scoped connection
-		mysqlpp::Query query = conn->query();
-		query << "SELECT"
-				<< retention_select_fields() <<
-				"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-				"WHERE ID > "<<max_retention_id<<" AND r.RetentionMaxDate < CURDATE() "<<
-				"LIMIT "<<limit;
+		mysqlpp::Transaction transaction(*conn);
 
-		SQL_DEBUG(query.str());
+		{
+			mysqlpp::Query query = conn->query();
+			query << "SELECT "
+					<< retention_select_fields() <<
+					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
+					"WHERE ID > "<<max_retention_id<<" AND r.RetentionMaxDate < DATE_SUB(CURDATE(), INTERVAL "<<lag_days<<" DAY)"
+					" AND `State`='Available'"
+					"LIMIT "<<limit<<" FOR UPDATE";
 
-		mysqlpp::UseQueryResult res = query.use();
-		while(retention_record::pointer rec = make_retention_record(res.fetch_row()))
-			ret.insert(rec);
+			SQL_DEBUG(query.str());
+
+			mysqlpp::UseQueryResult res = query.use();
+			while(retention_record::pointer rec = make_retention_record(res.fetch_row()))
+				ret.insert(rec);
+		}
+
+		if(!ret.empty()) {
+			mysqlpp::Query query = conn->query();
+			query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
+			retention_record::set_t::const_iterator begin(ret.begin());
+			retention_record::set_t::const_iterator end(ret.end());
+			for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
+				query << (itr == begin? ' ': ',')<<(*itr)->id;
+			query << ')';
+
+			SQL_DEBUG(query.str());
+			query.execute();
+		}
+
+		transaction.commit();
 
 		return ret;
 	}
@@ -201,7 +221,7 @@ public:
 		try {
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
-			query << "SELECT TABLE_NAME FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%'";
+			query << "SELECT TABLE_NAME FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template'";
 
 			SQL_DEBUG(query.str());
 

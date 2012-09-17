@@ -16,6 +16,8 @@
  */
 define('APP_NAME_', 'rm-archiving-mkdata');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
+define('RM_SYSLOGGER_LOG_MULTILINE', true);
+define('RM_SYSLOGGER_RECURSIVE_LOOP_SAFETY', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
 require_once "s3/S3.php";
@@ -35,6 +37,9 @@ class MakePurgeDataApp extends BaseApp
 {
 	const DEFAULT_BATCH_SIZE = 1000;
 	
+	private static $creation_date;
+	private static $api;
+		
 	private static function GetFileTypes($types_str)
 	{
 		$ret = array();
@@ -75,11 +80,14 @@ class MakePurgeDataApp extends BaseApp
 	
 	private static function MakeRetentionObj(ArchivingPolicy $policy, $filetype, $orgId, $uuid, $real_usage)
 	{
-		$now = new DateTime();
+		$now = new DateTime('@'.self::$creation_date);
 		$creation_date = $now->format('Y-m-d');
-		$retention_min_date = $now->add(DateInterval::createFromDateString(sprintf('%d %s', $policy->retentionMin[0], $policy->retentionMin[1])))->format('Y-m-d');
-		$now = new DateTime();
-		$retention_max_date = $now->add(DateInterval::createFromDateString(sprintf('%d %s', $policy->retentionMax[0], $policy->retentionMax[1])))->format('Y-m-d');
+		LogDebug($retMin = sprintf('%d %s', $policy->retentionMin[0], $policy->retentionMin[1]), 'RetMIN');
+		LogDebug($retMax = sprintf('%d %s', $policy->retentionMax[0], $policy->retentionMax[1]), 'RetMAX');
+		$retention_min_date = $now->add(DateInterval::createFromDateString($retMin))->format('Y-m-d');
+		$now = new DateTime('@'.self::$creation_date);
+		$retention_max_date = $now->add(DateInterval::createFromDateString($retMax))->format('Y-m-d');
+		$storageEndpoint = ArchivingEndpoint::Get(self::$api, $orgId, $policy->storageEndpointID);
 		return (object)array(
 				'UUID' => $uuid,
 				'OrgID' => $orgId,
@@ -87,7 +95,7 @@ class MakePurgeDataApp extends BaseApp
 				'Format' => 0 /* unknown */,
 				'PolicyID' => $policy->id,
 				'PolicyVersion' => $policy->version,
-				'EndpointID' => $policy->storageEndpointID,
+				'EndpointID' => $storageEndpoint->id,
 				'UserID' => 0,
 				'State' => 'Available',
 				'Purged' => 'no',
@@ -162,7 +170,7 @@ class MakePurgeDataApp extends BaseApp
 		if($isLegacyMode)
 			return;
 		
-		$now = new DateTime();
+		$now = new DateTime('@'.self::$creation_date);
 		$mangled_date = $now->add(
 				DateInterval::createFromDateString(
 						sprintf('%d day', mt_rand(10, 90))))->format('Y-m-d');
@@ -204,6 +212,9 @@ class MakePurgeDataApp extends BaseApp
 		$filetypes = self::GetFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')));
 		if (!count($filetypes))
 			throw new Exception('Invalid file types specified');
+		
+		self::$creation_date = new DateTime(cli::get('--creation-date', $config->get('dataset.creation_date', 'now')));
+		self::$creation_date = self::$creation_date->getTimestamp();
 
 		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
 		if (!self::VerifyOrgID($org))
@@ -226,6 +237,8 @@ class MakePurgeDataApp extends BaseApp
 
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
+		
+		self::$api = array($coreapi, $authorization);
 		
 		$authorization_sentry = new ScopeSentry(
 				/**
@@ -307,6 +320,9 @@ class MakePurgeDataApp extends BaseApp
 			if(!$s3->putObjectFile($file_name, $endpoint->bucket, $storage_key, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
 				throw new Exception("Failed to store {$endpoint->bucket}/{$storage_key}");
 
+			LogDebug($retention, "Retention:$storage_key");
+			LogDebug($headers, "Metadata:$storage_key");
+
 			// store Retention record
 			self::BatchSaveRetentionObjs($retention_recs, $retention);
 		}
@@ -344,9 +360,12 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
 
     --auth-hash=< Hash >
         API auth hash SHA1(username).SHA1(password)
-        
+
     --introduce-errors
         Introduce retention record mismatch ( compared to metadata headers )
+        
+    --creation-date=< YYYY-MM-DD >
+        Use the specified creation date rather than the current date (NOW)
 
     --help
 	    This help message

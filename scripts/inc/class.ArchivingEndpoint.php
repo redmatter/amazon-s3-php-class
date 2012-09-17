@@ -38,7 +38,8 @@ class ArchivingEndpoint
 	public $bucket;
 
 	private static $_objs = array();
-
+	private static $_objs_noEncKey = array();
+	
 	/**
 	 * Cached getter of instance
 	 *
@@ -52,15 +53,15 @@ class ArchivingEndpoint
 	{
 		if ($ignoreEncKey)
 		{
-			if (!isset(self::$_objs[$id]))
-				self::$_objs[$id] = new ArchivingEndpoint($dbc, $org, $id, $ignoreEncKey);
-			
-			return self::$_objs[$id];
+			if (!isset(self::$_objs_noEncKey[$id]))
+				self::$_objs_noEncKey[$id] = new ArchivingEndpoint($dbc, $org, $id, $ignoreEncKey);
+
+			return self::$_objs_noEncKey[$id];
 		}
 
 		if (!isset(self::$_objs[$id]))
 			self::$_objs[$id] = array();
-		
+
 		if (!isset(self::$_objs[$id][$org]))
 			self::$_objs[$id][$org] = new ArchivingEndpoint($dbc, $org, $id, $ignoreEncKey);
 
@@ -170,7 +171,9 @@ class ArchivingEndpoint
 				$endpointNode = $endpointNode->item(0);
 			
 			$this->encryptionKey = $ignoreEncKey? null: $xpath('EncryptionKey', false, $endpointNode);
-			
+
+			$this->id = $xpath('ID', false, $endpointNode);
+
 			$this->type = $xpath('Type', false, $endpointNode);
 			$this->encrypted = 'yes' == $xpath('Encrypted', false, $endpointNode);
 			$this->compressed = 'yes' == $xpath('Compressed', false, $endpointNode);

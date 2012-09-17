@@ -58,6 +58,7 @@ LIBS += \
 	-lcryptopp -lpugixml -lmysqlpp -ls3 -lrml -larchiving_common -lfcgi++ -lmysqlclient_r
 
 CXX_SRCS += \
+	retention_purge.cpp \
 	main.cpp
 
 C_SRCS += \

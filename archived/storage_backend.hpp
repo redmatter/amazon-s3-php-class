@@ -921,4 +921,20 @@ S3Status get_object_data_cb_(int bufferSize, const char *buffer, void *callbackD
 
 }
 
+namespace std {
+
+inline ostream& operator << (ostream& ostr, const app::storage::string_map_t& strmap)
+{
+	ostr << '{';
+	app::storage::string_map_t::const_iterator begin(strmap.begin());
+	app::storage::string_map_t::const_iterator end(strmap.end());
+	for(app::storage::string_map_t::const_iterator itr = strmap.begin(); itr != end; ++itr)
+		ostr << (itr==begin? "":", ")<<itr->first << ':' << itr->second;
+	ostr << '}';
+
+	return ostr;
+}
+
+}  // namespace std
+
 #endif /* BASIC_STORAGE_BACKEND_HPP_ */

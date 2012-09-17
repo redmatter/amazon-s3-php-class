@@ -17,6 +17,7 @@
 
 namespace app {
 
+template < typename PoolType = boost::threadpool::thread_pool< boost::function0< void >, boost::threadpool::fifo_scheduler > >
 class state_reactor
 {
 	enum constants
@@ -33,8 +34,6 @@ public:
 		high = 40,
 		very_high = 50
 	};
-
-	typedef boost::threadpool::thread_pool< boost::function0< void >, boost::threadpool::fifo_scheduler > pool_type;
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -63,6 +62,7 @@ public:
 			return tp_.schedule(boost::threadpool::prio_task_func(priority, action));
 
 		action();
+		return true;
 	}
 
 	bool schedule(const state_action::fn_action& action, const state_action::fn_outcome_handler& outcome_handler, const priority_t& priority = medium, const bool& allow_exec_direct = true)
@@ -72,7 +72,7 @@ public:
 
 private:
 	const boost::program_options::variables_map& confMap_;
-	pool_type tp_;
+	PoolType tp_;
 };
 
 }  // namespace app

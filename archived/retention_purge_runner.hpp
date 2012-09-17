@@ -15,6 +15,8 @@
 #include "./database_retention.hpp"
 #include "./database_internal.hpp"
 
+#include "../common/backtrace.hpp"
+
 #include <rml/pc_channel.h>
 
 #include <boost/shared_ptr.hpp>
@@ -51,8 +53,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 
-	operation_data::channel_t& purge_done_channel_;
-	state_reactor& reactor_;
+	state_reactor<>& reactor_;
 	database::retention& retention_db_;
 	database::internal& internal_db_;
 
@@ -76,7 +77,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	enum
 	{
-		max_limit_object = 1024,
+		max_limit_object = 10240,
 		min_limit_object = 32,
 
 		put_rate_cut_off = 1024,
@@ -96,10 +97,10 @@ class runner : public boost::enable_shared_from_this<runner>
 public:
 	runner(
 			const boost::program_options::variables_map& confMap,
-			const storage::cached_endpoint_finder_t& storage_endpoint_finder, operation_data::channel_t& purge_done_channel, state_reactor& reactor,
+			const storage::cached_endpoint_finder_t& storage_endpoint_finder, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
-				storage_endpoint_finder_(storage_endpoint_finder), purge_done_channel_(purge_done_channel), reactor_(reactor),
+				storage_endpoint_finder_(storage_endpoint_finder), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
 				approval_save_channel_("SaveApproval"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
@@ -116,7 +117,7 @@ public:
 	uint64_t batch_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int batch_count)
 	{
 		uint64_t new_max_retention_id(max_retention_id);
-		const retention_record::set_t& purgeables( retention_db_.get_retention_for_purge(org_id, max_retention_id, batch_count) );
+		const retention_record::set_t& purgeables( retention_db_.get_retention_for_purge(org_id, max_retention_id, batch_count, confMap_["retention_purge.lag_days"].as<unsigned int>()) );
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));
@@ -136,7 +137,7 @@ public:
 			reactor_.schedule(
 					boost::bind(&runner::purge_initialise, shared_from_this(), purge_item),
 					boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-					state_reactor::very_low, false);
+					state_reactor<>::very_low, false);
 		}
 
 		return new_max_retention_id;
@@ -149,17 +150,19 @@ public:
 		storage::string_map_t props;
 		boost::static_pointer_cast<storage::s3::backend>(storage_backend)->stat(
 				p_item->endpoint, p_item->identifier, props);
+		LogDebug("stat("<<p_item->identifier<<") "<<props);
+
 		if(!props.size())
 			THROW_RML_EXCEPTION("could not stat item on endpoint:"<<p_item->endpoint->id);
 
-		if(props.find("clear-size") != props.end())
+		if(props.find("x-amz-meta-clear-size") != props.end())
 			p_item->clear_size = rml::utils::strtoull(props["clear-size"].c_str(), 0ULL);
 
-		if(props.find("real-size") != props.end())
-			p_item->real_size = rml::utils::strtoull(props["real-size"].c_str(), 0ULL);
+		if(props.find("content-length") != props.end())
+			p_item->real_size = rml::utils::strtoull(props["content-length"].c_str(), 0ULL);
 
 #define AssertProps(key) \
-		if(props.find(key) == props.end()) throw rml::exception(key" not found in HEAD response")
+		if(props.find("x-amz-meta-"key) == props.end()) throw rml::exception(key" not found in HEAD response")
 
 		AssertProps("policy-id");
 		AssertProps("policy-version");
@@ -173,18 +176,21 @@ public:
 				p_item->identifier,
 				p_item->retention->file_format,
 				p_item->retention->user_id,
-				rml::utils::strtoll(props["policy-id"].c_str(), 0LL),
-				rml::utils::strtoull(props["policy-version"].c_str(), 0ULL),
-				boost::gregorian::from_simple_string(props["creation-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["retention-min-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["retention-max-date"]).year_month_day(),
+				rml::utils::strtoll(props["x-amz-meta-policy-id"].c_str(), 0LL),
+				rml::utils::strtoull(props["x-amz-meta-policy-version"].c_str(), 0ULL),
+				boost::gregorian::from_simple_string(props["x-amz-meta-creation-date"]).year_month_day(),
+				boost::gregorian::from_simple_string(props["x-amz-meta-retention-min-date"]).year_month_day(),
+				boost::gregorian::from_simple_string(props["x-amz-meta-retention-max-date"]).year_month_day(),
 				0,
 				false,
 				true,
 				p_item->endpoint->id,
 				p_item->retention->id);
-		if(*(p_item->retention) != r)
+		if(*(p_item->retention) != r) {
+			LogDebug("database: "<<p_item->retention);
+			LogDebug("s3-metadata: "<<r);
 			throw rml::exception("Retention data mismatch (s3-metadata != database)");
+		}
 
 		return true;
 	}
@@ -199,7 +205,10 @@ public:
 		return true;
 	}
 
-	void load_from_database()
+	/**
+	 * After a restart, we need to start back from where we left off
+	 */
+	void reload_from_database()
 	{
 //		static uint64_t max_loaded(0);
 //
@@ -244,8 +253,24 @@ public:
 			case state::_approve_:
 			{
 				assert(require_approval);
+
+				LogDebug(p_item<<" Keeping in approval_save_channel_ for saving");
+
 				// we keep approval-required items till we save them on the db thread, in the approval_save_channel
-				pc_produce(approval_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
+				pc_produce(approval_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+
+				try {
+					// consume and discard if saved
+					item::pointer pi = approval_save_channel_.consume(0, 100);
+					if(!item::is_saved(pi)) {
+						LogWarning(pi<<" BACK into approval_save_channel_ for saving");
+						pc_produce(approval_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+					}
+				}
+				catch(const item::channel_t::consume_timed_out_exception& e) {
+				}
+				catch(const item::channel_t::finishing_exception& e) {
+				}
 				break;
 			}
 
@@ -299,7 +324,7 @@ public:
 									reactor_.schedule(
 											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
 											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-											state_reactor::low, false);
+											state_reactor<>::low, false);
 
 								// move a batch forward
 								itr = itr_batch.second;
@@ -371,7 +396,7 @@ public:
 											LogMessage("SQL failed; retrying in a few seconds");
 
 										int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
-										while(!quit_ && !sleep_seconds--)
+										while(!quit_ && sleep_seconds--)
 											boost::this_thread::sleep(boost::posix_time::seconds(1));
 									}
 
@@ -388,10 +413,10 @@ public:
 										reactor_.schedule(
 												boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
 												boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-												state_reactor::low, false);
+												state_reactor<>::low, false);
 									// else if we are not about to quit, enqueue for retry aftre 10 mins
 									else if(!quit_)
-										pc_produce(delete_usage_channel_, p_item, 600);
+										pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
 								}
 
 								itr = itr_batch.second;
@@ -455,7 +480,7 @@ public:
 											LogMessage("SQL failed; retrying in a few seconds");
 
 										int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
-										while(!quit_ && !sleep_seconds--)
+										while(!quit_ && sleep_seconds--)
 											boost::this_thread::sleep(boost::posix_time::seconds(1));
 									}
 
@@ -473,10 +498,10 @@ public:
 										reactor_.schedule(
 												boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
 												boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-												state_reactor::low, false);
+												state_reactor<>::low, false);
 									// else if we are not about to quit, enqueue for retry aftre 10 mins
 									else if(!quit_)
-										pc_produce(delete_retention_channel_, p_item, 600);
+										pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
 								}
 
 								itr = itr_batch.second;
@@ -496,7 +521,7 @@ public:
 
 			case state::_finished_:
 			{
-				pc_produce(finished_channel_, p_item, 120);
+				pc_produce(finished_channel_, p_item, 120, 0, 0);
 
 				if((time(0) - purge_finished_time_) < purge_finished_interval_seconds)
 					break;
@@ -546,24 +571,28 @@ public:
 		}
 	}
 
+	enum
+	{
+		put_rate_sample_size = 2
+	};
+
 	int get_average_put_rate()
 	{
-		static std::vector< size_t > samples;
+		static std::list< size_t > samples;
 
-		if(samples.size() >= 5)
-			for(int i = 0; i < 4; i++)
-				samples[i] = samples[i+1];
+		while(samples.size() >= put_rate_sample_size)
+			samples.pop_back();
 
-		samples[samples.size() >= 5? 5: samples.size()] = monitor::get_counter().put;
+		samples.push_front(monitor::get_counter().put);
 
-		if(samples.size() < 5)
+		if(samples.size() < put_rate_sample_size)
 			return -1;
 
 		size_t sum = 0;
-		for(int i = 0; i < 5; i++)
-			sum += samples[i];
+		for(std::list< size_t >::const_iterator i = samples.begin(); i != samples.end(); ++i)
+			sum += *i;
 
-		return sum / 5;
+		return sum / put_rate_sample_size;
 	}
 
 	/**
@@ -603,7 +632,12 @@ public:
 				}
 
 				// compute the limit based on put rate from statistics
-				const unsigned int limit( min_limit_object + ((max_limit_object - min_limit_object) * (average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero)) );
+				const unsigned int limit(
+						average_put_rate_5mins?
+								( min_limit_object + (
+										(max_limit_object - min_limit_object) * (
+												(average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero))) )
+								: max_limit_object);
 
 				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit);
 
@@ -612,9 +646,11 @@ public:
 
 					const types::purge_def::set_t::const_iterator& end(p_purge_def->set.end());
 					for(types::purge_def::set_t::const_iterator itr = p_purge_def->set.begin(); !quit_ && (itr != end); ++itr) {
-						const uint64_t &new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit));
-						if(new_max_id == itr->max_retention_id)
-							LogVerbose("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to zero": ""));
+						uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit));
+						if(new_max_id == itr->max_retention_id) {
+							LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to zero": ""));
+							new_max_id = 0;
+						}
 
 						orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
 					}
@@ -624,6 +660,7 @@ public:
 			}
 			catch(const std::exception& e) {
 				LogWarning(e.what());
+				app::print_backtrace();
 			}
 		}
 	}

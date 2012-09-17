@@ -112,6 +112,12 @@ class ArchivingPolicy
 						"SELECT IF(Version = {$this->version}, 'yes', 'no') AS `ThisVersion`, Version, UNIX_TIMESTAMP(ModifyTime) AS `ModifyTimeEpoch`, UserModifiedBy ".
 						"FROM Archiving.PolicyVersions WHERE ID={$this->id} ORDER BY Version DESC")->fetch_all();
 
+			if(!$this->storageEndpointID)
+			{
+				$endpoint = ArchivingEndpoint::Get($dbc, $this->org, $this->storageEndpointID);
+				$this->storageEndpointID = $endpoint->id;
+			}
+
 			return true;
 		}
 
@@ -150,10 +156,11 @@ class ArchivingPolicy
 				throw new Exception('Invalid response for Archiving Policy from API');
 			$policyNode = $policyNode->item(0);
 
+			$this->id = $xpath('ID', false, $policyNode);
 			$this->name = $xpath('Name', false, $policyNode);
 			$this->version = $xpath('Version', false, $policyNode);
-			$this->retentionMin = array($xpath('RetentionMin', false, $policyNode), $xpath('RetentionMinUnit', false, $policyNode));
-			$this->retentionMax = array($xpath('RetentionMax', false, $policyNode), $xpath('RetentionMaxUnit', false, $policyNode));
+			$this->retentionMin = array($xpath('RetentionMin', false, $policyNode), $xpath('RetentionMin/@Unit', false, $policyNode));
+			$this->retentionMax = array($xpath('RetentionMax', false, $policyNode), $xpath('RetentionMax/@Unit', false, $policyNode));
 			$this->reducedRedundancy = $xpath('ReducedRedundancy', false, $policyNode);
 			$this->mode = $xpath('Mode', false, $policyNode);
 			$this->storageEndpointID = $xpath('StorageEndpointID', false, $policyNode);
@@ -163,7 +170,13 @@ class ArchivingPolicy
 			$this->systemPolicy = true; // TODO fix not differentiating readonly policy!
 			$this->allowUnrestrictedAccess = $xpath('AllowUnrestrictedAccess', false, $policyNode);
 			$this->disallowRecordingDownload = $xpath('DisallowRecordingDownload', false, $policyNode);
-			
+
+			if(!$this->storageEndpointID)
+			{
+				$endpoint = ArchivingEndpoint::Get($api, $this->org, $this->storageEndpointID, true);
+				$this->storageEndpointID = $endpoint->id;
+			}
+
 			$this->users = array();
 			if($nodes = $xpath('Users/User', true, $policyNode))
 			{

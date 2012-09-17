@@ -33,6 +33,12 @@ extern const char *copyright_string;
 #define DEFAULT_APP_LONG_NAME "rmarchived-monitor"
 #endif
 
+namespace app
+{
+monitor::monitor_t::counter_t counter;
+boost::mutex counter_mutex;
+}
+
 namespace {
 
 class exception : public std::exception {
