@@ -15,8 +15,6 @@
 #include "./database_retention.hpp"
 #include "./database_internal.hpp"
 
-#include "../common/backtrace.hpp"
-
 #include <rml/pc_channel.h>
 
 #include <boost/shared_ptr.hpp>
