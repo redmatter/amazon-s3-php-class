@@ -441,6 +441,7 @@ fi
 /usr/share/php/archiving/class.ArchivingChecker.php
 /usr/share/php/archiving/class.ArchivingEndpoint.php
 /usr/share/php/archiving/class.ArchivingRetention.php
+/usr/share/php/archiving/class.ArchivingPolicy.php
 /usr/share/php/archiving/class.HTTPStream.php
 /usr/bin/archiving
 /usr/bin/archiving-checker
