@@ -322,14 +322,14 @@ int main(int argc, char* argv[]) try
 		sms_inspector.start(wait_for_first_run);
 		LogMessage("Leftover data, processed, continuing with initialisation");
 
-	    app::archived_client archived_client(
+	    app::archived_client::pointer archived_client(new app::archived_client(
 	    		io_service,
 	    		out_channel,
 	    		archivable_busy_set,
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
 	    		app::confMap["archived_client.server_port"].as<std::string>(),
 	    		internal_db,
-	    		app::quit);
+	    		app::quit));
 
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
@@ -340,6 +340,8 @@ int main(int argc, char* argv[]) try
 			while(0 < --n_threads)
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
+
+		archived_client->connect_archived();
 
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),

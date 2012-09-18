@@ -333,19 +333,22 @@ int main(int argc, char* argv[]) try
 		const unsigned int n_threads( 2 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 1 ));
 		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 
-		std::vector< app::archived_client::pointer > archived_client(n_threads - 2);
+		std::list< app::archived_client::pointer > archived_clients;
 		for(unsigned int i = 0; i < (n_threads - 2); i++) {
-			archived_client.push_back(app::archived_client::pointer(new app::archived_client(
-		    		io_service, out_channel, archivable_busy_set,
-		    		app::confMap["archived_client.server_host"].as<std::string>(),
-		    		app::confMap["archived_client.server_port"].as<std::string>(),
-		    		internal_db, app::quit)));
-
-			boost::this_thread::sleep(boost::posix_time::milliseconds(500));
+			archived_clients.push_back(app::archived_client::pointer(new app::archived_client(
+					io_service, out_channel, archivable_busy_set,
+					app::confMap["archived_client.server_host"].as<std::string>(),
+					app::confMap["archived_client.server_port"].as<std::string>(),
+					internal_db, app::quit)));
 		}
 
 		for(unsigned int i = 0; i < n_threads; i++)
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+
+		std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
+		for(std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
+				itr != end; ++itr)
+			(*itr)->connect_archived();
 
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),

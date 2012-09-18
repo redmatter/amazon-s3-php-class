@@ -218,7 +218,33 @@ public:
 				quit_(quit)
 	{
 		LogVerbose("Instance created; ID:"<<instance_id_);
-		connect_archived();
+	}
+
+	inline void connect_archived()
+	{
+		if(p_socket_) {
+			boost::system::error_code error_ignore;
+			p_socket_->cancel(error_ignore);
+			p_socket_.reset();
+		}
+
+		connected_ = false;
+		if(put_archivable_ptr_) {
+			if(put_archivable_ptr_->setup_for_retry())
+				pc_produce(channel_, put_archivable_ptr_);
+
+			LogVerbose(local_port_<<" Reconnecting while processing "<<put_archivable_ptr_);
+			put_archivable_ptr_.reset();
+		}
+
+		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
+		resolver_.cancel();
+		resolver_.async_resolve(query,
+				strand_.wrap(boost::bind(&archived_client::handle_resolve, shared_from_this(),
+						boost::asio::placeholders::error,
+						boost::asio::placeholders::iterator)));
+
+		set_reconnect_timer(10, false);
 	}
 
 	void reconnect(const bool with_bye = true, int delay_seconds = reconnect_delay_seconds)
@@ -277,33 +303,6 @@ private:
 			LogWarning("Archived connection failed; retrying...");
 
 		connect_archived();
-	}
-
-	inline void connect_archived()
-	{
-		if(p_socket_) {
-			boost::system::error_code error_ignore;
-			p_socket_->cancel(error_ignore);
-			p_socket_.reset();
-		}
-
-		connected_ = false;
-		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->setup_for_retry())
-				pc_produce(channel_, put_archivable_ptr_);
-
-			LogVerbose(local_port_<<" Reconnecting while processing "<<put_archivable_ptr_);
-			put_archivable_ptr_.reset();
-		}
-
-		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
-		resolver_.cancel();
-		resolver_.async_resolve(query,
-				strand_.wrap(boost::bind(&archived_client::handle_resolve, shared_from_this(),
-						boost::asio::placeholders::error,
-						boost::asio::placeholders::iterator)));
-
-		set_reconnect_timer(10, false);
 	}
 
 	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
