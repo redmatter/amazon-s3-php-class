@@ -517,17 +517,23 @@ public:
 				const unsigned int offset((previous->offset && !previous->set.empty())? (previous->offset + previous->limit): 0);
 
 				mysqlpp::Query query = conn->query();
-				query << "SELECT OrgID, MaxRetentionID "
+				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
+							"LastRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) LastRunMoreThanOneHourAgo "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
-						"WHERE"
-						" LastRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) AND (MaxRetentionID = 0 AND LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY)) "
-						"ORDER BY LastRunTime "
-						"LIMIT "<<offset<<", "<<limit;
+						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
 				SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
 				while(mysqlpp::Row row = res.fetch_row()) {
-					p_ret->set.insert(types::purge_def::org_def(
-							rml::utils::strtoull(row[0].c_str()), rml::utils::strtoull(row[1].c_str())));
+					const unsigned long long OrgID(rml::utils::strtoull(row[0].c_str()));
+					const unsigned long long MaxRetentionID(rml::utils::strtoull(row[1].c_str()));
+					const bool LastResetMoreThanOneDayAgo(row[2]=="1");
+					const bool LastRunMoreThanOneHourAgo(row[3]=="1");
+					if(LastRunMoreThanOneHourAgo) {
+						if(!MaxRetentionID && !LastResetMoreThanOneDayAgo)
+							continue;
+
+						p_ret->set.insert(types::purge_def::org_def(OrgID, MaxRetentionID));
+					}
 				}
 
 				p_ret->offset = offset;

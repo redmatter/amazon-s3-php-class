@@ -55,7 +55,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	database::retention& retention_db_;
 	database::internal& internal_db_;
 
-	item::channel_t approval_save_channel_;
+	item::channel_t item_save_channel_;
 	item::channel_t delete_file_channel_;
 	item::channel_t delete_usage_channel_;
 	item::channel_t delete_retention_channel_;
@@ -100,7 +100,7 @@ public:
 				confMap_(confMap),
 				storage_endpoint_finder_(storage_endpoint_finder), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
-				approval_save_channel_("SaveApproval"), delete_file_channel_("DeleteFile"),
+				item_save_channel_("SaveApproval"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
 				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
@@ -233,7 +233,24 @@ public:
 	void move_forward(item::pointer p_item, const bool& outcome_ok)
 	{
 		p_item->cur_state = state::make(p_item->cur_state, outcome_ok);
+
+		// set up save()
 		internal_db_.batch_save< item >(p_item);
+
+		// keep it available till the save() fires!
+		pc_produce(item_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+		try {
+			// consume and discard if save()d
+			item::pointer pi = item_save_channel_.consume(0, 100);
+			if(!item::is_saved(pi)) {
+				LogWarning(pi<<" BACK into approval_save_channel_ for saving");
+				pc_produce(item_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+			}
+		}
+		catch(const item::channel_t::consume_timed_out_exception& e) {
+		}
+		catch(const item::channel_t::finishing_exception& e) {
+		}
 
 		if (outcome_ok) {
 			p_item->cur_state = state::next_up(p_item->cur_state);
@@ -252,23 +269,8 @@ public:
 			{
 				assert(require_approval);
 
-				LogDebug(p_item<<" Keeping in approval_save_channel_ for saving");
-
-				// we keep approval-required items till we save them on the db thread, in the approval_save_channel
-				pc_produce(approval_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
-
-				try {
-					// consume and discard if saved
-					item::pointer pi = approval_save_channel_.consume(0, 100);
-					if(!item::is_saved(pi)) {
-						LogWarning(pi<<" BACK into approval_save_channel_ for saving");
-						pc_produce(approval_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
-					}
-				}
-				catch(const item::channel_t::consume_timed_out_exception& e) {
-				}
-				catch(const item::channel_t::finishing_exception& e) {
-				}
+				// nothing to do here as we have already saved it! Just that we wouldnt take it further in the
+				// statemachine; dead end ( for now )!
 				break;
 			}
 
@@ -608,6 +610,9 @@ public:
 				continue;
 			}
 
+			if(quit_)
+				break;
+
 			try {
 				// check if we need to feed the queue
 				if (purge_min_queue_size < internal_db_.get_purge_queue_size(purge_min_queue_size))
@@ -658,7 +663,6 @@ public:
 			}
 			catch(const std::exception& e) {
 				LogWarning(e.what());
-				app::print_backtrace();
 			}
 		}
 	}
