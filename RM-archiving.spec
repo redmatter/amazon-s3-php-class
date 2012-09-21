@@ -227,6 +227,7 @@ cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11
 # Gateway
 rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgateway
 cp gateway/index.php %{buildroot}/var/www/rmarchgateway/.
+cp gateway/xhprof_pre.php %{buildroot}/var/www/rmarchgateway/.
 cp gateway/gateway.conf %{buildroot}/etc/archiving/.
 cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
 cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
@@ -469,6 +470,7 @@ fi
 %defattr(-,root,root)
 /usr/share/php/rmarchgateway/*
 /var/www/rmarchgateway/index.php
+/var/www/rmarchgateway/xhprof_pre.php
 /etc/archiving/gateway.conf
 /etc/httpd/conf.d/rmarchgateway.conf
 /etc/rsyslog.d/11-rmarchgateway.conf
