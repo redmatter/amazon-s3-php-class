@@ -221,6 +221,7 @@ cp scripts/retention_rw.conf %{buildroot}/usr/share/archiving/scripts-retention_
 # QA Scripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
+cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 
 
 # Gateway
@@ -462,6 +463,7 @@ fi
 %defattr(-,root,root)
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
 /usr/share/archiving/archiving-makepurgedata.conf.sample
+/etc/rsyslog.d/11-archiving-makepurgedata.conf
 
 %files gateway
 %defattr(-,root,root)
