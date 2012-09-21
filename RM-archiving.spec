@@ -216,6 +216,7 @@ cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
 cp scripts/retention_ro.conf %{buildroot}/usr/share/archiving/scripts-retention_ro.conf.sample
+cp scripts/retention_rw.conf %{buildroot}/usr/share/archiving/scripts-retention_rw.conf.sample
 
 # QA Scripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
@@ -452,13 +453,14 @@ fi
 /usr/share/archiving/archiving-extract.conf.sample
 /usr/share/archiving/archiving-headerspatch.conf.sample
 /usr/share/archiving/scripts-retention_ro.conf.sample
+/usr/share/archiving/scripts-retention_rw.conf.sample
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
 
 %files qascripts
 %defattr(-,root,root)
-/usr/bin/archiving-makepurgedata
+%attr(755,root,root) /usr/bin/archiving-makepurgedata
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 
 %files gateway

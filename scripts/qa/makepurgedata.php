@@ -367,6 +367,10 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
     --creation-date=< YYYY-MM-DD >
         Use the specified creation date rather than the current date (NOW)
 
+    --conf=< ConfigPath >
+        Path to a config file; sample file available at
+        /usr/share/archiving/archiving-makepurgedata.conf.sample
+
     --help
 	    This help message
 
