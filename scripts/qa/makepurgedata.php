@@ -263,7 +263,7 @@ class MakePurgeDataApp extends BaseApp
 		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
 
 		$isLegacyMode = CLI::get('--legacy-headers', $config->get('dataset.legacy_headers', 'false') != 'false');
-		$makeErrors = CLI::get('--introduce-errors', , $config->get('dataset.introduce_errors', 'false') != 'false');
+		$makeErrors = CLI::get('--introduce-errors', $config->get('dataset.introduce_errors', 'false') != 'false');
 		if ($isLegacyMode && $makeErrors)
 			LogWarning('The "introduce-errors" mode wouldnt have any effect in "legacy-headers" mode');
 		
