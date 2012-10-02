@@ -428,7 +428,12 @@ int main(int argc, char *argv[]) try
 						boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1),
 						cached_endpoint_finder, convert_channel, have_more_to_load);
 
-			if(0 == (ticker % 30))
+			// load approved purge items occasionally
+			if(0 == (ticker % (app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60)))
+				p_retention_purge_runner->approval_run();
+
+			// occasionally save i	tems to DB
+			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>()))
 				internal_db.batch_save_run< app::retention_purge::item, app::retention_purge::item::weak_set_t >();
 
 

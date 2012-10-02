@@ -10,6 +10,7 @@
 
 #include "../common/archivable.hpp"
 #include "retention_record.hpp"
+#include "storage_endpoint.hpp"
 
 #include <mysql++/mysql++.h>
 
@@ -27,6 +28,7 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
 			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
+			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
 			;
 }
 
@@ -207,7 +209,11 @@ struct item
 	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid)
 	{}
 
-	item(const archiving::archivable::identifier& identifier,
+	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state)
+	{
+	}
+
+	explicit item(const archiving::archivable::identifier& identifier,
 			const storage::basic_endpoint::pointer& endpoint, const retention_record::pointer& retention_from_db,
 			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
 			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
@@ -215,6 +221,59 @@ struct item
 		clear_size(clear_size), real_size(real_size),
 		id(id), cur_state(cur_state), saved(true)
 	{
+	}
+
+
+	explicit item(const archiving::archivable::identifier& identifier,
+			const storage::cached_endpoint_finder_t& endpoint_finder,
+			const retention_record::pointer& retention_from_db,
+			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
+			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
+		identifier(identifier),
+		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+				identifier.org, retention_from_db->endpoint_id))),
+		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
+		id(id), cur_state(cur_state), saved(true)
+	{
+	}
+
+	explicit item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
+			identifier(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
+					rml::utils::strtoull(row[3].c_str()), row[4].c_str()),
+			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+					identifier.org, rml::utils::strtoull(row[5].c_str())))),
+			retention(new retention_record(
+					identifier, types::file_format::unknown, 0, rml::utils::strtoull(row[7].c_str()), rml::utils::strtoull(row[8].c_str()),
+					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
+					0, false, true, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+			clear_size(rml::utils::strtoull(row[12].c_str())),
+			real_size(rml::utils::strtoull(row[13].c_str())),
+			id(rml::utils::strtoull(row[0].c_str())),
+			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str())))
+	{
+	}
+	
+	static inline pointer make_from_row(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder)
+	{
+		return pointer(new item(row, endpoint_finder));
+	}
+
+	static inline void setup_select(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qparams, const std::string& where = std::string())
+	{
+		query << "SELECT "
+			" ID, "<<state::delete_file<<", FileType, OrgID, " // already approved; might as well use the next state here
+			" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, "
+			" EndpointID, RetentionID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, "
+			" ClearSize, RealSize, HostName "
+			"FROM ArchivingInternal.ArchiveDPurgeQueue"
+			<< (where.empty()? " WHERE 1 ": " WHERE ") << where;
+	}
+
+	static inline void setup_update_by_ids_begin(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qparams, const std::string& update_fields)
+	{
+		query << "UPDATE ArchivingInternal.ArchiveDPurgeQueue SET "<<update_fields<<" WHERE ID IN(";
 	}
 
 	static inline void set_saved(const pointer& p, const bool& is_saved)

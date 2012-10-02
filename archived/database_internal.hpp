@@ -25,11 +25,13 @@
 #include <boost/thread/thread.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/algorithm/string/erase.hpp>
+#include <boost/function.hpp>
 
 #include <set>
 #include <algorithm>
 
 #include <time.h>
+#include <mysql++/row.h>
 
 namespace app {
 
@@ -664,6 +666,9 @@ public:
 	template< typename Item, typename Iter, typename ExtractID >
 	bool delete_by_ids(const Iter& begin, const Iter& end, const std::string& table_name, const std::string& field_name="id")
 	{
+		if(begin == end)
+			return true;
+
 		// we need to lock the save actions because we are using the INSERT ... ON DUPLICATE KEY UPDATE statements
 		boost::mutex::scoped_lock lock(Item::save_db_mutex);
 
@@ -693,7 +698,85 @@ public:
 
 		return false;
 	}
+	
+	typedef boost::function< void( mysqlpp::Query&, mysqlpp::SQLQueryParms& ) > fn_setup_query_t;
+	
+	template< typename Item, typename ExtractID >
+	void batch_load(typename Item::list_t& loaded,
+			const fn_setup_query_t& setup_select, const boost::function< typename Item::pointer( mysqlpp::Row& ) > fn_make_item_from_row,
+			const fn_setup_query_t& setup_update_by_ids_begin=fn_setup_query_t(), const fn_setup_query_t& setup_update_by_ids_end=fn_setup_query_t(), 
+			const unsigned int select_offset=0, const unsigned int select_limit=0)
+	{
+		try {
+			ExtractID extract_id;
+			rml::MySQLConnection conn(*p_pool_);
+			mysqlpp::Transaction txn(*conn, false);
+			
+			mysqlpp::Query query = conn->query();
+			mysqlpp::SQLQueryParms qparams;
 
+			mysqlpp::Query update_query = conn->query();
+			mysqlpp::SQLQueryParms update_qparams;
+			
+			setup_select(query, qparams);
+			if(select_offset || select_limit)
+				query << " LIMIT "<<select_offset<<", "<<select_limit;
+			if(!setup_update_by_ids_begin.empty())
+				query << " FOR UPDATE";
+			
+			mysqlpp::UseQueryResult res;
+			if(!qparams.empty()) {
+				query.parse();
+				SQL_DEBUG(query.str(qparams));
+				res = query.use(qparams);
+			}
+			else {
+				SQL_DEBUG(query.str());
+				res = query.use();
+			}
+
+			if(!setup_update_by_ids_begin.empty())
+				setup_update_by_ids_begin(update_query, update_qparams);
+			
+			bool first = true;
+			while(mysqlpp::Row row = res.fetch_row()) {
+				typename Item::pointer p_item(fn_make_item_from_row(row));
+				loaded.push_back(p_item);
+				if(!setup_update_by_ids_begin.empty())
+					update_query << (first? ' ': ',')<<extract_id(p_item);
+
+				first = false;
+			}
+			
+			if(!first && !setup_update_by_ids_begin.empty()) {
+				if(!setup_update_by_ids_end.empty())
+					setup_update_by_ids_end(update_query, update_qparams);
+				else
+					update_query << ')';
+				
+				if(!update_qparams.empty()) {
+					update_query.parse();
+					SQL_DEBUG(update_query.str(update_qparams));
+					update_query.execute(update_qparams);
+				}
+				else {
+					SQL_DEBUG(update_query.str());
+					update_query.execute();
+				}
+			}
+			
+			txn.commit();
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+	}
 };
 
 }  // namespace database

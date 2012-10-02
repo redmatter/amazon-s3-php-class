@@ -100,7 +100,7 @@ public:
 				confMap_(confMap),
 				storage_endpoint_finder_(storage_endpoint_finder), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
-				item_save_channel_("SaveApproval"), delete_file_channel_("DeleteFile"),
+				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
 				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
@@ -208,6 +208,10 @@ public:
 	 */
 	void reload_from_database()
 	{
+		const int& limit(get_limit());
+		if(limit < 0)
+			return;
+
 //		static uint64_t max_loaded(0);
 //
 //		while(!quit_) {
@@ -222,11 +226,26 @@ public:
 			return;
 		}
 
-		while(!quit_) {
-			// TODO load approved items
+		const int& limit(get_limit());
+		if(limit < 0)
+			return;
 
-			// we keep approval-required items till we save them on the db thread, in the approval_save_channel
-			// TODO we need to consume then and check if saved?!
+		item::list_t approved_items;
+
+		internal_db_.batch_load< item, item::extract_id >(
+			approved_items,
+			boost::bind(item::setup_select, _1, _2, std::string("State=")+boost::lexical_cast<std::string>(state::approve_ok)+" AND HostName='"+app::hostname+"'"),
+				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)),
+			boost::bind(item::setup_update_by_ids_begin, _1, _2, std::string("State=")+boost::lexical_cast<std::string>(state::delete_file)));
+
+		item::list_t::iterator end = approved_items.end();
+		for(item::list_t::iterator itr = approved_items.begin(); itr != end; ++itr) {
+			try {
+				pc_produce(delete_file_channel_, *itr);
+			}
+			catch(const item::channel_t::finishing_exception& e) {
+				break;
+			}
 		}
 	}
 
@@ -234,23 +253,27 @@ public:
 	{
 		p_item->cur_state = state::make(p_item->cur_state, outcome_ok);
 
-		// set up save()
-		internal_db_.batch_save< item >(p_item);
+		// if not dummy item
+		if(p_item->retention) {
+			// set up save()
+			internal_db_.batch_save< item >(p_item);
 
-		// keep it available till the save() fires!
-		pc_produce(item_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
-		try {
-			// consume and discard if save()d
-			item::pointer pi = item_save_channel_.consume(0, 100);
-			if(!item::is_saved(pi)) {
-				LogWarning(pi<<" BACK into approval_save_channel_ for saving");
-				pc_produce(item_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+			// keep it available till the save() fires!
+			pc_produce(item_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+			try {
+				// consume and discard if save()d
+				item::pointer pi = item_save_channel_.consume(0, 100);
+				if(!item::is_saved(pi)) {
+					LogWarning(pi<<" BACK into approval_save_channel_ for saving");
+					pc_produce(item_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+				}
+			}
+			catch(const item::channel_t::consume_timed_out_exception& e) {
+			}
+			catch(const item::channel_t::finishing_exception& e) {
 			}
 		}
-		catch(const item::channel_t::consume_timed_out_exception& e) {
-		}
-		catch(const item::channel_t::finishing_exception& e) {
-		}
+
 
 		if (outcome_ok) {
 			p_item->cur_state = state::next_up(p_item->cur_state);
@@ -276,7 +299,8 @@ public:
 
 			case state::_delete_file_:
 			{
-				pc_produce(delete_file_channel_, p_item);
+				if(p_item->retention) // if not dummy
+					pc_produce(delete_file_channel_, p_item);
 
 				if((time(0) - last_delete_file_time_) < purge_file_interval_seconds)
 					break;
@@ -344,7 +368,8 @@ public:
 
 			case state::_delete_usage_:
 			{
-				pc_produce(delete_usage_channel_, p_item);
+				if(p_item->retention) // if not dummy
+					pc_produce(delete_usage_channel_, p_item);
 
 				if((time(0) - last_delete_usage_time_) < purge_usage_interval_seconds)
 					break;
@@ -436,7 +461,8 @@ public:
 
 			case state::_delete_retention_:
 			{
-				pc_produce(delete_retention_channel_, p_item);
+				if(p_item->retention) // if not dummy
+					pc_produce(delete_retention_channel_, p_item);
 
 				if((time(0) - last_delete_retention_time_) < purge_retention_interval_seconds)
 					break;
@@ -521,7 +547,8 @@ public:
 
 			case state::_finished_:
 			{
-				pc_produce(finished_channel_, p_item, 120, 0, 0);
+				if(p_item->retention) // if not dummy
+					pc_produce(finished_channel_, p_item, 120, 0, 0);
 
 				if((time(0) - purge_finished_time_) < purge_finished_interval_seconds)
 					break;
@@ -546,11 +573,13 @@ public:
 							}
 						}
 
-						internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id >(
-										purge_list.begin(), purge_list.end(), "ArchiveDRetentionPurgeQueue", "ID");
+						if(!purge_list.empty()) {
+							internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id >(
+											purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID");
 
-						// to adjust for delays from processing the batch
-						purge_finished_time_ = time(0);
+							// to adjust for delays from processing the batch
+							purge_finished_time_ = time(0);
+						}
 					}
 				}
 				catch(const boost::lock_error& e) {
@@ -576,7 +605,7 @@ public:
 		put_rate_sample_size = 2
 	};
 
-	int get_average_put_rate()
+	inline int get_average_put_rate()
 	{
 		static std::list< size_t > samples;
 
@@ -595,6 +624,27 @@ public:
 		return sum / put_rate_sample_size;
 	}
 
+	inline int get_limit()
+	{
+		int average_put_rate_5mins = get_average_put_rate();
+		if(average_put_rate_5mins < 0) {
+			LogMessage("Not enough samples for purge rate-limiting; continuing to wait...");
+			return -1;
+		}
+
+		if(average_put_rate_5mins >= put_rate_cut_off) {
+			LogMessage("Purge rate-limiting: average PUT rate (5mins) found above cut-off rate [ "<<average_put_rate_5mins<<" >= "<<put_rate_cut_off<<" ]");
+			return -1;
+		}
+
+		// compute the limit based on put rate from statistics
+		return average_put_rate_5mins?
+						( min_limit_object + (
+								(max_limit_object - min_limit_object) * (
+										(average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero))) )
+						: max_limit_object;
+	}
+
 	/**
 	 * find records from Retention DB and pool them into Purge Queue
 	 */
@@ -610,37 +660,64 @@ public:
 				continue;
 			}
 
+			if(!quit_ && (iter % 180)) {
+
+				// tinker the delete_file state
+				{
+					// TODO if we ever remove the approve stage, we need to do mods here
+					item::pointer purge_item(new item(state::approve));
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
+							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+							state_reactor<>::high, false);
+				}
+
+				// tinker the delete_usage state
+				{
+					item::pointer purge_item(new item(state::delete_file));
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
+							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+							state_reactor<>::high, false);
+				}
+
+				// tinker the delete_retention state
+				{
+					item::pointer purge_item(new item(state::delete_usage));
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
+							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+							state_reactor<>::high, false);
+				}
+
+				// tinker the finished state
+				{
+					item::pointer purge_item(new item(state::delete_retention));
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
+							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+							state_reactor<>::high, false);
+				}
+			}
+
 			if(quit_)
 				break;
 
 			try {
 				// check if we need to feed the queue
-				if (purge_min_queue_size < internal_db_.get_purge_queue_size(purge_min_queue_size))
-					continue;
-
-				int average_put_rate_5mins = get_average_put_rate();
-				if(average_put_rate_5mins < 0) {
-					LogMessage("Not enough samples for purge rate-limiting; continuing to wait...");
+				if (purge_min_queue_size < internal_db_.get_purge_queue_size(purge_min_queue_size)) {
+					LogMessage("Purge queue size >= "<<purge_min_queue_size<<"; not en-queueing anymore");
 					continue;
 				}
 
-				if(average_put_rate_5mins >= put_rate_cut_off) {
-					LogMessage("Purge rate-limiting: average PUT rate (5mins) found above cut-off rate [ "<<average_put_rate_5mins<<" >= "<<put_rate_cut_off<<" ]");
+				const int& limit(get_limit());
+				if(limit < 0)
 					continue;
-				}
 
 				if(!p_purge_def) {
 					LogDebug("First loading of purge def!");
 					p_purge_def = retention_db_.get_orgs_for_purge();
 				}
-
-				// compute the limit based on put rate from statistics
-				const unsigned int limit(
-						average_put_rate_5mins?
-								( min_limit_object + (
-										(max_limit_object - min_limit_object) * (
-												(average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero))) )
-								: max_limit_object);
 
 				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit);
 
