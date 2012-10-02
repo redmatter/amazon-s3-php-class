@@ -64,7 +64,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
-# Requires: RM-php-rmapp >= 0.0.1-11853
+# Requires: RM-php-rmapp >= 0.0.1-22590
 # Requires: RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
@@ -445,7 +445,6 @@ fi
 /usr/share/php/archiving/class.ArchivingEndpoint.php
 /usr/share/php/archiving/class.ArchivingRetention.php
 /usr/share/php/archiving/class.ArchivingPolicy.php
-/usr/share/php/archiving/class.HTTPStream.php
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
