@@ -29,6 +29,8 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
 			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
+			("retention_purge.creation_date_range_start", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
+			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			;
 }
 

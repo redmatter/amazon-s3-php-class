@@ -102,7 +102,8 @@ public:
 				retention_db_(retention_db), internal_db_(internal_db),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
-				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
+				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_),
+				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
 	{
 	}
@@ -115,7 +116,11 @@ public:
 	uint64_t batch_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int batch_count)
 	{
 		uint64_t new_max_retention_id(max_retention_id);
-		const retention_record::set_t& purgeables( retention_db_.get_retention_for_purge(org_id, max_retention_id, batch_count, confMap_["retention_purge.lag_days"].as<unsigned int>()) );
+		const retention_record::set_t& purgeables(
+				retention_db_.get_retention_for_purge(
+						org_id, max_retention_id, batch_count, confMap_["retention_purge.lag_days"].as<unsigned int>(),
+						confMap_["retention_purge.creation_date_range_start"].as<std::string>(),
+						confMap_["retention_purge.creation_date_range_end"].as<std::string>()));
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));

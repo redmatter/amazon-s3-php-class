@@ -141,9 +141,26 @@ public:
 		return ret;
 	}
 
-	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit, const unsigned int lag_days)
+	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit, const unsigned int lag_days, const std::string& creation_date_start, const std::string& creation_date_end)
 	{
 		retention_record::set_t ret;
+
+		std::string where_creation_date_range;
+		{
+			std::string where_start, where_end;
+
+			if (!creation_date_start.empty())
+				where_start = std::string("CreationDate >= '")+creation_date_start+"' ";
+			if (!creation_date_end.empty())
+				where_end = std::string("CreationDate <= '")+creation_date_end+"' ";
+
+			if(!where_start.empty() && !where_end.empty())
+				where_creation_date_range = std::string(" AND ( ")+where_start+"AND "+where_end+") ";
+			else if(!where_start.empty())
+				where_creation_date_range = std::string(" AND ")+where_start;
+			else if(!where_end.empty())
+				where_creation_date_range = std::string(" AND ")+where_end;
+		}
 
 		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		mysqlpp::Transaction transaction(*conn);
@@ -154,6 +171,7 @@ public:
 					<< retention_select_fields() <<
 					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
 					"WHERE ID > "<<max_retention_id<<" AND r.RetentionMaxDate < DATE_SUB(CURDATE(), INTERVAL "<<lag_days<<" DAY)"
+					<< where_creation_date_range <<
 					" AND `State`='Available'"
 					"LIMIT "<<limit<<" FOR UPDATE";
 
