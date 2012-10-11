@@ -141,7 +141,9 @@ public:
 		return ret;
 	}
 
-	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int limit, const unsigned int lag_days, const std::string& creation_date_start, const std::string& creation_date_end)
+	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id,
+			const unsigned int limit, const unsigned int lag_days, const std::string& creation_date_start,
+			const std::string& creation_date_end)
 	{
 		retention_record::set_t ret;
 
@@ -304,20 +306,47 @@ public:
 		return false;
 	}
 
-	template < typename Iter, typename ExtractRetentionID >
-	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end)
+	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
+	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end, const bool& delete_cdrs)
 	{
 		try {
 			ExtractRetentionID extract_id;
-			rml::MySQLConnection conn(*p_pool_); // scoped connection
-			mysqlpp::Query query = conn->query();
-			query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
-			for(Iter itr = begin; itr != end; ++itr)
-				query << ((itr == begin)?' ':',')<<extract_id(*itr);
-			query << " )";
+			IsFileTypeCDR is_cdr;
 
-			SQL_DEBUG(query.str());
-			query.execute();
+			rml::MySQLConnection conn(*p_pool_);
+
+			unsigned int cdrs_found(0);
+			bool noncdrs_found(false);
+			mysqlpp::Query query_bin_cdrs = conn->query();
+			query_bin_cdrs << "DELETE FROM ArchivingRetention.Retention_"<<org<<" WHERE Type="<<is_cdr.filetype_as_int()<<" AND ID IN (";
+
+			mysqlpp::Query query_update_noncdrs = conn->query();
+			query_update_noncdrs << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+
+			for(Iter itr = begin; itr != end; ++itr) {
+				if(delete_cdrs && is_cdr(*itr)) {
+					query_bin_cdrs << (cdrs_found?',':' ')<<extract_id(*itr);
+					cdrs_found++;
+				}
+				else {
+					query_update_noncdrs << (noncdrs_found?',':' ')<<extract_id(*itr);
+					noncdrs_found = true;
+				}
+			}
+
+			query_bin_cdrs << " )";
+			query_update_noncdrs << " )";
+
+			if(delete_cdrs && cdrs_found) {
+				SQL_DEBUG(query_bin_cdrs.str());
+				mysqlpp::SimpleResult res = query_bin_cdrs.execute();
+				assert(cdrs_found == res.rows());
+			}
+
+			if(noncdrs_found) {
+				SQL_DEBUG(query_update_noncdrs.str());
+				query_update_noncdrs.execute();
+			}
 
 			return true;
 		}

@@ -26,11 +26,13 @@ inline void describe_config(boost::program_options::options_description& optsDes
 {
 	optsDesc.add_options()
 			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
+			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
 			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
 			("retention_purge.creation_date_range_start", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
+			("retention_purge.auto_expiring_filetypes", boost::program_options::value<std::string>()->default_value("cdr"), "factor in endpoint's (S3 only at the moment) auto-expiration capability")
 			;
 }
 
@@ -317,6 +319,19 @@ struct item
 		inline archiving::archivable::identifier operator()(const pointer& p) const
 		{
 			return p->identifier;
+		}
+	};
+
+	struct is_filetype_cdr
+	{
+		inline bool operator()(const pointer& p) const
+		{
+			return p->identifier.filetype == archiving::archivable::file_type::cdr;
+		}
+
+		inline int filetype_as_int() const
+		{
+			return int(archiving::archivable::file_type::cdr);
 		}
 	};
 

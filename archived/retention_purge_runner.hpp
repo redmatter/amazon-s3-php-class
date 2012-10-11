@@ -23,6 +23,7 @@
 #include <boost/date_time/period.hpp>
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <math.h>
 
@@ -71,6 +72,8 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex last_delete_retention_time_mutex_;
 	boost::mutex purge_finished_time_mutex_;
 
+	bool auto_expire_filetype_[archiving::archivable::file_type::n_file_types];
+
 	volatile bool& quit_;
 
 	enum
@@ -106,6 +109,13 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
 	{
+		std::string auto_expiring_filetypes(confMap["retention_purge.auto_expiring_filetypes"].as<std::string>());
+		std::vector<std::string> str_filetypes;
+		boost::split(str_filetypes, auto_expiring_filetypes, boost::is_any_of(", \t"));
+		std::vector<std::string>::const_iterator itr = str_filetypes.begin();
+		std::vector<std::string>::const_iterator end = str_filetypes.end();
+		for(; itr != end; ++itr)
+			auto_expire_filetype_[(int)archiving::archivable::file_type::from_string(*itr)] = true;
 	}
 
 	/**
@@ -304,6 +314,16 @@ public:
 
 			case state::_delete_file_:
 			{
+				if(p_item->retention && auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
+					LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+
+					// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
+							boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
+							state_reactor<>::low, false);
+				}
+
 				if(p_item->retention) // if not dummy
 					pc_produce(delete_file_channel_, p_item);
 
@@ -517,9 +537,11 @@ public:
 
 									if(!quit_)
 										done_ok = retention_db_.set_purged<
-												item::org_grouped_multiset_t::const_iterator,
-												item::extract_retention_id >(
-														(*itr_batch.first)->identifier.org, itr_batch.first, itr_batch.second);
+											item::org_grouped_multiset_t::const_iterator,
+											item::extract_retention_id, item::is_filetype_cdr >(
+													(*itr_batch.first)->identifier.org,
+													itr_batch.first, itr_batch.second,
+													confMap_["retention_purge.delete_cdr_retention_records"].as<bool>());
 								}
 
 								for(item::org_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
@@ -655,55 +677,78 @@ public:
 	 */
 	void feed_purge_queue()
 	{
-		int iter = 1;
+		int iter = 240; // not a magic number; picked to make sure the dummy items dont fire in
 
 		types::purge_def::pointer p_purge_def;
 
 		while(!quit_) {
-			if(!quit_ && (iter++ % 60)) {
+			if(!quit_ && (++iter % 10)) {
 				boost::this_thread::sleep(boost::posix_time::seconds(1));
 				continue;
 			}
+LogDebug(" ++++++++++++++++++++++++++++++++ iter: "<<iter);
 
-			if(!quit_ && (iter % 180)) {
+			const int iter_180(iter % 180);
+			if(!quit_ && (iter_180 >= 0 && iter_180 <= 30) ) {
+LogDebug(" ++++++++++++++++++++++++++++++++ iter_180: "<<iter_180);
 
-				// tinker the delete_file state
+				// here we make the batching mechanism to fire-off the state; they could be starving for items
+				// so we fire-off dummy items into the channel(s)
+
+				switch(iter_180) {
+				case 0: // every 3 mins
 				{
 					// TODO if we ever remove the approve stage, we need to do mods here
+
+					// tinker the delete_file state
 					item::pointer purge_item(new item(state::approve));
 					reactor_.schedule(
 							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
 							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
 							state_reactor<>::high, false);
+					break;
 				}
-
-				// tinker the delete_usage state
+				case 10: // every 3 mins and 10 secs
 				{
+					// tinker the delete_usage state
 					item::pointer purge_item(new item(state::delete_file));
 					reactor_.schedule(
 							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
 							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
 							state_reactor<>::high, false);
+					break;
 				}
-
-				// tinker the delete_retention state
+				case 20: // every 3 mins and 20 secs
 				{
+					// tinker the delete_retention state
 					item::pointer purge_item(new item(state::delete_usage));
 					reactor_.schedule(
 							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
 							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
 							state_reactor<>::high, false);
+					break;
 				}
-
-				// tinker the finished state
+				case 30: // every 3 mins and 30 secs
 				{
+					// tinker the finished state
 					item::pointer purge_item(new item(state::delete_retention));
 					reactor_.schedule(
 							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
 							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
 							state_reactor<>::high, false);
+					break;
+				}
+				default: // we shouldnt get here!
+				{
+					LogDebug("iter_180: "<<iter_180);
+					assert(false);
+					break;
+				}
 				}
 			}
+
+			if(!quit_ && (iter % 60))
+				continue;
 
 			if(quit_)
 				break;
