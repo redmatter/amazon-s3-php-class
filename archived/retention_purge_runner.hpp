@@ -168,14 +168,14 @@ public:
 		if(!props.size())
 			THROW_RML_EXCEPTION("could not stat item on endpoint:"<<p_item->endpoint->id);
 
-		if(props.find("x-amz-meta-clear-size") != props.end())
+		if(props.find("clear-size") != props.end())
 			p_item->clear_size = rml::utils::strtoull(props["clear-size"].c_str(), 0ULL);
 
 		if(props.find("content-length") != props.end())
 			p_item->real_size = rml::utils::strtoull(props["content-length"].c_str(), 0ULL);
 
 #define AssertProps(key) \
-		if(props.find("x-amz-meta-"key) == props.end()) throw rml::exception(key" not found in HEAD response")
+		if(props.find(key) == props.end()) throw rml::exception(key" not found in HEAD response")
 
 		AssertProps("policy-id");
 		AssertProps("policy-version");
@@ -189,11 +189,11 @@ public:
 				p_item->identifier,
 				p_item->retention->file_format,
 				p_item->retention->user_id,
-				rml::utils::strtoll(props["x-amz-meta-policy-id"].c_str(), 0LL),
-				rml::utils::strtoull(props["x-amz-meta-policy-version"].c_str(), 0ULL),
-				boost::gregorian::from_simple_string(props["x-amz-meta-creation-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["x-amz-meta-retention-min-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["x-amz-meta-retention-max-date"]).year_month_day(),
+				rml::utils::strtoll(props["policy-id"].c_str(), 0LL),
+				rml::utils::strtoull(props["policy-version"].c_str(), 0ULL),
+				boost::gregorian::from_simple_string(props["creation-date"]).year_month_day(),
+				boost::gregorian::from_simple_string(props["retention-min-date"]).year_month_day(),
+				boost::gregorian::from_simple_string(props["retention-max-date"]).year_month_day(),
 				0,
 				false,
 				true,

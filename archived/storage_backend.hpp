@@ -31,7 +31,8 @@
 #include <map>
 
 #include <stdint.h>
-#include <strings.h>
+//#include <strings.h>
+#include <string.h>
 
 namespace {
 
@@ -276,8 +277,12 @@ protected:
 		}
 		
 		if(properties->metaDataCount) {
-			for(int i = 0; i < properties->metaDataCount; ++i)
-				data->headers[properties->metaData[i].name] = properties->metaData[i].value;
+			for(int i = 0; i < properties->metaDataCount; ++i) {
+				if(0 == strncmp(properties->metaData[i].name, S3_METADATA_HEADER_NAME_PREFIX, sizeof(S3_METADATA_HEADER_NAME_PREFIX)-1))
+					data->headers[std::string(properties->metaData[i].name, sizeof(S3_METADATA_HEADER_NAME_PREFIX) - 1, std::string::npos)] = properties->metaData[i].value;
+				else
+					data->headers[properties->metaData[i].name] = properties->metaData[i].value;
+			}
 		}
 
 		RML_DEBUG_START
