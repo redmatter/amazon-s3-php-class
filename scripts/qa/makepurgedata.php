@@ -163,9 +163,9 @@ class MakePurgeDataApp extends BaseApp
 	 */
 	private static function MakeMetaHeaders(&$headers, $retention, $isLegacyMode=false, $introduceErrors=false)
 	{
-		$headers['x-amz-meta-file-type'] = $retention->Type;
-		$headers['x-amz-meta-file-type-is-compressed'] = 'no';
-		$headers['x-amz-meta-file-type-is-encrypted'] = 'no';
+		$headers['file-type'] = $retention->Type;
+		$headers['file-type-is-compressed'] = 'no';
+		$headers['file-type-is-encrypted'] = 'no';
 		
 		if($isLegacyMode)
 			return;
@@ -176,17 +176,17 @@ class MakePurgeDataApp extends BaseApp
 						sprintf('%d day', mt_rand(10, 90))))->format('Y-m-d');
 		$mangle_target = mt_rand(0, 3);
 		
-		$headers['x-amz-meta-creation-date'] = ($introduceErrors && ($mangle_target <= 0))? $mangled_date: $retention->CreationDate;
-		$headers['x-amz-meta-policy-id'] = $retention->PolicyID;
-		$headers['x-amz-meta-policy-version'] = $retention->PolicyVersion;
-		$headers['x-amz-meta-real-size'] = $retention->RealUsage;
-		$headers['x-amz-meta-retention-max-date'] = ($introduceErrors && ($mangle_target == 1))? $mangled_date: $retention->RetentionMaxDate;
-		$headers['x-amz-meta-retention-min-date'] = ($introduceErrors && ($mangle_target >= 2))? $mangled_date: $retention->RetentionMinDate;
-		$headers['x-amz-meta-leg-uuid'] = '';
+		$headers['creation-date'] = ($introduceErrors && ($mangle_target <= 0))? $mangled_date: $retention->CreationDate;
+		$headers['policy-id'] = $retention->PolicyID;
+		$headers['policy-version'] = $retention->PolicyVersion;
+		$headers['real-size'] = $retention->RealUsage;
+		$headers['retention-max-date'] = ($introduceErrors && ($mangle_target == 1))? $mangled_date: $retention->RetentionMaxDate;
+		$headers['retention-min-date'] = ($introduceErrors && ($mangle_target >= 2))? $mangled_date: $retention->RetentionMinDate;
+		$headers['leg-uuid'] = '';
 
-		$headers['x-amz-meta-qa-created-by'] = 'makepurgedata';
-		$headers['x-amz-meta-qa-introduce-errors'] = $introduceErrors? 'yes': 'no';
-		$headers['x-amz-meta-qa-legacy-mode'] = $isLegacyMode? 'yes': 'no';
+		$headers['qa-created-by'] = 'makepurgedata';
+		$headers['qa-introduce-errors'] = $introduceErrors? 'yes': 'no';
+		$headers['qa-legacy-mode'] = $isLegacyMode? 'yes': 'no';
 	}
 	
 	/**
