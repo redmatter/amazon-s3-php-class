@@ -163,7 +163,7 @@ class MakePurgeDataApp extends BaseApp
 	 */
 	private static function MakeMetaHeaders(&$headers, $retention, $isLegacyMode=false, $introduceErrors=false)
 	{
-		$headers['file-type'] = $retention->Type;
+		$headers['file-type'] = 'unknown';
 		$headers['file-type-is-compressed'] = 'no';
 		$headers['file-type-is-encrypted'] = 'no';
 		
