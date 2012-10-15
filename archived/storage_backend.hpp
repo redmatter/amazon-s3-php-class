@@ -13,8 +13,11 @@
 #include "storage_endpoint.hpp"
 
 #include <rml/exception.h>
+#include <rml/utils.h>
 
 #include <libs3.h>
+
+#include <openssl/crypto.h>
 
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/filters.h>
@@ -30,6 +33,7 @@
 #include <string>
 #include <map>
 
+#include <pthread.h>
 #include <stdint.h>
 //#include <strings.h>
 #include <string.h>
@@ -124,6 +128,7 @@ namespace s3 {
 class backend : public basic_backend< backend >
 {
 	const boost::program_options::variables_map& confMap_;
+	std::vector< boost::shared_ptr< boost::mutex > > openssl_mutexes_;
 
 	friend S3Status ::get_response_properties_cb_(const S3ResponseProperties*, void*);
 	friend S3Status ::multidelete_response_properties_cb_(const S3ResponseProperties *, void *);
@@ -140,8 +145,33 @@ protected:
 	backend(const boost::program_options::variables_map& confMap) :
 		confMap_(confMap)
 	{
+		static const std::string useragent("RM-HTTPClient");
+		S3Status initStatus = S3_initialize(&useragent[0], S3_INIT_ALL);
+		if(S3StatusOK != initStatus)
+			THROW_RML_EXCEPTION("S3 backend init failed; libs3 error:"<<S3_get_status_name(initStatus));
+
+		openssl_mutexes_.resize(CRYPTO_num_locks());
+        for(size_t i = 0; i < openssl_mutexes_.size(); ++i)
+        	openssl_mutexes_[i].reset(new boost::mutex());
+        CRYPTO_set_locking_callback(&backend::openssl_set_lock);
+        CRYPTO_set_id_callback(&backend::openssl_set_id);
+
 		LogMessage("S3 backend created");
 	}
+
+    static void openssl_set_lock(int mode, int n, const char* /*file*/, int /*line*/)
+    {
+      if (mode & CRYPTO_LOCK)
+    	  boost::static_pointer_cast< backend >(get_instance())->openssl_mutexes_[n]->lock();
+      else
+    	  boost::static_pointer_cast< backend >(get_instance())->openssl_mutexes_[n]->unlock();
+    }
+
+    static unsigned long openssl_set_id()
+    {
+    	unsigned long ret = (unsigned long)pthread_self();
+    	return ret;
+    }
 
 	struct put_callback_data
 	{
@@ -440,7 +470,10 @@ public:
 
 	virtual ~backend()
 	{
-		LogMessage("S3 backend destroyed");
+        CRYPTO_set_locking_callback(0);
+        CRYPTO_set_id_callback(0);
+
+        LogMessage("S3 backend destroyed");
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
