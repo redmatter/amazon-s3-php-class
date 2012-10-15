@@ -143,7 +143,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 		if (count($where_date))
 			$where[] = (count($where_date) > 1)? sprintf('( %s )', implode(' AND ', $where_date)): $where_date[0];
 		
-		$where[] = sprintf('retention.Type %s %s', ((count($filetypes) > 1)? 'IN': '='), ((count($filetypes) > 1)? implode(', ', $filetypes): $filetypes[0]));
+		$where[] = sprintf('retention.Type %s ( %s )', ((count($filetypes) > 1)? 'IN': '='), ((count($filetypes) > 1)? implode(', ', $filetypes): $filetypes[0]));
 
 		$where = implode(' AND ', $where);
 		
