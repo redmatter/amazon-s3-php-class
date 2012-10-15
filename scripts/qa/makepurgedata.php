@@ -40,12 +40,13 @@ class MakePurgeDataApp extends BaseApp
 	private static $creation_date;
 	private static $api;
 		
-	private static function GetFileTypes($types_str)
+	private static function GetFileTypes($types_str, $org)
 	{
 		$ret = array();
 
 		if (0 === strcasecmp($types_str, 'all'))
-			return array(Archiving::FILE_TYPE_CDR, Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS);
+			return ($org==1)? array(Archiving::FILE_TYPE_CDR, Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS):;
+					array(Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS);
 		
 		foreach (preg_split('/[,;] */', $types_str) as $type)
 			if ($type = Archiving::GetFileType($type))
@@ -208,17 +209,17 @@ class MakePurgeDataApp extends BaseApp
 		$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
 		if (!$authHash)
 			throw new Exception('No authorization hash specified');
+
+		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
+		if (!self::VerifyOrgID($org))
+			throw new Exception('Invalid OrgID specified');
 		
-		$filetypes = self::GetFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')));
+		$filetypes = self::GetFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')), $org);
 		if (!count($filetypes))
 			throw new Exception('Invalid file types specified');
 		
 		self::$creation_date = new DateTime(cli::get('--creation-date', $config->get('dataset.creation_date', 'now')));
 		self::$creation_date = self::$creation_date->getTimestamp();
-
-		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
-		if (!self::VerifyOrgID($org))
-			throw new Exception('Invalid OrgID specified');
 		
 		if($org != 1 && in_array(Archiving::FILE_TYPE_CDR, $filetypes))
 			throw new Exception('CDR not allowed for anyone other than Org:1');
