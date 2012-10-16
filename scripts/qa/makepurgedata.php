@@ -45,7 +45,7 @@ class MakePurgeDataApp extends BaseApp
 		$ret = array();
 
 		if (0 === strcasecmp($types_str, 'all'))
-			return ($org==1)? array(Archiving::FILE_TYPE_CDR, Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS):;
+			return ($org==1)? array(Archiving::FILE_TYPE_CDR, Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS) :
 					array(Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS);
 		
 		foreach (preg_split('/[,;] */', $types_str) as $type)
