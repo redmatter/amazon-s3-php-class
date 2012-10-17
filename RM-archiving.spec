@@ -87,7 +87,8 @@ Requires: RM-%{appname}-convert >= %{version}-%{release}
 %package qascripts
 Summary: Archiving Utility Scripts for QA
 Group: RedMatter/Archiving
-Requires: RM-%{appname}-scripts >= %{version}-%{release}
+#Requires: RM-%{appname}-scripts >= %{version}-%{release}
+Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
 %package gateway
