@@ -85,7 +85,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 	 */
 	public function run()
 	{
-		if (true === cli::get('--help', false))
+		if (true === cli::get('--help'))
 		{
 			$self = basename(__FILE__, '.php');
 			echo <<<HELP
