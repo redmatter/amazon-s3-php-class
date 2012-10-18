@@ -85,31 +85,6 @@ class ArchivingHeadersPatchApp extends BaseApp
 	 */
 	public function run()
 	{
-		if (true === cli::get('--help'))
-		{
-			$self = basename(__FILE__, '.php');
-			echo <<<HELP
-
-Archiving Metadata Headers Patcher
-$self --conf=/path/to/run.conf [--orgs=<all|Org1[,Org2,...]>] [--types=<all|Type1[,Type2,...]>]
-        [--start-date=<YYYY-MM-DD>] [--end-date=<YYYY-MM-DD>] 
-
-    --orgs=<all|Org1[,Org2,...]>
-        Config: subset.org_ids
-
-    --types=<all|Type1[,Type2,...]>
-        Config: subset.file_types
-
-    --start-date=<YYYY-MM-DD>
-        Config: subset.start_date
-
-    --end-date=<YYYY-MM-DD>
-        Config: subset.end_date
-
-HELP;
-			exit(0);
-		}
-		
 		$maxId = 0;
 		
 		$config = $this->conf;
@@ -276,6 +251,31 @@ HELP;
 
 try
 {
+	if (true === cli::get('--help'))
+	{
+		$self = basename(__FILE__, '.php');
+		echo <<<HELP
+
+Archiving Metadata Headers Patcher
+$self --conf=/path/to/run.conf [--orgs=<all|Org1[,Org2,...]>] [--types=<all|Type1[,Type2,...]>]
+        [--start-date=<YYYY-MM-DD>] [--end-date=<YYYY-MM-DD>] 
+
+    --orgs=<all|Org1[,Org2,...]>
+        Config: subset.org_ids
+
+    --types=<all|Type1[,Type2,...]>
+        Config: subset.file_types
+
+    --start-date=<YYYY-MM-DD>
+        Config: subset.start_date
+
+    --end-date=<YYYY-MM-DD>
+        Config: subset.end_date
+
+HELP;
+		exit(0);
+	}
+
 	if (false === ($config_file = cli::get('--conf', false)))
 		throw new Exception('No configuration given; use --conf option');
 
