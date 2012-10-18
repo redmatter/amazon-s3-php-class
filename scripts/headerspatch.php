@@ -85,6 +85,31 @@ class ArchivingHeadersPatchApp extends BaseApp
 	 */
 	public function run()
 	{
+		if (true === cli::get('--help', false))
+		{
+			$self = basename(__FILE__, '.php');
+			echo <<<HELP
+
+Archiving Metadata Headers Patcher
+$self --conf=/path/to/run.conf [--orgs=<all|Org1[,Org2,...]>] [--types=<all|Type1[,Type2,...]>]
+        [--start-date=<YYYY-MM-DD>] [--end-date=<YYYY-MM-DD>] 
+
+    --orgs=<all|Org1[,Org2,...]>
+        Config: subset.org_ids
+
+    --types=<all|Type1[,Type2,...]>
+        Config: subset.file_types
+
+    --start-date=<YYYY-MM-DD>
+        Config: subset.start_date
+
+    --end-date=<YYYY-MM-DD>
+        Config: subset.end_date
+
+HELP;
+			exit(0);
+		}
+		
 		$maxId = 0;
 		
 		$config = $this->conf;
@@ -101,7 +126,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 		if (!$authHash)
 			throw new Exception('No authorization hash specified');
 		
-		$absoluteStopDate = $config->get('subset.absolute_stop_date', false);
+		$absoluteStopDate = $config->get('subset.absolute_stop_date', '2012-02-15');
 		if (!$absoluteStopDate)
 			throw new Exception('No absolute stop date not specified');
 				
