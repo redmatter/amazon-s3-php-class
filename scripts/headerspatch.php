@@ -101,7 +101,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 		if (!$authHash)
 			throw new Exception('No authorization hash specified');
 		
-		$absoluteStopDate = $config->get('subset.absolute_stop_date', '2012-02-15');
+		$absoluteStopDate = cli::get('--absolute-stop-date', $config->get('subset.absolute_stop_date', '2012-02-15'));
 		if (!$absoluteStopDate)
 			throw new Exception('No absolute stop date not specified');
 				
