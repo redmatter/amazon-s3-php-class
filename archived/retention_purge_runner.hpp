@@ -109,13 +109,15 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
 	{
-		std::string auto_expiring_filetypes(confMap["retention_purge.auto_expiring_filetypes"].as<std::string>());
-		std::vector<std::string> str_filetypes;
-		boost::split(str_filetypes, auto_expiring_filetypes, boost::is_any_of(", \t"));
-		std::vector<std::string>::const_iterator itr = str_filetypes.begin();
-		std::vector<std::string>::const_iterator end = str_filetypes.end();
-		for(; itr != end; ++itr)
-			auto_expire_filetype_[(int)archiving::archivable::file_type::from_string(*itr)] = true;
+		const std::string& auto_expiring_filetypes(confMap["retention_purge.auto_expiring_filetypes"].as<std::string>());
+		if(!auto_expiring_filetypes.empty()) {
+			std::vector<std::string> str_filetypes;
+			boost::split(str_filetypes, auto_expiring_filetypes, boost::is_any_of(", \t"));
+			std::vector<std::string>::const_iterator itr = str_filetypes.begin();
+			std::vector<std::string>::const_iterator end = str_filetypes.end();
+			for(; itr != end; ++itr)
+				auto_expire_filetype_[(int)archiving::archivable::file_type::from_string(*itr)] = true;
+		}
 	}
 
 	/**
