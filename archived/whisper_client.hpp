@@ -364,7 +364,7 @@ private:
 				current_state_ = state::nop_ack_err;
 			}
 			else {
-				LogDebug("NOP acked OK");
+//				LogDebug("NOP acked OK");
 				current_state_ = state::nop_ack_ok;
 			}
 

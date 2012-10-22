@@ -688,11 +688,9 @@ public:
 				boost::this_thread::sleep(boost::posix_time::seconds(1));
 				continue;
 			}
-LogDebug(" ++++++++++++++++++++++++++++++++ iter: "<<iter);
 
 			const int iter_180(iter % 180);
 			if(!quit_ && (iter_180 >= 0 && iter_180 <= 30) ) {
-LogDebug(" ++++++++++++++++++++++++++++++++ iter_180: "<<iter_180);
 
 				// here we make the batching mechanism to fire-off the state; they could be starving for items
 				// so we fire-off dummy items into the channel(s)
