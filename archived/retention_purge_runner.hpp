@@ -695,6 +695,8 @@ public:
 				// here we make the batching mechanism to fire-off the state; they could be starving for items
 				// so we fire-off dummy items into the channel(s)
 
+				LogDebug("Dummy item ... "<<iter_180);
+
 				switch(iter_180) {
 				case 0: // every 3 mins
 				{
