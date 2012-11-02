@@ -216,6 +216,7 @@ cp scripts/archiving-extract-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archivin
 cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
+cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch.conf
 cp scripts/retention_ro.conf %{buildroot}/usr/share/archiving/scripts-retention_ro.conf.sample
 cp scripts/retention_rw.conf %{buildroot}/usr/share/archiving/scripts-retention_rw.conf.sample
 
@@ -459,6 +460,7 @@ fi
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
+/etc/logrotate.d/archiving-headerspatch.conf
 
 %files qascripts
 %defattr(-,root,root)
