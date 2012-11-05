@@ -223,20 +223,26 @@ class ArchivingHeadersPatchApp extends BaseApp
 										
 										if ($header_mismatch)
 										{
-											$retry = 0;
+											$retry = 5;
+											$delay = 0;
 											$copy_ok = null;
 											do {
 												if (!is_null($copy_ok))
-													sleep(1);
+													sleep($delay);
 											
 												if (false === ($copy_ok = $s3->copyObject($endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, array('Content-Type'=>'binary/octet-stream'))))
 												{
 													if ($retry)
-														LogWarning('Error copying new metadata; retrying...', $identifier);
+													{
+														$delay = pow(6 - $retry, 2);
+														LogWarning("Error copying new metadata; retrying in $delay seconds", $identifier);
+													}
 													else
 														LogError('Error copying new metadata; giving up!', $identifier);
 												}
 											} while ($retry-- && !$copy_ok);
+
+											LogMessage(sprintf('outcome:%s', $copy_ok? 'ok': 'failed'), $identifier);
 										}
 										else
 											LogMessage('No mismatch in metadata', $identifier);
