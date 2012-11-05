@@ -279,7 +279,7 @@ private:
 				force_reconnect, true, boost::asio::placeholders::error)));
 	}
 
-	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error)
+	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
 		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
 			LogMessage("Timeout; reconnecting...");
@@ -289,6 +289,16 @@ private:
 			LogMessage("Socket operation aborted; reconnecting...");
 			set_reconnect_timer(10, true);
 		}
+	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+		reconnect(false, 10);
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+		reconnect(false, 10);
 	}
 
 	inline void connect_archived(const bool force_reconnect)
@@ -305,7 +315,7 @@ private:
 		connect_archived();
 	}
 
-	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
+	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator) try
 	{
 		if (!err) {
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
@@ -318,8 +328,16 @@ private:
 			LogWarning("Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
 		}
 	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+	}
 
-	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator)
+	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator) try
 	{
 		if (!error) {
 			boost::system::error_code ec;
@@ -349,8 +367,16 @@ private:
 			}
 		}
 	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+	}
 
-	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
 		if(!error) {
 			if(current_state_ == state::nop_sent) {
@@ -390,8 +416,18 @@ private:
 
 		reconnect(false);
 	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+		reconnect(false);
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+		reconnect(false);
+	}
 
-	void run_statemachine(const boost::system::error_code& error)
+	void run_statemachine(const boost::system::error_code& error) try
 	{
 		// reset any timer in progress; if we loop through, we are alive and kicking
 		timer_.cancel();
@@ -716,8 +752,18 @@ private:
 
 		} // switch
 	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+		reconnect(false, 10);
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+		reconnect(false, 10);
+	}
 
-	void get_archivable_for_put()
+	void get_archivable_for_put() try
 	{
 		boost::shared_ptr<tcp::socket> p_socket = p_socket_;
 		
@@ -804,12 +850,17 @@ private:
 			LogMessage("channel finishing: closing");
 			close();
 		}
-		catch(const std::exception& e) {
-			LogWarning(e.what());
-		}
+	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
 	}
 
-	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
 		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
@@ -854,10 +905,31 @@ private:
 
 		set_reconnect_timer(10, true);
 	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+		reconnect(false, 5);
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+		reconnect(false, 5);
+	}
 
-	void timer_do_close(const bool& reconnect, unsigned int reconnect_delay_seconds, const boost::system::error_code& error) {
+	void timer_do_close(const bool& reconnect, unsigned int reconnect_delay_seconds, const boost::system::error_code& error) try
+	{
 		if(error != boost::asio::error::operation_aborted)
 			do_close(reconnect, reconnect_delay_seconds);
+	}
+	catch(const std::exception& e)
+	{
+		LogWarning("Exception: "<<e.what());
+		do_close(reconnect, reconnect_delay_seconds);
+	}
+	catch(...)
+	{
+		LogWarning("Exception: Unknown");
+		do_close(reconnect, reconnect_delay_seconds);
 	}
 
 	void do_close(const bool& reconnect, unsigned int reconnect_delay_seconds) {
