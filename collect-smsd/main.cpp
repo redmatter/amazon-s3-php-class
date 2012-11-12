@@ -289,6 +289,8 @@ int main(int argc, char* argv[]) try
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
+		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
+				new boost::asio::io_service::work(io_service));
 
 		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
 
@@ -366,6 +368,8 @@ int main(int argc, char* argv[]) try
 		out_channel.set_finishing();
 
 		coreapi.logout();
+
+		p_work.reset();
 
 		io_service.stop();
 

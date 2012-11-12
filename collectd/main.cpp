@@ -302,6 +302,8 @@ int main(int argc, char* argv[]) try
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
+		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
+				new boost::asio::io_service::work(io_service));
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, app::hostname);
 		archiving::dir_monitor dir_monitor(io_service);
@@ -380,6 +382,8 @@ int main(int argc, char* argv[]) try
 
 		in_channel.set_finishing();
 		out_channel.set_finishing();
+
+		p_work.reset();
 
 		io_service.stop();
 
