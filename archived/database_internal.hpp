@@ -570,18 +570,22 @@ public:
 		return p_ret;
 	}
 
-	long get_purge_queue_size(const int& purge_min_queue_size)
+	long get_purge_queue_size(const int& purge_max_queue_size)
 	{
 		try {
 			rml::MySQLConnection conn(*p_pool_);
 			{
 				mysqlpp::Query query = conn->query();
 
-				query << "SELECT COUNT(*) QSize FROM ( SELECT 1 FROM ArchiveDPurgeQueue WHERE HostName=%0q:HostName LIMIT %1:MinQueueSizePlusOne ) x";
+				query << "SELECT COUNT(*) QSize, @@auto_increment_increment FROM ( "
+						"    SELECT 1 FROM ArchiveDPurgeQueue "
+						"        WHERE HostName=%0q:HostName "
+						"            AND (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "
+						"        LIMIT %1:MinQueueSizePlusOne ) x";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
-				qp << hostname << (purge_min_queue_size + 1);
+				qp << hostname << (purge_max_queue_size + 1);
 
 				SQL_DEBUG(query.str(qp));
 				mysqlpp::UseQueryResult res = query.use(qp);

@@ -87,7 +87,7 @@ class runner : public boost::enable_shared_from_this<runner>
 		purge_batch_days = 7,
 		purge_batch_count = 1000,
 
-		purge_min_queue_size = 5000,
+		purge_max_queue_size = 5000,
 
 		purge_file_interval_seconds = 10,
 		purge_usage_interval_seconds = 20,
@@ -251,7 +251,7 @@ public:
 
 		internal_db_.batch_load< item, item::extract_id >(
 			approved_items,
-			boost::bind(item::setup_select, _1, _2, std::string("State=")+boost::lexical_cast<std::string>(state::approve_ok)+" AND HostName='"+app::hostname+"'"),
+			boost::bind(item::setup_select, _1, _2, std::string("`State`=")+boost::lexical_cast<std::string>(state::approve_ok)+" AND `HostName`='"+app::hostname+"' AND (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "),
 				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)),
 			boost::bind(item::setup_update_by_ids_begin, _1, _2, std::string("State=")+boost::lexical_cast<std::string>(state::delete_file)));
 
@@ -757,8 +757,8 @@ public:
 
 			try {
 				// check if we need to feed the queue
-				if (purge_min_queue_size < internal_db_.get_purge_queue_size(purge_min_queue_size)) {
-					LogMessage("Purge queue size >= "<<purge_min_queue_size<<"; not en-queueing anymore");
+				if (purge_max_queue_size < internal_db_.get_purge_queue_size(purge_max_queue_size)) {
+					LogMessage("Purge queue size >= "<<purge_max_queue_size<<"; not en-queueing anymore");
 					continue;
 				}
 
@@ -778,13 +778,20 @@ public:
 
 					const types::purge_def::set_t::const_iterator& end(p_purge_def->set.end());
 					for(types::purge_def::set_t::const_iterator itr = p_purge_def->set.begin(); !quit_ && (itr != end); ++itr) {
-						uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit));
-						if(new_max_id == itr->max_retention_id) {
-							LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to zero": ""));
-							new_max_id = 0;
-						}
+						const long purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+						// make sure we dont over fill
+						if (purge_max_queue_size > purge_queue_size) {
+							// readjust limit based on purge queue size
+							const int limit_now(purge_queue_size > std::min< int >(limit, purge_max_queue_size - purge_queue_size));
 
-						orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
+							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
+							if(new_max_id == itr->max_retention_id) {
+								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to zero": ""));
+								new_max_id = 0;
+							}
+
+							orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
+						}
 					}
 
 					p_purge_def->set.swap(orgs_update);
