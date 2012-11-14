@@ -480,7 +480,8 @@ public:
 		return false;
 	}
 
-	types::purge_def::pointer update_get_purge_def(const types::purge_def::pointer& previous, const unsigned int limit)
+	types::purge_def::pointer update_get_purge_def(const types::purge_def::pointer& previous, const unsigned int limit,
+			const std::string& enabled_orgs)
 	{
 		types::purge_def::pointer p_ret(new types::purge_def());
 
@@ -512,7 +513,20 @@ public:
 				query.execute();
 			}
 
-			{
+			if(!enabled_orgs.empty()) {
+
+				std::string where_enabled_orgs;
+				{
+					if(enabled_orgs != "all") {
+						if(std::string::npos == enabled_orgs.find(','))
+							// not a list
+							where_enabled_orgs = " AND `OrgID` = "+enabled_orgs;
+						else
+							// a list or orgs
+							where_enabled_orgs = " AND `OrgID` IN ( "+enabled_orgs+" )";
+					}
+				}
+
 				p_ret->creation_time = time(0);
 
 				// if offset is 0 and set is empty, start from begining
@@ -522,6 +536,7 @@ public:
 				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
 							"LastRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) LastRunMoreThanOneHourAgo "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
+						"WHERE (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "<<where_enabled_orgs<<" "
 						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
 				SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();

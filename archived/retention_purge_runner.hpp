@@ -118,6 +118,9 @@ public:
 			for(; itr != end; ++itr)
 				auto_expire_filetype_[(int)archiving::archivable::file_type::from_string(*itr)] = true;
 		}
+
+		// initialise it! not thread-safe
+		(void) get_retention_purge_restrictions(confMap);
 	}
 
 	/**
@@ -129,10 +132,7 @@ public:
 	{
 		uint64_t new_max_retention_id(max_retention_id);
 		const retention_record::set_t& purgeables(
-				retention_db_.get_retention_for_purge(
-						org_id, max_retention_id, batch_count, confMap_["retention_purge.lag_days"].as<unsigned int>(),
-						confMap_["retention_purge.creation_date_range_start"].as<std::string>(),
-						confMap_["retention_purge.creation_date_range_end"].as<std::string>()));
+				retention_db_.get_retention_for_purge(org_id, max_retention_id, batch_count, get_retention_purge_restrictions()));
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));
@@ -453,7 +453,7 @@ public:
 									}
 
 									if(!quit_)
-										done_ok = retention_db_.purge_usage(
+										done_ok = retention_db_.usage_purge(
 												(*itr)->identifier.org, (*itr)->identifier.filetype, (*itr)->endpoint->id,
 												count, clear_usage, real_usage);
 								}
@@ -771,7 +771,7 @@ public:
 					p_purge_def = retention_db_.get_orgs_for_purge();
 				}
 
-				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit);
+				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit, confMap_["retention_purge.enabled_orgs"].as<std::string>());
 
 				if (!p_purge_def->set.empty()) {
 					types::purge_def::set_t orgs_update;

@@ -33,7 +33,78 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.creation_date_range_start", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.auto_expiring_filetypes", boost::program_options::value<std::string>()->default_value("cdr"), "factor in endpoint's (S3 only at the moment) auto-expiration capability")
+			("retention_purge.enabled_orgs", boost::program_options::value<std::string>()->default_value(""), "purge enabled orgs")
 			;
+}
+
+inline std::string& get_retention_purge_restrictions(const boost::program_options::variables_map& confMap = boost::program_options::variables_map())
+{
+	static std::string where;
+
+	if(where.empty()) {
+		if(confMap.empty())
+			throw rml::exception("confMap empty when initialising!");
+
+		std::string where_enabled_orgs;
+		{
+			const std::string& enabled_orgs(confMap["retention_purge.enabled_orgs"].as<std::string>());
+			if(enabled_orgs.empty()) {
+				where = "AND 1 = 0 /* retention_purge.enabled_orgs is empty */";
+				return where;
+			}
+
+			if(enabled_orgs != "all") {
+				if(std::string::npos == enabled_orgs.find(','))
+					// not a list
+					where_enabled_orgs = "`r`.`OrgID` = "+enabled_orgs;
+				else
+					// a list or orgs
+					where_enabled_orgs = "`r`.`OrgID` IN ( "+enabled_orgs+" )";
+			}
+		}
+
+		std::string where_creation_date_range;
+		{
+			const std::string& creation_date_start(confMap["retention_purge.creation_date_range_start"].as<std::string>());
+			const std::string& creation_date_end(confMap["retention_purge.creation_date_range_end"].as<std::string>());
+
+			std::string where_start, where_end;
+
+			if (!creation_date_start.empty())
+				where_start = std::string("`r`.`CreationDate` >= '")+creation_date_start+"' ";
+			if (!creation_date_end.empty())
+				where_end = std::string("`r`.`CreationDate` <= '")+creation_date_end+"' ";
+
+			if(!where_start.empty() && !where_end.empty())
+				where_creation_date_range = std::string("( ")+where_start+"AND "+where_end+") ";
+			else if(!where_start.empty())
+				where_creation_date_range = where_start;
+			else if(!where_end.empty())
+				where_creation_date_range = where_end;
+		}
+
+		std::string where_lag_days;
+		{
+			const unsigned int& lag_days(confMap["retention_purge.lag_days"].as<unsigned int>());
+			if(lag_days) {
+				std::ostringstream ostr;
+				ostr << "`r`.`RetentionMaxDate` < DATE_SUB(CURDATE(), INTERVAL "<<lag_days<<" DAY)";
+
+				where_lag_days = ostr.str();
+			}
+		}
+
+		if(!where_enabled_orgs.empty())
+			where += " AND "+where_enabled_orgs;
+		if(!where_creation_date_range.empty())
+			where += " AND "+where_creation_date_range;
+		if(!where_lag_days.empty())
+			where += " AND "+where_lag_days;
+
+		LogDebug("where: "<<where);
+	}
+
+	return where;
 }
 
 struct state

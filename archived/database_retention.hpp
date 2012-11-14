@@ -142,27 +142,9 @@ public:
 	}
 
 	retention_record::set_t get_retention_for_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id,
-			const unsigned int limit, const unsigned int lag_days, const std::string& creation_date_start,
-			const std::string& creation_date_end)
+			const unsigned int limit, const std::string& where_configured_restrictions)
 	{
 		retention_record::set_t ret;
-
-		std::string where_creation_date_range;
-		{
-			std::string where_start, where_end;
-
-			if (!creation_date_start.empty())
-				where_start = std::string("CreationDate >= '")+creation_date_start+"' ";
-			if (!creation_date_end.empty())
-				where_end = std::string("CreationDate <= '")+creation_date_end+"' ";
-
-			if(!where_start.empty() && !where_end.empty())
-				where_creation_date_range = std::string(" AND ( ")+where_start+"AND "+where_end+") ";
-			else if(!where_start.empty())
-				where_creation_date_range = std::string(" AND ")+where_start;
-			else if(!where_end.empty())
-				where_creation_date_range = std::string(" AND ")+where_end;
-		}
 
 		rml::MySQLConnection conn(*p_pool_); // scoped connection
 		mysqlpp::Transaction transaction(*conn);
@@ -172,9 +154,7 @@ public:
 			query << "SELECT "
 					<< retention_select_fields() <<
 					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-					"WHERE ID > "<<max_retention_id<<" AND r.RetentionMaxDate < DATE_SUB(CURDATE(), INTERVAL "<<lag_days<<" DAY)"
-					<< where_creation_date_range <<
-					" AND `State`='Available'"
+					"WHERE ID > "<<max_retention_id<<" AND `State`='Available' "<<where_configured_restrictions<<" "
 					"LIMIT "<<limit<<" FOR UPDATE";
 
 			SQL_DEBUG(query.str());
@@ -240,14 +220,36 @@ public:
 
 		try {
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
+
+			static unsigned int auto_increment_offset(0);
+			static unsigned int auto_increment_increment(0);
+			if(!auto_increment_increment) {
+				mysqlpp::Query query = conn->query();
+				query << "SELECT @@auto_increment_offset, @@auto_increment_increment";
+
+				SQL_DEBUG(query.str());
+
+				mysqlpp::UseQueryResult res = query.use();
+				while (mysqlpp::Row row = res.fetch_row()) { // only once
+					auto_increment_increment = rml::utils::strtoull(row[1].c_str(), 0ULL);
+					auto_increment_offset = rml::utils::strtoull(row[0].c_str(), 0ULL) % auto_increment_increment;
+				}
+
+				if(!auto_increment_increment)
+					throw rml::exception("Failed to figure out auto_increment_XXX");
+			}
+
 			mysqlpp::Query query = conn->query();
 			query << "SELECT TABLE_NAME FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template'";
 
 			SQL_DEBUG(query.str());
 
 			mysqlpp::UseQueryResult res = query.use();
-			while (mysqlpp::Row row = res.fetch_row())
-				ret->set.insert(types::purge_def::org_def(rml::utils::strtoull(row[0].c_str() + 10)));
+			while (mysqlpp::Row row = res.fetch_row()) {
+				const archiving::org_id_t org(rml::utils::strtoull(row[0].c_str() + 10));
+				if ((org % auto_increment_increment) == auto_increment_offset)
+					ret->set.insert(types::purge_def::org_def(org));
+			}
 		}
 		catch(const mysqlpp::Exception& e) {
 			LogError("MySQL Exception: "<<e.what());
@@ -262,7 +264,7 @@ public:
 		return ret;
 	}
 
-	bool purge_usage(const archiving::org_id_t& org, const archiving::archivable::file_type::file_type_t& filetype, const uint64_t& endpoint_id, const int& count, const int64_t& clear_usage, const int64_t& real_usage)
+	bool usage_purge(const archiving::org_id_t& org, const archiving::archivable::file_type::file_type_t& filetype, const uint64_t& endpoint_id, const int& count, const int64_t& clear_usage, const int64_t& real_usage)
 		__attribute__ ((warn_unused_result))
 	{
 		try {
