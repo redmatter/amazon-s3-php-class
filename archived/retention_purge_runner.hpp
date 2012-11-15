@@ -782,7 +782,7 @@ public:
 						// make sure we dont over fill
 						if (purge_max_queue_size > purge_queue_size) {
 							// readjust limit based on purge queue size
-							const int limit_now(purge_queue_size > std::min< int >(limit, purge_max_queue_size - purge_queue_size));
+							const int limit_now(std::min< int >(limit, purge_max_queue_size - purge_queue_size));
 
 							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
 							if(new_max_id == itr->max_retention_id) {
