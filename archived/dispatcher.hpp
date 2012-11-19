@@ -125,6 +125,9 @@ public:
 					break;
 				}
 			}
+			catch(const operation_data::channel_t::finishing_exception& e) {
+				break;
+			}
 			catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 				LogDebug("Timed-out on items to dispatch");
 			}
