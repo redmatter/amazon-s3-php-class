@@ -285,7 +285,7 @@ fi
 # ----------
 
 %post
-/usr/bin/rmarchived-hAPI
+/usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
@@ -296,7 +296,7 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collectd
-/usr/bin/rmarchived-hAPI
+/usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
@@ -306,7 +306,7 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 
 %post collect-smsd
-/usr/bin/rmarchived-hAPI
+/usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
