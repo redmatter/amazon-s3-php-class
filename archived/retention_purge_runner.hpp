@@ -667,7 +667,7 @@ public:
 		}
 
 		// compute the limit based on put rate from statistics
-		return average_put_rate_5mins?
+		return (average_put_rate_5mins > put_rate_zero)?
 						( min_limit_object + (
 								(max_limit_object - min_limit_object) * (
 										(average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero))) )
