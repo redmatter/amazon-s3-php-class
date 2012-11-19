@@ -1,7 +1,7 @@
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
-#include "get_server.hpp"
+//#include "get_server.hpp"
 #include "storage.hpp"
 #include "call_buffering_recording.hpp"
 #include "storage_operation.hpp"
@@ -20,11 +20,13 @@
 #include "coreapi_user.hpp"
 #include "state_reactor.hpp"
 #include "retention_purge_runner.hpp"
+#include "fcgi_storage_access.hpp"
 
 #include "../common/types.hpp"
 #include "../common/cdr_dir_monitor.hpp"
 #include "../common/dir_monitor.hpp"
 
+#include <rml/fcgi/server.hpp>
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
@@ -220,7 +222,8 @@ int main(int argc, char *argv[]) try
 		app::whisper_client::describe_config(optsDesc);
 		app::retention_data_flusher::describe_config(optsDesc);
 		app::purge::describe_config(optsDesc);
-		app::get_server::describe_config(optsDesc);
+//		app::get_server::describe_config(optsDesc);
+		rml::fcgi::server::describe_config(optsDesc);
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
@@ -353,31 +356,38 @@ int main(int argc, char *argv[]) try
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
 		
-		int fd_fcgi_listen = -1;
-		{
-			if(FCGX_Init())
-				throw rml::exception("FCGX_Init failed");
+//		int fd_fcgi_listen = -1;
+//		{
+//			if(FCGX_Init())
+//				throw rml::exception("FCGX_Init failed");
+//
+//			const unsigned int& listen_queue_depth( app::confMap["get_server.fcgi_listen_queue_depth"].as<unsigned int>() );
+//			const std::string& listen_socket( app::confMap["get_server.fcgi_listen_socket"].as<std::string>() );
+//
+//			fd_fcgi_listen = FCGX_OpenSocket(listen_socket.c_str(), listen_queue_depth);
+//			if (-1 == fd_fcgi_listen)
+//				throw rml::exception("failed to listen on fcgi_listen_socket");
+//		}
 
-			const unsigned int& listen_queue_depth( app::confMap["get_server.fcgi_listen_queue_depth"].as<unsigned int>() );
-			const std::string& listen_socket( app::confMap["get_server.fcgi_listen_socket"].as<std::string>() );
-			
-			fd_fcgi_listen = FCGX_OpenSocket(listen_socket.c_str(), listen_queue_depth);
-			if (-1 == fd_fcgi_listen)
-				throw rml::exception("failed to listen on fcgi_listen_socket");
-		}
+		rml::fcgi::server fcgi_server(app::confMap, app::quit);
+		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
+				boost::ref(cached_retention_record_finder), boost::ref(cached_policy_finder),
+				boost::ref(cached_coreapi_user_finder), boost::ref(cached_endpoint_finder), _1, _2));
 		
 		initialized = true;
 		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
 
-		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, cached_coreapi_user_finder, app::quit);
-		{
-			unsigned int n_threads(std::max<unsigned int>(app::confMap["get_server.handler_threads"].as<unsigned int>(), app::get_server::min_handler_threads));
-			while(0 < n_threads--)
-				threads.create_thread(boost::bind(&app::get_server::run, boost::ref(get_server)));
-		}
-		
+//		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, cached_coreapi_user_finder, app::quit);
+//		{
+//			unsigned int n_threads(std::max<unsigned int>(app::confMap["get_server.handler_threads"].as<unsigned int>(), app::get_server::min_handler_threads));
+//			while(0 < n_threads--)
+//				threads.create_thread(boost::bind(&app::get_server::run, boost::ref(get_server)));
+//		}
+
+		fcgi_server.start(threads);
+
 		{
 			unsigned int n_threads = std::max<unsigned int>( app::confMap["converter.threads"].as<unsigned int>(), app::converter::min_threads );
 			LogMessage("Starting "<<n_threads<<" converter threads");
@@ -485,13 +495,15 @@ int main(int argc, char *argv[]) try
 		coreapi.logout();
 
 		io_service.stop();
-		
-		shutdown(fd_fcgi_listen, SHUT_RDWR);
-		close(fd_fcgi_listen);		
+
+		fcgi_server.stop();
+
+//		shutdown(fd_fcgi_listen, SHUT_RDWR);
+//		close(fd_fcgi_listen);
 
 		threads.join_all();
 
-		FCGX_ShutdownPending();
+//		FCGX_ShutdownPending();
 
 		LogAlways("terminated normally");
 
