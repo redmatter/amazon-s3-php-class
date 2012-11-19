@@ -126,6 +126,7 @@ public:
 				}
 			}
 			catch(const operation_data::channel_t::finishing_exception& e) {
+				LogVerbose(e.what());
 				break;
 			}
 			catch(const operation_data::channel_t::consume_timed_out_exception& e) {
