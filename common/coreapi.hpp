@@ -460,6 +460,78 @@ public:
 
 		throw rml::exception("failed after retry");
 	}
+
+	response put(const std::string& uri, const std::string& body, const std::string& content_type = "application/xml", const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
+	{
+		int attempts = 2;
+
+		const std::string& url(base_url_+uri);
+		LogDebug(boost::this_thread::get_id()<<" url: "<<url);
+
+		while(attempts--) {
+			http_client_request request(url);
+			if(use_authorization) {
+				if(authorization.empty()) {
+					if(true != get_authorized())
+						throw rml::exception("Not authorized; invalid call sequence");
+
+					request << boost::network::header("Authorization", authorization_);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+				}
+				else {
+					request << boost::network::header("Authorization", authorization);
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization);
+				}
+			}
+
+			request << boost::network::header("UIVERSION", ui_version_);
+			if (!ip.empty())
+				request << boost::network::header("IP", ip);
+			else if (!ip_.empty())
+				request << boost::network::header("IP", ip_);
+
+			if(!h.empty()) {
+				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
+					request << boost::network::header(itr->first, itr->second);
+					LogDebug(boost::this_thread::get_id()<<' '<<itr->first<<": "<<itr->second);
+				}
+			}
+
+			LogDebug(boost::this_thread::get_id()<<" Content-Type: "<<content_type);
+			LogDebug(boost::this_thread::get_id()<<" Content-Length: "<<body.length());
+			LogDebug(boost::this_thread::get_id()<<" body: "<<body);
+
+			request << boost::network::header("Content-Type", content_type);
+			{
+				std::ostringstream ostr;
+				ostr << body.length();
+				request << boost::network::header("Content-Length", ostr.str());
+			}
+			request << boost::network::body(body);
+
+			http_client_response response;
+			try {
+				response = client_.put(request);
+			}
+			catch(const std::exception& e) {
+				LogError(boost::this_thread::get_id()<<" Error while performing POST; err:"<<e.what());
+				throw;
+			}
+
+			int status = response.status();
+
+			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
+
+			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
+				authorization_error_ = true;
+				continue;
+			}
+
+			return std::make_pair<uint16_t, std::string>(status, response.body());
+		}
+
+		throw rml::exception("failed after retry");
+	}
 };
 
 template < typename Tag >
