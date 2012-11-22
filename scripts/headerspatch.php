@@ -313,18 +313,16 @@ HELP;
 
 try
 {
-	CLI::Init(null, array('orgs:', 'types:', 'start-date:', 'end-date:', 'conf:'));
+	cli::init(null, array('orgs:', 'types:', 'start-date:', 'end-date:', 'conf:', 'help'));
 
-	if (true === cli::get('--help'))
+	if (true === cli::get('help', false))
 	{
 		Usage();
 		exit(0);
 	}
 
-	if (false === ($config_file = cli::get('--conf', false)))
-		throw new Exception('No configuration given; use --conf option');
+	ArchivingHeadersPatchApp::getInstance(cli::get('--conf'))->run();
 
-	ArchivingHeadersPatchApp::getInstance($config_file)->run();
 	exit(0);
 }
 catch(CLIUsageErrorException $e)
