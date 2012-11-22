@@ -275,14 +275,24 @@ class ArchivingHeadersPatchApp extends BaseApp
 	}
 }
 
-try
+/**
+ * Show usage help, optionally with error messag
+ *
+ * @param string $error
+ *
+ * @return none
+ */
+function Usage($error = null)
 {
-	if (true === cli::get('--help'))
-	{
 		$self = basename(__FILE__, '.php');
+		if(!is_null($error))
+			$error = "\n\nERROR: $error\n\n";
+		else
+			$error = '';
+
 		echo <<<HELP
 
-Archiving Metadata Headers Patcher
+Archiving Metadata Headers Patcher$error
 $self --conf=/path/to/run.conf [--orgs=<all|Org1[,Org2,...]>] [--types=<all|Type1[,Type2,...]>]
         [--start-date=<YYYY-MM-DD>] [--end-date=<YYYY-MM-DD>]
 
@@ -299,6 +309,15 @@ $self --conf=/path/to/run.conf [--orgs=<all|Org1[,Org2,...]>] [--types=<all|Type
         Config: subset.end_date
 
 HELP;
+}
+
+try
+{
+	CLI::Init(null, array('orgs:', 'types:', 'start-date:', 'end-date:', 'conf:'));
+
+	if (true === cli::get('--help'))
+	{
+		Usage();
 		exit(0);
 	}
 
@@ -307,6 +326,11 @@ HELP;
 
 	ArchivingHeadersPatchApp::getInstance($config_file)->run();
 	exit(0);
+}
+catch(CLIUsageErrorException $e)
+{
+	Usage($e->getMessage());
+	exit(1);
 }
 catch (Exception $e)
 {
