@@ -48,8 +48,14 @@ class result_cache : public boost::noncopyable
 		const time_t eol_time;
 		const val_type value;
 
-		timed_val_type(val_type value, boost::variate_generator<boost::mt19937&, boost::uniform_int<> >& rander) :
+		explicit timed_val_type(val_type value, boost::variate_generator<boost::mt19937&, boost::uniform_int<> >& rander) :
 			atime(time(0)), eol_time(atime + rander()), value(value)
+		{
+			LogDebug(value<<" end-of-life:"<<eol_time<<" access-time:"<<atime);
+		}
+
+		explicit timed_val_type(val_type value, const time_t& eol_time) :
+			atime(time(0)), eol_time(eol_time), value(value)
 		{
 			LogDebug(value<<" end-of-life:"<<eol_time<<" access-time:"<<atime);
 		}
@@ -96,6 +102,20 @@ public:
 		cache_.insert(std::make_pair(arg, t_value));
 		LogVerbose(name_<<"Memorising "<<t_value.value);
 		return t_value.value;
+	}
+
+	void memorise(Arg arg, Result result, const time_t& eol_time_duration = 0)
+	{
+		boost::unique_lock<boost::mutex> lock(mutex_);
+
+		iter_type it = cache_.find(arg);
+		if (it != cache_.end()) {
+			LogVerbose(name_<<"Forgetting (prior to memorising new value) "<<it->second.value);
+			cache_.erase(it);
+		}
+
+		cache_.insert(std::make_pair(arg, eol_time_duration? timed_val_type(result, time(0) + eol_time_duration): timed_val_type(result, rander_)));
+		LogVerbose(name_<<"Memorising (2) "<<result);
 	}
 
 	void forget(Arg arg, const unsigned int in_seconds = 0) const
