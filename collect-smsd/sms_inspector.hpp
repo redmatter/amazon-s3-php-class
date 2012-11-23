@@ -114,7 +114,7 @@ namespace app
 
 		void smslog()
 		{
-			LogCritical("sms_inspector: smslog: thread starting");
+			LogMessage("sms_inspector: smslog: thread starting");
 			while (!app::quit)
 			{
 				try
