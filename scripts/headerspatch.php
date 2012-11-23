@@ -111,8 +111,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 		if (!$absoluteStopDate)
 			throw new Exception('No absolute stop date not specified');
 
-		$startDate = cli::get('--start-date', $config->get('subset.start_date', null));
-		$endDate = cli::get('--end-date', $config->get('subset.end_date', null));
+		$startDate = cli::get('--start-date', $config->get('subset.start_date', false));
+		$endDate = cli::get('--end-date', $config->get('subset.end_date', false));
 
 		$authorization = null;
 		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
@@ -142,9 +142,9 @@ class ArchivingHeadersPatchApp extends BaseApp
 		$where = array();
 
 		$where_date = array();
-		if (!is_null($startDate))
+		if ($startDate)
 			$where_date[] = "retention.CreationDate >= '{$startDate}'";
-		if (!is_null($endDate))
+		if ($endDate)
 			$where_date[] = "retention.CreationDate <= '{$endDate}'";
 		if (count($where_date))
 			$where[] = (count($where_date) > 1)? sprintf('( %s )', implode(' AND ', $where_date)): $where_date[0];
@@ -313,7 +313,7 @@ HELP;
 
 try
 {
-	cli::init(null, array('orgs:', 'types:', 'start-date:', 'end-date:', 'conf:', 'help'));
+	cli::init(null, array('auth-hash:', 'orgs:', 'types:', 'start-date:', 'end-date:', 'conf:', 'help', 'absolute-stop-date'));
 
 	if (true === cli::get('help', false))
 	{
