@@ -44,7 +44,7 @@ private:
 	std::string auth_hash_;
 	std::string ui_version_;
 
-	mutable boost::asio::io_service& io_service_;
+	boost::asio::io_service& io_service_;
 	mutable http_client client_;
 
 	static boost::mutex mutex_;

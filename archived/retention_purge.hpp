@@ -288,7 +288,7 @@ struct item
 	{
 	}
 
-	explicit item(const archiving::archivable::identifier& identifier,
+	item(const archiving::archivable::identifier& identifier,
 			const storage::basic_endpoint::pointer& endpoint, const retention_record::pointer& retention_from_db,
 			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
 			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
@@ -299,7 +299,7 @@ struct item
 	}
 
 
-	explicit item(const archiving::archivable::identifier& identifier,
+	item(const archiving::archivable::identifier& identifier,
 			const storage::cached_endpoint_finder_t& endpoint_finder,
 			const retention_record::pointer& retention_from_db,
 			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
@@ -312,7 +312,7 @@ struct item
 	{
 	}
 
-	explicit item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
+	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
 					rml::utils::strtoull(row[3].c_str()), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(

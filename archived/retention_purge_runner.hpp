@@ -14,6 +14,8 @@
 #include "retention_purge.hpp"
 #include "./database_retention.hpp"
 #include "./database_internal.hpp"
+#include "../common/coreapi_eventlog.hpp"
+#include "../common/coreapi.hpp"
 
 #include <rml/pc_channel.h>
 
@@ -51,6 +53,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	const boost::program_options::variables_map& confMap_;
 
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
+	coreapi& api_;
 
 	state_reactor<>& reactor_;
 	database::retention& retention_db_;
@@ -98,10 +101,11 @@ class runner : public boost::enable_shared_from_this<runner>
 public:
 	runner(
 			const boost::program_options::variables_map& confMap,
-			const storage::cached_endpoint_finder_t& storage_endpoint_finder, state_reactor<>& reactor,
+			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
+			coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
-				storage_endpoint_finder_(storage_endpoint_finder), reactor_(reactor),
+				storage_endpoint_finder_(storage_endpoint_finder), api_(api), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
@@ -124,15 +128,15 @@ public:
 	}
 
 	/**
-	 * enqueue purge
+	 * Batch scheduler
 	 *
-	 * @return new max id
+	 * @param purgeables
+	 * @param max_retention_id
+	 * @return
 	 */
-	uint64_t batch_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int batch_count)
+	uint64_t schedule_purgeables(const retention_record::set_t& purgeables, const uint64_t& max_retention_id)
 	{
 		uint64_t new_max_retention_id(max_retention_id);
-		const retention_record::set_t& purgeables(
-				retention_db_.get_retention_for_purge(org_id, max_retention_id, batch_count, get_retention_purge_restrictions()));
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));
@@ -146,8 +150,7 @@ public:
 			if((*itr)->id > new_max_retention_id)
 				new_max_retention_id = (*itr)->id;
 
-			item::pointer purge_item = boost::make_shared< item >(
-					(*itr)->identifier, endpoint, *itr);
+			item::pointer purge_item(new item((*itr)->identifier, endpoint, *itr));
 
 			reactor_.schedule(
 					boost::bind(&runner::purge_initialise, shared_from_this(), purge_item),
@@ -156,6 +159,40 @@ public:
 		}
 
 		return new_max_retention_id;
+	}
+
+	/**
+	 * enqueue purge
+	 *
+	 * @return new max id
+	 */
+	uint64_t batch_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int batch_count)
+	{
+		int batch_count_(batch_count);
+
+		// look for any on-demand purge
+		{
+			const retention_record::set_t& purgeables(
+					retention_db_.get_retention_for_purge_ondemand(api_, org_id));
+
+			if(!purgeables.empty()) {
+				batch_count_ -= purgeables.size();
+
+				// ignoring the max_retention_id as we dont want the on-demand purge to affect the regular-purge's markers
+				(void) schedule_purgeables(purgeables, 0);
+			}
+		}
+
+		// continue with the regular purge
+		if(batch_count_ > 0) {
+			const retention_record::set_t& purgeables(
+					retention_db_.get_retention_for_purge(api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions()));
+
+			if(!purgeables.empty())
+				return schedule_purgeables(purgeables, max_retention_id);
+		}
+
+		return max_retention_id;
 	}
 
 	bool purge_initialise(item::pointer p_item) try
@@ -225,10 +262,10 @@ public:
 	 */
 	void reload_from_database()
 	{
-		const int& limit(get_limit());
-		if(limit < 0)
-			return;
-
+//		const int& limit(get_limit());
+//		if(limit <= 0)
+//			return;
+//
 //		static uint64_t max_loaded(0);
 //
 //		while(!quit_) {
@@ -281,7 +318,7 @@ public:
 				// consume and discard if save()d
 				item::pointer pi = item_save_channel_.consume(0, 100);
 				if(!item::is_saved(pi)) {
-					LogWarning(pi<<" BACK into approval_save_channel_ for saving");
+					LogWarning(pi<<" BACK into item_save_channel_ for saving");
 					pc_produce(item_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
 				}
 			}

@@ -145,9 +145,28 @@ struct retention_record
 		}
 	};
 
+	struct extract_identifier
+	{
+		archiving::archivable::identifier operator()(const pointer& p_retention) const
+		{
+			if(p_retention)
+				return p_retention->identifier;
+
+			return archiving::archivable::identifier();
+		}
+	};
+
+	struct is_filetype_cdr
+	{
+		bool operator()(const pointer& p_retention) const
+		{
+			return p_retention && (p_retention->identifier.filetype == archiving::archivable::file_type::cdr);
+		}
+	};
+
 	struct pointer_filetype_compare
 	{
-		bool operator()( const pointer& lhs, const pointer& rhs )
+		bool operator()( const pointer& lhs, const pointer& rhs ) const
 		{
 			return lhs->identifier.filetype < rhs->identifier.filetype;
 		}

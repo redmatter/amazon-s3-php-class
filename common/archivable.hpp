@@ -64,7 +64,7 @@ struct owner_info
 	}
 };
 
-class archivable_pointer_compare;
+struct archivable_pointer_compare;
 
 class archivable
 {
@@ -79,7 +79,7 @@ public:
 
 	typedef boost::shared_ptr<archivable> pointer;
 
-	friend class archivable_pointer_compare;
+	friend struct archivable_pointer_compare;
 	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
 
 	struct state

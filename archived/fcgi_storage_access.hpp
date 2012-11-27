@@ -145,7 +145,7 @@ public:
 			user_id = p_user->id;
 			user_org_id = p_user->org_id;
 
-			Timing(this_op<<"user verified");
+			Timing(this_op<<"user verified; ID:"<<user_org_id<<'/'<<user_id);
 		}
 		else {
 			// it could be an unrestricted access; lets check the policy

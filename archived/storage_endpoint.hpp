@@ -142,7 +142,7 @@ struct endpoint : public basic_endpoint
 
 	endpoint(const endpoint& t) :
 		basic_endpoint(static_cast<basic_endpoint>(t)),
-		is_slow_medium(t.is_slow_medium), base_path(base_path)
+		is_slow_medium(t.is_slow_medium)
 	{
 	}
 

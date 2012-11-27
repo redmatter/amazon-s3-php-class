@@ -320,7 +320,7 @@ struct access_control_list
 
 class policy_acl_finder
 {
-	mutable coreapi& api_;
+	coreapi& api_;
 
 public:
 	policy_acl_finder(coreapi& api) : api_(api)

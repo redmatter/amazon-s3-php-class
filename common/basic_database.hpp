@@ -41,7 +41,11 @@ public:
 		confMap_(confMap), p_pool_(0)
 	{
 		const std::string& conf_username(boost::str( boost::format("mysql_%1%.username") % database_type::get_identifier() ));
-		const std::string& username(confMap_[conf_username].as< std::string >());
+#ifdef __clang__
+		const std::string& username(confMap_[conf_username].template as<std::string>());
+#else
+		const std::string& username(confMap_[conf_username].as<std::string>());
+#endif
 		if(username.empty())
 			throw rml::exception(std::string(database_type::get_identifier())+" database configuration missing");
 

@@ -311,6 +311,9 @@ int main(int argc, char *argv[]) try
 		app::coreapi_user::cached_finder_t cached_coreapi_user_finder(
 				boost::bind(app::coreapi_user::find, boost::ref(coreapi), _1), "CachedUserFinder", 1, 2, 10);
 
+//		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
+//				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
+
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
@@ -328,7 +331,7 @@ int main(int argc, char *argv[]) try
 		app::state_reactor<> purge_state_reactor(app::confMap);
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
-						app::confMap, cached_endpoint_finder, purge_state_reactor, retention_db, internal_db, app::quit));
+						app::confMap, cached_endpoint_finder, coreapi, purge_state_reactor, retention_db, internal_db, app::quit));
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
