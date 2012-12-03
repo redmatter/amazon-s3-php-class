@@ -94,7 +94,7 @@ Requires: RM-syslogger >= 0.0.1-22449
 %package gateway
 Summary: Archiving / Storage gateway
 Group: RedMatter/Archiving
-Requires: RM-php-fluid >= 0.0.1-19760
+Requires: RM-php-fluid >= 0.0.1-23677
 
 # ------------ description---------------
 
