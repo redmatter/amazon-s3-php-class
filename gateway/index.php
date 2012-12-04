@@ -27,6 +27,7 @@ define('APP_CONFIG_FILE', '/etc/archiving/gateway.conf');
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
+define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
 require_once 'rmapp/class.BaseApp.php';
 
@@ -55,10 +56,10 @@ class ArchivingGatewayApp extends BaseApp
 		{
 			// get the client
 			$client = \fluid\Client::GetInstance();
-			
+
 			// setup some routes
 			\fluid\Router::AddRoute('storage', 'resources\Storage');
-			
+
 			LogDebug($client->request->method);
 			LogDebug($client->request->request_uri);
 
@@ -84,10 +85,10 @@ class ArchivingGatewayApp extends BaseApp
 		catch (\fluid\HttpException $e)
 		{
 			LogDebug($e);
-			
+
 			if (isset($e->DebugMessage))
 				LogDebug($e->DebugMessage, 'HttpException');
-			
+
 			$response = Response::FromHttpException($e);
 		}
 		catch (Exception $e)
