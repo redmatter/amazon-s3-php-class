@@ -121,10 +121,11 @@ class StorageError extends HttpException implements Renderable
 	/**
 	 * Ctor
 	 * 
-	 * @param string $code      result code
-	 * @param object $resource  storage item only for now
-	 * @param string $requestId request id
-	 * @param array  $headers   headers to send back to client
+	 * @param string    $code      result code
+	 * @param object    $resource  storage item only for now
+	 * @param string    $requestId request id
+	 * @param array     $headers   headers to send back to client
+	 * @param Exception $previous  parent exception to pass to HttpException
 	 */
 	public function __construct($code, $resource, $requestId, $headers=null, $previous=null)
 	{
@@ -134,6 +135,39 @@ class StorageError extends HttpException implements Renderable
 		$this->headers = $headers;
 		
 		parent::__construct(self::$responseDefs[$code][0], $code, $previous);
+	}
+	
+	/**
+	 * getAwsCode
+	 * Accessor for awsCode
+	 *
+	 * @return string
+	 */
+	public function getAwsCode()
+	{
+		return $this->awsCode;
+	}
+	
+	/**
+	 * getMessageFromCode
+	 * Returns the message based on the passed awsCode.
+	 * Returns null if the code is not recognised.
+	 *
+	 * @param string $awsCode awsCode to be converted to message
+	 *
+	 * @return string
+	 */
+	public function getMessageFromCode($awsCode)
+	{
+		if (isset(self::$responseDefs[$awsCode][1]))
+		{
+			return self::$responseDefs[$awsCode][1];
+		}
+		else
+		{
+			return null;
+		}
+		
 	}
 	
 	/**
@@ -161,9 +195,9 @@ class StorageError extends HttpException implements Renderable
 	}
 
 	/**
-	 * Make internal error respinse for Exceptions
+	 * Make internal error response for Exceptions
 	 * 
-	 * @param Exception $e
+	 * @param Exception $e 'from' exception 
 	 * 
 	 * @return StorageError
 	 */
@@ -174,6 +208,8 @@ class StorageError extends HttpException implements Renderable
 	
 	/**
 	 * Static initialiser
+	 * 
+	 * @return none
 	 */
 	public static function Init()
 	{

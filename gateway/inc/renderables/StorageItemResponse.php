@@ -17,6 +17,7 @@ namespace rmarchgateway\renderables
 
 use rmarchgateway\StorageItem;
 use fluid\Renderable;
+use fluid\RenderSource;
 
 /**
  * Storage Item response renderer
@@ -32,32 +33,69 @@ class StorageItemResponse implements Renderable
 {
 	protected $item;
 	protected $requestId;
-	protected $withBody;
-	protected $withMetadata;
 	
 	/**
 	 * Ctor
 	 * 
-	 * @param StorageItem $item         item
-	 * @param sting       $requestId    request id
-	 * @param bool        $withBody     with body?
-	 * @param bool        $withMetadata with metadata?
+	 * @param StorageItem $item      item
+	 * @param string      $requestId request id
 	 */
-	public function __construct(StorageItem $item, $requestId, $withBody, $withMetadata)
+	public function __construct(RenderSource $item, $requestId)
 	{
 		$this->item = $item;
 		$this->requestId = $requestId;
-		$this->withBody = $withBody;
-		$this->withMetadata = $withMetadata;
 	}
-
+	
 	/**
 	 * (non-PHPdoc)
 	 * @see \fluid\Renderable::render()
 	 */
 	public function render()
 	{
-		$this->item->Render($this->requestId, $this->withBody, $this->withMetadata);
+		try
+		{
+			$http_head = $this->item->getHttpResponseHead();
+			$http_response_parameters = $this->item->getHttpResponseParameters();
+		}
+		catch (\rmarchgateway\renderables\StorageError $e)
+		{
+			LogDebug($e);
+			$e.render();
+			return;
+		}
+		catch (\fluid\HttpException $e)
+		{
+			LogDebug($e);
+				
+			if (isset($e->DebugMessage))
+			{
+				LogDebug($e->DebugMessage, 'HttpException');
+			}
+				
+			Response::FromHttpException($e).render();
+			return;
+		}
+		catch (Exception $e)
+		{
+			LogWarning($e);
+			LogDebug("\n".$e->getTraceAsString());
+			StorageError::FromException($e).render();
+			return;
+		}
+
+		$code = $http_head['code'];
+		$message = $http_head['message'];
+
+		header("HTTP/1.0 $code $message");
+		header("x-amz-request-id: $this->requestId");
+
+		foreach ($http_response_parameters as $parameter)
+		{
+			if (!empty($parameter))
+			{
+				header($parameter);
+			}
+		}				
 	}
 }
 

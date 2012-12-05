@@ -14,12 +14,14 @@
  */
 namespace rmarchgateway\resources
 {
-	
+
 use rmarchgateway\renderables\StorageItemResponse;
 
-use rmarchgateway\renderables\PutOK;
+use rmarchgateway\renderables\GetOK;
+use rmarchgateway\renderables\MultiDeleteOK;
 
 use rmarchgateway\StorageItem;
+use rmarchgateway\StorageItems;
 
 /**
  * Storage
@@ -44,16 +46,37 @@ class Storage extends \fluid\Resource
 	{
 		$metadata = array();
 		foreach ($this->client->request->headers as $header => $value)
+		{
 			if (0 === stripos($header, self::META_HEADER_PREFIX))
-				$metadata[substr($header, self::META_HEADER_PREFIX_LENGTH)] = $value;
+			{
+					$metadata[substr($header, self::META_HEADER_PREFIX_LENGTH)] = $value;
+			}
+		}
 		
 		$given_md5_base64 = isset($this->client->request->headers['Content-MD5'])? $this->client->request->headers['Content-MD5']: null;
 				
-		$item = new StorageItem($this->params[0], $this->params[2], $this->params[1], $this->params[3], $metadata, $this->client->request->data->as_stream, $given_md5_base64);
+		$item = new StorageItem(StorageItem::USAGE_PUT, $this->params[0], $this->params[2], $this->params[1], $this->params[3], $metadata, $this->client->request->data->as_stream, $given_md5_base64);
 		$item->Write();
 		$item->Commit();
-
-		return new PutOK($item, $this->client->request->id);
+		
+		return new StorageItemResponse($item, $this->client->request->id);
+	}
+	
+	/**
+	 * (non-PHPdoc)
+	 * @see fluid.Resource::HandleDelete()
+	 */
+	public function HandleDelete()
+	{
+		// Create StorageItem object to represent the file being deleted based on the content of the HTTP DELETE request.
+		$item = new StorageItem(StorageItem::USAGE_DELETE, $this->params[0], $this->params[2], $this->params[1], $this->params[3]);
+		
+		// Delete the item.
+		$item->Delete();
+		
+		// Return an HTTP response to the delete request indicating that it was successful.
+		// If it failed, an exception will have been raised, causing it not to reach this stage.
+		return new StorageItemResponse($item, $this->client->request->id);
 	}
 	
 	/**
@@ -62,7 +85,7 @@ class Storage extends \fluid\Resource
 	 */
 	public function HandleGet()
 	{
-		return new StorageItemResponse(new StorageItem($this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id, true, true);
+		return new GetOK(new StorageItem(StorageItem::USAGE_GET, $this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id);
 	}
 	
 	/**
@@ -71,14 +94,38 @@ class Storage extends \fluid\Resource
 	 */
 	public function HandleHead()
 	{
-		return new StorageItemResponse(new StorageItem($this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id, false, true);
+		return new StorageItemResponse(new StorageItem(StorageItem::USAGE_HEAD, $this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id);
 	}
 	
 	/**
+	 * (non-PHPdoc)
+	 * @see fluid.Resource::HandlePost()
+	 */
+	public function HandlePost()
+	{
+		// POST can be used for a number of reasons.  Currently we only support multi delete.
+		if ($this->client->request->query_string == 'delete')
+		{
+			$given_md5_base64 = isset($this->client->request->headers['Content-MD5']) ? $this->client->request->headers['Content-MD5'] : null;
+			$item = new StorageItems(StorageItem::USAGE_MULTI_DELETE, $this->params[0], $this->client->request->data->as_string, $given_md5_base64);
+			
+			$item->Delete();
+			
+			return new MultiDeleteOK($item, $this->client->request->id);
+		}
+		// The parent implementation simply returns a not implemented exception, so call this if we don't know how to handle it.
+		else
+		{
+			parent::HandlePost();
+		}
+	}
+	
+	/**
+	 * GetResourceInstance
 	 * 
-	 * @param array         $params
-	 * @param \fluid\Client $client
-	 * @param string        $resource_type
+	 * @param array         $params        parameters
+	 * @param \fluid\Client &$client       client
+	 * @param string        $resource_type resource type
 	 * 
 	 * @return \fluid\Resource
 	 */
