@@ -20,6 +20,7 @@ use rmarchgateway\renderables\StorageItemResponse;
 use rmarchgateway\renderables\GetOK;
 use rmarchgateway\renderables\MultiDeleteOK;
 
+use rmarchgateway\S3Authentication;
 use rmarchgateway\StorageItem;
 use rmarchgateway\StorageItems;
 
@@ -141,6 +142,19 @@ class Storage extends \fluid\Resource
 	public function NeedAuth()
 	{
 		return false;
+	}
+	
+	public function IsAuthed()
+	{
+		LogDebug("Authenticating...");
+		$authenticator = new S3Authentication(
+					$this->client->request->method,
+					$this->params,
+					$this->client->request->query_string,
+					$this->client->request->headers
+					);
+			
+		return $authenticator->verifySignature();
 	}
 	
 	/**
