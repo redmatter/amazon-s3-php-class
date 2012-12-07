@@ -74,6 +74,64 @@ class S3Authentication
 			return true;
 		}
 	}
+	
+	/**
+	 * checkAuthentication
+	 * Authenticates the HTTP request according to AWS documentation.
+	 *
+	 * @return	bool
+	 */
+	public function checkAuthentication()
+	{
+		// Simply return the combined result of these functions, which verify that the date supplied is within
+		// the appropriate range and that the signature is correct.
+		// The AWS documentation says that the date should be within 15 minutes of now, so pass 900 (15 * 60) to
+		// the verifyValidDate() function.
+		return ($this->verifyValidDate(900) && $this->verifySignature());
+	}
+	
+	/**
+	 * verifyValidDate
+	 * Checks that any date supplied in the HTTP header is within the specified range.
+	 *
+	 * @param int $validRangeInSeconds The range, in seconds, that the date should be confirmed to be within.
+	 *
+	 * @return	bool
+	 */
+	protected function verifyValidDate($validRangeInSeconds)
+	{
+		if (empty($validRangeInSeconds))
+		{
+			LogError("No valid range specified");
+			return false;
+		}
+	
+		$date_for_comparison = $this->getDateForComparison();
+		if (empty($date_for_comparison))
+		{
+			LogWarning('No date header found');
+			return false;
+		}
+	
+		// Get the time supplied in the HTTP request as a timestamp.
+		$supplied_time = strtotime($date_for_comparison);
+
+		// Determine the earliest and latest valid timestamps, based on 15 minutes from now.
+		$current_time = time();
+		$earliest_valid_timestamp = $current_time - $validRangeInSeconds;
+		$latest_valid_timestamp = $current_time + $validRangeInSeconds;
+
+		// Check if the supplied time is outside the allowable range and return false if not.
+		if (($supplied_time < $earliest_valid_timestamp) || ($latest_valid_timestamp < $supplied_time))
+		{
+			LogWarning('Supplied date is outside the valid range of 15 minutes from now');
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+	}
 
 	/**
 	 * verifySignature
@@ -83,7 +141,7 @@ class S3Authentication
 	 *
 	 * @return	bool
 	 */
-	public function verifySignature()
+	protected function verifySignature()
 	{
 		$authentication_info = $this->getAuthenticationInfo();
 		if (empty($authentication_info))
@@ -119,9 +177,6 @@ class S3Authentication
 			LogWarning('Calculated string to sign was null');
 			return false;
 		}
-
-		// The following line is useful for debug, only the first line is output otherwise, because of the \n characters.
-//		foreach (explode("\n", $string_to_sign) as $debug_string) LogDebug($debug_string);
 		
 		$created_signature = $this->createSignature($aws_secret_access_key, $string_to_sign);
 		if (empty($created_signature))
@@ -347,6 +402,35 @@ class S3Authentication
 			return isset($this->headers['Date']) ? $this->headers['Date'] : null;
 		}
 	}
+	
+	/**
+	 * getDateForComparison
+	 * Returns the date value which should be used for comparison to the current time to check that
+	 * the request does not have a skewed date value.
+	 *
+	 * Returns null if a valid value can not be found.
+	 *
+	 * @return	string
+	 */
+	protected function getDateForComparison()
+	{
+		// The section 'Time Stamp Requirement' in the AMZ documentation says that if the 'x-amz-date' header is present, this
+		// should be used instead of the 'Date' header, so we check for the presence of this field and, if found, return it, otherwise
+		// we return the 'Date' header.  If neither is found, we return null.
+		if (isset($this->headers['x-amz-date']))
+		{
+			return $this->headers['x-amz-date'];
+		}
+		else if (isset($this->headers['Date']))
+		{
+			return $this->headers['Date'];
+		}
+		else
+		{
+			return null;
+		}
+	}
+	
 	
 	/**
 	 * getCanonicalizedAmzHeaders

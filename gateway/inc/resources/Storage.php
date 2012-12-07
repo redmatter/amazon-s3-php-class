@@ -145,7 +145,7 @@ class Storage extends \fluid\Resource
 					$this->client->request->headers
 					);
 			
-		return $authenticator->verifySignature();
+		return $authenticator->checkAuthentication();
 	}
 	
 	/**
