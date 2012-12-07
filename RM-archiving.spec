@@ -231,6 +231,7 @@ rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgat
 cp gateway/index.php %{buildroot}/var/www/rmarchgateway/.
 cp gateway/xhprof_pre.php %{buildroot}/var/www/rmarchgateway/.
 cp gateway/gateway.conf %{buildroot}/etc/archiving/.
+cp gateway/auth_data.xml %{buildroot}/usr/share/archiving/auth_data.xml.sample
 cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
 cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
 

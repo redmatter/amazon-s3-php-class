@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<AWSAccessKeys>
+	<AWSAccessKey id='ACCESS_KEY_0'>
+		<AWSSecretAccessKey>SECRET_KEY_0</AWSSecretAccessKey>
+		<Organisation>Org0</Organisation>
+		<Bucket>Bucket0</Bucket>
+		<AnyOtherDataYouLike>Value</AnyOtherDataYouLike>
+	</AWSAccessKey>
+	<AWSAccessKey id='ACCESS_KEY_1'>
+		<AWSSecretAccessKey>SECRET_KEY_1</AWSSecretAccessKey>
+		<Organisation>Org1</Organisation>
+		<Bucket>Bucket1</Bucket>
+	</AWSAccessKey>
+	<AWSAccessKey id='ACCESS_KEY_2'>
+		<AWSSecretAccessKey>SECRET_KEY_2</AWSSecretAccessKey>
+		<Organisation>Org2</Organisation>
+		<Bucket>Bucket2</Bucket>
+	</AWSAccessKey>
+</AWSAccessKeys>

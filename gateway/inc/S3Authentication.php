@@ -17,6 +17,8 @@ namespace rmarchgateway
 
 use \fluid\Client;
 
+use rmarchgateway\AuthDataConfigAccessor;
+
 /**
  * Archiving Gateway
  * Utility class used to encapsulate the functionality to authenticate data.
@@ -29,10 +31,7 @@ use \fluid\Client;
  * @link      http://www.redmatter.com
  */
 class S3Authentication
-{
-	const DEFAULT_ACCESS_KEY_ID = 'ACCESS_KEY_0';
-	const DEFAULT_SECRET_KEY = 'SECRET_KEY_0123456789';
-	
+{	
 	protected $method;
 	protected $params;
 	protected $queryString;
@@ -228,12 +227,15 @@ class S3Authentication
 	 */
 	protected function getAwsSecretAccessKey($awsAccessKeyId)
 	{
-		switch ($awsAccessKeyId)
+		try
 		{
-			case self::DEFAULT_ACCESS_KEY_ID:
-				return self::DEFAULT_SECRET_KEY;
-			default:
-				return null;
+			$auth_data_accessor = new AuthDataConfigAccessor();
+			return $auth_data_accessor->getAwsSecretAccessKey($awsAccessKeyId);
+		}
+		catch (\Exception $e)
+		{
+			LogError("Failed to get AWS Secret Access Key with AWS Access Key ID: $awsAccessKeyId");
+			return null;
 		}
 	}
 	

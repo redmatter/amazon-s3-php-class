@@ -135,15 +135,6 @@ class Storage extends \fluid\Resource
 		return new self($params, $client);
 	}
 	
-	/**
-	 * (non-PHPdoc)
-	 * @see fluid.Resource::NeedAuth()
-	 */
-	public function NeedAuth()
-	{
-		return false;
-	}
-	
 	public function IsAuthed()
 	{
 		LogDebug("Authenticating...");
