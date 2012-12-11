@@ -477,6 +477,7 @@ fi
 /etc/archiving/gateway.conf
 /etc/httpd/conf.d/rmarchgateway.conf
 /etc/rsyslog.d/11-rmarchgateway.conf
+/usr/share/archiving/auth_data.xml.sample
 
 # ----------
 
