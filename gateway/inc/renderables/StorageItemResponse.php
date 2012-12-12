@@ -15,9 +15,9 @@
 namespace rmarchgateway\renderables
 {
 
-use rmarchgateway\StorageItem;
+use rmarchgateway\operations\S3Operation;
+	
 use fluid\Renderable;
-use fluid\RenderSource;
 
 /**
  * Storage Item response renderer
@@ -40,10 +40,12 @@ class StorageItemResponse implements Renderable
 	 * @param StorageItem $item      item
 	 * @param string      $requestId request id
 	 */
-	public function __construct(RenderSource $item, $requestId)
+	public function __construct(S3Operation $item, $requestId)
 	{
 		$this->item = $item;
 		$this->requestId = $requestId;
+		
+		$this->item->doRequest();
 	}
 	
 	/**
@@ -54,18 +56,31 @@ class StorageItemResponse implements Renderable
 	{
 		try
 		{
-			$http_head = $this->item->getHttpResponseHead();
-			$http_response_parameters = $this->item->getHttpResponseParameters();
+			// Do all the things which could raise an exception before we start outputting HTTP headers or body.
+			$http_head = $this->item->getHttpResponseStatus();
+			$http_response_parameters = $this->item->getHttpResponseHeaders();
+			$body = $this->item->getHttpBody();
+			
+			if (is_resource($body) === true)
+			{
+				$out = @fopen('php://output', 'wb');
+					
+				if ($out === false)
+				{
+					LogError('Could not open php://output');
+					throw new StorageError(StorageError::InternalError);
+				}
+			}
 		}
 		catch (\rmarchgateway\renderables\StorageError $e)
 		{
-			LogDebug($e);
+			LogWarning($e);
 			$e.render();
 			return;
 		}
 		catch (\fluid\HttpException $e)
 		{
-			LogDebug($e);
+			LogWarning($e);
 				
 			if (isset($e->DebugMessage))
 			{
@@ -95,7 +110,21 @@ class StorageItemResponse implements Renderable
 			{
 				header($parameter);
 			}
-		}				
+		}
+
+		if (is_resource($body) === true)
+		{
+			if (stream_copy_to_stream($body, $out) == 0)
+			{
+				LogWarning('copy_to_stream copied 0 bytes');
+			}
+			
+			@fclose($out);
+		}
+		else
+		{
+			echo $body;
+		}
 	}
 }
 

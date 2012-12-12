@@ -110,7 +110,6 @@ class StorageError extends HttpException implements Renderable
 	const UserKeyMustBeSpecified = 'UserKeyMustBeSpecified';
 	
 	const ObjectLocked = 'ObjectLocked';
-	const PutOK = 'PutOK';
 	
 	protected static $responseDefs = null;
 	
@@ -292,8 +291,7 @@ class StorageError extends HttpException implements Renderable
 				self::UnresolvableGrantByEmailAddress => array(400, 'The e-mail address you provided does not match any account on record.'),
 				self::UserKeyMustBeSpecified => array(400, 'The bucket POST must contain the specified field name. If it is specified, please check the order of the fields.'),
 
-				self::ObjectLocked => array(423, 'Object already locked or failed to acquire an appropriate lock'),
-				self::PutOK => array(200, 'PUT successful')
+				self::ObjectLocked => array(423, 'Object already locked or failed to acquire an appropriate lock')
 			);
 		}
 	}

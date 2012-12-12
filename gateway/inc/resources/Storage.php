@@ -15,10 +15,18 @@
 namespace rmarchgateway\resources
 {
 
+use rmarchgateway\operations\PutCopyOperation;
+
 use rmarchgateway\renderables\StorageItemResponse;
 
 use rmarchgateway\renderables\GetOK;
 use rmarchgateway\renderables\MultiDeleteOK;
+
+use rmarchgateway\operations\DeleteMultiOperation;
+use rmarchgateway\operations\DeleteOperation;
+use rmarchgateway\operations\GetOperation;
+use rmarchgateway\operations\HeadOperation;
+use rmarchgateway\operations\PutUploadOperation;
 
 use rmarchgateway\S3Authentication;
 use rmarchgateway\StorageItem;
@@ -38,7 +46,7 @@ class Storage extends \fluid\Resource
 {
 	const META_HEADER_PREFIX = 'x-amz-meta-';
 	const META_HEADER_PREFIX_LENGTH = 11;
-	
+
 	/**
 	 * (non-PHPdoc)
 	 * @see fluid.Resource::HandlePut()
@@ -50,34 +58,36 @@ class Storage extends \fluid\Resource
 		{
 			if (0 === stripos($header, self::META_HEADER_PREFIX))
 			{
-					$metadata[substr($header, self::META_HEADER_PREFIX_LENGTH)] = $value;
+				$metadata[substr($header, self::META_HEADER_PREFIX_LENGTH)] = $value;
 			}
 		}
 		
-		$given_md5_base64 = isset($this->client->request->headers['Content-MD5'])? $this->client->request->headers['Content-MD5']: null;
-				
-		$item = new StorageItem(StorageItem::USAGE_PUT, $this->params[0], $this->params[2], $this->params[1], $this->params[3], $metadata, $this->client->request->data->as_stream, $given_md5_base64);
-		$item->Write();
-		$item->Commit();
-		
+		$bucket_and_key = $this->getBucketAndKeyFromParams($this->params);
+
+		// PUT is used for uploading files, but also for copying files.  First we need to check what this PUT is for.
+		// If the 'x-amz-copy-source' header is present, this is actually a copy request.
+		if (isset($this->client->request->headers['x-amz-copy-source']) === true)
+		{
+			$copy_source_array = $this->getBucketAndKeyFromParams($this->client->request->headers['x-amz-copy-source']);
+			$item = new PutCopyOperation($bucket_and_key['bucket'], $bucket_and_key['key'], $copy_source_array['bucket'], $copy_source_array['key'], $metadata);
+		}
+		else
+		{
+			$given_md5_base64 = isset($this->client->request->headers['Content-MD5'])? $this->client->request->headers['Content-MD5']: null;
+			$item = new PutUploadOperation($bucket_and_key['bucket'], $bucket_and_key['key'], $metadata, $this->client->request->data->as_stream, $given_md5_base64);
+		}
+
 		return new StorageItemResponse($item, $this->client->request->id);
 	}
-	
+
 	/**
 	 * (non-PHPdoc)
 	 * @see fluid.Resource::HandleDelete()
 	 */
 	public function HandleDelete()
 	{
-		// Create StorageItem object to represent the file being deleted based on the content of the HTTP DELETE request.
-		$item = new StorageItem(StorageItem::USAGE_DELETE, $this->params[0], $this->params[2], $this->params[1], $this->params[3]);
-		
-		// Delete the item.
-		$item->Delete();
-		
-		// Return an HTTP response to the delete request indicating that it was successful.
-		// If it failed, an exception will have been raised, causing it not to reach this stage.
-		return new StorageItemResponse($item, $this->client->request->id);
+		$bucket_and_key = $this->getBucketAndKeyFromParams($this->params);
+		return new StorageItemResponse(new DeleteOperation($bucket_and_key['bucket'], $bucket_and_key['key']), $this->client->request->id);
 	}
 	
 	/**
@@ -86,7 +96,8 @@ class Storage extends \fluid\Resource
 	 */
 	public function HandleGet()
 	{
-		return new GetOK(new StorageItem(StorageItem::USAGE_GET, $this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id);
+		$bucket_and_key = $this->getBucketAndKeyFromParams($this->params);
+		return new StorageItemResponse(new GetOperation($bucket_and_key['bucket'], $bucket_and_key['key']), $this->client->request->id);
 	}
 	
 	/**
@@ -95,7 +106,8 @@ class Storage extends \fluid\Resource
 	 */
 	public function HandleHead()
 	{
-		return new StorageItemResponse(new StorageItem(StorageItem::USAGE_HEAD, $this->params[0], $this->params[2], $this->params[1], $this->params[3]), $this->client->request->id);
+		$bucket_and_key = $this->getBucketAndKeyFromParams($this->params);
+		return new StorageItemResponse(new HeadOperation($bucket_and_key['bucket'], $bucket_and_key['key']), $this->client->request->id);
 	}
 	
 	/**
@@ -107,12 +119,9 @@ class Storage extends \fluid\Resource
 		// POST can be used for a number of reasons.  Currently we only support multi delete.
 		if ($this->client->request->query_string == 'delete')
 		{
+			$bucket_and_key = $this->getBucketAndKeyFromParams($this->params);
 			$given_md5_base64 = isset($this->client->request->headers['Content-MD5']) ? $this->client->request->headers['Content-MD5'] : null;
-			$item = new StorageItems(StorageItem::USAGE_MULTI_DELETE, $this->params[0], $this->client->request->data->as_string, $given_md5_base64);
-			
-			$item->Delete();
-			
-			return new MultiDeleteOK($item, $this->client->request->id);
+			return new StorageItemResponse(new DeleteMultiOperation($bucket_and_key['bucket'], $this->client->request->data->as_string, $given_md5_base64), $this->client->request->id);
 		}
 		// The parent implementation simply returns a not implemented exception, so call this if we don't know how to handle it.
 		else
@@ -135,6 +144,10 @@ class Storage extends \fluid\Resource
 		return new self($params, $client);
 	}
 	
+	/**
+	 * (non-PHPdoc)
+	 * @see fluid.Resource::IsAuthed()
+	 */
 	public function IsAuthed()
 	{
 		LogDebug("Authenticating...");
@@ -155,6 +168,46 @@ class Storage extends \fluid\Resource
 	public function IsAllowedDirectRouting()
 	{
 		return true;
+	}
+	
+	/**
+	 * getBucketAndKeyFromParams
+	 * Takes a 'params' object intended to be either a string of format '/bucket/an-s3/id' or an array, based on an exploded
+	 * URI string of format '/bucket/elements/of/key' and returns an array containing elements 'bucket' and 'key', populated appropriately.
+	 * The first format is made up of a bucket before the first /, or second / if the first character is a /, characters after
+	 * the second / are the key and can be made up of any characters, including /.
+	 *
+	 * @param mixed  $params Bucket and Key values represented as either an array or string.
+	 *
+	 * @return array
+	 */
+	protected function getBucketAndKeyFromParams($params)
+	{
+		$return_array = array();
+
+		// If we're being passed the array of parameters from the Client class then the first should be the bucket, the remaining
+		// elements should be recombined (if split) to form the key.
+		if (is_array($params) === true)
+		{
+			$return_array['bucket'] = array_shift($params);
+			$return_array['key'] = implode('/', $params);
+		}
+		// Otherwise this has been passed from another header, in which case the string between the first two forward slashes should
+		// be treated as the bucket. 
+		else
+		{
+			if (preg_match('~(?<=/)[[:graph:]^/]*(?=/)~', $params, $bucket_result) === 1)
+			{
+				$return_array['bucket'] = $bucket_result[0];
+			}
+
+			if (preg_match('~(?<=' . $return_array['bucket'] . '/)[[:graph:]]*$~', $params, $key_result) === 1)
+			{
+				$return_array['key'] = $key_result[0];
+			}
+		}
+
+		return $return_array;
 	}
 }
 	

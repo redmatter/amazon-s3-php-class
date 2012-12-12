@@ -12,17 +12,13 @@
  * @version   SVN: <svn_id>
  * @link      http://www.redmatter.com
  */
-namespace rmarchgateway\renderables
+namespace rmarchgateway\operations
 {
 
-use fluid\RenderSource;
-
-use rmarchgateway\renderables\StorageItemResponse;
-
-use rmarchgateway\StorageItem;
+use rmarchgateway\s3entities\S3Bucket;
 
 /**
- * Archiving Gateway
+ * BucketOperation
  *
  * @category  ArchivingGateway
  * @package   RedMatter_ArchivingGateway
@@ -31,32 +27,19 @@ use rmarchgateway\StorageItem;
  * @license   http://www.redmatter.com/license private
  * @link      http://www.redmatter.com
  */
-class MultiDeleteOK extends StorageItemResponse
+abstract class BucketOperation extends S3Operation
 {
-	/**
-	 * Ctor
-	 * 
-	 * @param StorageItem $item      storage item
-	 * @param string      $requestId request-id
-	 */
-	public function __construct(RenderSource $item, $requestId)
-	{
-		// Simply calls the parent constructor.
-		parent::__construct($item, $requestId);
-	}
+	protected $bucket;
 	
 	/**
-	 * Render item
-	 *
-	 * @throws HttpException
-	 * @throws Exception
-	 *
-	 * @return none
+	 * Constructor
+	 * 
+	 * @param string $bucket S3 bucket name
 	 */
-	public function render()
+	public function __construct($bucket)
 	{
-		parent::render();
-		$this->item->renderContent();
+		parent::__construct("{$bucket}");
+		$this->bucket = new S3Bucket($bucket);
 	}
 }
 
