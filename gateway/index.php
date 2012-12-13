@@ -29,7 +29,18 @@ define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-require_once 'rmapp/class.BaseApp.php';
+// Most exceptions are handled within the 'run' function later, but if any exceptions
+// are raised during initialisation we need to catch these, otherwise Apache ends up
+// returning a 200 OK response.
+try
+{
+	require_once 'rmapp/class.BaseApp.php';
+}
+catch (Exception $e)
+{
+	LogError($e);
+	header("HTTP 1.1 500 Internal Error");
+}
 
 /**
  * Archiving Gateway
@@ -103,5 +114,15 @@ class ArchivingGatewayApp extends BaseApp
 	}
 }
 
-$app = ArchivingGatewayApp::getInstance(APP_CONFIG_FILE)->run();
-
+// Most exceptions are handled within the 'run' function later, but if any exceptions
+// are raised during initialisation we need to catch these, otherwise Apache ends up
+// returning a 200 OK response.
+try
+{
+	$app = ArchivingGatewayApp::getInstance(APP_CONFIG_FILE)->run();
+}
+catch (Exception $e)
+{
+	LogError($e);
+	header("HTTP 1.1 500 Internal Error");
+}
