@@ -33,8 +33,11 @@ abstract class BucketOperation extends S3Operation
 	
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param string $bucket S3 bucket name
+	 * 
+	 * @throws StorageError
+	 * @throws Exception
 	 */
 	public function __construct($bucket)
 	{

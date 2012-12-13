@@ -14,6 +14,8 @@
  */
 namespace rmarchgateway\s3entities
 {
+	
+use rmarchgateway\renderables\StorageError;
 
 use \config;
 
@@ -39,12 +41,19 @@ class S3Bucket
 	 * Constructor
 	 * 
 	 * @param string $name S3 bucket name
-	 * 
+	 *
+	 * @throws StorageError
 	 * @throws Exception
 	 * 
 	 */
 	public function __construct($name)
 	{
+		if (empty($name) === true)
+		{
+			LogError("No bucket name specified.");
+			throw new StorageError(StorageError::InvalidBucketName);
+		}
+		
 		$this->name = $name;
 		$this->path = config::get('storage.base_path', '/tmp') . DIRECTORY_SEPARATOR . $name;
 	}
