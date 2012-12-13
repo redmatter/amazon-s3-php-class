@@ -475,7 +475,8 @@ class S3Object
 	 */
 	private function _LockPath($mode)
 	{
-		$lock_base = config::get('storage.lock_base_path', '/tmp').DIRECTORY_SEPARATOR.$this->bucket->getName().'_'.$this->key.'.lock';
+		$path = $this->bucket->getName() . '_' . str_replace('/','_', $this->key);
+		$lock_base = config::get('storage.lock_base_path', '/tmp').DIRECTORY_SEPARATOR.$path.'.lock';
 		return "{$lock_base}-{$mode}";
 	}
 
@@ -513,7 +514,9 @@ class S3Object
 
 	/**
 	 * UuidToPath
-	 * Generate path fragment according to config
+	 * Generate path fragment according to config.
+	 * This allows the archive gateway to ensure that a configurable maximum number of entities exist
+	 * within each directory, regardless of the path the client passes.
 	 *
 	 * @param string $uuid Unique Identifier (Key) for the resource
 	 *
@@ -521,20 +524,27 @@ class S3Object
 	 */
 	protected static function UuidToPath($uuid)
 	{
+		// Perform a SHA1 on the UUID,  remove the hyphens and force to lower case so that, regardless of
+		// what's passed by the client, we can guarantee the UUID is made up of 40 lower case hexadecimal characters. 
+		$uuid = strtolower(str_replace('-', '', sha1($uuid)));
+
+		// Determine the depth of directory nesting which has been configured.
 		$uuid_levels = min(config::get('storage.path_uuid_levels', 0), 10);
-		$uuid = strtolower(str_replace('-', '', $uuid));
 
 		$path = '';
 		while ($uuid_levels)
 		{
+			// Take three characters at a time to create the directory names.
+			// As the characters are hexadecimal, this provides 4096 (16^3) possibilities,
+			// which is a reasonable maximum number of folders for a file system to cope with.
 			$bit = substr($uuid, 0, 3);
 			$uuid = substr($uuid, 3);
 			$uuid_levels--;
 
-			$path = sprintf('%s%s%s', $path, $path? DIRECTORY_SEPARATOR: '', $bit);
+			$path .= ($bit . DIRECTORY_SEPARATOR);
 		}
 
-		return sprintf('%s%s%s', $path, $path? DIRECTORY_SEPARATOR: '', $uuid);
+		return ($path . $uuid);
 	}
 	
 	/**
