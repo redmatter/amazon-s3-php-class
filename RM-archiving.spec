@@ -96,6 +96,11 @@ Summary: Archiving / Storage gateway
 Group: RedMatter/Archiving
 Requires: RM-php-fluid >= 0.0.1-23677
 
+%package storage-gateway
+Summary: Archiving / RM Storage Gateway
+Group: RedMatter/Archiving
+Requires: RM-archiving-gateway
+
 # ------------ description---------------
 
 %description
@@ -125,7 +130,11 @@ Archiving Utility scripts for verification etc
 Archiving QA scripts for verification etc
 
 %description gateway
-Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesystem
+Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesystem.
+Contains only generic configuration files, so deliverable to third parties.
+
+%description storage-gateway
+Wrapper for RedMatter use of gateway, includes configuration files for production.
 
 # ----------
 
@@ -143,6 +152,8 @@ mkdir -p %{buildroot}/etc/archiving/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
+mkdir -p %{buildroot}/etc/archiving/gateway.d/
+mkdir -p %{buildroot}/usr/share/storage-gateway/
 mkdir -p %{buildroot}/usr/share/archiving
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
@@ -234,6 +245,9 @@ cp gateway/gateway.conf %{buildroot}/etc/archiving/.
 cp gateway/auth_data.xml %{buildroot}/usr/share/archiving/auth_data.xml.sample
 cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
 cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
+
+# Storage Gateway
+cp storage-gateway/auth_data.xml %{buildroot}/usr/share/storage-gateway/.
 
 # ----------
 
@@ -477,7 +491,13 @@ fi
 /etc/archiving/gateway.conf
 /etc/httpd/conf.d/rmarchgateway.conf
 /etc/rsyslog.d/11-rmarchgateway.conf
+%dir /etc/archiving/gateway.d
 /usr/share/archiving/auth_data.xml.sample
+
+%files storage-gateway
+%defattr(-,root,root)
+/etc/archiving/gateway.d/gateway.conf
+%config(noreplace) %attr(400,apache,apache) /usr/share/storage-gateway/auth_data.xml
 
 # ----------
 

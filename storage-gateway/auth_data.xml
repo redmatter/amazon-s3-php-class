@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<AWSAccessKeys>
+	<AWSAccessKey id='rmvm0001'>
+		<AWSSecretAccessKey>e2f4f220-452f-11e2-bcfd-0810200c9a66</AWSSecretAccessKey>
+		<Bucket>Voicemail</Bucket>
+	</AWSAccessKey>
+</AWSAccessKeys>
