@@ -77,7 +77,7 @@ class S3Object
 		$this->bucket = new S3Bucket($bucket);
 		$this->key = $key;
 
-		$this->path = $this->bucket->getPath() . DIRECTORY_SEPARATOR . self::UuidToPath($key);
+		$this->path = $this->bucket->getPath() . DIRECTORY_SEPARATOR . self::KeyToPath($this->key);
 		$this->path_meta = $this->path.'.meta';
 
 		$this->final_path = $this->path;
@@ -477,9 +477,7 @@ class S3Object
 	 */
 	private function _LockPath($mode)
 	{
-		$path = $this->bucket->getName() . '_' . str_replace('/','_', $this->key);
-		$lock_base = config::get('storage.lock_base_path', '/tmp').DIRECTORY_SEPARATOR.$path.'.lock';
-		return "{$lock_base}-{$mode}";
+		return $this->bucket->getPath() . DIRECTORY_SEPARATOR . 'lock' . DIRECTORY_SEPARATOR . sha1($this->key) . '-' . $mode;
 	}
 
 	/**
@@ -515,38 +513,38 @@ class S3Object
 	}
 
 	/**
-	 * UuidToPath
+	 * KeyToPath
 	 * Generate path fragment according to config.
 	 * This allows the archive gateway to ensure that a configurable maximum number of entities exist
 	 * within each directory, regardless of the path the client passes.
 	 *
-	 * @param string $uuid Unique Identifier (Key) for the resource
+	 * @param string $key Key for the resource
 	 *
 	 * @return string
 	 */
-	protected static function UuidToPath($uuid)
+	protected static function KeyToPath($key)
 	{
-		// Perform a SHA1 on the UUID,  remove the hyphens and force to lower case so that, regardless of
-		// what's passed by the client, we can guarantee the UUID is made up of 40 lower case hexadecimal characters. 
-		$uuid = strtolower(str_replace('-', '', sha1($uuid)));
+		// Perform a SHA1 on the key,  remove the hyphens and force to lower case so that, regardless of
+		// what's passed by the client, we can guarantee the key is made up of 40 lower case hexadecimal characters. 
+		$key = strtolower(str_replace('-', '', sha1($key)));
 
 		// Determine the depth of directory nesting which has been configured.
-		$uuid_levels = min(config::get('storage.path_uuid_levels', 0), 10);
+		$key_levels = min(config::get('storage.path_key_levels', 0), 10);
 
 		$path = '';
-		while ($uuid_levels)
+		while ($key_levels)
 		{
 			// Take three characters at a time to create the directory names.
 			// As the characters are hexadecimal, this provides 4096 (16^3) possibilities,
 			// which is a reasonable maximum number of folders for a file system to cope with.
-			$bit = substr($uuid, 0, 3);
-			$uuid = substr($uuid, 3);
-			$uuid_levels--;
+			$bit = substr($key, 0, 3);
+			$key = substr($key, 3);
+			$key_levels--;
 
 			$path .= ($bit . DIRECTORY_SEPARATOR);
 		}
 
-		return ($path . $uuid);
+		return ($path . $key);
 	}
 	
 	/**
