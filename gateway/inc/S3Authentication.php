@@ -282,16 +282,8 @@ class S3Authentication
 	 */
 	protected function getAwsSecretAccessKey($awsAccessKeyId)
 	{
-		try
-		{
-			$auth_data_accessor = new AuthDataConfigAccessor();
-			return $auth_data_accessor->getAwsSecretAccessKey($awsAccessKeyId);
-		}
-		catch (\Exception $e)
-		{
-			LogError("Failed to get AWS Secret Access Key with AWS Access Key ID: $awsAccessKeyId");
-			return null;
-		}
+		$auth_data_accessor = new AuthDataConfigAccessor();
+		return $auth_data_accessor->getAwsSecretAccessKey($awsAccessKeyId);
 	}
 	
 	/**

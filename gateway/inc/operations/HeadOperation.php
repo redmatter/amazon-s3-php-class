@@ -75,7 +75,7 @@ class HeadOperation extends ObjectOperation
 	 * getContentLength
 	 * Returns a Content-Length header based on the file length of the object.
 	 *
-	 * @throws StorageError
+	 * @throws Exception
 	 *
 	 * @return string
 	 */
@@ -85,7 +85,7 @@ class HeadOperation extends ObjectOperation
 		if ($file_length === null)
 		{
 			LogError('File length could not be returned', $this->id);
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+			throw new \Exception('File length could not be returned');
 		}
 
 		return 'Content-Length: ' . $file_length;
@@ -95,7 +95,7 @@ class HeadOperation extends ObjectOperation
 	 * getLastModified
 	 * Returns a Last-Modified header based on the last modified date of the object. 
 	 *
-	 * @throws StorageError
+	 * @throws Exception
 	 *
 	 * @return string
 	 */
@@ -106,7 +106,7 @@ class HeadOperation extends ObjectOperation
 		if (empty($lastModTime) === true)
 		{
 			LogError('Last modification time could not be returned', $this->id);
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+			throw new \Exception('Last modification time could not be returned');
 		}
 		
 		return sprintf('Last-Modified: %s', $lastModTime->format(\DateTime::COOKIE));

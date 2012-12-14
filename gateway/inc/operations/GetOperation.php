@@ -45,7 +45,7 @@ class GetOperation extends HeadOperation
 		if (isset($stream) === false)
 		{
 			LogError('Failed to get file stream');
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+			throw new \Exception('Failed to get file stream');
 		}
 		else
 		{

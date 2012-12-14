@@ -57,20 +57,27 @@ class PutCopyOperation extends PutUploadOperation
 			$metadata = $this->fromObject->getMetadata();
 		}
 		
+		if ($this->fromObject->getObjectExists() === false)
+		{
+			LogError('Object does not exist', $this->id);
+			throw new StorageError(StorageError::NoSuchKey, $this->id, Request::Get('id'));
+		}
+
 		// Get the file stream from the object.
 		$stream = $this->fromObject->getFileStream();
 		if (isset($stream) === false)
 		{
-			LogError('Object does not exist', $this->id);
-			throw new StorageError(StorageError::NoSuchKey, $this->id, Request::Get('id'));
+			LogError('Failed to get file stream', $this->id);
+			throw new \Exception('Failed to get file stream');
+			
 		}
 
 		// Get the MD5 from the object
 		$md5 = $this->fromObject->getMd5();
 		if ($md5 === false)
 		{
-			LogError('Failed to calculate MD5');
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+			LogError('Failed to calculate MD5', $this->id);
+			throw new \Exception('Failed to calculate MD5');
 			
 		}
 

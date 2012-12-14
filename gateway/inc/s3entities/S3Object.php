@@ -68,6 +68,7 @@ class S3Object
 	 * @param string   $bucket S3 Bucket
 	 * @param string   $key    Key
 	 *
+	 * @throws StorageError
 	 * @throws Exception
 	 */
 	public function __construct($bucket, $key)
@@ -320,6 +321,7 @@ class S3Object
 	 * Commit it
 	 *
 	 * @throws StorageError
+	 * @throws Exception
 	 *
 	 * @return none
 	 */
@@ -340,7 +342,7 @@ class S3Object
 			if (!(rename($this->path, $this->final_path) && rename($this->path_meta, $this->final_path_meta)))
 			{
 				$this->lc->LogCritical('Failed to rename to final path');
-				throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+				throw new \Exception('Failed to rename to final path');
 			}
 
 			$this->path = $this->final_path;
@@ -354,7 +356,7 @@ class S3Object
 	 * Delete
 	 * Delete item (file and .meta file) from the disk.
 	 *
-	 * @throws StorageError
+	 * @throws Exception
 	 *
 	 * @return none
 	 */
@@ -368,7 +370,7 @@ class S3Object
 			if (unlink($this->path_meta) === false)
 			{
 				LogError('Failed to delete path_meta', $this->id);
-				throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+				throw new \Exception('Failed to delete path_meta');
 			}	
 		}
 
@@ -376,7 +378,7 @@ class S3Object
 		if (unlink($this->path) === false)
 		{
 			LogError('Failed to delete path', $this->id);
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
+			throw new \Exception('Failed to delete path');
 		}
 	}
 	

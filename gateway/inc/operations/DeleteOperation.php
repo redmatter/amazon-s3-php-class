@@ -66,17 +66,13 @@ class DeleteOperation extends ObjectOperation
 	 * doRequest
 	 * Carries out the deletion by calling the appropriate S3Object function.
 	 *
-	 * @throws StorageError
+	 * @throws Exception
 	 *
 	 * @return none
 	 */
 	public function doRequest()
 	{
-		if ($this->s3object->Delete() === false)
-		{
-			LogError('Deletion failed', $this->id);
-			throw new StorageError(StorageError::InternalError, $this->id, Request::Get('id'));
-		}
+		$this->s3object->Delete();
 	}
 }
 
