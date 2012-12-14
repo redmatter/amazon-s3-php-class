@@ -247,6 +247,7 @@ cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
 cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
 
 # Storage Gateway
+cp storage-gateway/gateway.conf %{buildroot}/etc/archiving/gateway.d/storage-gateway.conf
 cp storage-gateway/auth_data.xml %{buildroot}/usr/share/storage-gateway/.
 
 # ----------
@@ -496,7 +497,7 @@ fi
 
 %files storage-gateway
 %defattr(-,root,root)
-/etc/archiving/gateway.d/gateway.conf
+/etc/archiving/gateway.d/storage-gateway.conf
 %config(noreplace) %attr(400,apache,apache) /usr/share/storage-gateway/auth_data.xml
 
 # ----------
