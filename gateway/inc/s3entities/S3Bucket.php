@@ -15,6 +15,8 @@
 namespace rmarchgateway\s3entities
 {
 	
+use rmarchgateway\policy\RMBucketPolicyConfigAccessor;
+
 use rmarchgateway\renderables\StorageError;
 
 use \config;
@@ -36,6 +38,7 @@ class S3Bucket
 {
 	protected $name;
 	protected $path;
+	protected $policyAccessor;
 
 	/**
 	 * Constructor
@@ -45,6 +48,7 @@ class S3Bucket
 	 * @throws StorageError
 	 * @throws Exception
 	 * 
+	 * @return none
 	 */
 	public function __construct($name)
 	{
@@ -56,6 +60,7 @@ class S3Bucket
 		
 		$this->name = $name;
 		$this->path = config::get('storage.base_path', '/tmp') . DIRECTORY_SEPARATOR . $name;
+		$this->policyAccessor = new RMBucketPolicyConfigAccessor($this);
 	}
 	
 	/**
@@ -73,11 +78,20 @@ class S3Bucket
 	 * getPath
 	 *
 	 * @return string
-	 *
 	 */
 	public function getPath()
 	{
 		return $this->path;
+	}
+	
+	/**
+	 * getPolicy
+	 *
+	 * @return RMBucketPolicy
+	 */
+	public function getPolicy()
+	{
+		return $this->policyAccessor->getPolicy();	
 	}
 }
 

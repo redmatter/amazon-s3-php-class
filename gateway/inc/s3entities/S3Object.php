@@ -14,7 +14,8 @@
  */
 namespace rmarchgateway\s3entities
 {
-	
+use rmarchgateway\policy\RMBucketPolicyRule;
+
 use rmarchgateway\s3entities\S3Bucket;
 
 use rmarchgateway\renderables\StorageError;
@@ -265,9 +266,20 @@ class S3Object
 		$path_exists = is_file($this->path);
 		$path_meta_exists = is_file($this->path_meta);
 		
-		// check if the file already exists
+		// Check if the file already exists
 		if ($path_exists || $path_meta_exists)
 		{
+			// If the file already exists, we need to check if the bucket policy allows us to overwrite it.
+			$overwrite_rule = $this->bucket->getPolicy()->getRule(RMBucketPolicyRule::ALLOW_OVERWRITE);
+			if (isset($overwrite_rule) === true)
+			{
+				if ($overwrite_rule->getValue() === false)
+				{
+					LogWarning('Overwrite rule is specified for this bucket and disallows overwrite', $this->id);
+					throw new StorageError(StorageError::MethodNotAllowed, $this, Request::Get('id'));
+				}
+			}
+			
 			$tmp = '.'.time().getmypid();
 		
 			if ($path_exists)

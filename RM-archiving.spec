@@ -243,6 +243,7 @@ cp gateway/index.php %{buildroot}/var/www/rmarchgateway/.
 cp gateway/xhprof_pre.php %{buildroot}/var/www/rmarchgateway/.
 cp gateway/gateway.conf %{buildroot}/etc/archiving/.
 cp gateway/auth_data.xml %{buildroot}/usr/share/archiving/auth_data.xml.sample
+cp gateway/policy.xml.sample %{buildroot}/usr/share/archiving/policy.xml.sample
 cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
 cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
 
@@ -494,6 +495,7 @@ fi
 /etc/rsyslog.d/11-rmarchgateway.conf
 %dir /etc/archiving/gateway.d
 /usr/share/archiving/auth_data.xml.sample
+/usr/share/archiving/policy.xml.sample
 
 %files storage-gateway
 %defattr(-,root,root)

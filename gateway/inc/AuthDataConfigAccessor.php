@@ -16,11 +16,12 @@ namespace rmarchgateway
 {
 
 use rmarchgateway\AuthDataAccessor;
+use rmarchgateway\XmlConfigFileAccessor;
 
 use \config;
 	
 /**
- * Archiving Gateway
+ * AuthDataConfigAccessor
  * Implementation of AuthDataAccessor which uses the standard configuration
  * file to retrieve the AWS Secret Access Key and any other details for a
  * specified AWS Access Key ID.
@@ -32,10 +33,8 @@ use \config;
  * @license   http://www.redmatter.com/license private
  * @link      http://www.redmatter.com
  */
-class AuthDataConfigAccessor implements AuthDataAccessor
-{
-	protected $authDataFilePath;
-	
+class AuthDataConfigAccessor extends XmlConfigFileAccessor implements AuthDataAccessor
+{	
 	/**
 	 * Constructor
 	 * Gets the authentication data file path from the configuration file.
@@ -54,7 +53,7 @@ class AuthDataConfigAccessor implements AuthDataAccessor
 			throw new \Exception("Configuration property: 'authentication.data_file_path' could not be found.");
 		}
 		
-		$this->authDataFilePath = $data_file_path;
+		parent::__construct($data_file_path);
 	}
 
 	/**
@@ -159,65 +158,6 @@ class AuthDataConfigAccessor implements AuthDataAccessor
 		return $access_key_node->item(0);
 	}
 
-	/**
-	 * getRootXPath
-	 * Returns an XPath representation of the root of the authentication data file.
-	 *
-	 * @throws Exception
-	 *
-	 * @return \XPath
-	 */
-	protected function getRootXPath()
-	{
-		$xml_file_content = $this->getXmlContentFromFile();
-	
-		// Try turning the content of the file in to an XPath, catch and re-throw the exception if not.
-		try
-		{
-			return new \XPath($xml_file_content);
-		}
-		catch(\Exception $e)
-		{
-			LogError("Failed to parse XML: $xml_file_content");
-			throw new \Exception("Failed to parse XML: $xml_file_content", $e->getCode(), $e);
-		}
-	}
-
-	/**
-	 * getXmlContentFromFile
-	 * Returns a string containing the content of the authentication details XML file.
-	 *
-	 * @throws Exception
-	 *
-	 * @return string
-	 */
-	protected function getXmlContentFromFile()
-	{
-		// Check that the authentication data file exists.
-		if (is_file($this->authDataFilePath) === false)
-		{
-			LogError("Authentication file could not be found: $this->authDataFilePath");
-			throw new \Exception("Authentication file could not be found: $this->authDataFilePath");
-		}
-
-		// Get the content of the file and check it didn't fail.
-		$xml_file_content = @file_get_contents($this->authDataFilePath);
-		if ($xml_file_content === false)
-		{
-			LogError("Failed to get valid XML content from file: $this->authDataFilePath");
-			throw new \Exception("Failed to get valid XML content from file: $this->authDataFilePath");
-		}
-
-		// Check the file actually contained something.
-		if (empty($xml_file_content) === true)
-		{
-			LogError("XML file was empty: $this->authDataFilePath");
-			throw new \Exception("XML file was empty: this->authDataFilePath");
-		}
-
-		return $xml_file_content;
-	}
-	
 	/**
 	 * getValueForAwsKey
 	 * Returns the content of the specified node from within the passed DOMNode.
