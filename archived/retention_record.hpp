@@ -15,6 +15,8 @@
 #include "../common/types.hpp"
 #include "../common/cache.hpp"
 
+#include <rml/logger.h>
+
 #include <boost/shared_ptr.hpp>
 
 #include <set>
@@ -38,6 +40,45 @@ struct retention_record
 	uint64_t id;
 	
 	typedef boost::shared_ptr<retention_record> pointer;
+
+	/**
+	 * Verify that the item is purgable according to the **LATEST** version
+	 * of the applied policy.
+	 *
+	 * @param policy_finder    policy finder
+	 * @param p_retention      retention record
+	 * @param is_regular_purge is this check for a regular purge (true) or for an ondemand purge (false)
+	 * @return
+	 */
+	static bool is_purgeable(const policy::cached_finder_t& policy_finder, const pointer& p_retention, const bool& is_regular_purge) try
+	{
+		if(!p_retention)
+			return false;
+
+		std::pair< archiving::org_id_t, policy::id_type > lookup = std::make_pair(p_retention->identifier.org, p_retention->policy_id);
+		policy::pointer p_policy = policy_finder(lookup);
+		if(!p_policy) {
+			policy_finder.forget(lookup);
+			return false;
+		}
+
+		if(!is_regular_purge && (p_policy->type == policy::mode::loose))
+			return true;
+
+		static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+
+		// TODO look into any need for optimising this by using a memorizer for date calculations
+		// We could benefit because of we normally purge in the date order.
+		// We need to profile it to make this decision
+		return boost::posix_time::second_clock::universal_time() > applied_policy(p_policy,
+				(boost::posix_time::ptime(boost::gregorian::date(
+						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day))- epoch)
+								.total_seconds() + p_retention->midnight_offset).get_min_retention();
+	}
+	catch(const std::exception& e) {
+		LogWarning("Exception: "<<e.what());
+		return false;
+	}
 
 	friend inline std::ostream& operator<<(std::ostream& ostr, const retention_record& r)
 	{
@@ -160,7 +201,7 @@ struct retention_record
 	{
 		bool operator()(const pointer& p_retention) const
 		{
-			return p_retention && (p_retention->identifier.filetype == archiving::archivable::file_type::cdr);
+			return p_retention && (p_retention->identifier.filetype == archiving::file_type::cdr);
 		}
 	};
 

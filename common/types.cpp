@@ -7,8 +7,71 @@
 
 #include "types.hpp"
 
+#include <rml/exception.h>
+#include <rml/logger.h>
+
+namespace archiving {
+
+/**
+ * to string for of the type
+ *
+ * @param type
+ * @return
+ */
+const char* file_type::to_string(const file_type_t type)
+{
+	static const char* types_str[] = {
+		"unknown",
+		"cdr",
+		"recording",
+		"sms",
+		"buffered-recording",
+
+		"invalid-file-type"
+	};
+
+	if(type >= file_type::unknown && type < file_type::n_file_types)
+		return types_str[type];
+
+	return types_str[file_type::n_file_types];
+}
+
+/**
+ * from string to type
+ *
+ * @param str
+ * @return
+ */
+const file_type::file_type_t file_type::from_string(const std::string& str)
+{
+	if(str == "unknown")
+		return file_type::unknown;
+	else if(str == "cdr")
+		return file_type::cdr;
+	else if(str == "recording")
+		return file_type::recording;
+	else if(str == "sms")
+		return file_type::sms;
+	else if(str == "buffered-recording")
+		return file_type::buffered_recording;
+
+	THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
+}
+
+}  // namespace archiving
+
+/**
+ * Operators to deal with stream read / write
+ */
 namespace std {
 
+/**
+ * stream inserted for hash_vector
+ *
+ * @param ostr
+ * @param hash
+ * @return
+ */
 std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 {
 	string ret;
@@ -25,6 +88,13 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
 	return ostr << ret;
 }
 
+/**
+ * Stream reader for hash_vector
+ *
+ * @param istr
+ * @param hv
+ * @return
+ */
 std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 {
 	string encoded;
@@ -42,6 +112,38 @@ std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 	    decoder.Get(&hv[0], archiving::hash_vector::static_size);
 
 	return istr;
+}
+
+/**
+ * Stream reader for file_type
+ *
+ * @param istr
+ * @param t
+ * @return
+ */
+istream& operator>>(istream& istr, archiving::file_type::file_type_t& t)
+{
+	std::string tmp; istr >> tmp;
+	try {
+		t = archiving::file_type::from_string(tmp); // we may throw here
+	}
+	catch(...) {
+		LogWarning("Invalid file_type");
+	}
+
+	return istr;
+}
+
+/**
+ * Stream writer for file_type
+ *
+ * @param ostr
+ * @param type
+ * @return
+ */
+ostream& operator<<(ostream& ostr, const archiving::file_type::file_type_t& type)
+{
+	return ostr << archiving::file_type::to_string(type);
 }
 
 }

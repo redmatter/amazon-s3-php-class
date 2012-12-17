@@ -20,6 +20,9 @@
 #define SQL_DEBUG(line) \
 	LogCoutIf(p_pool_->debug_enabled, "SQL: "<<line)
 
+#define SQL_DEBUG_IF(cond, line) \
+	LogCoutIf(cond || p_pool_->debug_enabled, "SQL: "<<line)
+
 namespace app {
 
 namespace database {

@@ -416,7 +416,7 @@ struct operation_data
 		{
 		}
 
-		detail(const time_t& arrival_time, const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org,
+		detail(const time_t& arrival_time, const archiving::file_type::file_type_t& filetype, const archiving::org_id_t& org,
 				const std::string& uuid, const std::string& metadata, const policy::pointer& policy,
 				const time_t& create_time, const storage::basic_endpoint::pointer& p_endpoint,
 				const types::file_format::file_format_t target_file_format, const std::size_t& clear_size,
@@ -432,7 +432,7 @@ struct operation_data
 			LogVerbose("Loading "<<identifier<<" state:"<<operation_state::to_string(this->state)<<" *original* state:"<<operation_state::to_string(state));
 		}
 
-		detail(const archiving::archivable::file_type::file_type_t& filetype, const archiving::org_id_t& org, const std::string& uuid) :
+		detail(const archiving::file_type::file_type_t& filetype, const archiving::org_id_t& org, const std::string& uuid) :
 			arrival_time(0), identifier(filetype, org, uuid), p_metadata(),
 			policy(), p_endpoint(), target_file_format(types::file_format::unknown),
 			clear_size(0), real_size(0), current_file_format(types::file_format::unknown),

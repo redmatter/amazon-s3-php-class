@@ -128,70 +128,6 @@ public:
 		}
 	};
 
-	/**
-	 * Types of files we deal with
-	 */
-	struct file_type
-	{
-		enum file_type_t
-		{
-			unknown = 0,
-			cdr,
-			recording,
-			sms,
-
-			n_file_types
-		};
-
-		/**
-		 * to string for of the type
-		 *
-		 * @param type
-		 * @return
-		 */
-		static const char* to_string(const file_type_t type)
-		{
-			static const char* types_str[] = {
-				"unknown",
-				"cdr",
-				"recording",
-				"sms",
-
-				"invalid-file-type"
-			};
-
-			if(type >= unknown && type < n_file_types)
-				return types_str[type];
-
-			return types_str[n_file_types];
-		}
-
-		/**
-		 * from string to type
-		 *
-		 * @param str
-		 * @return
-		 */
-		static const file_type_t from_string(const std::string& str)
-		{
-			if(str == "unknown")
-				return unknown;
-			else if(str == "cdr")
-				return cdr;
-			else if(str == "recording")
-				return recording;
-			else if(str == "sms")
-				return sms;
-
-			THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
-		}
-
-		friend std::ostream& operator << (std::ostream& ostr, const file_type_t& type)
-		{
-			return ostr << file_type::to_string(type);
-		}
-	};
-
 	struct identifier
 	{
 		file_type::file_type_t filetype;
@@ -739,8 +675,8 @@ struct archivable_pointer_compare
 {
 	bool operator() (const archivable::pointer& lhs, const archivable::pointer& rhs) const
 	{
-		const archiving::archivable::file_type::file_type_t& lhs_file_type(lhs->get_type());
-		const archiving::archivable::file_type::file_type_t& rhs_file_type(rhs->get_type());
+		const archiving::file_type::file_type_t& lhs_file_type(lhs->get_type());
+		const archiving::file_type::file_type_t& rhs_file_type(rhs->get_type());
 
 		if (lhs_file_type != rhs_file_type)
 			return lhs_file_type < rhs_file_type;
@@ -798,18 +734,6 @@ inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& 
 		return ostr << *p_a;
 
 	return ostr << "archivable::pointer(NULL)";
-}
-
-inline istream& operator>>(istream& istr, archiving::archivable::file_type::file_type_t& t)
-{
-	std::string tmp; istr >> tmp;
-	try {
-		t = archiving::archivable::file_type::from_string(tmp); // we may throw here
-	}
-	catch(...) {
-		LogWarning("Invalid file_type");
-	}
-	return istr;
 }
 
 }  // namespace std

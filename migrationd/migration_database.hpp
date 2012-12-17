@@ -209,7 +209,7 @@ public:
 								p_policy,
 								rml::utils::strtoull(row[6].c_str()),
 								app::types::file_format::encrypted_compressed_wav,
-								archiving::archivable::file_type::recording);
+								archiving::file_type::recording);
 						LogDebug("Migratable: "<<data);
 						pc_produce(new_migratables_channel_, data);
 						ids.push_back(id);

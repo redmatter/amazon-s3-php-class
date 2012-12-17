@@ -193,7 +193,7 @@ public:
 					archiving::archivable::pointer archivable_cdr = in_channel.consume();
 					LogVerbose(*archivable_cdr<<" from channel");
 
-					if((archivable_cdr->get_type() != archiving::archivable::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
+					if((archivable_cdr->get_type() != archiving::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
 						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
 						archivable_cdr->hibernate();
 						pc_produce(out_channel, archivable_cdr, 1);
@@ -384,7 +384,7 @@ public:
 								}
 
 								archiving::archivable::pointer archivable_cbr;
-								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::do_not_archive));
+								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::do_not_archive));
 								archivable_cbr->set_owners(*owners);
 								archivable_cbr->set_add_to_cdrmunch_cache(false);
 								archivable_cbr->set_is_buffered_recording(true);
@@ -449,13 +449,13 @@ public:
 											// make sure we are not duplicating
 											{
 												const std::pair<std::set<std::string>::iterator, bool> res(recording_uuids.insert(uuid));
-												if (!res.second || archivable_busy_set_.is_busied(archiving::archivable::pointer(new archiving::archivable(uuid, archiving::archivable::file_type::recording)))) {
+												if (!res.second || archivable_busy_set_.is_busied(archiving::archivable::pointer(new archiving::archivable(uuid, archiving::file_type::recording)))) {
 													LogMessage(archivable_cdr<<" Recording [recording/"<<uuid<<"] already being processed; ignoring");
 													continue;
 												}
 											}
 
-											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
+											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 											archivable_recording->set_owners(*owners);
 
@@ -510,7 +510,7 @@ public:
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 									archivable_recording.reset(
 											new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, 
-													archiving::archivable::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
+													archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;

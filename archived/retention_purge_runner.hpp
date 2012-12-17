@@ -16,6 +16,7 @@
 #include "./database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
 #include "../common/coreapi.hpp"
+#include "../common/policy.hpp"
 
 #include <rml/pc_channel.h>
 
@@ -45,14 +46,16 @@ namespace app {
 namespace retention_purge {
 
 /**
- * retention policy based purge
- * Here we identify the purge set and feed them into storage operations channel
+ * Retention policy based purge
+ * Here we identify the purge set and feed them through the purge statemachine backed
+ * by the reactor
  */
 class runner : public boost::enable_shared_from_this<runner>
 {
 	const boost::program_options::variables_map& confMap_;
 
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
+	const policy::cached_finder_t& cached_policy_finder_;
 	coreapi& api_;
 
 	state_reactor<>& reactor_;
@@ -75,7 +78,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex last_delete_retention_time_mutex_;
 	boost::mutex purge_finished_time_mutex_;
 
-	bool auto_expire_filetype_[archiving::archivable::file_type::n_file_types];
+	bool auto_expire_filetype_[archiving::file_type::n_file_types];
 
 	volatile bool& quit_;
 
@@ -102,10 +105,11 @@ public:
 	runner(
 			const boost::program_options::variables_map& confMap,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
+			const policy::cached_finder_t& cached_policy_finder,
 			coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
-				storage_endpoint_finder_(storage_endpoint_finder), api_(api), reactor_(reactor),
+				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder), api_(api), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
@@ -120,7 +124,7 @@ public:
 			std::vector<std::string>::const_iterator itr = str_filetypes.begin();
 			std::vector<std::string>::const_iterator end = str_filetypes.end();
 			for(; itr != end; ++itr)
-				auto_expire_filetype_[(int)archiving::archivable::file_type::from_string(*itr)] = true;
+				auto_expire_filetype_[(int)archiving::file_type::from_string(*itr)] = true;
 		}
 
 		// initialise it! not thread-safe
@@ -132,11 +136,9 @@ public:
 	 *
 	 * @param purgeables
 	 * @param max_retention_id
-	 * @return
 	 */
-	uint64_t schedule_purgeables(const retention_record::set_t& purgeables, const uint64_t& max_retention_id)
+	void schedule_purgeables(const retention_record::set_t& purgeables)
 	{
-		uint64_t new_max_retention_id(max_retention_id);
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));
@@ -147,18 +149,12 @@ public:
 				continue;
 			}
 
-			if((*itr)->id > new_max_retention_id)
-				new_max_retention_id = (*itr)->id;
-
 			item::pointer purge_item(new item((*itr)->identifier, endpoint, *itr));
-
 			reactor_.schedule(
 					boost::bind(&runner::purge_initialise, shared_from_this(), purge_item),
 					boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
 					state_reactor<>::very_low, false);
 		}
-
-		return new_max_retention_id;
 	}
 
 	/**
@@ -168,28 +164,37 @@ public:
 	 */
 	uint64_t batch_purge(const archiving::org_id_t& org_id, const uint64_t& max_retention_id, const unsigned int batch_count)
 	{
+		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
+				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
+
 		int batch_count_(batch_count);
 
 		// look for any on-demand purge
 		{
 			const retention_record::set_t& purgeables(
-					retention_db_.get_retention_for_purge_ondemand(api_, org_id));
+					retention_db_.get_retention_for_purge_ondemand(api_, org_id,
+							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
+							fn_is_filetype_auto_expired));
 
 			if(!purgeables.empty()) {
 				batch_count_ -= purgeables.size();
 
-				// ignoring the max_retention_id as we dont want the on-demand purge to affect the regular-purge's markers
-				(void) schedule_purgeables(purgeables, 0);
+				schedule_purgeables(purgeables);
 			}
 		}
 
 		// continue with the regular purge
 		if(batch_count_ > 0) {
-			const retention_record::set_t& purgeables(
-					retention_db_.get_retention_for_purge(api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions()));
+			const std::pair< uint64_t, retention_record::set_t >& purgeables(
+					retention_db_.get_retention_for_purge(
+							api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
+							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
+							fn_is_filetype_auto_expired));
 
-			if(!purgeables.empty())
-				return schedule_purgeables(purgeables, max_retention_id);
+			if(!purgeables.second.empty())
+				schedule_purgeables(purgeables.second);
+
+			return purgeables.first;
 		}
 
 		return max_retention_id;
@@ -200,8 +205,32 @@ public:
 		storage::s3::backend::pointer storage_backend = storage::s3::backend::get_instance();
 
 		storage::string_map_t props;
-		boost::static_pointer_cast<storage::s3::backend>(storage_backend)->stat(
-				p_item->endpoint, p_item->identifier, props);
+		try {
+			boost::static_pointer_cast<storage::s3::backend>(storage_backend)->stat(
+					p_item->endpoint, p_item->identifier, props);
+		}
+		catch(const std::exception& e) {
+			bool const* isKeyNotFound = boost::get_error_info< storage::s3::KeyNotFound_error_info >(e);
+	        if (isKeyNotFound && *isKeyNotFound) {
+	        	LogMessage("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
+
+	        	if(is_auto_expiring(p_item->identifier)) {
+	        		LogMessage("HEAD "<<p_item->identifier<<" failed; Assuming auto-expiry on storage endpoint "<<p_item->endpoint->id);
+	        		return true;
+	        	}
+
+        		LogError("HEAD on "<<p_item->identifier<<" failed; could be data loss in storage endpoint "<<p_item->endpoint->id);
+        		return false;
+	        }
+
+	        if (std::string const* statusStr = boost::get_error_info< storage::s3::StatusStr_error_info >(e))
+	        	LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what()<<" Status:"<<*statusStr);
+	        else
+	        	LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
+
+	        return false;
+		}
+
 		LogDebug("stat("<<p_item->identifier<<") "<<props);
 
 		if(!props.size())
@@ -303,8 +332,16 @@ public:
 		}
 	}
 
+	inline bool is_auto_expiring(const archiving::archivable::identifier& i) const
+	{
+		return auto_expire_filetype_[(int)(i.filetype)];
+	}
+
 	void move_forward(item::pointer p_item, const bool& outcome_ok)
 	{
+		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
+				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
+
 		p_item->cur_state = state::make(p_item->cur_state, outcome_ok);
 
 		// if not dummy item
@@ -312,14 +349,17 @@ public:
 			// set up save()
 			internal_db_.batch_save< item >(p_item);
 
+			static const unsigned int db_flush_interval_seconds(
+					confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
+
 			// keep it available till the save() fires!
-			pc_produce(item_save_channel_, p_item, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+			pc_produce(item_save_channel_, p_item, 15 + db_flush_interval_seconds, 0, 0);
 			try {
 				// consume and discard if save()d
 				item::pointer pi = item_save_channel_.consume(0, 100);
 				if(!item::is_saved(pi)) {
-					LogWarning(pi<<" BACK into item_save_channel_ for saving");
-					pc_produce(item_save_channel_, pi, 10 + confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>(), 0, 0);
+					LogDWarning(pi<<" BACK into item_save_channel_ for saving", "IGNO");
+					pc_produce(item_save_channel_, pi, 5 + db_flush_interval_seconds, 0, 0);
 				}
 			}
 			catch(const item::channel_t::consume_timed_out_exception& e) {
@@ -333,7 +373,7 @@ public:
 			p_item->cur_state = state::next_up(p_item->cur_state);
 			const state::coarse_t& coarse_state(state::get_coarse(p_item->cur_state));
 
-			const bool& require_approval(confMap_["retention_purge.require_approval"].as<bool>());
+			static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
 			if(coarse_state == state::_approve_ && !require_approval) {
 				// if we need no approval; skip this stage
 				p_item->cur_state = state::make(
@@ -793,10 +833,19 @@ public:
 				break;
 
 			try {
-				// check if we need to feed the queue
-				if (purge_max_queue_size < internal_db_.get_purge_queue_size(purge_max_queue_size)) {
-					LogMessage("Purge queue size >= "<<purge_max_queue_size<<"; not en-queueing anymore");
-					continue;
+
+				{
+					const long& purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+					if(purge_queue_size < 0) {
+						LogWarning("Failed to obtain purge queue size");
+						continue;
+					}
+
+					// check if we need to feed the queue
+					if (purge_max_queue_size < purge_queue_size) {
+						LogMessage("Purge queue size >= "<<purge_max_queue_size<<"; not en-queueing anymore");
+						continue;
+					}
 				}
 
 				const int& limit(get_limit());
@@ -809,13 +858,22 @@ public:
 				}
 
 				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit, confMap_["retention_purge.enabled_orgs"].as<std::string>());
+				if(!p_purge_def) {
+					LogVerbose("Failed to update and get purge definition; skipping attempt");
+					continue;
+				}
 
 				if (!p_purge_def->set.empty()) {
 					types::purge_def::set_t orgs_update;
 
 					const types::purge_def::set_t::const_iterator& end(p_purge_def->set.end());
 					for(types::purge_def::set_t::const_iterator itr = p_purge_def->set.begin(); !quit_ && (itr != end); ++itr) {
-						const long purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+						const long& purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+						if(purge_queue_size < 0) {
+							LogWarning("Failed to obtain purge queue size");
+							continue;
+						}
+
 						// make sure we dont over fill
 						if (purge_max_queue_size > purge_queue_size) {
 							// readjust limit based on purge queue size

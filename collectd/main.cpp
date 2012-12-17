@@ -101,12 +101,12 @@ public:
 		return is_queued;
 	}
 
-	inline bool is_file_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& file_path) const
+	inline bool is_file_loaded(const archiving::file_type::file_type_t& type, const std::string& file_path) const
 	{
 		return is_loaded(type, std::string(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36));
 	}
 
-	inline bool is_loaded(const archiving::archivable::file_type::file_type_t& type, const std::string& uuid) const
+	inline bool is_loaded(const archiving::file_type::file_type_t& type, const std::string& uuid) const
 	{
 		return is_archivable_loaded(archiving::archivable::pointer(new archiving::archivable(uuid, type)));
 	}
@@ -317,7 +317,7 @@ int main(int argc, char* argv[]) try
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
 		app::directory_loader::is_loaded_fn archivable_is_loaded_fn(
-				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::archivable::file_type::cdr, _1));
+				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::file_type::cdr, _1));
 
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));

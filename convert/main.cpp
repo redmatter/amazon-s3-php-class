@@ -1,3 +1,5 @@
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+
 #include "../archived/types.hpp"
 #include "../archived/compress.hpp"
 #include "../archived/crypto.hpp"

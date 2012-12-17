@@ -92,7 +92,7 @@ int main()
 		opdata->p_detail->identifier = "callrecording/1/59c571ad-bdeb-439a-967d-7ba727ff8ddf.wav";
 LogDebug("xxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 		opdata->p_detail->p_metadata.reset(new app::types::metadata(istr));
-		opdata->p_detail->file_type = archiving::archivable::file_type::call_recording;
+		opdata->p_detail->file_type = archiving::file_type::recording;
 		opdata->p_detail->org_id = 1;
 		opdata->p_detail->policy = app::applied_policy(cached_policy_finder(std::make_pair(opdata->p_detail->org_id, app::policy::id_type(0))), time(0));
 		opdata->p_detail->target_file_format = app::types::file_format::make(true, true,

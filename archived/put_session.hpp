@@ -153,7 +153,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	policy::id_type policy_id_;
 	time_t creation_time_;
 	std::string creation_date_yyyymmdd_;
-	archiving::archivable::file_type::file_type_t file_type_;
+	archiving::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
 	bool xfrd_ok_;
 
@@ -350,7 +350,7 @@ private:
 			orgID_ = 0;
 			metadata_.reset();
 			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::archivable::file_type::unknown;
+			file_type_ = archiving::file_type::unknown;
 			content_length_ = 0;
 			policy_id_ = 0;
 			creation_time_ = 0;
@@ -367,7 +367,7 @@ private:
 		case states::put_received:
 		{
 			std::string verb;
-			archiving::archivable::file_type::file_type_t file_type;
+			archiving::file_type::file_type_t file_type;
 			archiving::org_id_t orgID;
 			std::size_t content_length;
 			std::string uuid;
@@ -556,7 +556,7 @@ private:
 			orgID_ = 0;
 			metadata_.reset();
 			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::archivable::file_type::unknown;
+			file_type_ = archiving::file_type::unknown;
 			content_length_ = 0;
 			policy_id_ = 0;
 			creation_time_ = 0;
@@ -663,7 +663,7 @@ private:
 								boost::format("%1%/%2%/%3%_%4%_%5%")
 										% confMap_["distiller_client.base_dir"].as<std::string>()
 										% creation_date_yyyymmdd_
-										% archiving::archivable::file_type::to_string( opdata->p_detail->identifier.filetype )
+										% archiving::file_type::to_string( opdata->p_detail->identifier.filetype )
 										% opdata->p_detail->identifier.org
 										% opdata->p_detail->identifier.uuid);
 
@@ -681,7 +681,7 @@ private:
 
 							LogMessage(remote_ep_<<" "<<resource_id_<<" Whisper file created; file:"<<whisper_path);
 
-							if(file_type_ == archiving::archivable::file_type::cdr) {
+							if(file_type_ == archiving::file_type::cdr) {
 								whisper::pointer p_whisper(new whisper(whisper_path, pbx_hostname,
 										opdata->p_detail->identifier.uuid, creation_time_));
 								pc_produce(whisper_channel_, p_whisper);
@@ -710,7 +710,7 @@ private:
 						types::metadata::const_iterator itr = opdata->p_detail->p_metadata->find("BufferedRecording");
 						if(itr != opdata->p_detail->p_metadata->end()
 								&& itr->second == "true"
-										&& opdata->p_detail->identifier.filetype == archiving::archivable::file_type::recording) {
+										&& opdata->p_detail->identifier.filetype == archiving::file_type::recording) {
 
 							LogVerbose(remote_ep_<<" Call-buffering recording received; spooling locally");
 
@@ -764,7 +764,7 @@ private:
 			orgID_ = 0;
 			metadata_.reset();
 			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::archivable::file_type::unknown;
+			file_type_ = archiving::file_type::unknown;
 			content_length_ = 0;
 			policy_id_ = 0;
 			creation_time_ = 0;

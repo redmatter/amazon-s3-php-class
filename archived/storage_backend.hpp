@@ -28,6 +28,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/exception/all.hpp>
 
 #include <fstream>
 #include <string>
@@ -124,6 +125,9 @@ public:
 // specialisation
 
 namespace s3 {
+
+typedef boost::error_info<struct tag_KeyNotFound, bool> KeyNotFound_error_info;
+typedef boost::error_info<struct tag_StatusStr, std::string> StatusStr_error_info;
 
 class backend : public basic_backend< backend >
 {
@@ -723,8 +727,11 @@ public:
 
 		LogMessage(identifier<<": HEAD Result Status: "<<S3_get_status_name(data.status));
 
-		if(data.status != S3StatusOK)
-			throw rml::exception("HEAD failed");
+		if(data.status != S3StatusOK) {
+			throw boost::enable_error_info(rml::exception("HEAD failed"))
+				<< KeyNotFound_error_info(data.status == S3StatusHttpErrorNotFound || data.status == S3StatusErrorNoSuchKey)
+				<< StatusStr_error_info(S3_get_status_name(data.status));
+		}
 	}
 
 	void remove(operation_data::pointer opdata) __attribute_deprecated__

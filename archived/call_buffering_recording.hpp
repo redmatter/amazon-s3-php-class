@@ -115,7 +115,7 @@ struct call_buffering_recording
 
 				operation_data::detail::pointer detail(new operation_data::detail());
 				detail->files_map.insert(std::make_pair(types::file_format::clear_wav, p_cbr->fs));
-				detail->identifier = archiving::archivable::identifier(archiving::archivable::file_type::recording, p_cbr->org, p_cbr->uuid);
+				detail->identifier = archiving::archivable::identifier(archiving::file_type::recording, p_cbr->org, p_cbr->uuid);
 				detail->p_endpoint = find_endpoint(std::make_pair(p_cbr->org, archiving::endpoint_id_t(0)));
 				detail->arrival_time = time(0);
 				detail->current_file_format = types::file_format::clear_wav;

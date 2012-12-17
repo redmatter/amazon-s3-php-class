@@ -275,8 +275,6 @@ inline basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 
 	std::ostringstream ostr;
 
-	// TODO use OrgID and Format ( archiving::archivable::file_type ) so that we can store CDRs to a different EndPoint
-
 	ostr << "/archiving/endpoint/" << org_id << '/' << endpoint_id;
 
 	const coreapi::response& response(api.get(ostr.str(), 200, true));

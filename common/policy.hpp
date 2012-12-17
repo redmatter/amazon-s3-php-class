@@ -135,9 +135,59 @@ struct policy
 			recording = 0,
 			cdr = -1,
 			sms = -2,
+			buffered_recording = -3,
 
 			do_not_archive = -999
 		};
+
+		static pseudo_id_t by_file_type(const archiving::file_type::file_type_t& f)
+		{
+			static const pseudo_id_t xlate[archiving::file_type::n_file_types] = {
+					/*unknown*/            pseudo_id::do_not_archive,
+
+					/*cdr*/                pseudo_id::cdr,
+					/*recording*/          pseudo_id::recording,
+					/*sms*/                pseudo_id::sms,
+					/*buffered_recording*/ pseudo_id::buffered_recording
+			};
+
+			if(f > archiving::file_type::unknown && f < archiving::file_type::n_file_types)
+				return xlate[f];
+
+			THROW_RML_EXCEPTION("Unknown filetype: "<<int(f));
+		}
+	};
+
+	struct mode
+	{
+		enum mode_t
+		{
+			loose = 0,
+			compliance = 1,
+
+			n_modes
+		};
+
+		static mode_t from_string(const std::string& str)
+		{
+			if(str == "loose")
+				return loose;
+
+			if(str == "compliance")
+				return compliance;
+
+			THROW_RML_EXCEPTION("Invalid policy mode:"<<str);
+		}
+
+		static const char* to_string(mode_t& m)
+		{
+			if(m < 0 || m >= n_modes)
+				THROW_RML_EXCEPTION("Invalid policy mode:"<<int(m));
+
+			static const char* str[] = { "loose", "compliance" };
+
+			return str[m];
+		}
 	};
 
 	typedef int64_t id_type; // making it signed to accomodate the negative IDs passed in from FreeSwitch to denote NOT to archive
@@ -145,6 +195,8 @@ struct policy
 
 	const id_type id;
 	const version_type version; // for audit purpose ( during purge & GET for audit log )
+
+	const mode::mode_t type;
 
 	const retention_period min_retention;
 	const retention_period max_retention;
@@ -157,11 +209,12 @@ struct policy
 	typedef boost::shared_ptr< policy > pointer;
 
 	policy(const id_type& id, const version_type& version,
+			const mode::mode_t& type,
 			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
 			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit,
 			const archiving::endpoint_id_t& endpoint_id,
 			const bool& allow_unrestricted_access, const bool& disallow_recording_download) :
-				id(id), version(version),
+				id(id), version(version), type(type),
 				min_retention(min_retention_period, min_retention_unit),
 				max_retention(max_retention_period, max_retention_unit),
 				endpoint_id(endpoint_id),
@@ -194,6 +247,8 @@ struct policy
 		const char* id_str = policy_node.select_single_node("ID/text()").node().value();
 		const char* version_str = policy_node.select_single_node("Version/text()").node().value();
 
+		const char* type_str = policy_node.select_single_node("Mode/text()").node().value();
+
 	    pugi::xpath_node min_retention_period_node = policy_node.select_single_node("RetentionMin");
 	    const char* min_retention_period_str = min_retention_period_node.node().select_single_node("text()").node().value();
 	    const char* min_retention_period_unit_str = min_retention_period_node.node().attribute("Unit").value();
@@ -209,7 +264,7 @@ struct policy
 	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
 
 		return pointer(new policy(
-				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str),
+				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str), mode::from_string(type_str),
 				rml::utils::strtoull(min_retention_period_str), retention_units::from_string(min_retention_period_unit_str),
 				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
 				endpoint_id,
@@ -264,10 +319,14 @@ struct applied_policy
 		return p_policy->max_retention.add_to(creation_time).date().year_month_day();
 	}
 
-
 	ymd_t get_min_retention_ymd() const
 	{
 		return p_policy->min_retention.add_to(creation_time).date().year_month_day();
+	}
+
+	boost::posix_time::ptime get_min_retention() const
+	{
+		return p_policy->min_retention.add_to(creation_time);
 	}
 
 	std::ostream& operator<<(std::ostream& os) const

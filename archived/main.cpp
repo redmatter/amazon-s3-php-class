@@ -122,7 +122,7 @@ public:
 		return is_busied;
 	}
 
-	inline_ bool is_identifier_loaded(const archiving::archivable::file_type::file_type_t& type, const archiving::org_id_t& org, const std::string& uuid) const
+	inline_ bool is_identifier_loaded(const archiving::file_type::file_type_t& type, const archiving::org_id_t& org, const std::string& uuid) const
 	{
 		return is_loaded(operation_data::pointer(new operation_data(operation_data::detail::pointer(new operation_data::detail(type, org, uuid)))));
 	}
@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) try
 		app::state_reactor<> purge_state_reactor(app::confMap);
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
-						app::confMap, cached_endpoint_finder, coreapi, purge_state_reactor, retention_db, internal_db, app::quit));
+						app::confMap, cached_endpoint_finder, cached_policy_finder, coreapi, purge_state_reactor, retention_db, internal_db, app::quit));
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),

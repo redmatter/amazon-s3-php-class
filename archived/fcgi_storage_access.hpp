@@ -95,7 +95,7 @@ public:
 			}
 
 			identifier = archiving::archivable::identifier(
-					archiving::archivable::file_type::from_string(p_request->pathinfo.at< std::string >(0)),
+					archiving::file_type::from_string(p_request->pathinfo.at< std::string >(0)),
 					p_request->pathinfo.at< archiving::org_id_t >(1), uuid);
 		}
 

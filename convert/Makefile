@@ -6,6 +6,8 @@ include /usr/share/librml/Makefile.macros
 
 TARGET=convert
 
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
+
 RML_LOG_SOURCE_LOCATION=YES
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
@@ -20,7 +22,7 @@ FREESWITCH_DIR=/opt/freeswitch
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
 CXX_INCLUDES += -I/usr/include/cpp-netlib
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
-LIBS += -L$(FREESWITCH_DIR)/lib
+LIBS += -L$(FREESWITCH_DIR)/lib -L../common/$(TMP)
 
 DEFAULT_APP_NAME=$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
@@ -39,7 +41,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri-parsers \
-	-lcryptopp -lpugixml -lrml
+	-lcryptopp -lpugixml -lrml -larchiving_common
 
 CXX_SRCS += \
 	main.cpp

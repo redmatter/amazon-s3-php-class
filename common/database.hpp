@@ -293,15 +293,15 @@ public:
 					archiving::archivable::pointer p_parent;
 					archiving::archivable::pointer p_child;
 
-					archiving::archivable::file_type::file_type_t child_file_type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0UL));
-					archiving::archivable::file_type::file_type_t parent_file_type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[4].c_str(), 0UL));
+					archiving::file_type::file_type_t child_file_type = archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0UL));
+					archiving::file_type::file_type_t parent_file_type = archiving::file_type::file_type_t(rml::utils::strtoull(row[4].c_str(), 0UL));
 
 					try{
 						p_child = fn_get_loaded_instance(archiving::archivable::pointer(
 								new archiving::archivable(row[2].c_str(), child_file_type)));
 
 						if(!p_child) {
-							LogVerbose("Loading ID:"<<row[0].c_str()<<" FileType:"<<archiving::archivable::file_type::to_string(child_file_type)<<" UUID:"<<row[2].c_str());
+							LogVerbose("Loading ID:"<<row[0].c_str()<<" FileType:"<<archiving::file_type::to_string(child_file_type)<<" UUID:"<<row[2].c_str());
 							if(row[3] != "NULL") {
 								p_parent = fn_get_loaded_instance(archiving::archivable::pointer(
 										new archiving::archivable(row[5].c_str(), parent_file_type)));
@@ -382,7 +382,7 @@ public:
 				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
 					throw rml::exception("No parent given");
 
-				archiving::archivable::file_type::file_type_t type = archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL));
+				archiving::file_type::file_type_t type = archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL));
 				archiving::archivable::pointer p_arc( new archiving::archivable(
 						row[3].c_str(),
 						(row[14] != "NULL") ? row[14].c_str(): "",
@@ -464,14 +464,14 @@ public:
 		typedef std::vector< pointer > pointer_vector;
 
 		const uint64_t id;
-		const archiving::archivable::file_type::file_type_t file_type;
+		const archiving::file_type::file_type_t file_type;
 		const std::string uuid;
 		const std::string path;
 		const std::string modified_path;
 
 		purgedef(
 				const uint64_t& id,
-				const archiving::archivable::file_type::file_type_t& file_type,
+				const archiving::file_type::file_type_t& file_type,
 				const std::string& uuid,
 				const std::string& path,
 				const std::string& modified_path) :
@@ -512,7 +512,7 @@ public:
 			mysqlpp::UseQueryResult res = query.use(qp);
 			while(mysqlpp::Row row = res.fetch_row()) {
 				ret.push_back(purgedef::pointer(new purgedef(
-						rml::utils::strtoull(row[0].c_str(), 0ULL), archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL)), row[2].c_str(), row[3].c_str(), (row[4]=="NULL"? "": row[4].c_str()))));
+						rml::utils::strtoull(row[0].c_str(), 0ULL), archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL)), row[2].c_str(), row[3].c_str(), (row[4]=="NULL"? "": row[4].c_str()))));
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -546,7 +546,7 @@ public:
 				if(itr != purgeables.begin())
 					query << ", ";
 
-				query << (*itr)->id << "/* "<<archiving::archivable::file_type::to_string((*itr)->file_type)<<'/'<<(*itr)->uuid<<" */"<<((0 == (xx++ % 4))? '\n': ' ');
+				query << (*itr)->id << "/* "<<archiving::file_type::to_string((*itr)->file_type)<<'/'<<(*itr)->uuid<<" */"<<((0 == (xx++ % 4))? '\n': ' ');
 			}
 
 			query << ')';

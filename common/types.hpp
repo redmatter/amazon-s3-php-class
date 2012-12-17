@@ -31,6 +31,42 @@ typedef uint64_t endpoint_id_t;
 
 typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 
+
+/**
+ * Types of files we deal with
+ *
+ * IMPORTANT: Dont forget to update policy::pseudo_id enum
+ */
+struct file_type
+{
+	enum file_type_t
+	{
+		unknown = 0,
+		cdr,
+		recording,
+		sms,
+		buffered_recording,
+
+		n_file_types
+	};
+
+	/**
+	 * to string for of the type
+	 *
+	 * @param type
+	 * @return
+	 */
+	static const char* to_string(const file_type_t type);
+
+	/**
+	 * from string to type
+	 *
+	 * @param str
+	 * @return
+	 */
+	static const file_type_t from_string(const std::string& str);
+};
+
 }
 
 namespace std {
@@ -38,6 +74,10 @@ namespace std {
 ostream& operator<<(ostream& ostr, const archiving::hash_vector& hash);
 
 istream& operator>>(istream& istr, archiving::hash_vector& hv);
+
+istream& operator>>(istream& istr, archiving::file_type::file_type_t& t);
+
+ostream& operator<<(ostream& ostr, const archiving::file_type::file_type_t& type);
 
 }
 

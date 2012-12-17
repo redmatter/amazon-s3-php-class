@@ -47,7 +47,7 @@ struct migration_data
 	app::types::file_format::file_format_t target_format;
 	std::string identifier;
 	time_t create_time;
-	archiving::archivable::file_type::file_type_t filetype;
+	archiving::file_type::file_type_t filetype;
 
 	std::size_t clear_size;
 	std::size_t real_size;
@@ -67,7 +67,7 @@ struct migration_data
 			uint64_t id, const std::string& uuid, const std::string& path, const archiving::org_id_t& org, const archiving::user_id_t& user, const time_t& create_time,
 			storage::basic_endpoint::pointer p_endpoint, policy::pointer p_policy, const time_t& next_attempt,
 			const app::types::file_format::file_format_t& target_format = app::types::file_format::encrypted_compressed_wav,
-			const archiving::archivable::file_type::file_type_t& filetype = archiving::archivable::file_type::recording) :
+			const archiving::file_type::file_type_t& filetype = archiving::file_type::recording) :
 
 			id(id), uuid(uuid), path(path), org(org), user(user), target_format(target_format), create_time(create_time), filetype(filetype), p_endpoint(p_endpoint), p_policy(p_policy), next_attempt(next_attempt)
 	{
@@ -75,7 +75,7 @@ struct migration_data
 			throw rml::exception("Storage endpoint not found");
 
 		std::ostringstream ostr;
-		ostr << archiving::archivable::file_type::to_string(filetype) << '/' << org << '/' << uuid;
+		ostr << archiving::file_type::to_string(filetype) << '/' << org << '/' << uuid;
 		identifier = ostr.str();
 	}
 

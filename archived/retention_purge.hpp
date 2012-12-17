@@ -313,7 +313,7 @@ struct item
 	}
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
-			identifier(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
+			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
 					rml::utils::strtoull(row[3].c_str()), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
@@ -397,12 +397,12 @@ struct item
 	{
 		inline bool operator()(const pointer& p) const
 		{
-			return p->identifier.filetype == archiving::archivable::file_type::cdr;
+			return p->identifier.filetype == archiving::file_type::cdr;
 		}
 
 		inline int filetype_as_int() const
 		{
-			return int(archiving::archivable::file_type::cdr);
+			return int(archiving::file_type::cdr);
 		}
 	};
 

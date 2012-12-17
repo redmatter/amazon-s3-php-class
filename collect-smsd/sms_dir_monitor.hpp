@@ -77,7 +77,7 @@ namespace archiving
 						36);
 				pc_produce(channel_, archivable::pointer(
 						new archivable(uuid, "", 0, file_path,
-								archiving::archivable::file_type::sms, "xml", pbx_hostname_)));
+								archiving::file_type::sms, "xml", pbx_hostname_)));
 				
 				return true;
 			}

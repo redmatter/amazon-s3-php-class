@@ -33,6 +33,14 @@
 #include <time.h>
 #include <mysql++/row.h>
 
+#ifdef RETENTION_PURGE_SQL_DEBUG
+#define __SQL_DEBUG(line) \
+	SQL_DEBUG_IF(true, line)
+#else
+#define __SQL_DEBUG(line) \
+	SQL_DEBUG(line)
+#endif
+
 namespace app {
 
 extern std::string hostname;
@@ -255,7 +263,7 @@ public:
 
 					max_id = rml::utils::strtoll(row[0].c_str());
 
-					const archiving::archivable::file_type::file_type_t file_type(archiving::archivable::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)));
+					const archiving::file_type::file_type_t file_type(archiving::file_type::file_type_t(rml::utils::strtoull(row[5].c_str(), 0ULL)));
 					const archiving::org_id_t org(rml::utils::strtoull(row[6].c_str(), 0ULL));
 					const std::string uuid(row[7].c_str());
 					
@@ -483,9 +491,9 @@ public:
 	types::purge_def::pointer update_get_purge_def(const types::purge_def::pointer& previous, const unsigned int limit,
 			const std::string& enabled_orgs)
 	{
-		types::purge_def::pointer p_ret(new types::purge_def());
-
 		try {
+			types::purge_def::pointer p_ret(new types::purge_def());
+
 			rml::MySQLConnection conn(*p_pool_);
 
 			if(!previous->set.empty())
@@ -509,7 +517,7 @@ public:
 				else
 					query << " ON DUPLICATE KEY UPDATE OrgID=VALUES(OrgID)";
 
-				SQL_DEBUG(query.str());
+				__SQL_DEBUG(query.str());
 				query.execute();
 			}
 
@@ -538,7 +546,7 @@ public:
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 						"WHERE (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "<<where_enabled_orgs<<" "
 						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
-				SQL_DEBUG(query.str());
+				__SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
 				while(mysqlpp::Row row = res.fetch_row()) {
 					const unsigned long long OrgID(rml::utils::strtoull(row[0].c_str()));
@@ -555,6 +563,8 @@ public:
 
 				p_ret->offset = offset;
 				p_ret->limit = limit;
+				
+				return p_ret;
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -567,7 +577,7 @@ public:
 			LogError("Unknown Exception");
 		}
 
-		return p_ret;
+		return types::purge_def::pointer();
 	}
 
 	long get_purge_queue_size(const int& purge_max_queue_size)
@@ -587,7 +597,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << hostname << (purge_max_queue_size + 1);
 
-				SQL_DEBUG(query.str(qp));
+				__SQL_DEBUG(query.str(qp));
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row())
 					return rml::utils::strtoull(row[0].c_str());
@@ -656,11 +666,11 @@ public:
 
 			if(!qp.empty()) {
 				query.parse();
-				SQL_DEBUG(query.str(qp));
+				__SQL_DEBUG(query.str(qp));
 				query.execute(qp);
 			}
 			else {
-				SQL_DEBUG(query.str());
+				__SQL_DEBUG(query.str());
 				query.execute();
 			}
 
@@ -700,7 +710,7 @@ public:
 				query << (itr == begin? ' ': ',') << extract_id(*itr);
 			query << " )";
 
-			SQL_DEBUG(query.str());
+			__SQL_DEBUG(query.str());
 			query.execute();
 
 			return true;
@@ -746,11 +756,11 @@ public:
 			mysqlpp::UseQueryResult res;
 			if(!qparams.empty()) {
 				query.parse();
-				SQL_DEBUG(query.str(qparams));
+				__SQL_DEBUG(query.str(qparams));
 				res = query.use(qparams);
 			}
 			else {
-				SQL_DEBUG(query.str());
+				__SQL_DEBUG(query.str());
 				res = query.use();
 			}
 
@@ -775,11 +785,11 @@ public:
 				
 				if(!update_qparams.empty()) {
 					update_query.parse();
-					SQL_DEBUG(update_query.str(update_qparams));
+					__SQL_DEBUG(update_query.str(update_qparams));
 					update_query.execute(update_qparams);
 				}
 				else {
-					SQL_DEBUG(update_query.str());
+					__SQL_DEBUG(update_query.str());
 					update_query.execute();
 				}
 			}
