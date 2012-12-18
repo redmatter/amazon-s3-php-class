@@ -17,7 +17,7 @@
 
 namespace app {
 
-template < typename PoolType = boost::threadpool::thread_pool< boost::function0< void >, boost::threadpool::fifo_scheduler > >
+template < typename PoolType = boost::threadpool::thread_pool<boost::threadpool::prio_task_func, boost::threadpool::prio_scheduler, boost::threadpool::static_size, boost::threadpool::resize_controller, boost::threadpool::wait_for_active_tasks > >
 class state_reactor
 {
 	enum constants

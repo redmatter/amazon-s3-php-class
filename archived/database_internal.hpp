@@ -642,6 +642,7 @@ public:
 		if(Item::save_db_set.begin() == Item::save_db_set.end()) // empty?
 			return;
 
+		bool any_found(false);
 		rml::MySQLConnection conn(*p_pool_);
 		try {
 			mysqlpp::Transaction txn(*conn, false);
@@ -657,30 +658,33 @@ public:
 				if(typename Item::pointer p_item = itr->lock()) {
 					query << (itr == begin? ' ': ',');
 					Item::save_db(p_item, query, qp, hostname);
+					any_found = true;
 				}
 				else
 					LogDebug("Item expired; ignoring!");
 			}
 
-			Item::save_db_end(query, qp);
+			if(any_found) {
+				Item::save_db_end(query, qp);
 
-			if(!qp.empty()) {
-				query.parse();
-				__SQL_DEBUG(query.str(qp));
-				query.execute(qp);
-			}
-			else {
-				__SQL_DEBUG(query.str());
-				query.execute();
-			}
+				if(!qp.empty()) {
+					query.parse();
+					__SQL_DEBUG(query.str(qp));
+					query.execute(qp);
+				}
+				else {
+					__SQL_DEBUG(query.str());
+					query.execute();
+				}
 
-			txn.commit();
+				txn.commit();
 
-			// mark all as saved!
-			for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
-				typename Item::pointer p_item(itr->lock());
-				if(p_item)
-					Item::set_saved(p_item, true);
+				// mark all as saved!
+				for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
+					typename Item::pointer p_item(itr->lock());
+					if(p_item)
+						Item::set_saved(p_item, true);
+				}
 			}
 
 			// empty the set!

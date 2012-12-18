@@ -27,6 +27,7 @@
 #include <boost/date_time/gregorian/gregorian_types.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/preprocessor/cat.hpp>
 
 #include <math.h>
 
@@ -132,6 +133,33 @@ public:
 	}
 
 	/**
+	 * Safe shutdown of the runner
+	 */
+	void shutdown()
+	{
+#define ConsumeAllAndSave(channel) \
+		channel.set_finishing(); \
+		const item::channel_t::bare_item_set_t& BOOST_PP_CAT(items, __LINE__)(channel.consume_remaining()); \
+		for(item::channel_t::bare_item_set_t::const_iterator itr = BOOST_PP_CAT(items, __LINE__).begin(); itr != BOOST_PP_CAT(items, __LINE__).end(); ++itr) { \
+			if((*itr)->retention) { \
+				internal_db_.batch_save< item >(*itr); \
+			} \
+		} \
+
+		// stop intermediately and setup save
+		ConsumeAllAndSave(item_save_channel_)
+		ConsumeAllAndSave(delete_file_channel_)
+		ConsumeAllAndSave(delete_usage_channel_)
+		ConsumeAllAndSave(delete_retention_channel_)
+		ConsumeAllAndSave(finished_channel_)
+
+		LogMessage("Saving and terminating retention purge module");
+
+		// save items
+		internal_db_.batch_save_run< item, item::weak_set_t >();
+	}
+
+	/**
 	 * Batch scheduler
 	 *
 	 * @param purgeables
@@ -139,6 +167,10 @@ public:
 	 */
 	void schedule_purgeables(const retention_record::set_t& purgeables)
 	{
+		bool quit_seen(false);
+		static const unsigned int db_flush_interval_seconds(
+				confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
+
 		for(retention_record::set_t::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
 			storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
 					std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >((*itr)->identifier.org, (*itr)->endpoint_id));
@@ -150,10 +182,21 @@ public:
 			}
 
 			item::pointer purge_item(new item((*itr)->identifier, endpoint, *itr));
-			reactor_.schedule(
-					boost::bind(&runner::purge_initialise, shared_from_this(), purge_item),
-					boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-					state_reactor<>::very_low, false);
+
+			// save and keep it available till the save() fires!
+			internal_db_.batch_save< item >(purge_item);
+			pc_produce(item_save_channel_, purge_item, 15 + db_flush_interval_seconds, 0, 0);
+
+			if(quit_) {
+				LogIf(!quit_seen, "Scheduling purgeables interrupted by quit; saving state... (may take a while)");
+				quit_seen = true;
+			}
+			else {
+				reactor_.schedule(
+						boost::bind(&runner::purge_initialise, shared_from_this(), purge_item),
+						boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+						state_reactor<>::very_low, false);
+			}
 		}
 	}
 

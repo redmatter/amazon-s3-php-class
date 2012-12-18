@@ -281,6 +281,11 @@ struct item
 	typedef boost::shared_ptr< item > pointer;
 	typedef boost::weak_ptr< item > weak_ptr;
 
+//	~item()
+//	{
+//		LogDebug(identifier<<" deleted");
+//	}
+
 	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid)
 	{}
 

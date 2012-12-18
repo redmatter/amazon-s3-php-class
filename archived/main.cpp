@@ -222,7 +222,6 @@ int main(int argc, char *argv[]) try
 		app::whisper_client::describe_config(optsDesc);
 		app::retention_data_flusher::describe_config(optsDesc);
 		app::purge::describe_config(optsDesc);
-//		app::get_server::describe_config(optsDesc);
 		rml::fcgi::server::describe_config(optsDesc);
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor<>::describe_config(optsDesc);
@@ -328,10 +327,10 @@ int main(int argc, char *argv[]) try
 
 		app::storage::s3::runner s3runner(s3storage, storage_operation_channel, app::quit);
 
-		app::state_reactor<> purge_state_reactor(app::confMap);
+		boost::shared_ptr< app::state_reactor<> > p_purge_state_reactor(new app::state_reactor<>(app::confMap));
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
-						app::confMap, cached_endpoint_finder, cached_policy_finder, coreapi, purge_state_reactor, retention_db, internal_db, app::quit));
+						app::confMap, cached_endpoint_finder, cached_policy_finder, coreapi, *p_purge_state_reactor, retention_db, internal_db, app::quit));
 
 		app::whisper_client whisper_client(io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
@@ -359,19 +358,6 @@ int main(int argc, char *argv[]) try
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
 		
-//		int fd_fcgi_listen = -1;
-//		{
-//			if(FCGX_Init())
-//				throw rml::exception("FCGX_Init failed");
-//
-//			const unsigned int& listen_queue_depth( app::confMap["get_server.fcgi_listen_queue_depth"].as<unsigned int>() );
-//			const std::string& listen_socket( app::confMap["get_server.fcgi_listen_socket"].as<std::string>() );
-//
-//			fd_fcgi_listen = FCGX_OpenSocket(listen_socket.c_str(), listen_queue_depth);
-//			if (-1 == fd_fcgi_listen)
-//				throw rml::exception("failed to listen on fcgi_listen_socket");
-//		}
-
 		rml::fcgi::server fcgi_server(app::confMap, app::quit);
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
 				boost::ref(cached_retention_record_finder), boost::ref(cached_policy_finder),
@@ -381,13 +367,6 @@ int main(int argc, char *argv[]) try
 		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
-
-//		app::get_server get_server(app::confMap, fd_fcgi_listen, coreapi, cached_retention_record_finder, cached_endpoint_finder, cached_policy_finder, cached_coreapi_user_finder, app::quit);
-//		{
-//			unsigned int n_threads(std::max<unsigned int>(app::confMap["get_server.handler_threads"].as<unsigned int>(), app::get_server::min_handler_threads));
-//			while(0 < n_threads--)
-//				threads.create_thread(boost::bind(&app::get_server::run, boost::ref(get_server)));
-//		}
 
 		fcgi_server.start(threads);
 
@@ -495,18 +474,16 @@ int main(int argc, char *argv[]) try
 		whisper_channel.set_finishing();
 		cbr_channel.set_finishing();
 
+		p_purge_state_reactor.reset();
+		p_retention_purge_runner->shutdown();
+
 		coreapi.logout();
 
 		io_service.stop();
 
 		fcgi_server.stop();
 
-//		shutdown(fd_fcgi_listen, SHUT_RDWR);
-//		close(fd_fcgi_listen);
-
 		threads.join_all();
-
-//		FCGX_ShutdownPending();
 
 		LogAlways("terminated normally");
 
