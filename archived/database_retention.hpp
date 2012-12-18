@@ -181,7 +181,7 @@ public:
 				std::string uuid_hex(id.uuid);
 				boost::algorithm::erase_all(uuid_hex, "-");
 
-				query << (itr == begin? ' ': ',') << '(' << org << ',' << id.filetype << ',' << "0x"<<uuid_hex << ", '"<<action<<"', NOW(), " << eventlog_id << ")\n";
+				query << (itr == begin? ' ': ',') << '(' << org << ',' << int(id.filetype) << ',' << "0x"<<uuid_hex << ", '"<<action<<"', NOW(), " << eventlog_id << ")\n";
 			}
 
 			if(!has_items_to_audit)
