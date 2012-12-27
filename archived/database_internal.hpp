@@ -619,20 +619,19 @@ public:
 	template< class Item >
 	void batch_save(const typename Item::pointer& p_item)
 	{
-		typename Item::weak_ptr wp_item(p_item);
-
-		boost::mutex::scoped_lock lock(Item::save_db_mutex);
-		if(!Item::is_saved(p_item)) // already pending?!
+		if(Item::is_save_pending(p_item)) // already pending?!
 			return;
 
-		Item::set_saved(p_item, false);
-		Item::save_db_set.insert(wp_item);
+		boost::mutex::scoped_lock lock(Item::save_db_mutex);
+
+		Item::set_save_pending(p_item, true);
+		Item::save_db_set.insert(typename Item::weak_ptr(p_item));
 
 		LogDebug(p_item<<" added to save_db_set");
 	}
 
 	template< typename Item, typename ItemWeakSetType >
-	void batch_save_run()
+	void batch_save_run() try
 	{
 		typedef ItemWeakSetType item_set;
 		typedef typename ItemWeakSetType::const_iterator item_set_iterator;
@@ -644,59 +643,65 @@ public:
 
 		bool any_found(false);
 		rml::MySQLConnection conn(*p_pool_);
-		try {
-			mysqlpp::Transaction txn(*conn, false);
+		mysqlpp::Transaction txn(*conn, false);
 
-			mysqlpp::Query query = conn->query();
-			mysqlpp::SQLQueryParms qp;
+		mysqlpp::Query query = conn->query();
+		mysqlpp::SQLQueryParms qp;
 
-			Item::save_db_begin(query, qp);
+		Item::save_db_begin(query, qp);
 
-			item_set_iterator begin = Item::save_db_set.begin();
-			item_set_iterator end = Item::save_db_set.end();
-			for(item_set_iterator itr = begin; itr != end; ++itr) {
-				if(typename Item::pointer p_item = itr->lock()) {
-					query << (itr == begin? ' ': ',');
-					Item::save_db(p_item, query, qp, hostname);
-					any_found = true;
-				}
-				else
-					LogDebug("Item expired; ignoring!");
+		item_set_iterator begin = Item::save_db_set.begin();
+		item_set_iterator end = Item::save_db_set.end();
+		for(item_set_iterator itr = begin; itr != end; ++itr) {
+			if(typename Item::pointer p_item = itr->lock()) {
+
+				// in case we hit finished before we got to saving it
+				if(!Item::is_save_pending(p_item))
+					continue;
+
+				query << (itr == begin? ' ': ',');
+				Item::save_db(p_item, query, qp, hostname);
+				any_found = true;
+			}
+			else
+				LogDebug("Item expired; ignoring!");
+		}
+
+		if(any_found) {
+			Item::save_db_end(query, qp);
+
+			if(!qp.empty()) {
+				query.parse();
+				__SQL_DEBUG(query.str(qp));
+				query.execute(qp);
+			}
+			else {
+				__SQL_DEBUG(query.str());
+				query.execute();
 			}
 
-			if(any_found) {
-				Item::save_db_end(query, qp);
+			txn.commit();
 
-				if(!qp.empty()) {
-					query.parse();
-					__SQL_DEBUG(query.str(qp));
-					query.execute(qp);
-				}
-				else {
-					__SQL_DEBUG(query.str());
-					query.execute();
-				}
-
-				txn.commit();
-
-				// mark all as saved!
-				for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
-					typename Item::pointer p_item(itr->lock());
-					if(p_item)
-						Item::set_saved(p_item, true);
-				}
+			// mark all as saved!
+			for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
+				typename Item::pointer p_item(itr->lock());
+				if(p_item)
+					Item::set_save_pending(p_item, false);
 			}
+		}
 
-			// empty the set!
-			item_set empty_set;
-			std::swap(empty_set, Item::save_db_set);
-		}
-		catch(const std::exception& e) {
-			LogWarning(e.what());
-		}
+		// empty the set!
+		item_set empty_set;
+		std::swap(empty_set, Item::save_db_set);
+	}
+	catch(const std::exception& e) {
+		LogWarning("Exception: "<<e.what());
+	}
+	catch(...) {
+		LogWarning("Exception: Unknown or Unexpected");
 	}
 
-	template< typename Item, typename Iter, typename ExtractID >
+	template< typename Item, typename Iter, typename ExtractID, typename ExtractIdentifier >
 	bool delete_by_ids(const Iter& begin, const Iter& end, const std::string& table_name, const std::string& field_name="id")
 	{
 		if(begin == end)
@@ -706,16 +711,51 @@ public:
 		boost::mutex::scoped_lock lock(Item::save_db_mutex);
 
 		try {
-			ExtractID extract_id;
+			static ExtractID extract_id;
+			static ExtractIdentifier extract_identifier;
+
 			rml::MySQLConnection conn(*p_pool_);
+			mysqlpp::Transaction txn(*conn, false);
+
 			mysqlpp::Query query = conn->query();
+
+			bool list_first(true);
+
 			query << "DELETE FROM `ArchivingInternal`.`"<<table_name<<"` WHERE `"<<field_name<<"` IN (";
-			for(Iter itr = begin; itr != end; ++itr)
-				query << (itr == begin? ' ': ',') << extract_id(*itr);
+			for(Iter itr = begin; itr != end; ++itr) {
+				uint64_t id(
+						extract_id(*itr));
+
+				if(id) {
+					query << (list_first? ' ': ',') << id;
+					list_first = false;
+				}
+				else {
+					const archiving::archivable::identifier& identifier(
+							extract_identifier(*itr));
+
+					// we do not have the id updated in the object after save()
+					// here we need to delete by the identifier triplet!
+					mysqlpp::SQLQueryParms qp;
+					mysqlpp::Query query = conn->query();
+
+					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `OrgID`=%1:OrgID AND `FileType`=%2:FileType AND `UUID`=UNHEX(REPLACE(%3q:UUID, '-', ''))";
+					qp << identifier.org << identifier.filetype << identifier.uuid;
+
+					query.parse();
+					__SQL_DEBUG(query.str(qp));
+
+					query.execute(qp);
+				}
+			}
 			query << " )";
 
-			__SQL_DEBUG(query.str());
-			query.execute();
+			if(!list_first) {
+				__SQL_DEBUG(query.str());
+				query.execute();
+			}
+
+			txn.commit();
 
 			return true;
 		}
@@ -731,14 +771,47 @@ public:
 
 		return false;
 	}
-	
+
+	/**
+	 * Get the max-id in the purge queue when we restart, so that we can later load up to that.
+	 *
+	 * @return
+	 */
+	inline uint64_t get_purge_queue_max_id() try
+	{
+		rml::MySQLConnection conn(*p_pool_);
+		mysqlpp::Query query = conn->query();
+
+		query << "SELECT MAX(ID) FROM `ArchivingInternal`.`ArchiveDPurgeQueue`";
+		__SQL_DEBUG(query.str());
+
+		mysqlpp::UseQueryResult res = query.use();
+		if(mysqlpp::Row row = res.fetch_row())
+			return rml::utils::strtoull(row[0].c_str(), 0ULL);
+
+		return 0;
+	}
+	catch(const mysqlpp::Exception& e) {
+		LogError("MySQL Exception: "<<e.what());
+		return 0;
+	}
+	catch(const std::exception& e) {
+		LogError("Exception: "<<e.what());
+		return 0;
+	}
+	catch(...) {
+		LogError("Unknown Exception");
+		return 0;
+	}
+
 	typedef boost::function< void( mysqlpp::Query&, mysqlpp::SQLQueryParms& ) > fn_setup_query_t;
 	
 	template< typename Item, typename ExtractID >
 	void batch_load(typename Item::list_t& loaded,
-			const fn_setup_query_t& setup_select, const boost::function< typename Item::pointer( mysqlpp::Row& ) > fn_make_item_from_row,
-			const fn_setup_query_t& setup_update_by_ids_begin=fn_setup_query_t(), const fn_setup_query_t& setup_update_by_ids_end=fn_setup_query_t(), 
-			const unsigned int select_offset=0, const unsigned int select_limit=0)
+			const fn_setup_query_t& fn_setup_select,
+			const boost::function< typename Item::pointer( mysqlpp::Row& ) > fn_make_item_from_row,
+			const fn_setup_query_t& fn_setup_update_by_ids_begin=fn_setup_query_t(), const fn_setup_query_t& fn_setup_update_by_ids_end=fn_setup_query_t(),
+			const unsigned int select_limit=0, const unsigned int select_offset=0)
 	{
 		try {
 			ExtractID extract_id;
@@ -751,10 +824,22 @@ public:
 			mysqlpp::Query update_query = conn->query();
 			mysqlpp::SQLQueryParms update_qparams;
 			
-			setup_select(query, qparams);
-			if(select_offset || select_limit)
-				query << " LIMIT "<<select_offset<<", "<<select_limit;
-			if(!setup_update_by_ids_begin.empty())
+			fn_setup_select(query, qparams);
+			if(select_offset || select_limit) {
+				if(select_offset && select_limit)
+					query << " LIMIT "<<select_offset<<", "<<select_limit;
+
+				else if(select_limit)
+					query << " LIMIT "<<select_limit;
+
+				// else we have limit=0 with offset!=0
+				else {
+					LogMessage("None to SELECT as LIMIT is 0");
+					return;
+				}
+			}
+
+			if(!fn_setup_update_by_ids_begin.empty())
 				query << " FOR UPDATE";
 			
 			mysqlpp::UseQueryResult res;
@@ -768,24 +853,22 @@ public:
 				res = query.use();
 			}
 
-			if(!setup_update_by_ids_begin.empty())
-				setup_update_by_ids_begin(update_query, update_qparams);
+			if(!fn_setup_update_by_ids_begin.empty())
+				fn_setup_update_by_ids_begin(update_query, update_qparams);
 			
 			bool first = true;
 			while(mysqlpp::Row row = res.fetch_row()) {
 				typename Item::pointer p_item(fn_make_item_from_row(row));
 				loaded.push_back(p_item);
-				if(!setup_update_by_ids_begin.empty())
+				if(!fn_setup_update_by_ids_begin.empty())
 					update_query << (first? ' ': ',')<<extract_id(p_item);
 
 				first = false;
 			}
 			
-			if(!first && !setup_update_by_ids_begin.empty()) {
-				if(!setup_update_by_ids_end.empty())
-					setup_update_by_ids_end(update_query, update_qparams);
-				else
-					update_query << ')';
+			if(!first && !fn_setup_update_by_ids_begin.empty()) {
+				if(!fn_setup_update_by_ids_end.empty())
+					fn_setup_update_by_ids_end(update_query, update_qparams);
 				
 				if(!update_qparams.empty()) {
 					update_query.parse();

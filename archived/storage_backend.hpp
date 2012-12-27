@@ -764,43 +764,47 @@ public:
 			bucket_context.serviceURI = 0;
 		}
 
+		ExtractIdentifier ex_identifier;
+
 		S3ResponseHandler multidel_handler;
 		multidel_handler.completeCallback = &multidelete_response_complete_cb_;
 		multidel_handler.propertiesCallback = &multidelete_response_properties_cb_;
 
-		unsigned int nKeys = 0;
-		char * keys[1000]; // TODO batch at 1000s!!!
-		ExtractIdentifier ex_identifier;
-		for(Iter i = begin; i != end; ++i)
-			keys[nKeys++] = strdup(((std::string)(ex_identifier(*i))).c_str());
+		Iter i = begin;
+		while(i != end) {
+			unsigned int nKeys = 0;
+			char * keys[1000];
 
-	    multidelete_callback_data data(nKeys);
+			for(unsigned int count = 0; (count < 1000) && (i != end); ++i, count++)
+				keys[nKeys++] = strdup(((std::string)(ex_identifier(*i))).c_str());
 
-		int retry = 2;
-	    do {
+		    multidelete_callback_data data(nKeys);
 
-	        S3_delete_multiple_objects(&bucket_context, nKeys, const_cast<const char**>(keys),
-	        		&data.results[0], &data.resultsCount, &data.errorsCount,
-	        		0,
-	        		&multidel_handler, &data);
-	    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
+			int retry = 2;
+		    do {
 
-	    // TODO handle individual key (s3 object) status
-		LogMessage("DELETE-MULTI Result Status: "<<S3_get_status_name(data.status));
+		        S3_delete_multiple_objects(&bucket_context, nKeys, const_cast<const char**>(keys),
+		        		&data.results[0], &data.resultsCount, &data.errorsCount,
+		        		0,
+		        		&multidel_handler, &data);
+		    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
-		if(data.status != S3StatusOK)
-			LogError("DELETE-MULTI failed");
+			LogDMessage("DELETE-MULTI Result Status: "<<S3_get_status_name(data.status), "INFO");
 
-		if(data.errorsCount) {
-			unsigned int resCount(data.resultsCount);
-			while(resCount--)
-				if(data.results[resCount]->status)
-					LogWarning(std::string(data.results[resCount]->key, data.results[resCount]->keyLen)<<" failed to purge; status:"<<S3_get_status_name(data.results[resCount]->status));
-		}
+			if(data.status != S3StatusOK)
+				LogError("DELETE-MULTI failed");
 
-		while(nKeys--) {
-			free(keys[nKeys]);
-			keys[nKeys] = 0;
+			if(data.errorsCount) {
+				unsigned int resCount(data.resultsCount);
+				while(resCount--)
+					if(data.results[resCount]->status)
+						LogWarning(std::string(data.results[resCount]->key, data.results[resCount]->keyLen)<<" failed to purge; status:"<<S3_get_status_name(data.results[resCount]->status));
+			}
+
+			while(nKeys--) {
+				free(keys[nKeys]);
+				keys[nKeys] = 0;
+			}
 		}
 	}
 };

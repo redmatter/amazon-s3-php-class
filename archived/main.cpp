@@ -402,8 +402,10 @@ int main(int argc, char *argv[]) try
 
 		put_server.start();
 
+		bool monitor_pending(false);
+		bool more_to_reload(true);
+
 		unsigned int ticker = 1;
-		bool monitor_pending = false;
 		while(!app::quit) {
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((ticker%2) ? "tik": "tok"));
@@ -421,13 +423,12 @@ int main(int argc, char *argv[]) try
 						cached_endpoint_finder, convert_channel, have_more_to_load);
 
 			// load approved purge items occasionally
-			if(0 == (ticker % (app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60)))
-				p_retention_purge_runner->approval_run();
+			if(more_to_reload && (0 == (ticker % std::min<unsigned int>(180, app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60))))
+				more_to_reload = p_retention_purge_runner->reload_from_database();
 
-			// occasionally save i	tems to DB
+			// occasionally save items to DB
 			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>()))
 				internal_db.batch_save_run< app::retention_purge::item, app::retention_purge::item::weak_set_t >();
-
 
 			if(monitor_pending || !(ticker % 60)) {
 				boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(50);

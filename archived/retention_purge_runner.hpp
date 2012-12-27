@@ -140,23 +140,32 @@ public:
 #define ConsumeAllAndSave(channel) \
 		channel.set_finishing(); \
 		const item::channel_t::bare_item_set_t& BOOST_PP_CAT(items, __LINE__)(channel.consume_remaining()); \
-		for(item::channel_t::bare_item_set_t::const_iterator itr = BOOST_PP_CAT(items, __LINE__).begin(); itr != BOOST_PP_CAT(items, __LINE__).end(); ++itr) { \
-			if((*itr)->retention) { \
-				internal_db_.batch_save< item >(*itr); \
+		if( ! BOOST_PP_CAT(items, __LINE__).empty()) {\
+			LogVerbose("Found "<<BOOST_PP_CAT(items, __LINE__).size()<<" items from "<<channel); \
+			for(item::channel_t::bare_item_set_t::const_iterator itr = BOOST_PP_CAT(items, __LINE__).begin(); itr != BOOST_PP_CAT(items, __LINE__).end(); ++itr) { \
+				if((*itr)->retention) { \
+					internal_db_.batch_save< item >(*itr); \
+				} \
 			} \
-		} \
+		}
 
-		// stop intermediately and setup save
+		// stop intermediately and setup save for al except the finished channel
 		ConsumeAllAndSave(item_save_channel_)
 		ConsumeAllAndSave(delete_file_channel_)
 		ConsumeAllAndSave(delete_usage_channel_)
 		ConsumeAllAndSave(delete_retention_channel_)
-		ConsumeAllAndSave(finished_channel_)
 
 		LogMessage("Saving and terminating retention purge module");
 
 		// save items
 		internal_db_.batch_save_run< item, item::weak_set_t >();
+
+		// consume everything from finished_channel and DELETE them
+		finished_channel_.set_finishing();
+		const item::channel_t::bare_item_set_t& items_finished(finished_channel_.consume_remaining());
+		if(!items_finished.empty())
+			internal_db_.delete_by_ids< item, item::channel_t::bare_item_set_t::const_iterator, item::extract_id, item::extract_identifier >(
+					items_finished.begin(), items_finished.end(), "ArchiveDPurgeQueue", "ID");
 	}
 
 	/**
@@ -332,19 +341,92 @@ public:
 	/**
 	 * After a restart, we need to start back from where we left off
 	 */
-	void reload_from_database()
+	bool reload_from_database() try
 	{
-//		const int& limit(get_limit());
-//		if(limit <= 0)
-//			return;
-//
-//		static uint64_t max_loaded(0);
-//
-//		while(!quit_) {
-//			internal_db_.reload_purge_queue(max_loaded)
-//		}
+		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
+		static const uint64_t max_id(internal_db_.get_purge_queue_max_id());
+
+		static uint64_t loaded_max_id(0);
+
+		if (!require_approval && !(loaded_max_id < max_id)) {
+			LogMessage("Approval not required and we have finished reloading");
+			return false;
+		}
+
+		std::string where(
+				boost::str(
+						boost::format("`HostName`='%1%' AND (`OrgID` %% @@auto_increment_increment) = (@@auto_increment_offset %% @@auto_increment_increment)")
+						% app::hostname));
+
+		if(loaded_max_id < max_id)
+			where += boost::str(
+					boost::format(" AND %7% ( ID < %1% AND ID > %2% "
+							"AND State NOT IN ( "
+							" %3% /* init_error */, %4% /* approve */,"
+							" %5% /* approve_ok */, %6% /* approve_error */ "
+							") ) ")
+					% max_id % loaded_max_id
+					% state::init_error % state::approve % state::approve_ok % state::approve_error
+					% (require_approval? '(': ' '));
+
+		if(require_approval)
+			where += boost::str(
+					boost::format(" %1% `State`=%2% /* approve_ok */ %3%")
+					% ((loaded_max_id < max_id)? " OR ": " AND ") % state::approve_ok % ((loaded_max_id < max_id)? ')': ' '));
+
+		const int& limit(get_limit());
+		if(limit <= 0)
+			return true;
+
+		item::list_t loaded_items;
+
+		/**
+		 * Select all those that need reloading after a restart OR the ones that need approval.
+		 * Here once we load them, all approved ones are set to state::delete_file, just to mark as loaded.
+		 */
+		internal_db_.batch_load< item, item::extract_id >(
+				loaded_items,
+				boost::bind(item::setup_select, _1, _2, where),                             /* fn_setup_select */
+				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)), /* fn_make_item_from_row */
+				boost::bind(item::setup_update_by_ids_begin, _1, _2,                        /* fn_setup_update_by_ids_begin */
+						boost::str(boost::format("`State`=%1% /* delete_file */") % state::delete_file)),
+				boost::bind(item::setup_update_by_ids_end, _1, _2,                          /* fn_setup_update_by_ids_end */
+						boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok)),
+				limit                                                                       /* select_limit */
+		);
+
+		// if none found, we need to continue only if require_approval == true
+		if(loaded_items.empty())
+			return require_approval;
+
+		for(item::list_t::const_iterator itr = loaded_items.begin(); itr != loaded_items.end(); ++itr) {
+			const uint64_t& id((*itr)->id);
+
+			if(loaded_max_id < id)
+				loaded_max_id = id;
+
+			if((*itr)->cur_state == state::init)
+				// initialise and move forward
+				reactor_.schedule(
+						boost::bind(&runner::purge_initialise, shared_from_this(), *itr),
+						boost::bind(&runner::move_forward, shared_from_this(), *itr, _1),
+						state_reactor<>::very_low, false);
+			else
+				move_forward(*itr);
+		}
+
+		return true;
+	}
+	catch(const std::exception& e) {
+		LogWarning("Exception: "<<e.what());
+		return true;
+	}
+	catch(...) {
+		LogWarning("Exception: Unknown or Unexpected");
+		return true;
 	}
 
+	/*
 	void approval_run()
 	{
 		if(!confMap_["retention_purge.require_approval"].as<bool>()) {
@@ -374,378 +456,411 @@ public:
 			}
 		}
 	}
+	*/
 
 	inline bool is_auto_expiring(const archiving::archivable::identifier& i) const
 	{
 		return auto_expire_filetype_[(int)(i.filetype)];
 	}
 
-	void move_forward(item::pointer p_item, const bool& outcome_ok)
+	inline void move_forward(item::pointer p_item)
 	{
-		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
-				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
+		const state::outcome_t& cur_outcome(state::get_outcome(p_item->cur_state));
+		switch(cur_outcome) {
+		case state::ok:
+			move_forward(p_item, true);
+			break;
+
+		case state::unknown:
+		case state::interrupted:
+		case state::error:
+			p_item->cur_state = state::make(p_item->cur_state, state::unknown);
+			perform_current_state_action(p_item);
+			break;
+		}
+	}
+
+	inline void move_forward(item::pointer p_item, const bool& outcome_ok) try
+	{
+		static const unsigned int db_flush_interval_seconds(
+				confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
 
 		p_item->cur_state = state::make(p_item->cur_state, outcome_ok);
 
 		// if not dummy item
 		if(p_item->retention) {
+
 			// set up save()
 			internal_db_.batch_save< item >(p_item);
 
-			static const unsigned int db_flush_interval_seconds(
-					confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
-
 			// keep it available till the save() fires!
 			pc_produce(item_save_channel_, p_item, 15 + db_flush_interval_seconds, 0, 0);
-			try {
-				// consume and discard if save()d
-				item::pointer pi = item_save_channel_.consume(0, 100);
-				if(!item::is_saved(pi)) {
-					LogDWarning(pi<<" BACK into item_save_channel_ for saving", "IGNO");
-					pc_produce(item_save_channel_, pi, 5 + db_flush_interval_seconds, 0, 0);
-				}
-			}
-			catch(const item::channel_t::consume_timed_out_exception& e) {
-			}
-			catch(const item::channel_t::finishing_exception& e) {
-			}
 		}
 
+		try {
+			// consume and discard if any save()d
+			item::channel_t::bare_item_set_t saved_items;
+			item_save_channel_.consume(saved_items, 0, 100, boost::bind(item::is_save_not_pending, _1));
+			LogDebug(saved_items.size()<<" items found saved; discarded");
+		}
+		catch(const item::channel_t::consume_timed_out_exception& e) { /* ignored */ }
 
 		if (outcome_ok) {
-			p_item->cur_state = state::next_up(p_item->cur_state);
-			const state::coarse_t& coarse_state(state::get_coarse(p_item->cur_state));
+			if(p_item->cur_state != state::finished)
+				p_item->cur_state = state::next_up(p_item->cur_state);
+			perform_current_state_action(p_item);
+		}
+		else {
+			// TODO handle errors mid way!!!
+			// currently we will retry when archived restarts
+			LogWarning(p_item<<" Failed");
+		}
+	}
+	catch(const item::channel_t::finishing_exception& e) {
+		// we are shutting down; free up the call back asap
+		return;
+	}
+	catch(const std::exception& e) {
+		LogWarning("Exception: "<<e.what()<<" [unexpected but ignored]");
+		return;
+	}
+	catch(...) {
+		LogWarning("Exception: unknown [unexpected but ignored]");
+		return;
+	}
 
-			static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
-			if(coarse_state == state::_approve_ && !require_approval) {
-				// if we need no approval; skip this stage
-				p_item->cur_state = state::make(
-						state::next_up(p_item->cur_state), true);
+	inline void perform_current_state_action(item::pointer p_item)
+	{
+		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
+				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
+
+		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
+
+		// --- ---
+
+		// if we need no approval; skip this stage
+		if(state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
+			p_item->cur_state = state::make(state::next_up(p_item->cur_state), true);
+
+		switch(state::get_coarse(p_item->cur_state)) {
+
+		case state::_approve_:
+		{
+			// nothing to do here as we have already saved it! Just that we wouldn't take it further in the
+			// state machine; dead end ( for now )!
+			break;
+		}
+
+		case state::_delete_file_:
+		{
+			if(p_item->retention && auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
+				LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+
+				// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
+				reactor_.schedule(
+						boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
+						boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
+						state_reactor<>::low, false);
 			}
 
-			switch(coarse_state) {
+			if(p_item->retention) // if not dummy
+				pc_produce(delete_file_channel_, p_item);
 
-			case state::_approve_:
-			{
-				assert(require_approval);
-
-				// nothing to do here as we have already saved it! Just that we wouldnt take it further in the
-				// statemachine; dead end ( for now )!
+			if((time(0) - last_delete_file_time_) < purge_file_interval_seconds)
 				break;
+
+			try {
+				boost::mutex::scoped_lock lock(last_delete_file_time_mutex_, boost::try_to_lock);
+				if(lock) {
+					last_delete_file_time_ = time(0);
+
+					item::endpoint_grouped_multiset_t purge_set;
+
+					unsigned int batch_size(1000);
+					while(!quit_ && batch_size--) {
+						try {
+							purge_set.insert(delete_file_channel_.consume(0, 500000));
+						}
+						catch(const item::channel_t::consume_timed_out_exception& e) {
+							break;
+						}
+						catch(const item::channel_t::finishing_exception& e) {
+							break;
+						}
+					}
+
+					// we could get here if quit was flagged; if so we need to quit asap
+					if(!quit_ && !purge_set.empty()) {
+						item::endpoint_grouped_multiset_t::const_iterator itr = purge_set.begin();
+						boost::shared_ptr< storage::s3::backend > storage_backend =
+								boost::static_pointer_cast< storage::s3::backend >(
+										storage::s3::backend::get_instance());
+						do {
+							// find a batch
+							const std::pair<
+									item::endpoint_grouped_multiset_t::const_iterator,
+									item::endpoint_grouped_multiset_t::const_iterator>& itr_batch(
+											purge_set.equal_range(*itr));
+
+							// perform multiple-delete
+							storage_backend->remove_multiple< item::endpoint_grouped_multiset_t::const_iterator,
+									item::extract_endpoint, item::extract_identifier >(
+											itr_batch.first, itr_batch.second);
+
+							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_)
+								// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
+								reactor_.schedule(
+										boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
+										boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
+										state_reactor<>::low, false);
+
+							// move a batch forward
+							itr = itr_batch.second;
+						} while(itr != purge_set.end());
+					}
+
+					// to adjust for delays from processing the batch
+					last_delete_file_time_ = time(0);
+				}
+			}
+			catch(const boost::lock_error& e) {
+				LogVerbose("Failed to gain file-purge-lock; skipping... [exception:"<<e.what()<<']');
 			}
 
-			case state::_delete_file_:
-			{
-				if(p_item->retention && auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
-					LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+			break;
+		}
 
-					// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
-							boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
-							state_reactor<>::low, false);
-				}
+		case state::_delete_usage_:
+		{
+			if(p_item->retention) // if not dummy
+				pc_produce(delete_usage_channel_, p_item);
 
-				if(p_item->retention) // if not dummy
-					pc_produce(delete_file_channel_, p_item);
+			if((time(0) - last_delete_usage_time_) < purge_usage_interval_seconds)
+				break;
 
-				if((time(0) - last_delete_file_time_) < purge_file_interval_seconds)
-					break;
+			try {
+				boost::mutex::scoped_lock lock(last_delete_usage_time_mutex_, boost::try_to_lock);
+				if(lock) {
+					last_delete_usage_time_ = time(0);
 
-				try {
-					boost::mutex::scoped_lock lock(last_delete_file_time_mutex_, boost::try_to_lock);
-					if(lock) {
-						last_delete_file_time_ = time(0);
+					item::type_org_endpoint_grouped_multiset_t purge_set;
 
-						item::endpoint_grouped_multiset_t purge_set;
-
-						unsigned int batch_size(1000);
-						while(!quit_ && batch_size--) {
-							try {
-								purge_set.insert(delete_file_channel_.consume(0, 500000));
-							}
-							catch(const item::channel_t::consume_timed_out_exception& e) {
-								break;
-							}
-							catch(const item::channel_t::finishing_exception& e) {
-								break;
-							}
+					unsigned int batch_size(2000);
+					while(!quit_ && batch_size--) {
+						try {
+							purge_set.insert(delete_usage_channel_.consume(0, 500000));
 						}
+						catch(const item::channel_t::consume_timed_out_exception& e) {
+							break;
+						}
+						catch(const item::channel_t::finishing_exception& e) {
+							break;
+						}
+					}
 
-						// we could get here if quit was flagged; if so we need to quit asap
-						if(!quit_ && !purge_set.empty()) {
-							item::endpoint_grouped_multiset_t::const_iterator itr = purge_set.begin();
-							boost::shared_ptr< storage::s3::backend > storage_backend =
-									boost::static_pointer_cast< storage::s3::backend >(
-											storage::s3::backend::get_instance());
-							do {
-								// find a batch
-								const std::pair<
-										item::endpoint_grouped_multiset_t::const_iterator,
-										item::endpoint_grouped_multiset_t::const_iterator>& itr_batch(
-												purge_set.equal_range(*itr));
+					// we could get here if quit was flagged; if so we need to quit asap
+					if(!quit_ && !purge_set.empty()) {
+						item::type_org_endpoint_grouped_multiset_t::const_iterator itr = purge_set.begin();
+						do {
+							const std::pair<
+									item::type_org_endpoint_grouped_multiset_t::const_iterator,
+									item::type_org_endpoint_grouped_multiset_t::const_iterator>& itr_batch(
+											purge_set.equal_range(*itr));
 
-								// perform multiple-delete
-								storage_backend->remove_multiple< item::endpoint_grouped_multiset_t::const_iterator,
-										item::extract_endpoint, item::extract_identifier >(
-												itr_batch.first, itr_batch.second);
+							int count(0);
+							int64_t clear_usage(0), real_usage(0);
+							for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
+								count--;
+								clear_usage -= (*itr_)->clear_size;
+								real_usage -= (*itr_)->real_size;
+							}
 
-								for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_)
-									// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
+							bool done_ok(false);
+							unsigned int retry(constants::db_retry_count);
+							while(!done_ok && retry--) {
+								if(retry < (constants::db_retry_count - 1)) {
+									if(!retry)
+										LogWarning("SQL failed; last attempt in a few minutes");
+									else
+										LogMessage("SQL failed; retrying in a few seconds");
+
+									int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
+									while(!quit_ && sleep_seconds--)
+										boost::this_thread::sleep(boost::posix_time::seconds(1));
+								}
+
+								if(!quit_)
+									done_ok = retention_db_.usage_purge(
+											(*itr)->identifier.org, (*itr)->identifier.filetype, (*itr)->endpoint->id,
+											count, clear_usage, real_usage);
+							}
+
+							for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
+									itr_ != itr_batch.second; ++itr_) {
+								// if done ok, move forward
+								if(done_ok)
 									reactor_.schedule(
 											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
 											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
 											state_reactor<>::low, false);
+								// else if we are not about to quit, enqueue for retry aftre 10 mins
+								else if(!quit_)
+									pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
+							}
 
-								// move a batch forward
-								itr = itr_batch.second;
-							} while(itr != purge_set.end());
-						}
-
-						// to adjust for delays from processing the batch
-						last_delete_file_time_ = time(0);
+							itr = itr_batch.second;
+						} while(!quit_ && (itr != purge_set.end()));
 					}
-				}
-				catch(const boost::lock_error& e) {
-					LogVerbose("Failed to gain file-purge-lock; skipping... [exception:"<<e.what()<<']');
-				}
 
-				break;
+					// to adjust for delays from processing the batch
+					last_delete_usage_time_ = time(0);
+				}
+			}
+			catch(const boost::lock_error& e) {
+				LogVerbose("Failed to gain purge-usage-lock; skipping... [exception:"<<e.what()<<']');
 			}
 
-			case state::_delete_usage_:
-			{
-				if(p_item->retention) // if not dummy
-					pc_produce(delete_usage_channel_, p_item);
-
-				if((time(0) - last_delete_usage_time_) < purge_usage_interval_seconds)
-					break;
-
-				try {
-					boost::mutex::scoped_lock lock(last_delete_usage_time_mutex_, boost::try_to_lock);
-					if(lock) {
-						last_delete_usage_time_ = time(0);
-
-						item::type_org_endpoint_grouped_multiset_t purge_set;
-
-						unsigned int batch_size(2000);
-						while(!quit_ && batch_size--) {
-							try {
-								purge_set.insert(delete_usage_channel_.consume(0, 500000));
-							}
-							catch(const item::channel_t::consume_timed_out_exception& e) {
-								break;
-							}
-							catch(const item::channel_t::finishing_exception& e) {
-								break;
-							}
-						}
-
-						// we could get here if quit was flagged; if so we need to quit asap
-						if(!quit_ && !purge_set.empty()) {
-							item::type_org_endpoint_grouped_multiset_t::const_iterator itr = purge_set.begin();
-							do {
-								const std::pair<
-										item::type_org_endpoint_grouped_multiset_t::const_iterator,
-										item::type_org_endpoint_grouped_multiset_t::const_iterator>& itr_batch(
-												purge_set.equal_range(*itr));
-
-								int count(0);
-								int64_t clear_usage(0), real_usage(0);
-								for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
-									count--;
-									clear_usage -= (*itr_)->clear_size;
-									real_usage -= (*itr_)->real_size;
-								}
-
-								bool done_ok(false);
-								unsigned int retry(constants::db_retry_count);
-								while(!done_ok && retry--) {
-									if(retry < (constants::db_retry_count - 1)) {
-										if(!retry)
-											LogWarning("SQL failed; last attempt in a few minutes");
-										else
-											LogMessage("SQL failed; retrying in a few seconds");
-
-										int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
-										while(!quit_ && sleep_seconds--)
-											boost::this_thread::sleep(boost::posix_time::seconds(1));
-									}
-
-									if(!quit_)
-										done_ok = retention_db_.usage_purge(
-												(*itr)->identifier.org, (*itr)->identifier.filetype, (*itr)->endpoint->id,
-												count, clear_usage, real_usage);
-								}
-
-								for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
-										itr_ != itr_batch.second; ++itr_) {
-									// if done ok, move forward
-									if(done_ok)
-										reactor_.schedule(
-												boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-												boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-												state_reactor<>::low, false);
-									// else if we are not about to quit, enqueue for retry aftre 10 mins
-									else if(!quit_)
-										pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
-								}
-
-								itr = itr_batch.second;
-							} while(!quit_ && (itr != purge_set.end()));
-						}
-
-						// to adjust for delays from processing the batch
-						last_delete_usage_time_ = time(0);
-					}
-				}
-				catch(const boost::lock_error& e) {
-					LogVerbose("Failed to gain purge-usage-lock; skipping... [exception:"<<e.what()<<']');
-				}
-
-				break;
-			}
-
-			case state::_delete_retention_:
-			{
-				if(p_item->retention) // if not dummy
-					pc_produce(delete_retention_channel_, p_item);
-
-				if((time(0) - last_delete_retention_time_) < purge_retention_interval_seconds)
-					break;
-
-				try {
-					boost::mutex::scoped_lock lock(last_delete_retention_time_mutex_, boost::try_to_lock);
-					if(lock) {
-						last_delete_retention_time_ = time(0);
-
-						item::org_grouped_multiset_t purge_set;
-
-						unsigned int batch_size(2000);
-						while(!quit_ && batch_size--) {
-							try {
-								purge_set.insert(delete_retention_channel_.consume(0, 500000));
-							}
-							catch(const item::channel_t::consume_timed_out_exception& e) {
-								break;
-							}
-							catch(const item::channel_t::finishing_exception& e) {
-								break;
-							}
-						}
-
-						// we could get here if quit was flagged; if so we need to quit asap
-						if(!quit_ && !purge_set.empty()) {
-							item::org_grouped_multiset_t::const_iterator itr = purge_set.begin();
-							do {
-								const std::pair<
-										item::org_grouped_multiset_t::const_iterator,
-										item::org_grouped_multiset_t::const_iterator>& itr_batch(
-												purge_set.equal_range(*itr));
-
-								bool done_ok(false);
-								unsigned int retry(constants::db_retry_count);
-								while(!done_ok && retry--) {
-									if(retry < (constants::db_retry_count - 1)) {
-										if(!retry)
-											LogWarning("SQL failed; last attempt in a few minutes");
-										else
-											LogMessage("SQL failed; retrying in a few seconds");
-
-										int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
-										while(!quit_ && sleep_seconds--)
-											boost::this_thread::sleep(boost::posix_time::seconds(1));
-									}
-
-									if(!quit_)
-										done_ok = retention_db_.set_purged<
-											item::org_grouped_multiset_t::const_iterator,
-											item::extract_retention_id, item::is_filetype_cdr >(
-													(*itr_batch.first)->identifier.org,
-													itr_batch.first, itr_batch.second,
-													confMap_["retention_purge.delete_cdr_retention_records"].as<bool>());
-								}
-
-								for(item::org_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
-										itr_ != itr_batch.second; ++itr_) {
-									// if done ok, move forward
-									if(done_ok)
-										reactor_.schedule(
-												boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-												boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-												state_reactor<>::low, false);
-									// else if we are not about to quit, enqueue for retry aftre 10 mins
-									else if(!quit_)
-										pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
-								}
-
-								itr = itr_batch.second;
-							} while(itr != purge_set.end());
-						}
-
-						// to adjust for delays from processing the batch
-						last_delete_retention_time_ = time(0);
-					}
-				}
-				catch(const boost::lock_error& e) {
-					LogVerbose("Failed to gain purge-retention-lock; skipping... [exception:"<<e.what()<<']');
-				}
-
-				break;
-			}
-
-			case state::_finished_:
-			{
-				if(p_item->retention) // if not dummy
-					pc_produce(finished_channel_, p_item, 120, 0, 0);
-
-				if((time(0) - purge_finished_time_) < purge_finished_interval_seconds)
-					break;
-
-				try {
-					boost::mutex::scoped_lock lock(purge_finished_time_mutex_, boost::try_to_lock);
-					if(lock) {
-						purge_finished_time_ = time(0);
-
-						item::list_t purge_list;
-
-						unsigned int batch_size(2000);
-						while(!quit_ && batch_size--) {
-							try {
-								purge_list.push_back(finished_channel_.consume(0, 500000));
-							}
-							catch(const item::channel_t::consume_timed_out_exception& e) {
-								break;
-							}
-							catch(const item::channel_t::finishing_exception& e) {
-								break;
-							}
-						}
-
-						if(!purge_list.empty()) {
-							internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id >(
-											purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID");
-
-							// to adjust for delays from processing the batch
-							purge_finished_time_ = time(0);
-						}
-					}
-				}
-				catch(const boost::lock_error& e) {
-					LogVerbose("Failed to gain file-purge-lock; skipping... [exception:"<<e.what()<<']');
-				}
-
-				break;
-			}
-
-			default:
-				LogCritical(p_item<<" Unknown state; cannot move forward");
-				break;
-			}
+			break;
 		}
-		else {
-			// TODO handle errors mid way!!!
-			LogWarning(p_item<<" Failed");
+
+		case state::_delete_retention_:
+		{
+			if(p_item->retention) // if not dummy
+				pc_produce(delete_retention_channel_, p_item);
+
+			if((time(0) - last_delete_retention_time_) < purge_retention_interval_seconds)
+				break;
+
+			try {
+				boost::mutex::scoped_lock lock(last_delete_retention_time_mutex_, boost::try_to_lock);
+				if(lock) {
+					last_delete_retention_time_ = time(0);
+
+					item::org_grouped_multiset_t purge_set;
+
+					unsigned int batch_size(2000);
+					while(!quit_ && batch_size--) {
+						try {
+							purge_set.insert(delete_retention_channel_.consume(0, 500000));
+						}
+						catch(const item::channel_t::consume_timed_out_exception& e) {
+							break;
+						}
+						catch(const item::channel_t::finishing_exception& e) {
+							break;
+						}
+					}
+
+					// we could get here if quit was flagged; if so we need to quit asap
+					if(!quit_ && !purge_set.empty()) {
+						item::org_grouped_multiset_t::const_iterator itr = purge_set.begin();
+						do {
+							const std::pair<
+									item::org_grouped_multiset_t::const_iterator,
+									item::org_grouped_multiset_t::const_iterator>& itr_batch(
+											purge_set.equal_range(*itr));
+
+							bool done_ok(false);
+							unsigned int retry(constants::db_retry_count);
+							while(!done_ok && retry--) {
+								if(retry < (constants::db_retry_count - 1)) {
+									if(!retry)
+										LogWarning("SQL failed; last attempt in a few minutes");
+									else
+										LogMessage("SQL failed; retrying in a few seconds");
+
+									int sleep_seconds((int)pow(constants::db_retry_factor, constants::db_retry_count - retry));
+									while(!quit_ && sleep_seconds--)
+										boost::this_thread::sleep(boost::posix_time::seconds(1));
+								}
+
+								if(!quit_)
+									done_ok = retention_db_.set_purged<
+										item::org_grouped_multiset_t::const_iterator,
+										item::extract_retention_id, item::is_filetype_cdr >(
+												(*itr_batch.first)->identifier.org,
+												itr_batch.first, itr_batch.second,
+												confMap_["retention_purge.delete_cdr_retention_records"].as<bool>());
+							}
+
+							for(item::org_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
+									itr_ != itr_batch.second; ++itr_) {
+								// if done ok, move forward
+								if(done_ok)
+									reactor_.schedule(
+											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
+											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
+											state_reactor<>::low, false);
+								// else if we are not about to quit, enqueue for retry aftre 10 mins
+								else if(!quit_)
+									pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
+							}
+
+							itr = itr_batch.second;
+						} while(itr != purge_set.end());
+					}
+
+					// to adjust for delays from processing the batch
+					last_delete_retention_time_ = time(0);
+				}
+			}
+			catch(const boost::lock_error& e) {
+				LogVerbose("Failed to gain purge-retention-lock; skipping... [exception:"<<e.what()<<']');
+			}
+
+			break;
+		}
+
+		case state::_finished_:
+		{
+			// set saved so that we wouldn't re-insert the item after we delete
+			item::set_save_pending(p_item, false);
+
+			if(p_item->retention) // if not dummy
+				pc_produce(finished_channel_, p_item, 120, 0, 0);
+
+			if((time(0) - purge_finished_time_) < purge_finished_interval_seconds)
+				break;
+
+			try {
+				boost::mutex::scoped_lock lock(purge_finished_time_mutex_, boost::try_to_lock);
+				if(lock) {
+					purge_finished_time_ = time(0);
+
+					item::list_t purge_list;
+
+					unsigned int batch_size(2000);
+					while(!quit_ && batch_size--) {
+						try {
+							purge_list.push_back(finished_channel_.consume(0, 500000));
+						}
+						catch(const item::channel_t::consume_timed_out_exception& e) {
+							break;
+						}
+						catch(const item::channel_t::finishing_exception& e) {
+							break;
+						}
+					}
+
+					if(!purge_list.empty()) {
+						internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id, item::extract_identifier >(
+										purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID");
+
+						// to adjust for delays from processing the batch
+						purge_finished_time_ = time(0);
+					}
+				}
+			}
+			catch(const boost::lock_error& e) {
+				LogVerbose("Failed to gain purge-finished-lock; skipping... [exception:"<<e.what()<<']');
+			}
+
+			break;
+		}
+
+		default:
+			LogCritical(p_item<<" Unknown state; cannot move forward");
+			break;
 		}
 	}
 
@@ -799,7 +914,7 @@ public:
 	 */
 	void feed_purge_queue()
 	{
-		int iter = 240; // not a magic number; picked to make sure the dummy items dont fire in
+		int iter = 1;
 
 		types::purge_def::pointer p_purge_def;
 
@@ -809,17 +924,29 @@ public:
 				continue;
 			}
 
-			const int iter_180(iter % 180);
-			if(!quit_ && (iter_180 >= 0 && iter_180 <= 30) ) {
+			const int iter_tens((iter / 10) % 10);
+			if(!quit_ && (iter_tens >= 0 && iter_tens <= 4) ) {
 
-				// here we make the batching mechanism to fire-off the state; they could be starving for items
-				// so we fire-off dummy items into the channel(s)
+				// here we make the batching mechanism to fire-off the state; they could be starving for more items
+				// so we fire-off dummy items into the channel(s) to tickle the various states
 
-				LogDebug("Dummy item ... "<<iter_180);
+				LogDebug("Dummy item ... "<<iter_tens);
 
-				switch(iter_180) {
-				case 0: // every 3 mins
+				switch(iter_tens) {
+				case 0:
 				{
+
+#define LogChannelCount(channel) \
+			LogDebug(channel<<" Count: "<<channel.count())
+
+					LogChannelCount(item_save_channel_);
+					LogChannelCount(delete_file_channel_);
+					LogChannelCount(delete_usage_channel_);
+					LogChannelCount(delete_retention_channel_);
+					LogChannelCount(finished_channel_);
+
+#undef LogChannelCount
+
 					// TODO if we ever remove the approve stage, we need to do mods here
 
 					// tinker the delete_file state
@@ -830,7 +957,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 10: // every 3 mins and 10 secs
+				case 1:
 				{
 					// tinker the delete_usage state
 					item::pointer purge_item(new item(state::delete_file));
@@ -840,7 +967,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 20: // every 3 mins and 20 secs
+				case 2:
 				{
 					// tinker the delete_retention state
 					item::pointer purge_item(new item(state::delete_usage));
@@ -850,7 +977,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 30: // every 3 mins and 30 secs
+				case 3:
 				{
 					// tinker the finished state
 					item::pointer purge_item(new item(state::delete_retention));
@@ -860,10 +987,20 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
+				case 4:
+				{
+					// tinker the finished state
+					item::pointer purge_item(new item(state::finished));
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
+							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
+							state_reactor<>::high, false);
+					break;
+				}
+
 				default: // we shouldnt get here!
 				{
-					LogDebug("iter_180: "<<iter_180);
-					assert(false);
+					LogWarning("iter_test: "<<iter_tens<<" - Unexpected");
 					break;
 				}
 				}

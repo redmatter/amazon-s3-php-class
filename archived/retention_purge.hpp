@@ -224,11 +224,17 @@ struct state
 
 	static inline state_t make(const coarse_t& coarse_state, const outcome_t& outcome = unknown)
 	{
+		if(coarse_state == _finished_)
+			return finished;
+
 		return state_t((coarse_state << 4) | outcome);
 	}
 
 	static inline state_t make(const state_t& state, const outcome_t& outcome)
 	{
+		if(state == finished)
+			return finished;
+
 		return state_t((state & 0xff0) | outcome);
 	}
 
@@ -242,9 +248,14 @@ struct state
 		return coarse_t((state & 0xff0) >> 4);
 	}
 
+	static inline outcome_t get_outcome(const state_t& state)
+	{
+		return outcome_t(state & 0x00f);
+	}
+
 	static inline bool is_outcome_ok(const state_t& state)
 	{
-		return ok == outcome_t(state & 0x00f);
+		return ok == get_outcome(state);
 	}
 
 	static inline state_t next_up(const state_t& state)
@@ -276,7 +287,7 @@ struct item
 	uint64_t id;
 	state::state_t cur_state;
 
-	mutable volatile bool saved;
+	mutable volatile bool save_pending;
 
 	typedef boost::shared_ptr< item > pointer;
 	typedef boost::weak_ptr< item > weak_ptr;
@@ -299,7 +310,7 @@ struct item
 			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
 		identifier(identifier), endpoint(endpoint), retention(retention_from_db),
 		clear_size(clear_size), real_size(real_size),
-		id(id), cur_state(cur_state), saved(true)
+		id(id), cur_state(cur_state), save_pending(false)
 	{
 	}
 
@@ -313,7 +324,7 @@ struct item
 		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 				identifier.org, retention_from_db->endpoint_id))),
 		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
-		id(id), cur_state(cur_state), saved(true)
+		id(id), cur_state(cur_state), save_pending(false)
 	{
 	}
 
@@ -331,7 +342,7 @@ struct item
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),
-			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str())))
+			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), save_pending(false)
 	{
 	}
 	
@@ -343,7 +354,7 @@ struct item
 	static inline void setup_select(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qparams, const std::string& where = std::string())
 	{
 		query << "SELECT "
-			" ID, "<<state::delete_file<<", FileType, OrgID, " // already approved; might as well use the next state here
+			" ID, IF(`State`="<<state::approve_ok<<", "<<state::delete_file<<", `State`), FileType, OrgID, "
 			" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, "
 			" EndpointID, RetentionID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, "
 			" ClearSize, RealSize, HostName "
@@ -356,14 +367,24 @@ struct item
 		query << "UPDATE ArchivingInternal.ArchiveDPurgeQueue SET "<<update_fields<<" WHERE ID IN(";
 	}
 
-	static inline void set_saved(const pointer& p, const bool& is_saved)
+	static inline void setup_update_by_ids_end(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qparams, const std::string& condition)
 	{
-		p->saved = is_saved;
+		query << ") " << condition;
 	}
 
-	static inline bool is_saved(const pointer& p)
+	static inline void set_save_pending(const pointer& p, const bool& is_pending)
 	{
-		return p->saved;
+		p->save_pending = is_pending;
+	}
+
+	static inline bool is_save_pending(const pointer& p)
+	{
+		return p->save_pending;
+	}
+
+	static inline bool is_save_not_pending(const pointer& p)
+	{
+		return !p->save_pending;
 	}
 
 	friend inline std::ostream& operator << (std::ostream& ostr, const item& i)
@@ -424,6 +445,10 @@ struct item
 	{
 		inline bool operator()(const pointer& lhs, const pointer& rhs) const
 		{
+			// if they are exactly the same object
+			if(lhs == rhs)
+				return false;
+
 			if(lhs->cur_state != rhs->cur_state)
 				return lhs->cur_state < rhs->cur_state; // order of states in the enum dictates the order here
 
@@ -439,6 +464,10 @@ struct item
 	{
 		inline bool operator()(const pointer& lhs, const pointer& rhs) const
 		{
+			// if they are exactly the same object
+			if(lhs == rhs)
+				return false;
+
 			if(lhs->identifier.filetype != rhs->identifier.filetype)
 				return lhs->identifier.filetype < rhs->identifier.filetype;
 
@@ -480,7 +509,7 @@ struct item
 		}
 	};
 
-	typedef rml::pc_channel_delayed< pointer, 0, pointer_compare_lt > channel_t;
+	typedef rml::pc_channel_delayed< pointer, 0, pointer_compare_dedup_lt, 0, 1, 0 > channel_t;
 	typedef rml::busy_set< pointer, pointer_compare_dedup_lt > busy_set_t;
 	typedef std::set< weak_ptr > weak_set_t;
 	typedef std::set< pointer, pointer_compare_dedup_lt > set_t;
@@ -509,7 +538,7 @@ struct item
 
 	static inline void save_db(const pointer& p, mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp, const std::string& hostname)
 	{
-		query << '('
+		query << "\n("
 				<< static_cast<int>(p->cur_state)<<','
 
 				<< static_cast<int>(p->identifier.filetype)<<", "
@@ -531,7 +560,7 @@ struct item
 				<< '\''<<hostname<<'\''
 
 				<<')';
-}
+	}
 
 	static inline void save_db_end(mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp)
 	{
