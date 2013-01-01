@@ -650,6 +650,8 @@ public:
 
 		Item::save_db_begin(query, qp);
 
+		bool first(true);
+
 		item_set_iterator begin = Item::save_db_set.begin();
 		item_set_iterator end = Item::save_db_set.end();
 		for(item_set_iterator itr = begin; itr != end; ++itr) {
@@ -659,7 +661,7 @@ public:
 				if(!Item::is_save_pending(p_item))
 					continue;
 
-				query << (itr == begin? ' ': ',');
+				query << (first? ' ': ','); first = false;
 				Item::save_db(p_item, query, qp, hostname);
 				any_found = true;
 			}

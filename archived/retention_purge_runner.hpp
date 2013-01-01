@@ -31,6 +31,14 @@
 
 #include <math.h>
 
+#define __pc_produce(channel, item, ...) \
+	do { \
+		bool ret(false); \
+		pc_produce_get_result(ret, channel, item, ##__VA_ARGS__); \
+		if(!ret) \
+			LogError(item<<" Failed to produce into "<<channel); \
+	} while(false)
+
 namespace {
 struct constants
 {
@@ -97,9 +105,14 @@ class runner : public boost::enable_shared_from_this<runner>
 		purge_max_queue_size = 5000,
 
 		purge_file_interval_seconds = 10,
-		purge_usage_interval_seconds = 20,
-		purge_retention_interval_seconds = 20,
-		purge_finished_interval_seconds = 20
+		purge_usage_interval_seconds = 15,
+		purge_retention_interval_seconds = 15,
+		purge_finished_interval_seconds = 5,
+
+		purge_file_batch_size = 1000,
+		purge_usage_batch_size = 2000,
+		purge_retention_batch_size = 2000,
+		purge_finished_batch_size = 500
 	};
 
 public:
@@ -194,7 +207,7 @@ public:
 
 			// save and keep it available till the save() fires!
 			internal_db_.batch_save< item >(purge_item);
-			pc_produce(item_save_channel_, purge_item, 15 + db_flush_interval_seconds, 0, 0);
+			__pc_produce(item_save_channel_, purge_item, 15 + db_flush_interval_seconds, 0, 0);
 
 			if(quit_) {
 				LogIf(!quit_seen, "Scheduling purgeables interrupted by quit; saving state... (may take a while)");
@@ -426,38 +439,6 @@ public:
 		return true;
 	}
 
-	/*
-	void approval_run()
-	{
-		if(!confMap_["retention_purge.require_approval"].as<bool>()) {
-			LogDWarning("Approval not required; quitting thread", "IGNO");
-			return;
-		}
-
-		const int& limit(get_limit());
-		if(limit < 0)
-			return;
-
-		item::list_t approved_items;
-
-		internal_db_.batch_load< item, item::extract_id >(
-			approved_items,
-			boost::bind(item::setup_select, _1, _2, std::string("`State`=")+boost::lexical_cast<std::string>(state::approve_ok)+" AND `HostName`='"+app::hostname+"' AND (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "),
-				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)),
-			boost::bind(item::setup_update_by_ids_begin, _1, _2, std::string("State=")+boost::lexical_cast<std::string>(state::delete_file)));
-
-		item::list_t::iterator end = approved_items.end();
-		for(item::list_t::iterator itr = approved_items.begin(); itr != end; ++itr) {
-			try {
-				pc_produce(delete_file_channel_, *itr);
-			}
-			catch(const item::channel_t::finishing_exception& e) {
-				break;
-			}
-		}
-	}
-	*/
-
 	inline bool is_auto_expiring(const archiving::archivable::identifier& i) const
 	{
 		return auto_expire_filetype_[(int)(i.filetype)];
@@ -494,7 +475,7 @@ public:
 			internal_db_.batch_save< item >(p_item);
 
 			// keep it available till the save() fires!
-			pc_produce(item_save_channel_, p_item, 15 + db_flush_interval_seconds, 0, 0);
+			__pc_produce(item_save_channel_, p_item, 15 + db_flush_interval_seconds, 0, 0);
 		}
 
 		try {
@@ -564,9 +545,9 @@ public:
 			}
 
 			if(p_item->retention) // if not dummy
-				pc_produce(delete_file_channel_, p_item);
+				__pc_produce(delete_file_channel_, p_item);
 
-			if((time(0) - last_delete_file_time_) < purge_file_interval_seconds)
+			if(((time(0) - last_delete_file_time_) < purge_file_interval_seconds) && (delete_file_channel_.count() < purge_file_batch_size))
 				break;
 
 			try {
@@ -575,18 +556,12 @@ public:
 					last_delete_file_time_ = time(0);
 
 					item::endpoint_grouped_multiset_t purge_set;
-
-					unsigned int batch_size(1000);
-					while(!quit_ && batch_size--) {
-						try {
-							purge_set.insert(delete_file_channel_.consume(0, 500000));
-						}
-						catch(const item::channel_t::consume_timed_out_exception& e) {
-							break;
-						}
-						catch(const item::channel_t::finishing_exception& e) {
-							break;
-						}
+					try {
+						delete_file_channel_.consume(purge_set, 0, 500000);
+					}
+					catch(const item::channel_t::consume_timed_out_exception& e) {
+					}
+					catch(const item::channel_t::finishing_exception& e) {
 					}
 
 					// we could get here if quit was flagged; if so we need to quit asap
@@ -633,9 +608,9 @@ public:
 		case state::_delete_usage_:
 		{
 			if(p_item->retention) // if not dummy
-				pc_produce(delete_usage_channel_, p_item);
+				__pc_produce(delete_usage_channel_, p_item);
 
-			if((time(0) - last_delete_usage_time_) < purge_usage_interval_seconds)
+			if(((time(0) - last_delete_usage_time_) < purge_usage_interval_seconds) && (delete_usage_channel_.count() < purge_usage_batch_size))
 				break;
 
 			try {
@@ -644,18 +619,12 @@ public:
 					last_delete_usage_time_ = time(0);
 
 					item::type_org_endpoint_grouped_multiset_t purge_set;
-
-					unsigned int batch_size(2000);
-					while(!quit_ && batch_size--) {
-						try {
-							purge_set.insert(delete_usage_channel_.consume(0, 500000));
-						}
-						catch(const item::channel_t::consume_timed_out_exception& e) {
-							break;
-						}
-						catch(const item::channel_t::finishing_exception& e) {
-							break;
-						}
+					try {
+						delete_usage_channel_.consume(purge_set, 0, 500000);
+					}
+					catch(const item::channel_t::consume_timed_out_exception& e) {
+					}
+					catch(const item::channel_t::finishing_exception& e) {
 					}
 
 					// we could get here if quit was flagged; if so we need to quit asap
@@ -705,7 +674,7 @@ public:
 											state_reactor<>::low, false);
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
-									pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
+									__pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
 							}
 
 							itr = itr_batch.second;
@@ -726,9 +695,9 @@ public:
 		case state::_delete_retention_:
 		{
 			if(p_item->retention) // if not dummy
-				pc_produce(delete_retention_channel_, p_item);
+				__pc_produce(delete_retention_channel_, p_item);
 
-			if((time(0) - last_delete_retention_time_) < purge_retention_interval_seconds)
+			if(((time(0) - last_delete_retention_time_) < purge_retention_interval_seconds) && (delete_retention_channel_.count() < purge_retention_batch_size))
 				break;
 
 			try {
@@ -737,18 +706,12 @@ public:
 					last_delete_retention_time_ = time(0);
 
 					item::org_grouped_multiset_t purge_set;
-
-					unsigned int batch_size(2000);
-					while(!quit_ && batch_size--) {
-						try {
-							purge_set.insert(delete_retention_channel_.consume(0, 500000));
-						}
-						catch(const item::channel_t::consume_timed_out_exception& e) {
-							break;
-						}
-						catch(const item::channel_t::finishing_exception& e) {
-							break;
-						}
+					try {
+						delete_retention_channel_.consume(purge_set, 0, 500000);
+					}
+					catch(const item::channel_t::consume_timed_out_exception& e) {
+					}
+					catch(const item::channel_t::finishing_exception& e) {
 					}
 
 					// we could get here if quit was flagged; if so we need to quit asap
@@ -793,7 +756,7 @@ public:
 											state_reactor<>::low, false);
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
-									pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
+									__pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
 							}
 
 							itr = itr_batch.second;
@@ -817,9 +780,9 @@ public:
 			item::set_save_pending(p_item, false);
 
 			if(p_item->retention) // if not dummy
-				pc_produce(finished_channel_, p_item, 120, 0, 0);
+				__pc_produce(finished_channel_, p_item);
 
-			if((time(0) - purge_finished_time_) < purge_finished_interval_seconds)
+			if(((time(0) - purge_finished_time_) < purge_finished_interval_seconds) && (finished_channel_.count() < purge_finished_batch_size))
 				break;
 
 			try {
@@ -828,18 +791,14 @@ public:
 					purge_finished_time_ = time(0);
 
 					item::list_t purge_list;
-
-					unsigned int batch_size(2000);
-					while(!quit_ && batch_size--) {
-						try {
-							purge_list.push_back(finished_channel_.consume(0, 500000));
-						}
-						catch(const item::channel_t::consume_timed_out_exception& e) {
-							break;
-						}
-						catch(const item::channel_t::finishing_exception& e) {
-							break;
-						}
+					try {
+						finished_channel_.consume(purge_list, 0, 500);
+					}
+					catch(const item::channel_t::consume_timed_out_exception& e) {
+						break;
+					}
+					catch(const item::channel_t::finishing_exception& e) {
+						break;
 					}
 
 					if(!purge_list.empty()) {
@@ -924,6 +883,17 @@ public:
 				continue;
 			}
 
+#define LogChannelCount(channel) \
+			LogMessage("RetentionPurge::"<<channel<<" Count: "<<channel.count())
+
+			LogChannelCount(item_save_channel_);
+			LogChannelCount(delete_file_channel_);
+			LogChannelCount(delete_usage_channel_);
+			LogChannelCount(delete_retention_channel_);
+			LogChannelCount(finished_channel_);
+
+#undef LogChannelCount
+
 			const int iter_tens((iter / 10) % 10);
 			if(!quit_ && (iter_tens >= 0 && iter_tens <= 4) ) {
 
@@ -935,18 +905,6 @@ public:
 				switch(iter_tens) {
 				case 0:
 				{
-
-#define LogChannelCount(channel) \
-			LogDebug(channel<<" Count: "<<channel.count())
-
-					LogChannelCount(item_save_channel_);
-					LogChannelCount(delete_file_channel_);
-					LogChannelCount(delete_usage_channel_);
-					LogChannelCount(delete_retention_channel_);
-					LogChannelCount(finished_channel_);
-
-#undef LogChannelCount
-
 					// TODO if we ever remove the approve stage, we need to do mods here
 
 					// tinker the delete_file state
