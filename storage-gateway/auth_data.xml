@@ -4,4 +4,8 @@
 		<AWSSecretAccessKey>e2f4f220-452f-11e2-bcfd-0810200c9a66</AWSSecretAccessKey>
 		<Bucket>Voicemail</Bucket>
 	</AWSAccessKey>
+	<AWSAccessKey id='rmacb001'>
+		<AWSSecretAccessKey>MDA1MDNmNjkxNmIzN2U2ZGM3NTFkMTZkMmU4M2E1MzQgIC0K</AWSSecretAccessKey>
+		<Bucket>CallBuffering</Bucket>
+	</AWSAccessKey>
 </AWSAccessKeys>
