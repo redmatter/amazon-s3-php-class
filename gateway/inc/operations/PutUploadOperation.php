@@ -52,6 +52,7 @@ class PutUploadOperation extends ObjectOperation
 	public function __construct($bucket, $key, $metadata, $stream, $md5_base64)
 	{
 		parent::__construct($bucket, $key);
+		LogError("PUT constructor: " . $this->s3object->getDescription());
 
 		$this->metadata = $metadata;
 		$this->given_md5_base64 = $md5_base64;
@@ -87,8 +88,11 @@ class PutUploadOperation extends ObjectOperation
 	 */
 	public function doRequest()
 	{
+		LogError("PUT write: " . $this->s3object->getDescription());
 		$this->s3object->Write($this->stream, $this->metadata);
+		LogError("PUT commit: " . $this->s3object->getDescription());
 		$this->s3object->Commit($this->given_md5_base64);
+		LogError("PUT end: " . $this->s3object->getDescription());
 	}
 	
 	/**

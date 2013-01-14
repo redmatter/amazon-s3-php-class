@@ -98,6 +98,17 @@ class S3Object
 
 		$this->lc = new \SysLogContext($this->id);
 	}
+	
+	/**
+	 * getDescription
+	 * Returns a string describing the object.  Used for debugging.
+	 *
+	 * @return string
+	 */
+	public function getDescription()
+	{
+		return "S3Object, bucket: " . $this->bucket->getName() . ", key: " . $this->key;
+	}
 
 	/**
 	 * getObjectExists
@@ -339,28 +350,35 @@ class S3Object
 	 */
 	public function Commit($md5_base_64 = null)
 	{
+		LogError("Commit start: " . $this->getDescription());
 		if (isset($md5_base_64))
 		{
+			LogError("MD5 isset");
 			$file_md5 = base64_encode($this->getMd5());
+			LogError("MD5 encoded");
 			if ($md5_base_64 != $file_md5)
 			{
-				LogError("MD5 hash failed, md5_base_64: print_r($md5_base_64, true), this->getMd5: print_r($file_md5, true)");
+				LogError("MD5 encode error");
+				LogError("MD5 hash failed, md5_base_64: " . print_r($md5_base_64, true) . ", this->getMd5: " . print_r($file_md5, true));
 				throw new StorageError(StorageError::BadDigest, $this, Request::Get('id'));
 			}
 		}
-
+		LogError("Between ifs");
 		if ($this->final_path != $this->path)
 		{
+			LogError("final_path != path");
 			if (!(rename($this->path, $this->final_path) && rename($this->path_meta, $this->final_path_meta)))
 			{
+				LogError("ERROR: Failed to rename final path");
 				$this->lc->LogCritical('Failed to rename to final path');
 				throw new \Exception('Failed to rename to final path');
 			}
 
+			LogError("ERROR: Failed to rename final path");
 			$this->path = $this->final_path;
 			$this->path_meta = $this->final_path_meta;
 		}
-
+		LogError("Commit finished: " . $this->getDescription());
 		$this->committed = true;
 	}
 
