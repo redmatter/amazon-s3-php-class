@@ -6,6 +6,9 @@ include /usr/share/librml/Makefile.macros
 
 TARGET=test
 
+CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
+CPPFLAGS += -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+
 LIBS += -L../$(TMP)
 
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
@@ -36,7 +39,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -larchiving_common
+	-lcryptopp -lrml -larchiving_common
 
 CXX_SRCS += \
 
