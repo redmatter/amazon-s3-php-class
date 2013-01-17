@@ -91,16 +91,6 @@ Group: RedMatter/Archiving
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
-%package gateway
-Summary: Archiving / Storage gateway
-Group: RedMatter/Archiving
-Requires: RM-php-fluid >= 0.0.1-23677
-
-%package storage-gateway
-Summary: Archiving / RM Storage Gateway
-Group: RedMatter/Archiving
-Requires: RM-archiving-gateway
-
 # ------------ description---------------
 
 %description
@@ -129,13 +119,6 @@ Archiving Utility scripts for verification etc
 %description qascripts
 Archiving QA scripts for verification etc
 
-%description gateway
-Archiving or Storage gateway; provides S3 like RESTful API to any POSIX filesystem.
-Contains only generic configuration files, so deliverable to third parties.
-
-%description storage-gateway
-Wrapper for RedMatter use of gateway, includes configuration files for production.
-
 # ----------
 
 %prep
@@ -152,15 +135,11 @@ mkdir -p %{buildroot}/etc/archiving/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
-mkdir -p %{buildroot}/etc/archiving/gateway.d/
-mkdir -p %{buildroot}/usr/share/storage-gateway/
 mkdir -p %{buildroot}/usr/share/archiving
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
 mkdir -p %{buildroot}/usr/share/php/archiving
-mkdir -p %{buildroot}/usr/share/php/rmarchgateway
-mkdir -p %{buildroot}/var/www/rmarchgateway
 
 # ArchiveD
 mkdir -p %{buildroot}/var/www/rmarchived
@@ -236,26 +215,11 @@ cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 
-
-# Gateway
-rsync -az --exclude=*/test/* ./gateway/inc/ %{buildroot}/usr/share/php/rmarchgateway
-cp gateway/index.php %{buildroot}/var/www/rmarchgateway/.
-cp gateway/xhprof_pre.php %{buildroot}/var/www/rmarchgateway/.
-cp gateway/gateway.conf %{buildroot}/etc/archiving/.
-cp gateway/auth_data.xml %{buildroot}/usr/share/archiving/auth_data.xml.sample
-cp gateway/policy.xml.sample %{buildroot}/usr/share/archiving/policy.xml.sample
-cp gateway/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchgateway.conf
-cp gateway/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchgateway.conf
-
-# Storage Gateway
-cp storage-gateway/gateway.conf %{buildroot}/etc/archiving/gateway.d/storage-gateway.conf
-cp storage-gateway/auth_data.xml %{buildroot}/usr/share/storage-gateway/.
-
 # ----------
 
 %pre
 if grep ^cdrmunch: /etc/group &>/dev/null; then
-	: # group already exists
+	: # group already exists 
 else
 	/usr/sbin/groupadd -g 2051 cdrmunch || exit
 fi
@@ -348,13 +312,6 @@ fi
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
-%post gateway
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
-
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
@@ -376,13 +333,6 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %postun collect-smsd
-if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
-fi
-
-%postun gateway
 if [ "$1" -eq 0 ]; then
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
@@ -484,23 +434,6 @@ fi
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
-
-%files gateway
-%defattr(-,root,root)
-/usr/share/php/rmarchgateway/*
-/var/www/rmarchgateway/index.php
-/var/www/rmarchgateway/xhprof_pre.php
-/etc/archiving/gateway.conf
-/etc/httpd/conf.d/rmarchgateway.conf
-/etc/rsyslog.d/11-rmarchgateway.conf
-%dir /etc/archiving/gateway.d
-/usr/share/archiving/auth_data.xml.sample
-/usr/share/archiving/policy.xml.sample
-
-%files storage-gateway
-%defattr(-,root,root)
-/etc/archiving/gateway.d/storage-gateway.conf
-%config(noreplace) %attr(400,apache,apache) /usr/share/storage-gateway/auth_data.xml
 
 # ----------
 
