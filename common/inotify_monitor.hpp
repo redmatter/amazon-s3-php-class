@@ -105,8 +105,6 @@ public:
 
 	void add_directory(const std::string& dir_name, int event_mask, const event_handler_t& event_handler)
 	{
-//        boost::unique_lock<boost::mutex> lock(mutex_);
-
 		{
 			struct stat s;
 			if(stat(dir_name.c_str(), &s) || !(S_ISDIR(s.st_mode)))
@@ -138,8 +136,6 @@ public:
 
 	void remove_directory(const std::string& dir_name)
 	{
-//        boost::unique_lock<boost::mutex> lock(mutex_);
-
         watch_descriptor_path_bimap_t::right_iterator it = watch_descriptors_.right.find(dir_name);
 	    if(it == watch_descriptors_.right.end())
 	        throw std::invalid_argument("Directory "+dir_name+" is not being monitored");
@@ -187,7 +183,6 @@ private:
 	{
 		buffer_ptr_t p_buffer(new buffer_t);
 		monitor_stream_descriptor_.async_read_some(
-//				boost::asio::buffer(buffer_, sizeof(buffer_)),
 				boost::asio::buffer(*p_buffer),
 				boost::bind(&monitor::handle_read, this, p_buffer,
 						boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
@@ -197,8 +192,6 @@ private:
 	void handle_read(buffer_ptr_t p_buffer, const boost::system::error_code& e, std::size_t bytes_transferred)
 	{
 		if (!e) {
-//	        boost::unique_lock<boost::mutex> lock(mutex_);
-
 			buffer_t& buffer(*p_buffer);
 
 	        struct inotify_event* p_event;
@@ -206,10 +199,7 @@ private:
 			if (bytes_transferred > sizeof (struct inotify_event)) {
 				do
 				{
-//					p_event = reinterpret_cast<struct inotify_event*> (buffer_ + bytes_processed);
-
 					p_event = reinterpret_cast<struct inotify_event*> (&buffer[0] + bytes_processed);
-LogDebug(std::hex<<boost::this_thread::get_id()<<" ----------- wd:"<<p_event->wd);
 
 					watch_descriptor_path_bimap_t::left_iterator it_wdp = watch_descriptors_.left.find(p_event->wd);
 					watch_descriptor_handler_map_t::const_iterator it_wdh = handlers_.find(p_event->wd);
@@ -241,8 +231,6 @@ LogDebug(std::hex<<boost::this_thread::get_id()<<" ----------- wd:"<<p_event->wd
 	watch_descriptor_path_bimap_t watch_descriptors_;
 	watch_descriptor_handler_map_t handlers_;
 	error_handler_t error_handler_;
-
-    boost::mutex mutex_;
 
 	unsigned char buffer_[buffer_max_length];
 };
