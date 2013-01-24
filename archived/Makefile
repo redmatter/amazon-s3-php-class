@@ -56,7 +56,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri-parsers \
+	-lcppnetlib-uri \
 	-lcryptopp -lpugixml -lmysqlpp -ls3 -lrml -larchiving_common -lfcgi -lmysqlclient_r
 
 CXX_SRCS += \
