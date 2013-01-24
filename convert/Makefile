@@ -16,6 +16,7 @@ endif
 
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+CPPFLAGS += -DBOOST_NETWORK_ENABLE_HTTPS
 
 FREESWITCH_DIR=/opt/freeswitch
 
@@ -40,8 +41,8 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri-parsers \
-	-lcryptopp -lpugixml -lrml -larchiving_common
+	-lcppnetlib-uri -lcppnetlib-client-connections \
+	-lcryptopp -lpugixml -lrml -larchiving_common -lcrypto -lssl
 
 CXX_SRCS += \
 	main.cpp
