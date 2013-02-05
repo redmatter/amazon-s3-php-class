@@ -23,7 +23,7 @@ Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-22215
 BuildRequires: boost-devel >= 1.49.0
 BuildRequires: mysql++-devel >= 3.1.0-14089
-BuildRequires: RM-librml-devel >= 0.0.1-24429
+BuildRequires: RM-librml-devel >= 0.0.1-24477
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
