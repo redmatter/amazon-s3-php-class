@@ -26,6 +26,7 @@ const char* file_type::to_string(const file_type_t type)
 		"recording",
 		"sms",
 		"buffered-recording",
+		"pcap",
 
 		"invalid-file-type"
 	};
@@ -54,6 +55,8 @@ const file_type::file_type_t file_type::from_string(const std::string& str)
 		return file_type::sms;
 	else if(str == "buffered-recording")
 		return file_type::buffered_recording;
+	else if(str == "pcap")
+		return file_type::pcap;
 
 	THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 }

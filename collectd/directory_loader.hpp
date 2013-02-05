@@ -31,46 +31,54 @@ public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("directory_loader.interval_seconds", boost::program_options::value<unsigned int>()->default_value(min_interval_seconds), "CDR directory loading interval in seconds")
-				("directory_loader.batch_size", boost::program_options::value<unsigned int>()->default_value(min_batch_size), "CDR directory loading chunked by this much")
+                ("directory_loader.interval_seconds", boost::program_options::value<unsigned int>()
+                        ->default_value(min_interval_seconds), "Directory loading interval in seconds")
+                ("directory_loader.batch_size", boost::program_options::value<unsigned int>()
+                        ->default_value(min_batch_size), "Directory loading chunked by this much")
+                ("directory_loader.startup_delay_seconds", boost::program_options::value<unsigned int>()
+                        ->default_value(120), "Directory loading will wait after a restart")
 				;
 	}
 
-	directory_loader(const std::string& dir_path, const boost::program_options::variables_map& confMap, loader_fn& loader, is_loaded_fn& is_loaded, continue_loading_fn& continue_loading, volatile bool& quit) :
-		dir_path_(dir_path), confMap_(confMap), loader_(loader), is_loaded_(is_loaded), continue_loading_(continue_loading), quit_(quit)
+	directory_loader(const boost::program_options::variables_map& confMap, volatile bool& quit) :
+		confMap_(confMap), quit_(quit)
 	{
 	}
 
-	void run()
+	void run(const std::string name, const std::string& dir_path,
+			const loader_fn loader, const is_loaded_fn is_loaded, const continue_loading_fn continue_loading) const
 	{
-		int count = -120;
+		const unsigned int interval(std::max<unsigned int>(
+				confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval_seconds) );
+		const unsigned int batch_size(std::max<unsigned int>(
+				confMap_["directory_loader.batch_size"].as<unsigned int>(), min_batch_size) );
+		const unsigned int startup_delay_seconds(std::max<unsigned int>(
+				confMap_["directory_loader.startup_delay_seconds"].as<unsigned int>(), min_startup_delay_seconds) );
 
-		LogVerbose("Loading from directory in "<<(-1 * count)<<" seconds");
-
-		const unsigned int interval( std::max<unsigned int>(confMap_["directory_loader.interval_seconds"].as<unsigned int>(), min_interval_seconds) );
-		const unsigned int batch_size( std::max<unsigned int>(confMap_["directory_loader.batch_size"].as<unsigned int>(), min_batch_size) );
+		int count(-startup_delay_seconds);
+		LogVerbose(name<<": ""Loading from directory in "<<(-1 * count)<<" seconds");
 
 		while(!quit_) {
 			
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
-			if(count++ % interval)
+			if((count++ % interval) || (count < 0))
 				continue;
 
-			const float& factored_batch_size((float)batch_size * continue_loading_());
+			const float& factored_batch_size((float)batch_size * continue_loading());
 			if(!factored_batch_size) {
-				LogMessage("Directory loading paused; waiting for ArchiveDs to come back online ["<<continue_loading_()<<']');
+				LogMessage(name<<": ""Directory loading paused; waiting for ArchiveDs to come back online ["<<continue_loading()<<']');
 				continue;
 			}
 
 			try {
-				LogMessage("Loading from directory "<<dir_path_);
-				DIR* dh = opendir(dir_path_.c_str());
+				LogMessage(name<<": ""Loading from directory "<<dir_path);
+				DIR* dh = opendir(dir_path.c_str());
 				if(!dh)
 					THROW_RML_EXCEPTION("failed opening directory err:"<<strerror(errno));
 				
 				rml::utils::sentry closedir_sentry(boost::bind(::closedir, dh));
 				
-				LogMessage("Loading from directory...");
+				LogMessage(name<<": ""Loading from directory...");
 
 				struct dirent *dp;
 				unsigned int file_count = 0;
@@ -80,7 +88,7 @@ public:
 
 					if(!dp) {
 						if(errno) {
-							LogError("Failed to read directory - err:"<<strerror(errno));
+							LogError(name<<": ""Failed to read directory - err:"<<strerror(errno));
 							continue;
 						}
 
@@ -90,62 +98,61 @@ public:
 					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
 						continue;
 
-					const std::string file_path(dir_path_+'/'+dp->d_name);
+					const std::string file_path(dir_path+'/'+dp->d_name);
 
 					struct stat s;
 					if (-1 == stat(file_path.c_str(), &s)) {
-						LogMessage("Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
+						LogMessage(name<<": ""Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
 						continue;
 					}
 
 					if(S_ISDIR(s.st_mode)) { // we are not interested in any dirs
-						LogDebug("Ignoring directory "<<file_path);
+						LogDebug(name<<": ""Ignoring directory "<<file_path);
 						continue;
 					}
 					else {
 						const time_t age_seconds(time(0) - s.st_ctime);
 						if ((s.st_ctime > startup_time) && age_seconds < 1800) {
 							if(age_seconds > 60)
-								LogDebug("WARNING: "<<file_path<<" not inspected for "<<age_seconds<<" seconds");
+								LogDebug(name<<": ""WARNING: "<<file_path<<" not inspected for "<<age_seconds<<" seconds");
 							
 							continue;
 						}
 					}
 
-					if (!is_loaded_(file_path)) {
+					if (!is_loaded(file_path)) {
 						
-						(void)loader_(file_path);
-						LogDebug(file_path<<" loaded.");
+						(void)loader(file_path);
+						LogDebug(name<<": "<<file_path<<" loaded.");
 						file_count++;
 					}
 					else {
-						LogDebug("Ignoring invalid item "<<file_path);
+						LogDebug(name<<": ""Ignoring invalid item "<<file_path);
 					}
 				}
 
-				LogVerbose("Loaded "<<file_count<<" files from "<<dir_path_);
-				LogMessage("Loading from directory; done");
+				LogVerbose(name<<": ""Loaded "<<file_count<<" files from "<<dir_path);
+				LogMessage(name<<": ""Loading from directory; done");
 			}
 			catch(const std::exception& e) {
 				LogError(e.what());
 			}
+
+			count = 1;
 		}
 
-		LogMessage("directory_loader terminating...");
+		LogMessage(name<<": ""directory_loader terminating...");
 	}
 
 private:
-	const std::string dir_path_;
 	const boost::program_options::variables_map& confMap_;
-	loader_fn& loader_;
-	is_loaded_fn& is_loaded_;
-	continue_loading_fn& continue_loading_;
 	volatile bool& quit_;
 
 	enum constant
 	{
-		min_interval_seconds = 30,
-		min_batch_size = 200
+		min_interval_seconds = 10,
+		min_batch_size = 100,
+		min_startup_delay_seconds = 10
 	};
 };
 

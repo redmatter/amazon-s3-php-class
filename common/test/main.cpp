@@ -1,4 +1,4 @@
-#include "../cdr_dir_monitor.hpp"
+#include "../../collectd/cdr_dir_monitor.hpp"
 #if 0
 #include "../dir_monitor.hpp"
 #else
@@ -49,15 +49,18 @@ int main(int argc, char* argv[]) {
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, "test");
 
-		app::inotify::monitor inotify_monitor(io_service, boost::bind(app::log_boost_error, _1));
-		inotify_monitor.add_directory("/mnt/old-home/dkorah/tmp/test-data",
-				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
-				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2));
-		inotify_monitor.add_directory("/mnt/old-home/dkorah/tmp/test-data2",
-				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
-				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2));
-		inotify_monitor.async_monitor();
-		inotify_monitor.async_monitor();
+		app::inotify::monitor inotify_monitor(io_service);
+		inotify_monitor.add_directory(
+			"/mnt/old-home/dkorah/tmp/test-data",
+			app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+			boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
+
+		inotify_monitor.add_directory(
+			"/mnt/old-home/dkorah/tmp/test-data2",
+			app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+			boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
 
 #if 0
 		archiving::dir_monitor dir_monitor(io_service);
@@ -68,8 +71,10 @@ int main(int argc, char* argv[]) {
 		dir_monitor.async_monitor(cdr_dir_monitor);
 #endif
 
-//		for(unsigned int i = 0; i < 3; i++)
+		for(unsigned int i = 0; i < 3; i++)
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+
+		inotify_monitor.async_monitor();
 
 		while(!app::quit) {
 			try {

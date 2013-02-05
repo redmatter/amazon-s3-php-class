@@ -147,7 +147,8 @@ public:
 			const std::string& context, const std::string& action,
 
 			const archiving::user_id_t& user = 0, const archiving::device_id_t& device = 0,
-			const std::string& extra_data="")
+			const std::string& extra_data="",
+			const std::string& authorization = std::string(), const std::string& ip = std::string())
 	{
 		std::ostringstream ostr_body;
 		{
@@ -170,7 +171,7 @@ public:
 			doc.save(ostr_body, "  ");
 		}
 
-		const coreapi::response& res(api.put(boost::str(boost::format("/eventlog/%1%") % org), ostr_body.str()));
+		const coreapi::response& res(api.put(boost::str(boost::format("/eventlog/%1%") % org), ostr_body.str(), "application/xml", true, coreapi::headers(), authorization, ip));
 		if (res.first != 201)
 			throw rml::exception("Failed creating event-log");
 

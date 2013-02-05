@@ -7,13 +7,18 @@
 
 #include "dir_monitor.hpp"
 
-#include <boost/filesystem.hpp>
+#include <rml/utils.h>
+
 #include <boost/foreach.hpp>
 
 #include <sstream>
 
 #include <errno.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/inotify.h>
 
 namespace archiving {
 
@@ -32,20 +37,22 @@ dir_monitor::~dir_monitor()
 
 void dir_monitor::add_directory(const std::string& dir_name, int event_mask)
 {
-    if (!is_initialized_)
     {
-        fd_ = inotify_init();
-        if (fd_ == -1)
-        {
-            std::ostringstream oss;
-            oss << "Failed to initialize monitor - Reason: " << strerror(errno);
-            throw (std::runtime_error(oss.str()));
-        }
-        is_initialized_ = true;
+    	struct stat s;
+    	if(stat(dir_name.c_str(), &s) || !(S_ISDIR(s.st_mode)))
+    		std::invalid_argument(dir_name + " is not a valid directory entry");
     }
 
-    if (!boost::filesystem::is_directory(boost::filesystem::path(dir_name)))
-        throw (std::invalid_argument(dir_name + " is not a valid directory entry"));
+    if (!is_initialized_) {
+        fd_ = inotify_init();
+        if (fd_ == -1) {
+            std::ostringstream oss;
+            oss << "Failed to initialise monitor - Reason: " << strerror(errno);
+            throw std::runtime_error(oss.str());
+        }
+
+        is_initialized_ = true;
+    }
 
     if(0 != (event_mask & ~(
     		event::created

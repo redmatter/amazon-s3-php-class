@@ -56,10 +56,12 @@ format specification
 * 0x10 encrypted           <- only for internal use
 
 sub format specification
-* 0x00 application/octet-stream
-* 0x01 application/xml  OR xml
-* 0x02 audio/x-wav      OR wav
-* 0x03 audio/mpeg       OR mp3
+* 0x00 unknown OR error
+* 0x01 application/octet-stream     OR blob
+* 0x02 application/xml              OR xml
+* 0x03 audio/x-wav                  OR wav
+* 0x04 audio/mpeg                   OR mp3
+* 0x05 application/vnd.tcpdump.pcap OR pcap
 */
 
 namespace app {
@@ -101,7 +103,8 @@ struct data_sub_format
 		binary, //= 0x01, // blob ( catchall for any unrecognized data )
 		xml,    //= 0x02,
 		wav,    //= 0x03,
-		mp3,    //= 0x04
+		mp3,    //= 0x04,
+		pcap,   //= 0x05,
 
 		n_data_sub_format
 	};
@@ -113,7 +116,8 @@ struct data_sub_format
 				"binary",
 				"xml",
 				"wav",
-				"mp3"
+				"mp3",
+				"pcap"
 		};
 
 		if(data_sub_format > unknown && data_sub_format < n_data_sub_format)
@@ -132,6 +136,8 @@ struct data_sub_format
 			return wav;
 		if(str == "mp3")
 			return mp3;
+		if(str == "pcap")
+			return pcap;
 
 		return unknown;
 	}
@@ -183,14 +189,17 @@ struct file_format
 		clear_xml                    = ( data_format::clear << 8 ) | data_sub_format::xml,
 		clear_wav                    = ( data_format::clear << 8 ) | data_sub_format::wav,
 		clear_mp3                    = ( data_format::clear << 8 ) | data_sub_format::mp3,
+		clear_pcap                   = ( data_format::clear << 8 ) | data_sub_format::pcap,
 
 		compressed_binary            = ( data_format::compressed << 8 ) | data_sub_format::binary,
 		compressed_xml               = ( data_format::compressed << 8 ) | data_sub_format::xml,
 		compressed_wav               = ( data_format::compressed << 8 ) | data_sub_format::wav,
+		compressed_pcap              = ( data_format::compressed << 8 ) | data_sub_format::pcap,
 
 		encrypted_compressed_binary  = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::binary,
 		encrypted_compressed_xml     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::xml,
 		encrypted_compressed_wav     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::wav,
+		encrypted_compressed_pcap    = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::pcap,
 
 		encrypted_mp3                = ( data_format::encrypted << 8 ) | data_sub_format::mp3
 	};
@@ -204,14 +213,17 @@ struct file_format
 			"clear_xml",
 			"clear_wav",
 			"clear_mp3",
+			"clear_pcap",
 
 			"compressed_binary",
 			"compressed_xml",
 			"compressed_wav",
+			"compressed_pcap",
 
 			"encrypted_compressed_binary",
 			"encrypted_compressed_xml",
 			"encrypted_compressed_wav",
+			"encrypted_compressed_pcap",
 
 			"encrypted_mp3"
 		};
@@ -225,23 +237,29 @@ struct file_format
 			return str[3];
 		case clear_mp3:
 			return str[4];
+		case clear_pcap:
+			return str[5];
 
 		case compressed_binary:
-			return str[5];
-		case compressed_xml:
 			return str[6];
-		case compressed_wav:
+		case compressed_xml:
 			return str[7];
+		case compressed_wav:
+			return str[8];
+		case compressed_pcap:
+			return str[9];
 
 		case encrypted_compressed_binary:
-			return str[8];
-		case encrypted_compressed_xml:
-			return str[9];
-		case encrypted_compressed_wav:
 			return str[10];
+		case encrypted_compressed_xml:
+			return str[11];
+		case encrypted_compressed_wav:
+			return str[12];
+		case encrypted_compressed_pcap:
+			return str[13];
 
 		case encrypted_mp3:
-			return str[11];
+			return str[14];
 
 		case unknown:
 		default:
@@ -258,14 +276,17 @@ struct file_format
 			"xml",
 			"wav",
 			"mp3",
+			"pcap",
 
 			"blob.bz2",
 			"xml.bz2",
 			"wav.bz2",
+			"pcap.bz2",
 
 			"blob.bz2.bf",
 			"xml.bz2.bf",
 			"wav.bz2.bf",
+			"pcap.bz2.bf",
 
 			"mp3.bf"
 		};
@@ -279,23 +300,29 @@ struct file_format
 			return str[3];
 		case clear_mp3:
 			return str[4];
+		case clear_pcap:
+			return str[5];
 
 		case compressed_binary:
-			return str[5];
-		case compressed_xml:
 			return str[6];
-		case compressed_wav:
+		case compressed_xml:
 			return str[7];
+		case compressed_wav:
+			return str[8];
+		case compressed_pcap:
+			return str[9];
 
 		case encrypted_compressed_binary:
-			return str[8];
-		case encrypted_compressed_xml:
-			return str[9];
-		case encrypted_compressed_wav:
 			return str[10];
+		case encrypted_compressed_xml:
+			return str[11];
+		case encrypted_compressed_wav:
+			return str[12];
+		case encrypted_compressed_pcap:
+			return str[13];
 
 		case encrypted_mp3:
-			return str[11];
+			return str[14];
 
 		case unknown:
 		default:

@@ -19,11 +19,13 @@
 
 #include <rml/fcgi/request.hpp>
 
+#include <cryptopp/channels.h>
+
 #define Debug(line) \
 		LogIf(p_request->debug_mode == rml::fcgi::debug::on, p_request->fcgi_req.requestId<<':'<<thread_id<<": "<<line);
 
 #define Timing(desc) \
-		Debug("timing - "<< boost::posix_time::to_simple_string(boost::posix_time::microsec_clock::local_time() - p_request->start_time ) << " - "<<desc)
+		Debug("[timing] "<< boost::posix_time::to_simple_string(boost::posix_time::microsec_clock::local_time() - p_request->start_time ) << " - "<<desc)
 
 namespace app {
 
@@ -39,6 +41,9 @@ class storage_access_handler : public rml::fcgi::request::handler
 	uint64_t audit_token;
 	operation_data::pointer opdata;
 	storage::string_map_t props;
+	types::file_format::file_format_t file_format;
+//	std::string base64_md5;
+	std::string hex_md5;
 
 public:
 	static inline rml::fcgi::request::handler::pointer make(
@@ -67,7 +72,8 @@ public:
 			coreapi_user_finder_(coreapi_user_finder),
 			storage_endpoint_finder_(storage_endpoint_finder),
 
-			audit_token(0)
+			audit_token(0),
+			file_format(types::file_format::unknown)
 	{
 		LogDebug("New storage-access request: "<<rml::fcgi::http_method::to_string(p_request->method)<<' '<<std::string(p_request->pathinfo));
 	}
@@ -130,6 +136,7 @@ public:
 
 		archiving::user_id_t user_id(0);
 		archiving::org_id_t user_org_id;
+		types::file_format::file_format_t target_file_format(types::file_format::make(false, false, retention->file_format));
 
 		if(!authorization.empty())
 		{
@@ -142,10 +149,21 @@ public:
 				}
 			}
 
-			user_id = p_user->id;
-			user_org_id = p_user->org_id;
+			// if we are dealing with a system user, it is assumed that the client has the means to decrypt and decompress the file.
+			// it is the only way we can protect against exploits via the hole we have created for accessing call-buffering
+			if(p_user->is_system_user && p_user->id < 0) {
+				user_id = p_user->id;
+				user_org_id = retention->identifier.org;
+				target_file_format = retention->file_format;
 
-			Timing(this_op<<"user verified; ID:"<<user_org_id<<'/'<<user_id);
+				Timing(this_op<<"user verified; ID:"<<p_user->org_id<<'/'<<user_id<<" (sudo-org:"<<user_org_id<<')');
+			}
+			else {
+				user_id = p_user->id;
+				user_org_id = p_user->org_id;
+
+				Timing(this_op<<"user verified; ID:"<<user_org_id<<'/'<<user_id);
+			}
 		}
 		else {
 			// it could be an unrestricted access; lets check the policy
@@ -182,7 +200,7 @@ public:
 		if(p_request->method == rml::fcgi::http_method::get) {
 			detail->arrival_time = time(0);
 			detail->current_file_format = retention->file_format;
-			detail->target_file_format = types::file_format::make(false, false, retention->file_format); // XXX fudge; we need to read filetype!
+			detail->target_file_format = target_file_format;
 			/*
 			// implemented in API using a lame based stream filter... dont need this anymore
 			if (policy->disallow_recording_download && (detail->target_file_format == types::file_format::clear_wav))
@@ -197,9 +215,29 @@ public:
 				storage_backend->get(opdata);
 				Timing(this_op<<"file retrieved from storage");
 
-				app::crypto crypto;
-				app::converter::convert(opdata, crypto);
+				{
+					app::crypto crypto;
+					if(!app::converter::convert(opdata, crypto)) {
+						LogCritical("Failed to convert "<<identifier<<"; possibly corruption");
+						throw rml::fcgi::http_exception(500, "Internal error");
+					}
+				}
 				Timing(this_op<<"file converted");
+
+				{
+					rml::utils::tmp_fstream::pointer p_fs(opdata->get_tmp_fstream());
+					p_fs->re_open();
+
+					CryptoPP::Weak1::MD5 hash;
+					CryptoPP::FileSource f(*p_fs, true,
+							new CryptoPP::HashFilter(hash,
+									new CryptoPP::HexEncoder(
+											new CryptoPP::StringSink(hex_md5), false)));
+
+				}
+				Timing(this_op<<"file check-summed");
+
+				file_format = detail->target_file_format;
 			}
 			catch(const std::exception& e) {
 				throw rml::fcgi::http_exception(404, e.what());
@@ -236,9 +274,15 @@ public:
 					"Content-Disposition: attachment; filename=\"%s.%s\";\r\n"
 					"Content-Transfer-Encoding: binary\r\n"
 					"Content-Length: %d\r\n"
+					"ETag: \"%s\"\r\n"
 					"AuditLogToken: %d\r\n"
+					"X-File-Format: %d\r\n"
 					"\r\n",
-					opdata->p_detail->identifier.uuid.c_str(), types::file_format::to_extension(opdata->p_detail->current_file_format), content_length, audit_token);
+					opdata->p_detail->identifier.uuid.c_str(), types::file_format::to_extension(opdata->p_detail->current_file_format),
+					content_length,
+					(hex_md5.empty()? "-empty-": hex_md5.c_str()),
+					audit_token,
+					file_format);
 
 			fs->re_open();
 			while(*fs) {

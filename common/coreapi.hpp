@@ -182,6 +182,15 @@ public:
 		init();
 	}
 
+	coreapi(const std::string& base_url, const std::string& ui_version, boost::asio::io_service& io_service) :
+		base_url_(base_url),
+		auth_hash_(),
+		ui_version_(ui_version),
+		io_service_(io_service),
+		client_(io_service_)
+	{
+	}
+
 	/**
 	 * logout from API
 	 *

@@ -97,7 +97,7 @@ private:
 	typedef boost::bimap< int, std::string > watch_descriptor_path_bimap_t;
 
 public:
-	monitor(boost::asio::io_service& io_service, error_handler_t error_handler)
+	monitor(boost::asio::io_service& io_service, error_handler_t error_handler=error_handler_t())
 		: fd_(make_fd()), io_service_(io_service),
 		  monitor_stream_descriptor_(io_service, fd_), error_handler_(error_handler)
 	{
@@ -126,8 +126,6 @@ public:
 			oss << "Failed to monitor directory - Directory: " << dir_name << " - Reason:" << strerror(errno);
 			throw std::invalid_argument(oss.str());
 		}
-
-		LogDebug(dir_name<<" wd:"<<wd);
 
 		watch_descriptors_.insert(watch_descriptor_path_bimap_t::relation(wd, dir_name));
 		if(!handlers_.insert(std::make_pair(wd, event_handler)).second)
@@ -168,7 +166,8 @@ private:
 
     inline static int make_fd()
     {
-        int fd = inotify_init1(/* IN_NONBLOCK */ 0);
+        // int fd = inotify_init1(/* IN_NONBLOCK */ 0);
+        int fd = inotify_init();
         if(fd == -1) {
         	boost::system::system_error e(
             		boost::system::error_code(errno, boost::system::get_system_category()), "init_inotify1 failed");
@@ -219,6 +218,8 @@ private:
 
 			async_read();
 		}
+		else if(error_handler_.empty())
+			LogWarning(e.message());
 		else
 			error_handler_(e);
 	}

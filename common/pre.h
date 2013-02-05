@@ -1,4 +1,3 @@
-#include <mysql/mysqld_error.h>
 #include <pugixml/pugixml.hpp>
 
 #include <cryptopp/base64.h>

@@ -160,7 +160,7 @@ public:
 					<< mysqlpp::sql_int(arc.get_policy_id())
 					<< mysqlpp::sql_char(md5_str) // TODO use NULL if not set
 					<< mysqlpp::sql_enum(arc.get_add_to_cdrmunch_cache()? "true": "false")
-					<< mysqlpp::sql_enum(arc.get_is_buffered_recording()? "true": "false")
+					<< mysqlpp::sql_enum("false") // TODO migration from call-buffering v2 to v1 will need to address this
 					<< mysqlpp::sql_char(arc.get_data_format())
 
 					<< mysqlpp::sql_int(arc.get_attempt())

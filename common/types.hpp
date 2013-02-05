@@ -31,6 +31,7 @@ typedef uint64_t endpoint_id_t;
 
 typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 
+typedef boost::array< byte, 16 > uuid_t;
 
 /**
  * Types of files we deal with
@@ -46,6 +47,7 @@ struct file_type
 		recording,
 		sms,
 		buffered_recording,
+		pcap,
 
 		n_file_types
 	};

@@ -16,20 +16,22 @@
 #include <sys/types.h>
 #include <errno.h>
 
-namespace archiving {
+namespace archiving
+{
 
-class directory_loader {
+class directory_loader
+{
 	cdr_channel& channel;
 	const std::string dir_path;
 
 public:
-	directory_loader(cdr_channel& channel, const std::string& dir_path) : channel(channel), dir_path(dir_path) {}
-
-	static void do_thread(void* param) {
-		static_cast<directory_loader*>(param)->run();
+	directory_loader(cdr_channel& channel, const std::string& dir_path) :
+		channel(channel), dir_path(dir_path)
+	{
 	}
 
-	void run() {
+	void run()
+	{
 		int count = -5;
 		while(!app::quit) {
 

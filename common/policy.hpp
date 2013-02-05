@@ -136,6 +136,7 @@ struct policy
 			cdr = -1,
 			sms = -2,
 			buffered_recording = -3,
+			pcap = -4,
 
 			do_not_archive = -999
 		};
@@ -148,7 +149,8 @@ struct policy
 					/*cdr*/                pseudo_id::cdr,
 					/*recording*/          pseudo_id::recording,
 					/*sms*/                pseudo_id::sms,
-					/*buffered_recording*/ pseudo_id::buffered_recording
+					/*buffered_recording*/ pseudo_id::buffered_recording,
+					/*pcap*/               pseudo_id::pcap
 			};
 
 			if(f > archiving::file_type::unknown && f < archiving::file_type::n_file_types)

@@ -8,10 +8,14 @@
 #ifndef CDR_INSPECTOR_HPP_
 #define CDR_INSPECTOR_HPP_
 
-#include "../common/globals.h"
+#ifndef DATABASE_SQLITE
 #include "../common/database.hpp"
-
+#else
+#include "database_sqlite.hpp"
+#endif
+#include "../common/globals.h"
 #include "../common/types.hpp"
+#include "../common/archivable.hpp"
 
 #include <rml/utils.h>
 
@@ -23,6 +27,7 @@
 #include <boost/format.hpp>
 
 #include <uuid/uuid.h>
+#include <time.h>
 
 namespace {
 
@@ -190,15 +195,54 @@ public:
 
 			while(!app::quit) {
 				try {
-					archiving::archivable::pointer archivable_cdr = in_channel.consume();
-					LogVerbose(*archivable_cdr<<" from channel");
+					archiving::archivable::pointer p_archivable = in_channel.consume();
+					LogVerbose(*p_archivable<<" from channel");
 
-					if((archivable_cdr->get_type() != archiving::file_type::cdr) || (archivable_cdr->get_current_state() >= archiving::archivable::state::inspected)) {
-						LogVerbose(*archivable_cdr<<" Already inspected; shifting to out channel");
-						archivable_cdr->hibernate();
-						pc_produce(out_channel, archivable_cdr, 1);
+					if((p_archivable->get_type() != archiving::file_type::cdr) || (p_archivable->get_current_state() >= archiving::archivable::state::inspected)) {
+						// if a new arrival that is not CDR ( pcap )
+						if((p_archivable->get_type() != archiving::file_type::cdr) && (p_archivable->get_current_state() < archiving::archivable::state::inspected)) {
+							LogVerbose(*p_archivable<<" not a CDR; shifting to out channel");
+
+							p_archivable->set_owners(archiving::owner_info(1));
+							p_archivable->set_start_epoch(time(0));
+							p_archivable->set_add_to_cdrmunch_cache(false);
+
+							p_archivable->set_current_state(archiving::archivable::state::inspected);
+
+							p_archivable->move_to_subdir("collected");
+							{
+								int retry = 0;
+								time_t last_attempt(0);
+								while(!app::quit) {
+									const time_t now(time(0));
+									if(!last_attempt || (now - last_attempt) > 15) {
+										if(internal_db_.save(p_archivable))
+											break;
+
+										last_attempt = now;
+
+										retry++;
+										LogMessage(*p_archivable<<" [retry: "<<retry<<"] Save states to DB failed; retrying ...");
+									}
+
+									boost::this_thread::sleep(boost::posix_time::seconds(1));
+								}
+
+								if(retry && app::quit)
+									throw rml::exception("Quit flagged during database retry");
+							}
+						}
+						else
+							LogVerbose(*p_archivable<<" Already inspected; shifting to out channel");
+
+						p_archivable->hibernate();
+
+						pc_produce(out_channel, p_archivable, 1);
 						continue;
 					}
+
+					// aliasing it to make the code more readable
+					archiving::archivable::pointer& archivable_cdr(p_archivable);
 
 					// inspect and cleanup CDR
 					{
@@ -384,10 +428,9 @@ public:
 								}
 
 								archiving::archivable::pointer archivable_cbr;
-								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::do_not_archive));
+								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::file_type::buffered_recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::buffered_recording));
 								archivable_cbr->set_owners(*owners);
 								archivable_cbr->set_add_to_cdrmunch_cache(false);
-								archivable_cbr->set_is_buffered_recording(true);
 								archivable_cbr->set_current_state(archiving::archivable::state::inspected);
 								{
 									int retry = 0;
@@ -416,7 +459,7 @@ public:
 							pugi::xpath_node node;
 							if((node = variables_node.select_single_node("rmCallRecordingCount/text()"))) {
 								archiving::archivable::pointer archivable_recording;
-								
+
 								// did we actually endup recording in the course of the call progress?
 								const bool& session_recorded(get_xpath_single_value(variables_node, "rmDispSessionRecorded/text()", std::string("false")) == "true");
 
@@ -509,7 +552,7 @@ public:
 									std::string file_path(node.node().value());
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 									archivable_recording.reset(
-											new archiving::archivable(uuid, originator_uuid, start_epoch, file_path, 
+											new archiving::archivable(uuid, originator_uuid, start_epoch, file_path,
 													archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());

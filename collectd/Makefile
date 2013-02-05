@@ -15,14 +15,29 @@ LIBS += -L$(FREESWITCH_DIR)/lib \
 
 TARGET=collectd
 
-TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a \
+	../external/sqlite/lib/libsqlite3.a
 
 RML_LOG_SOURCE_LOCATION=YES
 
+
+DATABASE_SQLITE=YES
+ifeq ($(DATABASE_SQLITE),YES)
+
+CPPFLAGS += -DDATABASE_SQLITE
+CXX_INCLUDES += -I ../external/sqlite/include
+LIBS += -L ../external/sqlite/lib -lsqlite3 -ldl
+
+else # DATABASE_SQLITE
+
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
-	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
-endif
+CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
+LIBS += -lmysqlpp -lmysqlclient_r
+endif # MYSQLPP_MYSQL_HEADERS_BURIED
+
+endif # DATABASE_SQLITE
+
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
 CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
@@ -57,9 +72,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -larchiving_common -luuid -lmysqlclient_r
-
-# -lcrypt -luuid \
+	-lrml -lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \
 	main.cpp
@@ -69,9 +82,14 @@ C_SRCS += \
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
+
+../external/sqlite/lib/libsqlite3.a:
+	@$(MAKE) -C ../external sqlite
+
 ../common/$(TMP)/libarchiving_common.a :
-	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=$(DATABASE_SQLITE)
 
 clean_extra:
-	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=$(DATABASE_SQLITE) clean
+	@$(MAKE) -C ../external clean
 

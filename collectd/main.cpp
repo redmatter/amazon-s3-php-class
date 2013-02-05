@@ -1,18 +1,24 @@
 /*
- * distiller.cpp
+ * main.cpp
  *
  *  Created on: Apr 28, 2010
  *      Author: dkorah
  */
 
-#include "../common/archived_client.hpp"
 #include "cdr_inspector.hpp"
 #include "directory_loader.hpp"
-#include "../common/database.hpp"
+#include "cdr_dir_monitor.hpp"
 
+#ifndef DATABASE_SQLITE
+#include "../common/database.hpp"
+#else
+#include "database_sqlite.hpp"
+#include <rml/sqlite/status.hpp>
+#endif
+
+#include "../common/archived_client.hpp"
 #include "../common/types.hpp"
-#include "../common/cdr_dir_monitor.hpp"
-#include "../common/dir_monitor.hpp"
+#include "../common/inotify_monitor.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -27,6 +33,8 @@
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
+#include <boost/bind.hpp>
+#include <boost/bind/protect.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -101,9 +109,9 @@ public:
 		return is_queued;
 	}
 
-	inline bool is_file_loaded(const archiving::file_type::file_type_t& type, const std::string& file_path) const
+	inline bool is_file_loaded(const archiving::file_type::file_type_t& type, const size_t& rev_path_uuid_idx, const std::string& file_path) const
 	{
-		return is_loaded(type, std::string(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36));
+		return is_loaded(type, std::string(file_path, file_path.length() - rev_path_uuid_idx, 36));
 	}
 
 	inline bool is_loaded(const archiving::file_type::file_type_t& type, const std::string& uuid) const
@@ -121,7 +129,7 @@ bool unlink_path(const std::string& path)
 {
 	if(0 != chmod(path.c_str(), 0666)) {
 		if(errno == ENOENT) {
-			LogMessage("File "<<path<<" doesn't exist; may be already unlinked");
+			LogVerbose("File "<<path<<" doesn't exist; may be already unlinked");
 			return true;
 		}
 
@@ -139,7 +147,9 @@ bool unlink_path(const std::string& path)
 	return false;
 }
 
-void purge(database::internal& internal_db, volatile bool& quit, const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int max_age_days, const unsigned int limit, const unsigned int frequency_minutes)
+void purge(database::internal& internal_db, volatile bool& quit, const std::string& pbx_hostname,
+		const unsigned int done_items_max_age_minutes, const unsigned int max_age_days, const unsigned int limit,
+		const unsigned int frequency_minutes)
 {
 	int ticks = 1;
 
@@ -152,7 +162,8 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 			continue;
 
 		try {
-			const database::internal::purgedef::pointer_vector& purgeables( internal_db.purge_find(pbx_hostname, done_items_max_age_minutes, max_age_days, limit) );
+			const database::internal::purgedef::pointer_vector& purgeables(
+					internal_db.purge_find(pbx_hostname, done_items_max_age_minutes, max_age_days, limit));
 
 			if(!purgeables.empty()) {
 				LogMessage("Purging done queue items...");
@@ -191,9 +202,9 @@ namespace {
 
 bool more_to_load_from_db = false;
 inline float continue_loading_dir() {
-	if(more_to_load_from_db)
+	if(!app::quit && more_to_load_from_db)
 		return 0.0;
-	
+
 	return app::archived_client::get_is_archived_ok();
 }
 
@@ -215,6 +226,7 @@ int main(int argc, char* argv[]) try
 							) % version_number_string % copyright_string));
 		cli_optsDesc.add_options()
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
+				("conf", boost::program_options::value<std::string>()->default_value(CONFIG_FILE_PATH), "config file")
 				("help-conf", "conf file help")
 				("help", "this help")
 				("version", "shows version information")
@@ -234,16 +246,29 @@ int main(int argc, char* argv[]) try
 	}
 
 	{
-		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
+		boost::program_options::options_description optsDesc(
+				boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") %
+						version_number_string %
+						copyright_string ));
 		optsDesc.add_options()
-				("app.data_dir", boost::program_options::value<std::string>()->default_value(std::string("/var/lib/archiving")), "data directory")
-				("cdr.directory", boost::program_options::value<std::string>()->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
-				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "CollectD service threads")
-				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
-				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
-				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
-				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(500), "Purge batch size")
-				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()->default_value(1), "Purge frequency")
+				("app.data_dir", boost::program_options::value<std::string>()
+						->default_value(std::string("/var/lib/archiving")), "data directory")
+				("cdr.directory", boost::program_options::value<std::string>()
+						->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("pcap.directory", boost::program_options::value<std::string>()
+						->default_value(std::string("/var/log/freeswitch/pcap")), "pcaps finished directory")
+				("app.service_threads",  boost::program_options::value<unsigned int>()
+						->default_value(4), "CollectD service threads")
+				("app.tik_tok", boost::program_options::value<std::string>()
+						->default_value(std::string("false")), "enable tik tok")
+				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()
+						->default_value(20), "Maximum age in minutes for done items")
+				("purge.max_age_days",  boost::program_options::value<unsigned int>()
+						->default_value(1), "Maximum age")
+				("purge.batch_size",  boost::program_options::value<unsigned int>()
+						->default_value(500), "Purge batch size")
+				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()
+						->default_value(1), "Purge frequency")
 				;
 
 		rml::daemon::describe_config(optsDesc);
@@ -265,7 +290,7 @@ int main(int argc, char* argv[]) try
 		app::hostname = cli_confMap["hostname"].as<std::string>();
 
 		try {
-			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
+			rml::config::parse(cli_confMap["conf"].as<std::string>(), optsDesc, app::confMap);
 
 			// configure the logger
 			rml::logger::configure(app::confMap, SYSLOG_APP_NAME);
@@ -279,7 +304,7 @@ int main(int argc, char* argv[]) try
 			rml::daemon::initialise(app::confMap, PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
-			LogError("Initialization Error - exception: "<<e.what());
+			LogError("Initialisation Error - exception: "<<e.what());
 			exit(rml::utils::exit_codes::initialization_error);
 		}
 	}
@@ -287,6 +312,7 @@ int main(int argc, char* argv[]) try
 	try {
 
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
+		const std::string pcap_directory( app::confMap["pcap.directory"].as<std::string>() );
 
 		archiving::archivable_busy_set_t archivable_busy_set;
 		archiving::archivable_channel_t in_channel(
@@ -306,28 +332,62 @@ int main(int argc, char* argv[]) try
 				new boost::asio::io_service::work(io_service));
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, app::hostname);
-		archiving::dir_monitor dir_monitor(io_service);
-		dir_monitor.add_directory(cdr_directory, archiving::dir_monitor::event::created | archiving::dir_monitor::event::moved_to | archiving::dir_monitor::event::closed);
-		dir_monitor.async_monitor(cdr_dir_monitor);
 
-		app::directory_loader::continue_loading_fn continue_loading_fn(boost::bind(continue_loading_dir));
+		// setup the inotify monitor
+		app::inotify::monitor inotify_monitor(io_service);
 
-		app::directory_loader::loader_fn directory_loader_fn(
-				boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor), _1));
+		// monitor freeswitch's xml_cdr folder for new CDRs
+		inotify_monitor.add_directory(
+				cdr_directory,
+				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
+
+		// monitor the PCap path for any new arrivals
+		inotify_monitor.add_directory(
+				pcap_directory,
+				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+						size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap"));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
-		app::directory_loader::is_loaded_fn archivable_is_loaded_fn(
-				boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup), archiving::file_type::cdr, _1));
-
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
-				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
+		                boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
 		// initialise the internal static variables before we load anything;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, 1.0);
 
-		app::directory_loader directory_loader(cdr_directory, app::confMap, directory_loader_fn, archivable_is_loaded_fn, continue_loading_fn, app::quit);
-		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
+		// setup directory readers / loaders ( extra safety net if by any chance the inotify fails )
+		// also useful when we have to start collectd after letting it rest for a while
+		app::directory_loader dir_loader(app::confMap, app::quit);
 
+		// one for CDRs
+		threads.create_thread(
+				boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
+						"CDR", cdr_directory,
+						boost::protect(
+								boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
+										_1, size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml")),
+						boost::protect(
+								boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
+										archiving::file_type::cdr, size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), _1)),
+						boost::protect(
+								boost::bind(continue_loading_dir))));
+
+		// One for PCaps
+		threads.create_thread(
+				boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
+						"PCap", pcap_directory,
+						boost::protect(
+								boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
+										_1, size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap")),
+						boost::protect(
+								boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
+										archiving::file_type::pcap, size_t(36/*uuid*/+5/*.pcap*/), _1)),
+						boost::protect(
+								boost::bind(continue_loading_dir))));
+
+		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
@@ -347,11 +407,21 @@ int main(int argc, char* argv[]) try
 		for(unsigned int i = 0; i < n_threads; i++)
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
+#ifdef DATABASE_SQLITE
+		// setup the save_run thread
+			threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db), boost::ref(app::quit)));
+#endif
+
+		// kick the monitor to life
+		inotify_monitor.async_monitor();
+
+		// kick the ArchiveD clients to life
 		std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
 		for(std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
 				itr != end; ++itr)
 			(*itr)->connect_archived();
 
+		// kick off the purge thread
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),
 				app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>(),
@@ -372,8 +442,17 @@ int main(int argc, char* argv[]) try
 					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
 			}
 
-			if(!(ticks % 60))
+			if(!(ticks % 60)) {
 				LogMessage("[statistics] IN:"<<in_channel.count()<<" OUT:"<<out_channel.count()<<" DBLoading:"<<RML_YES_NO(more_to_load_from_db));
+#ifdef DATABASE_SQLITE
+				LogDebug("[statistics] SQLIteSessions:"<<rml::sqlite::session::count());
+				LogDebug("[statistics] SQLIteSessionPoolSize:"<<internal_db.get_pool_size());
+
+				internal_db.clear_dormant_sessions();
+
+				rml::sqlite::status::log_all();
+#endif
+			}
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 
@@ -389,9 +468,7 @@ int main(int argc, char* argv[]) try
 
 		threads.join_all();
 
-
 		LogMessage("Program terminated normally");
-
 		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {

@@ -78,6 +78,7 @@ public:
 	};
 
 	typedef boost::shared_ptr<archivable> pointer;
+	typedef boost::weak_ptr<archivable> weak_ptr;
 
 	friend struct archivable_pointer_compare;
 	friend std::ostream& std::operator<<(std::ostream& ostr, const archivable& a);
@@ -133,7 +134,7 @@ public:
 		file_type::file_type_t filetype;
 		org_id_t org;
 		std::string uuid;
-		
+
 		bool operator==(const identifier& rhs) const
 		{
 			return filetype == rhs.filetype && org == rhs.org && uuid == rhs.uuid;
@@ -145,14 +146,14 @@ public:
 			{
 				if(lhs.filetype != rhs.filetype)
 					return lhs.filetype < rhs.filetype;
-				
+
 				if(lhs.org != rhs.org)
 					return lhs.org < rhs.org;
-				
+
 				return lhs.uuid < rhs.uuid;
 			}
 		};
-		
+
 
 		identifier() :
 			filetype(file_type::unknown), org(0), uuid()
@@ -184,11 +185,26 @@ public:
 
 		friend inline std::istream& operator>>(std::istream& istr, identifier& identifier)
 		{
-			char filetype_str[20];
-			char org_str[20];
-			char uuid_str[36];
-			if(!(istr.getline(filetype_str, 20, '/') && istr.getline(org_str, 20, '/') && istr.getline(uuid_str, 36)))
-				throw rml::exception("Invalid identifier string");
+
+#define define_buf(type, buf, size) \
+			type buf[size]; \
+			memset(buf, 0, sizeof(type) * size);
+
+			define_buf(char, filetype_str, 21);
+			define_buf(char, org_str, 21);
+			define_buf(char, uuid_str, 37);
+
+			if(istr.good())
+				istr.getline(filetype_str, 21, '/');
+
+			if(istr.good())
+				istr.getline(org_str, 21, '/');
+
+			if(istr.good())
+				istr.getline(uuid_str, 37);
+
+			if(!strlen(uuid_str))
+				throw rml::exception("Invalid identifier (string)");
 
 			identifier.filetype = file_type::from_string(filetype_str);
 			identifier.org = rml::utils::strtoull(org_str);
@@ -206,7 +222,6 @@ protected:
 	std::string data_format;
 	std::string pbx_hostname;
 	bool add_to_cdrmunch_cache;
-	bool is_buffered_recording;
 
 private:
 	state::state_t state_;
@@ -229,6 +244,8 @@ private:
 
 	uint64_t database_id_;
 	mutable volatile unsigned int attempt_;
+
+	mutable volatile bool is_save_setup_;
 
 	archivable();
 	archivable(const archivable& a);
@@ -260,7 +277,6 @@ public:
 		data_format("unknown"),
 		pbx_hostname(),
 		add_to_cdrmunch_cache(false),
-		is_buffered_recording(false),
 		state_(state::unknown),
 		file_path_(),
 		p_fstream_(),
@@ -271,7 +287,8 @@ public:
 		parent_(),
 		policy_id_(0),
 		database_id_(0),
-		attempt_(0)
+		attempt_(0),
+		is_save_setup_(false)
 	{
 		// Just for the comparisons and find to work
 	}
@@ -309,7 +326,6 @@ public:
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
 	  add_to_cdrmunch_cache(add_to_cdrmunch_cache),
-	  is_buffered_recording(is_call_buffering_recording),
 	  state_(state),
 	  file_path_(file_path),
 	  p_fstream_(rml::utils::tmp_fstream::create((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
@@ -320,7 +336,8 @@ public:
 	  parent_(parent),
 	  policy_id_(policy_id),
 	  database_id_(0),
-	  attempt_(0)
+	  attempt_(0),
+	  is_save_setup_(false)
 	{
 		if(md5.empty()) {
 			md5_ = md5hasher::hash(p_fstream_);
@@ -350,7 +367,7 @@ public:
 		else
 			file_path_ = new_path;
 	}
-	
+
 	void set_originator_uuid(const std::string& new_originator_uuid)
 	{
 		originator_uuid = new_originator_uuid;
@@ -369,6 +386,23 @@ public:
 	inline void hibernate()
 	{
 		p_fstream_->close();
+	}
+
+	inline bool is_save_setup() const
+	{
+		return is_save_setup_;
+	}
+
+	inline bool set_save_setup() const
+	{
+		const bool ret(is_save_setup_);
+		is_save_setup_ = true;
+		return ret;
+	}
+
+	inline void reset_save_setup() const
+	{
+		is_save_setup_ = false;
 	}
 
 	inline std::ostream& shove_metadata(std::ostream& ostr) const
@@ -431,7 +465,6 @@ public:
 				<< "DataFormat: "<<data_format<<"\r\n"
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
 				<< "AddToCDRMunchCache: "<<(add_to_cdrmunch_cache? "true": "false")<<"\r\n"
-				<< "BufferedRecording: "<<(is_buffered_recording? "true": "false")<<"\r\n"
 				;
 	}
 
@@ -488,16 +521,6 @@ public:
 		return add_to_cdrmunch_cache;
 	}
 
-	inline void set_is_buffered_recording(const bool& is_it = true)
-	{
-		is_buffered_recording = is_it;
-	}
-
-	inline bool get_is_buffered_recording() const
-	{
-		return is_buffered_recording;
-	}
-
 	inline std::string get_data_format() const
 	{
 		return data_format;
@@ -520,25 +543,25 @@ public:
 
 	/**
 	 * Get the retry count
-	 * 
+	 *
 	 * @return retry
 	 */
 	inline unsigned int get_attempt() const
 	{
 		return attempt_;
 	}
-	
+
 	/**
 	 * Increment the retry number
 	 */
 	inline void set_next_attempt()
 	{
-		__sync_fetch_and_add(&attempt_, 1);		
+		__sync_fetch_and_add(&attempt_, 1);
 	}
 
 	/**
 	 * Setup and prepare for retry; it also makes sure we havent crossed the retry limit
-	 * 
+	 *
 	 * @return bool
 	 */
 	inline bool setup_for_retry()
@@ -581,7 +604,7 @@ public:
 		policy_id_ = id;
 	}
 
-	void set_owners(const owner_info& o)
+	inline void set_owners(const owner_info& o)
 	{
 		owners_.orgID = o.orgID;
 		owners_.userIDs.clear();
@@ -591,7 +614,7 @@ public:
 		}
 	}
 
-	std::vector< user_id_t > get_owners() const
+	inline std::vector< user_id_t > get_owners() const
 	{
 		return owners_.userIDs;
 	}
@@ -698,7 +721,7 @@ struct archivable_pointer_set_next_attempt
 	void operator() (const archivable::pointer& i) const
 	{
 		i->set_next_attempt();
-	}	
+	}
 };
 
 struct archivable_pointer_compute_retry_delay
@@ -710,10 +733,10 @@ struct archivable_pointer_compute_retry_delay
 };
 
 typedef rml::pc_channel_delayed_retry<
-		archivable::pointer, 
-		archivable_pointer_get_attempt, 
-		archivable_pointer_set_next_attempt, 
-		archivable_pointer_compute_retry_delay, 
+		archivable::pointer,
+		archivable_pointer_get_attempt,
+		archivable_pointer_set_next_attempt,
+		archivable_pointer_compute_retry_delay,
 		archivable_pointer_compare,
 		1 > archivable_channel_t;
 

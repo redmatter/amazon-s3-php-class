@@ -13,7 +13,11 @@
 #include "../common/types.hpp"
 
 #include "globals.h"
+#ifndef DATABASE_SQLITE
 #include "database.hpp"
+#else
+#include "../collectd/database_sqlite.hpp"
+#endif
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/bind.hpp>
@@ -473,15 +477,18 @@ private:
 		case state::handshake_recv:
 		{
 			std::string ArchiveD, version_number, protocol, protocol_version_number;
-			char v, sp[3], cr, lf;
+			char v, lf;
 
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 
-			is >> ArchiveD >> sp[0] >> v >> version_number >> sp[1] >> protocol >> sp[2] >> protocol_version_number >> cr >> lf;
-
 			std::ostream ostr(&send_buffer_); ostr.clear();
-
-			if (ArchiveD != "ArchiveD" || protocol != "protocol") {
+			if(!((std::getline(is, ArchiveD, ' ') &&
+					is.get(v) &&
+					std::getline(is, version_number, ' ') &&
+					std::getline(is, protocol, ' ') &&
+					std::getline(is, protocol_version_number, '\r') &&
+					is.get(lf)) &&
+					ArchiveD == "ArchiveD" && protocol == "protocol")) {
 				ostr << "ERR invalid response\r\n";
 				LogError("Error: Invalid response from server");
 				current_state_ = state::handshake_err;
@@ -529,20 +536,17 @@ private:
 		case state::handshake_ack_waiting:
 		{
 			std::string OK_or_ERR, message;
-			char sp, cr, lf;
+			char lf;
 
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
-
-			is >> OK_or_ERR;
-			if(OK_or_ERR == "ERR") {
-				is >> sp; std::getline(is, message, '\r'); is >> lf;
+			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
+				std::getline(is, message, '\r'); is.get(lf);
 				LogError("handshake_ack_waiting: error: "<<message);
 				current_state_ = state::handshake_ack_err;
 
 				reconnect(false);
 			}
 			else {
-				is >> cr >> lf;
 				LogMessage(local_port_<<" Handshake OK; Ready to PUT");
 				current_state_ = state::ready_to_put;
 				set_is_archived_ok(true);
@@ -555,18 +559,16 @@ private:
 		case state::nop_ack_wait:
 		{
 			std::string OK_or_ERR, message;
-			char sp, cr, lf;
+			char lf;
 
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
-			is >> OK_or_ERR;
-			if(OK_or_ERR != "OK") {
-				is >> sp; std::getline(is, message, '\r'); is >> lf;
+			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
+				std::getline(is, message, '\r'); is.get(lf);
 				LogError("NOP Error: "<<message);
 				current_state_ = state::nop_ack_err;
 				reconnect(true, 5);
 			}
 			else {
-				is >> cr >> lf;
 				current_state_ = state::nop_ack_ok;
 				run_statemachine(error);
 			}
@@ -642,21 +644,25 @@ private:
 
 		case state::put_sent_ack_waiting:
 		{
-			std::string OK_or_ERR, PUT, md5, message;
-			char sp[4], cr, lf;
-			archiving::org_id_t OrgID;
+			std::string OK_or_ERR, PUT, file_type_str, OrgID_str, uuid, message;
+			char cr, lf;
 
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			if(!(std::getline(is, OK_or_ERR, ' ') &&
+					std::getline(is, PUT, ' ') &&
+					std::getline(is, file_type_str, ' ') &&
+					std::getline(is, OrgID_str, ' ') &&
+					std::getline(is, uuid, ' ') &&
 
-			is >> OK_or_ERR >> sp[0] >> PUT >> sp[1] >> OrgID >> sp[2] >> md5;
-			if(OK_or_ERR == "ERR") {
-				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
+					OK_or_ERR == "OK")) {
+
+				std::getline(is, message, '\r'); is.get(lf);
 				LogError(local_port_<<' '<<put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
 				reconnect(true);
 			}
 			else {
-				is >> cr >> lf;
+				is.get(cr); is.get(lf);
 				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Sending file");
 
 				current_state_ = state::put_sending_file;
@@ -701,21 +707,23 @@ private:
 
 		case state::put_sent_file_ack_waiting:
 		{
-			std::string OK_or_ERR, RECV, uuid, message, file_type_str;
-			char sp[4], cr, lf;
-			archiving::org_id_t OrgID;
-
+			std::string OK_or_ERR, RECV, uuid, message, file_type_str, OrgID_str;
+			char cr, lf;
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			if(!(std::getline(is, OK_or_ERR, ' ') &&
+					std::getline(is, RECV, ' ') &&
+					std::getline(is, file_type_str, ' ') &&
+					std::getline(is, OrgID_str, ' ') &&
+					std::getline(is, uuid, ' ') &&
 
-			is >> OK_or_ERR >> sp[0] >> RECV >> sp[1] >> file_type_str >> sp[2] >> OrgID >> sp[3] >> uuid;
-			LogDebug(local_port_<<' '<<put_archivable_ptr_<<" OK_or_ERR: "<<OK_or_ERR);
-			if(OK_or_ERR != "OK") {
-				is >> sp[3]; std::getline(is, message, '\r'); is >> lf;
+					OK_or_ERR == "OK")) {
+
+				std::getline(is, message, '\r'); is.get(lf);
 				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT Error: "<<message);
 				current_state_ = state::put_sent_file_ack_err;
 			}
 			else {
-				is >> cr >> lf;
+				is.get(cr); is.get(lf);
 				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
 			}
