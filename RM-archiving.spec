@@ -163,7 +163,7 @@ cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
 cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp collectd/sqlite.conf %{buildroot}/etc/archiving/conf.d/sqlite.conf
-cp collectd/collectd.db3 /var/lib/archiving/collectd.db3
+cp collectd/collectd.db3 %{buildroot}/var/lib/archiving/collectd.db3
 
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
