@@ -448,6 +448,7 @@ public:
 								pc_produce(out_channel, archivable_cbr, 1);
 
 								variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
+								variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
 								modified = true;
 							}
 						}
