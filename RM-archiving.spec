@@ -131,7 +131,7 @@ make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
 
 %install
 mkdir -p %{buildroot}/usr/bin/
-mkdir -p %{buildroot}/etc/archiving/
+mkdir -p %{buildroot}/etc/archiving/conf.d/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
@@ -162,6 +162,8 @@ cp collectd/rmcollectd.supp %{buildroot}/usr/share/archiving/
 cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
 cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
+cp collectd/sqlite.conf %{buildroot}/etc/archiving/conf.d/sqlite.conf
+cp collectd/collectd.db3 /var/lib/archiving/collectd.db3
 
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
@@ -186,7 +188,6 @@ cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
 # Common
-mkdir -p %{buildroot}/etc/archiving/conf.d/
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
@@ -369,6 +370,8 @@ fi
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmcollectd
 /etc/rsyslog.d/11-rmcollectd.conf
+/etc/archiving/conf.d/sqlite.conf
+/var/lib/archiving/collectd.db3
 
 %files collect-smsd
 %defattr(-,root,root)
