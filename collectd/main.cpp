@@ -255,6 +255,8 @@ int main(int argc, char* argv[]) try
 						->default_value(std::string("/var/lib/archiving")), "data directory")
 				("cdr.directory", boost::program_options::value<std::string>()
 						->default_value(std::string("/opt/freeswitch/log/xml_cdr")), "cdr directory")
+				("pcap.enabled", boost::program_options::value<bool>()
+						->default_value(false), "pcaps handling enabled")
 				("pcap.directory", boost::program_options::value<std::string>()
 						->default_value(std::string("/var/log/freeswitch/pcap")), "pcaps finished directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()
@@ -344,11 +346,12 @@ int main(int argc, char* argv[]) try
 						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
 
 		// monitor the PCap path for any new arrivals
-		inotify_monitor.add_directory(
-				pcap_directory,
-				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
-				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
-						size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap"));
+		if(app::confMap["pcap.enabled"].as<bool>())
+			inotify_monitor.add_directory(
+					pcap_directory,
+					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+							size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap"));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
@@ -375,17 +378,18 @@ int main(int argc, char* argv[]) try
 								boost::bind(continue_loading_dir))));
 
 		// One for PCaps
-		threads.create_thread(
-				boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
-						"PCap", pcap_directory,
-						boost::protect(
-								boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
-										_1, size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap")),
-						boost::protect(
-								boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
-										archiving::file_type::pcap, size_t(36/*uuid*/+5/*.pcap*/), _1)),
-						boost::protect(
-								boost::bind(continue_loading_dir))));
+		if(app::confMap["pcap.enabled"].as<bool>())
+			threads.create_thread(
+					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
+							"PCap", pcap_directory,
+							boost::protect(
+									boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
+											_1, size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap")),
+							boost::protect(
+									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
+											archiving::file_type::pcap, size_t(36/*uuid*/+5/*.pcap*/), _1)),
+							boost::protect(
+									boost::bind(continue_loading_dir))));
 
 		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
 		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);
