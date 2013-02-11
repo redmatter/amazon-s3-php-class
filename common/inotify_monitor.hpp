@@ -214,7 +214,7 @@ private:
 			}
 
 			if(bytes_transferred - bytes_processed)
-				LogDWarning((bytes_transferred - bytes_processed)<<" bytes NOT processed", "IGNO");
+				LogDMessage((bytes_transferred - bytes_processed)<<" bytes NOT processed", "IGNO");
 
 			async_read();
 		}
