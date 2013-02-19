@@ -370,9 +370,12 @@ inline basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 		std::string host, service_uri;
 		{
 			const std::size_t& slash_pos = base_uri.find('/');
+			const std::size_t& last_slash_pos = base_uri.rfind('/');
 			if( slash_pos != std::string::npos ) {
 				host = base_uri.substr(0, slash_pos);
 				service_uri = base_uri.substr(slash_pos);
+				if(last_slash_pos == slash_pos || last_slash_pos != (base_uri.length() - 1))
+					service_uri += '/';
 			}
 			else {
 				host = base_uri;
