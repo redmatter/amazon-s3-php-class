@@ -164,6 +164,8 @@ public:
 			std::vector<std::string> filtered_xpaths;
 			std::string temp_files_base_directory;
 			bool filter_orgs_all = false;
+			bool chunk_enabled = false;
+			std::string chunk_directory("");
 
 			// load OR reload (on HUP) config
 			{
@@ -191,6 +193,8 @@ public:
 				{
 					temp_files_base_directory = confMap["temp_files.base_directory"].as<std::string>();
 				}
+				chunk_enabled = confMap["chunk.enabled"].as<bool>();
+				chunk_directory = confMap["chunk.directory"].as<std::string>();
 			}
 
 			while(!app::quit) {
@@ -198,8 +202,15 @@ public:
 					archiving::archivable::pointer p_archivable = in_channel.consume();
 					LogVerbose(*p_archivable<<" from channel");
 
+					// The next section (not this one) will extract data from CDR files and use it to populate the archivable
+					// pointer.  So here, check that we're not dealing with CDRs.  However, if a CDR has already been inspected,
+					// it should also be pushed so the out channel (and not inspected in the next section), so also check for that
+					// condition here.
+					// Check if the file is not a CDR, or if it has already been inspected.
 					if((p_archivable->get_type() != archiving::file_type::cdr) || (p_archivable->get_current_state() >= archiving::archivable::state::inspected)) {
-						// if a new arrival that is not CDR ( pcap )
+						// If if falls in to the above condition, either it's not a CDR, or it has already been inspected.
+						// Check that we are in the case where it is not a CDR and it has not yet been inspected.
+						// In this case, we are likely to be dealing with a PCAP or a chunked recording.
 						if((p_archivable->get_type() != archiving::file_type::cdr) && (p_archivable->get_current_state() < archiving::archivable::state::inspected)) {
 							LogVerbose(*p_archivable<<" not a CDR; shifting to out channel");
 
@@ -208,6 +219,50 @@ public:
 							p_archivable->set_add_to_cdrmunch_cache(false);
 
 							p_archivable->set_current_state(archiving::archivable::state::inspected);
+
+							if (chunk_enabled)
+							{
+								// If the type is recording and it was found in the chunk directory then treat this as a
+								// chunked recording.
+								std::string path(p_archivable->get_paths().first);
+								if (p_archivable->get_type() == archiving::file_type::recording &&
+									(path.find(chunk_directory) == 0))
+								{
+									// We're expecting the path to look like OrgID_ArchivePolicyID_CallUUID_UUID.wav
+									// Remove directory and extension from path.
+									//
+									path = path.substr(
+											// Start from the end of the directory, add one for the trailing slash.
+											(chunk_directory.size() + 1),
+											// End 4 characers short of the end, for the .wav extension.
+											(((path.size() - (chunk_directory.size() + 1)) - 4))
+											);
+
+									// Split the path using _ as the separator.
+									std::vector<std::string> split_string;
+									boost::split(split_string, path, boost::is_any_of("_"));
+
+									// Based on the above format, we should expect that there will be four strings.
+									if (split_string.size() != 4)
+									{
+										LogWarning("String is not in expected format: " << p_archivable->get_paths().first);
+										continue;
+									}
+									else
+									{
+										// The first string should be the OrgID, use this to create owner_info.
+										p_archivable->set_owners(archiving::owner_info(rml::utils::strtoull(split_string[0].c_str())));
+
+										// The second string should be ArchivePolicyID.
+										p_archivable->set_policy_id(rml::utils::strtoull(split_string[1].c_str()));
+
+										// The third string should be CallUUID.
+										p_archivable->set_originator_uuid(split_string[2]);
+
+										// The fourth string should be UUID, but we populated this earlier.
+									}
+								}
+							}
 
 							p_archivable->move_to_subdir("collected");
 							{
@@ -240,6 +295,8 @@ public:
 						pc_produce(out_channel, p_archivable, 1);
 						continue;
 					}
+
+					// If we're here then we're treating the file as a CDR, having checked above for other situations.
 
 					// aliasing it to make the code more readable
 					archiving::archivable::pointer& archivable_cdr(p_archivable);

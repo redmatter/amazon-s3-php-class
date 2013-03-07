@@ -78,11 +78,17 @@ public:
 
 	    	std::string file_path = ev.dir_name + '/' + ev.file_name;
 
+			// If the file has just been created (i.e. not closed yet) just add it to the set of files
+			// created which are awaiting closure.
 	        if(ev.type & app::inotify::event::created) {
 				files_created_waiting_close_.insert(file_path);
 			}
+			// Otherwise, check if it's just been closed or has just been moved to the directory we're monitoring.
 			else if(ev.type & (app::inotify::event::closed | app::inotify::event::moved_to)) {
-				if( ev.type & app::inotify::event::moved_to || (files_created_waiting_close_.find(file_path) != files_created_waiting_close_.end()) ) {
+				// If it was just closed, we should be able to find it in our set of files which were created and are
+				// awaiting closure.  Alternatively, it could have been moved to our directory.  Check that one of these
+				// conditions has been met.
+				if( (ev.type & app::inotify::event::moved_to) || (files_created_waiting_close_.find(file_path) != files_created_waiting_close_.end()) ) {
 					try {
 						add_path(file_path, rev_path_uuid_idx, file_type, data_format);
 						files_created_waiting_close_.erase(file_path);
@@ -91,6 +97,8 @@ public:
 						LogError("Error while processing CDR; "<<e.what());
 					}
 				}
+				// We would get here if a file has been closed but it wasn't in our list of open files.
+				// We don't expect to get here, but if we do, there's no special action we could take.
 			}
 	        /* else ignore */
 	    }
@@ -98,15 +106,15 @@ public:
 	    	LogError("cdr_dir_monitor: err:"<<e);
 	}
 
+	// Adds the passed path to the channel.
 	inline bool add_path(const std::string& file_path,
 			const size_t rev_path_uuid_idx, const archiving::file_type::file_type_t& file_type, const char* data_format)
 	{
 		try {
-//			std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.cdr*/+4/*.xml*/), 36);
-//			pc_produce(channel_, archivable::pointer(new archivable(uuid, "", 0, file_path, archiving::file_type::cdr, "xml", pbx_hostname_)));
-
-			archivable::pointer p_archivable(new archivable(std::string(file_path, file_path.length() - rev_path_uuid_idx, 36),
-					"", 0, file_path, file_type, data_format, pbx_hostname_));
+			// The UUID can be extracted from the file path, starting from the passed index and continuing for 36
+			// characters, the length of the uuid.
+			std::string uuid(file_path, file_path.length() - rev_path_uuid_idx, 36);
+			archivable::pointer p_archivable(new archivable(uuid, "", 0, file_path, file_type, data_format, pbx_hostname_));
 			p_archivable->hibernate();
 
 			pc_produce(channel_, p_archivable);

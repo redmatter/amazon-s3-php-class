@@ -259,6 +259,10 @@ int main(int argc, char* argv[]) try
 						->default_value(false), "pcaps handling enabled")
 				("pcap.directory", boost::program_options::value<std::string>()
 						->default_value(std::string("/var/log/freeswitch/pcap")), "pcaps finished directory")
+				("chunk.enabled", boost::program_options::value<bool>()
+						->default_value(false), "chunk handling enabled")
+				("chunk.directory", boost::program_options::value<std::string>()
+						->default_value(std::string("/opt/freeswitch/log/chunk")), "chunked recordings directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()
 						->default_value(4), "CollectD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()
@@ -315,6 +319,7 @@ int main(int argc, char* argv[]) try
 
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 		const std::string pcap_directory( app::confMap["pcap.directory"].as<std::string>() );
+		const std::string chunk_directory( app::confMap["chunk.directory"].as<std::string>() );
 
 		archiving::archivable_busy_set_t archivable_busy_set;
 		archiving::archivable_channel_t in_channel(
@@ -339,6 +344,8 @@ int main(int argc, char* argv[]) try
 		app::inotify::monitor inotify_monitor(io_service);
 
 		// monitor freeswitch's xml_cdr folder for new CDRs
+		// Assumes CDR filename format is [uuid].cdr.xml, where [uuid] is a 36 character long sequence,
+		// such as '01234567-abcd-8901-efab-234567890123'.
 		inotify_monitor.add_directory(
 				cdr_directory,
 				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
@@ -346,12 +353,24 @@ int main(int argc, char* argv[]) try
 						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
 
 		// monitor the PCap path for any new arrivals
+		// Assumes PCAP filename format is [uuid].pcap, where [uuid] is a 36 character long sequence,
+		// such as '01234567-abcd-8901-efab-234567890123'.
 		if(app::confMap["pcap.enabled"].as<bool>())
 			inotify_monitor.add_directory(
 					pcap_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
 							size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap"));
+
+		// monitor folder for recording chunks
+		// Assumes chunked recording filename format ends with [uuid].wav, where [uuid] is a 36 character long sequence,
+		// such as '01234567-abcd-8901-efab-234567890123'.
+		if(app::confMap["chunk.enabled"].as<bool>())
+			inotify_monitor.add_directory(
+					chunk_directory,
+					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+							size_t(36/*uuid*/+4/*.wav*/), archiving::file_type::recording, "wav"));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
@@ -388,6 +407,20 @@ int main(int argc, char* argv[]) try
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 											archiving::file_type::pcap, size_t(36/*uuid*/+5/*.pcap*/), _1)),
+							boost::protect(
+									boost::bind(continue_loading_dir))));
+
+		// One for chunks
+		if(app::confMap["chunk.enabled"].as<bool>())
+			threads.create_thread(
+					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
+							"chunk", chunk_directory,
+							boost::protect(
+									boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
+											_1, size_t(36/*uuid*/+4/*.wav*/), archiving::file_type::recording, "wav")),
+							boost::protect(
+									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
+											archiving::file_type::recording, size_t(36/*uuid*/+4/*.wav*/), _1)),
 							boost::protect(
 									boost::bind(continue_loading_dir))));
 
