@@ -263,6 +263,10 @@ int main(int argc, char* argv[]) try
 						->default_value(false), "chunk handling enabled")
 				("chunk.directory", boost::program_options::value<std::string>()
 						->default_value(std::string("/opt/freeswitch/log/chunk")), "chunked recordings directory")
+				("info.enabled", boost::program_options::value<bool>()
+						->default_value(false), "info file handling enabled")
+				("info.directory", boost::program_options::value<std::string>()
+						->default_value(std::string("/opt/freeswitch/log/info")), "info files directory")
 				("app.service_threads",  boost::program_options::value<unsigned int>()
 						->default_value(4), "CollectD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()
@@ -320,6 +324,7 @@ int main(int argc, char* argv[]) try
 		const std::string cdr_directory( app::confMap["cdr.directory"].as<std::string>() );
 		const std::string pcap_directory( app::confMap["pcap.directory"].as<std::string>() );
 		const std::string chunk_directory( app::confMap["chunk.directory"].as<std::string>() );
+		const std::string info_directory( app::confMap["info.directory"].as<std::string>() );
 
 		archiving::archivable_busy_set_t archivable_busy_set;
 		archiving::archivable_channel_t in_channel(
@@ -372,6 +377,16 @@ int main(int argc, char* argv[]) try
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
 							size_t(36/*uuid*/+4/*.wav*/), archiving::file_type::recording, "wav"));
 
+		// monitor folder for info files
+		// Assumes info file filename format ends with [uuid].info.xml, where [uuid] is a 36 character long sequence,
+		// such as '01234567-abcd-8901-efab-234567890123'.
+		if(app::confMap["info.enabled"].as<bool>())
+			inotify_monitor.add_directory(
+					info_directory,
+					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
+					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
+							size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), archiving::file_type::info, "xml"));
+
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 		                boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
@@ -421,6 +436,20 @@ int main(int argc, char* argv[]) try
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 											archiving::file_type::recording, size_t(36/*uuid*/+4/*.wav*/), _1)),
+							boost::protect(
+									boost::bind(continue_loading_dir))));
+
+		// One for info files
+		if(app::confMap["info.enabled"].as<bool>())
+			threads.create_thread(
+					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
+							"info", info_directory,
+							boost::protect(
+									boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
+											_1, size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), archiving::file_type::info, "xml")),
+							boost::protect(
+									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
+											archiving::file_type::info, size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), _1)),
 							boost::protect(
 									boost::bind(continue_loading_dir))));
 

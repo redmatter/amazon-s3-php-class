@@ -72,6 +72,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
+	-lboost_regex$(BOOST_NAME_EXT) \
 	-lrml -lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \

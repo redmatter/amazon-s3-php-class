@@ -48,6 +48,7 @@ struct file_type
 		sms,
 		buffered_recording,
 		pcap,
+		info,
 
 		n_file_types
 	};

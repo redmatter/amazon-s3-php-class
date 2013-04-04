@@ -25,6 +25,7 @@
 #include <boost/program_options.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
+#include <boost/regex.hpp>
 
 #include <uuid/uuid.h>
 #include <time.h>
@@ -66,6 +67,75 @@ inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& 
 {
 	RML_DEBUG(LogDebug("xpath: "<<xpath<<" default_value:"<<default_value));
 	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
+}
+
+// Checks to see if the passed archivable was in the passed directory and, if so, attempts to extract information
+// from the filename and populate archivable with this information.
+// Returns false if there was a failure.
+bool check_info_in_filename(const std::string& directory, archiving::archivable::pointer p_archivable)
+{
+	// Create this regex as a static variable so that we don't construct it each time.
+	// We're expecting the path to look like:
+	// /various/directory/elements/OrgID_ArchivePolicyID_CallUUID_UUID.extension.or.more
+	// Do a regular expression for the text between a starting / and an trailing .ext which is made up of numbers and
+	// UUIDs, e.g. 123_456_01234567-abcd-8901-efab-234567890123_01234567-abcd-8901-efab-234567890123
+	// The below is close enough to extract the string we need.
+	static boost::regex info_regex("(?<=/)[0-9]+_[0-9]+_[a-zA-Z0-9-]+_[a-zA-Z0-9-]+(?=\\.[a-zA-Z]+)");
+
+	// Check if the file was in the appropriate directory.
+	std::string path(p_archivable->get_paths().first);
+	if (path.find(directory) != 0)
+	{
+		LogVerbose("directory: " << directory.c_str() << " not found in path: " << path.c_str());
+		return true;
+	}
+
+	LogVerbose("Attempting to extract info from filename");
+
+	// Check that the appropriate format exists in the filename.
+	boost::smatch match;
+	if (!boost::regex_search(path, match, info_regex))
+	{
+		LogWarning("Filename was not in expected format: " << path);
+		return false;
+	}
+
+	if (match.size() != 1)
+	{
+		LogWarning("Unexpected number of matches in path: " << path);
+		return false;
+	}
+
+	// Get the useful bit from the path.
+	path = match[0].str();
+
+	LogVerbose("Matched path: " << path);
+
+	// Split the path using _ as the separator.
+	std::vector<std::string> split_string;
+	boost::split(split_string, path, boost::is_any_of("_"));
+
+	// Based on the above format, we should expect that there will be four strings.
+	if (split_string.size() != 4)
+	{
+		LogWarning("String is not in expected format: " << path);
+		return false;
+	}
+	else
+	{
+		// The first string should be the OrgID, use this to create owner_info.
+		p_archivable->set_owners(archiving::owner_info(rml::utils::strtoull(split_string[0].c_str())));
+
+		// The second string should be ArchivePolicyID.
+		p_archivable->set_policy_id(rml::utils::strtoull(split_string[1].c_str()));
+
+		// The third string should be CallUUID.
+		p_archivable->set_originator_uuid(split_string[2]);
+
+		// The fourth string should be UUID, but we don't need to populate this.
+
+		return true;
+	}
 }
 
 }
@@ -166,6 +236,8 @@ public:
 			bool filter_orgs_all = false;
 			bool chunk_enabled = false;
 			std::string chunk_directory("");
+			bool info_enabled = false;
+			std::string info_directory("");
 
 			// load OR reload (on HUP) config
 			{
@@ -195,6 +267,8 @@ public:
 				}
 				chunk_enabled = confMap["chunk.enabled"].as<bool>();
 				chunk_directory = confMap["chunk.directory"].as<std::string>();
+				info_enabled = confMap["info.enabled"].as<bool>();
+				info_directory = confMap["info.directory"].as<std::string>();
 			}
 
 			while(!app::quit) {
@@ -218,51 +292,22 @@ public:
 							p_archivable->set_start_epoch(time(0));
 							p_archivable->set_add_to_cdrmunch_cache(false);
 
-							p_archivable->set_current_state(archiving::archivable::state::inspected);
-
-							if (chunk_enabled)
+							// If chunks are enabled and the type is recording...
+							if (chunk_enabled && (p_archivable->get_type() == archiving::file_type::recording))
 							{
-								// If the type is recording and it was found in the chunk directory then treat this as a
-								// chunked recording.
-								std::string path(p_archivable->get_paths().first);
-								if (p_archivable->get_type() == archiving::file_type::recording &&
-									(path.find(chunk_directory) == 0))
-								{
-									// We're expecting the path to look like OrgID_ArchivePolicyID_CallUUID_UUID.wav
-									// Remove directory and extension from path.
-									//
-									path = path.substr(
-											// Start from the end of the directory, add one for the trailing slash.
-											(chunk_directory.size() + 1),
-											// End 4 characers short of the end, for the .wav extension.
-											(((path.size() - (chunk_directory.size() + 1)) - 4))
-											);
-
-									// Split the path using _ as the separator.
-									std::vector<std::string> split_string;
-									boost::split(split_string, path, boost::is_any_of("_"));
-
-									// Based on the above format, we should expect that there will be four strings.
-									if (split_string.size() != 4)
-									{
-										LogWarning("String is not in expected format: " << p_archivable->get_paths().first);
-										continue;
-									}
-									else
-									{
-										// The first string should be the OrgID, use this to create owner_info.
-										p_archivable->set_owners(archiving::owner_info(rml::utils::strtoull(split_string[0].c_str())));
-
-										// The second string should be ArchivePolicyID.
-										p_archivable->set_policy_id(rml::utils::strtoull(split_string[1].c_str()));
-
-										// The third string should be CallUUID.
-										p_archivable->set_originator_uuid(split_string[2]);
-
-										// The fourth string should be UUID, but we populated this earlier.
-									}
-								}
+								// ...try extracting info from the filename.
+								if (!check_info_in_filename(chunk_directory, p_archivable))
+									continue;
 							}
+							// If info files are enabled and the type is info...
+							else if (info_enabled && (p_archivable->get_type() == archiving::file_type::info))
+							{
+								// ...try extracting info from the filename.
+								if (!check_info_in_filename(info_directory, p_archivable))
+									continue;
+							}
+
+							p_archivable->set_current_state(archiving::archivable::state::inspected);
 
 							p_archivable->move_to_subdir("collected");
 							{
