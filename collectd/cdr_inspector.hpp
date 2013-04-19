@@ -276,16 +276,18 @@ public:
 					archiving::archivable::pointer p_archivable = in_channel.consume();
 					LogVerbose(*p_archivable<<" from channel");
 
+					const archiving::file_type::file_type_t&  archivable_file_type(p_archivable->get_type());
+
 					// The next section (not this one) will extract data from CDR files and use it to populate the archivable
 					// pointer.  So here, check that we're not dealing with CDRs.  However, if a CDR has already been inspected,
 					// it should also be pushed so the out channel (and not inspected in the next section), so also check for that
 					// condition here.
 					// Check if the file is not a CDR, or if it has already been inspected.
-					if((p_archivable->get_type() != archiving::file_type::cdr) || (p_archivable->get_current_state() >= archiving::archivable::state::inspected)) {
+					if((archivable_file_type != archiving::file_type::cdr) || (p_archivable->get_current_state() >= archiving::archivable::state::inspected)) {
 						// If if falls in to the above condition, either it's not a CDR, or it has already been inspected.
 						// Check that we are in the case where it is not a CDR and it has not yet been inspected.
 						// In this case, we are likely to be dealing with a PCAP or a chunked recording.
-						if((p_archivable->get_type() != archiving::file_type::cdr) && (p_archivable->get_current_state() < archiving::archivable::state::inspected)) {
+						if((archivable_file_type != archiving::file_type::cdr) && (p_archivable->get_current_state() < archiving::archivable::state::inspected)) {
 							LogVerbose(*p_archivable<<" not a CDR; shifting to out channel");
 
 							p_archivable->set_owners(archiving::owner_info(1));
@@ -293,18 +295,23 @@ public:
 							p_archivable->set_add_to_cdrmunch_cache(false);
 
 							// If chunks are enabled and the type is recording...
-							if (chunk_enabled && (p_archivable->get_type() == archiving::file_type::recording))
+							if (chunk_enabled && (archivable_file_type == archiving::file_type::recording))
 							{
 								// ...try extracting info from the filename.
 								if (!check_info_in_filename(chunk_directory, p_archivable))
 									continue;
 							}
 							// If info files are enabled and the type is info...
-							else if (info_enabled && (p_archivable->get_type() == archiving::file_type::info))
+							else if (info_enabled && (archivable_file_type == archiving::file_type::info))
 							{
 								// ...try extracting info from the filename.
 								if (!check_info_in_filename(info_directory, p_archivable))
 									continue;
+							}
+							// fall back to default handling; assign default policy for the type
+							else
+							{
+								p_archivable->set_policy_id(policy::pseudo_id::by_file_type(archivable_file_type));
 							}
 
 							p_archivable->set_current_state(archiving::archivable::state::inspected);
