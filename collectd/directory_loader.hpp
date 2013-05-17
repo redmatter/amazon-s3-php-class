@@ -83,24 +83,23 @@ public:
 				struct dirent *dp;
 				unsigned int file_count = 0;
 				while((file_count < factored_batch_size)) {
-					try {
-						errno = 0;
-						dp = readdir(dh);
-
-						if(!dp) {
-							if(errno) {
-								LogError(name<<": ""Failed to read directory - err:"<<strerror(errno));
-								continue;
-							}
-
-							break;
+					errno = 0;
+					dp = readdir(dh);
+					if(!dp) {
+						if(errno) {
+							LogError(name<<": ""Failed to read directory - err:"<<strerror(errno));
+							continue;
 						}
 
-						if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
-							continue;
+						break;
+					}
 
-						const std::string file_path(dir_path+'/'+dp->d_name);
+					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
+						continue;
 
+					const std::string file_path(dir_path+'/'+dp->d_name);
+
+					try {
 						struct stat s;
 						if (-1 == stat(file_path.c_str(), &s)) {
 							LogMessage(name<<": ""Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
@@ -132,7 +131,7 @@ public:
 						}
 					}
 					catch (const std::exception& e) {
-						LogError("Exception thrown during processing of file: " << e.what());
+						LogError("Error processing "<<file_path<<" Exception: "<< e.what());
 					}
 				}
 
@@ -140,7 +139,7 @@ public:
 				LogMessage(name<<": ""Loading from directory; done");
 			}
 			catch(const std::exception& e) {
-				LogError("Exception thrown outside of file processing loop: " << e.what());
+				LogError("Error processing directory "<<dir_path<<"; Exception: " << e.what());
 			}
 
 			count = 1;
