@@ -378,14 +378,14 @@ int main(int argc, char* argv[]) try
 							size_t(36/*uuid*/+4/*.wav*/), archiving::file_type::recording, "wav"));
 
 		// monitor folder for info files
-		// Assumes info file filename format ends with [uuid].info.xml, where [uuid] is a 36 character long sequence,
+		// Assumes info file filename format ends with [uuid].xml, where [uuid] is a 36 character long sequence,
 		// such as '01234567-abcd-8901-efab-234567890123'.
 		if(app::confMap["info.enabled"].as<bool>())
 			inotify_monitor.add_directory(
 					info_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
-							size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), archiving::file_type::info, "xml"));
+							size_t(36/*uuid*/+4/*.xml*/), archiving::file_type::info, "xml"));
 
 		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
@@ -446,10 +446,10 @@ int main(int argc, char* argv[]) try
 							"info", info_directory,
 							boost::protect(
 									boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
-											_1, size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), archiving::file_type::info, "xml")),
+											_1, size_t(36/*uuid*/+4/*.xml*/), archiving::file_type::info, "xml")),
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
-											archiving::file_type::info, size_t(36/*uuid*/+5/*.info*/+4/*.xml*/), _1)),
+											archiving::file_type::info, size_t(36/*uuid*/+4/*.xml*/), _1)),
 							boost::protect(
 									boost::bind(continue_loading_dir))));
 
