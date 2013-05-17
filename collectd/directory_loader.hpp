@@ -83,51 +83,56 @@ public:
 				struct dirent *dp;
 				unsigned int file_count = 0;
 				while((file_count < factored_batch_size)) {
-					errno = 0;
-					dp = readdir(dh);
+					try {
+						errno = 0;
+						dp = readdir(dh);
 
-					if(!dp) {
-						if(errno) {
-							LogError(name<<": ""Failed to read directory - err:"<<strerror(errno));
+						if(!dp) {
+							if(errno) {
+								LogError(name<<": ""Failed to read directory - err:"<<strerror(errno));
+								continue;
+							}
+
+							break;
+						}
+
+						if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
+							continue;
+
+						const std::string file_path(dir_path+'/'+dp->d_name);
+
+						struct stat s;
+						if (-1 == stat(file_path.c_str(), &s)) {
+							LogMessage(name<<": ""Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
 							continue;
 						}
 
-						break;
-					}
+						if(S_ISDIR(s.st_mode)) { // we are not interested in any dirs
+							LogDebug(name<<": ""Ignoring directory "<<file_path);
+							continue;
+						}
+						else {
+							const time_t age_seconds(time(0) - s.st_ctime);
+							if ((s.st_ctime > startup_time) && age_seconds < 1800) {
+								if(age_seconds > 60)
+									LogDebug(name<<": ""WARNING: "<<file_path<<" not inspected for "<<age_seconds<<" seconds");
 
-					if(*(dp->d_name) == '.') // leave hidden files, . and .. alone
-						continue;
+								continue;
+							}
+						}
 
-					const std::string file_path(dir_path+'/'+dp->d_name);
-
-					struct stat s;
-					if (-1 == stat(file_path.c_str(), &s)) {
-						LogMessage(name<<": ""Failed to stat "<<file_path<<" - err: "<<strerror(errno)<<" might be already processed");
-						continue;
-					}
-
-					if(S_ISDIR(s.st_mode)) { // we are not interested in any dirs
-						LogDebug(name<<": ""Ignoring directory "<<file_path);
-						continue;
-					}
-					else {
-						const time_t age_seconds(time(0) - s.st_ctime);
-						if ((s.st_ctime > startup_time) && age_seconds < 1800) {
-							if(age_seconds > 60)
-								LogDebug(name<<": ""WARNING: "<<file_path<<" not inspected for "<<age_seconds<<" seconds");
+						if (!is_loaded(file_path)) {
 							
-							continue;
+							(void)loader(file_path);
+							LogDebug(name<<": "<<file_path<<" loaded.");
+							file_count++;
+						}
+						else {
+							LogDebug(name<<": ""Ignoring invalid item "<<file_path);
 						}
 					}
-
-					if (!is_loaded(file_path)) {
-						
-						(void)loader(file_path);
-						LogDebug(name<<": "<<file_path<<" loaded.");
-						file_count++;
-					}
-					else {
-						LogDebug(name<<": ""Ignoring invalid item "<<file_path);
+					catch (const std::exception& e) {
+						LogError("Exception thrown during processing of file: " << e.what());
 					}
 				}
 
@@ -135,7 +140,7 @@ public:
 				LogMessage(name<<": ""Loading from directory; done");
 			}
 			catch(const std::exception& e) {
-				LogError(e.what());
+				LogError("Exception thrown outside of file processing loop: " << e.what());
 			}
 
 			count = 1;
