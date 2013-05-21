@@ -357,6 +357,7 @@ fi
 /etc/rsyslog.d/11-rmarchived.conf
 /etc/archiving/conf.d/retention_database.conf
 /etc/archiving/conf.d/cdrmunch_database.conf
+/etc/archiving/conf.d/internal_database.conf
 /var/www/rmarchived
 /etc/httpd/conf.d/rmarchived.conf
 
@@ -407,7 +408,6 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
-/etc/archiving/conf.d/internal_database.conf
 # /etc/archiving/conf.d/migration_database.conf
 
 %files scripts
