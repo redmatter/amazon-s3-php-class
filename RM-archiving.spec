@@ -40,7 +40,7 @@ Requires: mysql++ >= 3.1.0-14089
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-22215
 Requires: RM-%{appname}-common = %{version}-%{release}
-Requires: RM-fscore
+Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
 

@@ -100,6 +100,8 @@ if [ -f $CONFIG_COLLECTD ]; then
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
+	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD chunk.enabled true
+	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD info.enabled true
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
