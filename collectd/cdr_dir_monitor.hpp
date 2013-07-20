@@ -78,7 +78,7 @@ public:
 	void handle_event(app::inotify::event event, boost::system::error_code error_code,
 			const size_t rev_path_uuid_idx, const archiving::file_type::file_type_t& file_type, const char* data_format)
 	{
-		if (!error_code) {
+		if (error_code) {
 			LogError("cdr_dir_monitor: err:"<<error_code);
 			return;
 		}
@@ -124,7 +124,7 @@ public:
 	 */
 	void handle_event(app::inotify::event event, boost::system::error_code error_code, const filename_decoder_t& filename_decoder)
 	{
-		if (!error_code) {
+		if (error_code) {
 			LogError("cdr_dir_monitor: err:"<<error_code);
 			return;
 		}
