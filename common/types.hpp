@@ -49,6 +49,7 @@ struct file_type
 		buffered_recording,
 		pcap,
 		info,
+		pcap_sip_only,
 
 		n_file_types
 	};

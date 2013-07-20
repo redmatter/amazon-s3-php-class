@@ -114,6 +114,18 @@ public:
 		return is_loaded(type, std::string(file_path, file_path.length() - rev_path_uuid_idx, 36));
 	}
 
+	inline bool is_file_loaded(const archiving::cdr_dir_monitor::filename_decoder_t& filename_decoder, const std::string& file_path) const
+	{
+		size_t rev_path_uuid_idx;
+		archiving::file_type::file_type_t type;
+		std::string data_format;
+		if (filename_decoder(file_path, rev_path_uuid_idx, type, data_format))
+			return is_file_loaded(type, rev_path_uuid_idx, file_path);
+
+		LogWarning("Unknown filename format found; "<<file_path<<"; ignored");
+		return true; // true to prevent from loading
+	}
+
 	inline bool is_loaded(const archiving::file_type::file_type_t& type, const std::string& uuid) const
 	{
 		return is_archivable_loaded(archiving::archivable::pointer(new archiving::archivable(uuid, type)));
@@ -208,8 +220,59 @@ inline float continue_loading_dir() {
 	return app::archived_client::get_is_archived_ok();
 }
 
+/**
+ * Identify PCap type from file-path and set uuid-offset, file-type and data-format
+ * Assumes PCAP filename format is [uuid].pcap OR [uuid].sip.pcap OR [uuid].rtp.pcap
+ *
+ * @param file_path
+ * @param rev_path_uuid_idx
+ * @param file_type
+ * @param data_format
+ *
+ * @return true if successful; false means that we could not decode the file-name
+ */
+bool identify_pcap_type(
+		const std::string& file_path,
+		size_t& rev_path_uuid_idx, archiving::file_type::file_type_t& file_type, std::string& data_format)
+{
+	const size_t& dot_pcap(file_path.rfind(".pcap"));
+	if(dot_pcap != std::string::npos && dot_pcap == (file_path.length() - 5))
+	{
+		const size_t& first_dot(file_path.find('.'));
+		if(first_dot == dot_pcap)
+		{
+			rev_path_uuid_idx = size_t(36/*uuid*/+5/*.pcap*/);
+			file_type = archiving::file_type::pcap;
+			data_format = "pcap";
+
+			return true;
+		}
+		else if(first_dot == dot_pcap - 4)
+		{
+			rev_path_uuid_idx = size_t(36/*uuid*/+4/*.(sip|rtp)*/+5/*.pcap*/);
+			data_format = "pcap";
+			file_type = (0 == strncmp(&file_path[0] + first_dot + 1, "sip", 3))?
+					archiving::file_type::pcap_sip_only :
+					archiving::file_type::pcap;
+
+			return true;
+		}
+		else
+			LogWarning("Unrecognised PCap file: "<<file_path<<"; ignored");
+	}
+
+	return false;
 }
 
+} // namespace
+
+/**
+ * The main!
+ *
+ * @param argc
+ * @param argv
+ * @return
+ */
 int main(int argc, char* argv[]) try
 {
 	bool initialized = false;
@@ -349,8 +412,7 @@ int main(int argc, char* argv[]) try
 		app::inotify::monitor inotify_monitor(io_service);
 
 		// monitor freeswitch's xml_cdr folder for new CDRs
-		// Assumes CDR filename format is [uuid].cdr.xml, where [uuid] is a 36 character long sequence,
-		// such as '01234567-abcd-8901-efab-234567890123'.
+		// Assumes CDR filename format is [uuid].cdr.xml.
 		inotify_monitor.add_directory(
 				cdr_directory,
 				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
@@ -358,18 +420,15 @@ int main(int argc, char* argv[]) try
 						size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), archiving::file_type::cdr, "xml"));
 
 		// monitor the PCap path for any new arrivals
-		// Assumes PCAP filename format is [uuid].pcap, where [uuid] is a 36 character long sequence,
-		// such as '01234567-abcd-8901-efab-234567890123'.
+		// Assumes PCAP filename format is [uuid].pcap OR [uuid].sip.pcap OR [uuid].rtp.pcap
 		if(app::confMap["pcap.enabled"].as<bool>())
 			inotify_monitor.add_directory(
 					pcap_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
-					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
-							size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap"));
+					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2, identify_pcap_type));
 
 		// monitor folder for recording chunks
-		// Assumes chunked recording filename format ends with [uuid].wav, where [uuid] is a 36 character long sequence,
-		// such as '01234567-abcd-8901-efab-234567890123'.
+		// Assumes chunked recording filename format ends with [uuid].wav
 		if(app::confMap["chunk.enabled"].as<bool>())
 			inotify_monitor.add_directory(
 					chunk_directory,
@@ -378,8 +437,7 @@ int main(int argc, char* argv[]) try
 							size_t(36/*uuid*/+4/*.wav*/), archiving::file_type::recording, "wav"));
 
 		// monitor folder for info files
-		// Assumes info file filename format ends with [uuid].xml, where [uuid] is a 36 character long sequence,
-		// such as '01234567-abcd-8901-efab-234567890123'.
+		// Assumes info file filename format ends with [uuid].xml
 		if(app::confMap["info.enabled"].as<bool>())
 			inotify_monitor.add_directory(
 					info_directory,
@@ -418,10 +476,10 @@ int main(int argc, char* argv[]) try
 							"PCap", pcap_directory,
 							boost::protect(
 									boost::bind(&archiving::cdr_dir_monitor::add_path, boost::ref(cdr_dir_monitor),
-											_1, size_t(36/*uuid*/+5/*.pcap*/), archiving::file_type::pcap, "pcap")),
+											_1, identify_pcap_type)),
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
-											archiving::file_type::pcap, size_t(36/*uuid*/+5/*.pcap*/), _1)),
+											identify_pcap_type, _1)),
 							boost::protect(
 									boost::bind(continue_loading_dir))));
 

@@ -28,6 +28,7 @@ const char* file_type::to_string(const file_type_t type)
 		"buffered-recording",
 		"pcap",
 		"info",
+		"pcap-sip-only",
 
 		"invalid-file-type"
 	};
@@ -60,6 +61,8 @@ const file_type::file_type_t file_type::from_string(const std::string& str)
 		return file_type::pcap;
 	else if(str == "info")
 		return file_type::info;
+	else if(str == "pcap-sip-only")
+		return file_type::pcap_sip_only;
 
 	THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 }
