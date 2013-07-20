@@ -26,6 +26,7 @@
 #include <rml/config.h>
 #include <rml/siginit.h>
 #include <rml/daemon.h>
+#include <rml/version.h>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -72,15 +73,6 @@
 #ifndef DEFAULT_LOG_FILE_PATH
 #define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
 #endif
-
-extern "C"
-{
-	extern int version_number[3];
-	extern const char *version_number_string;
-	extern const char *version_date;
-	extern const char *build_host;
-	extern const char *copyright_string;
-}
 
 namespace app {
 

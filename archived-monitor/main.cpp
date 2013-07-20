@@ -21,7 +21,7 @@
 
 // from $(TMP)/version.c
 extern "C" {
-extern int version_number[3];
+extern int version_number[4];
 extern const char *version_number_string;
 extern const char *version_number_only_string;
 extern const char *version_date;
