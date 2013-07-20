@@ -23,7 +23,7 @@ Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-22215
 BuildRequires: boost-devel >= 1.49.0-24737
 BuildRequires: mysql++-devel >= 3.1.0-14089
-BuildRequires: RM-librml-devel >= 0.0.1-24562
+BuildRequires: RM-librml-devel >= 0.0.1-26456
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -221,7 +221,7 @@ cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11
 
 %pre
 if grep ^cdrmunch: /etc/group &>/dev/null; then
-	: # group already exists 
+	: # group already exists
 else
 	/usr/sbin/groupadd -g 2051 cdrmunch || exit
 fi
