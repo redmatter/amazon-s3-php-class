@@ -25,9 +25,6 @@ namespace app {
 
 extern volatile bool quit;
 
-namespace impl {
-
-template < typename Tag >
 class coreapi
 {
 public:
@@ -36,7 +33,8 @@ public:
 	typedef std::map< std::string, std::string > headers;
 
 private:
-	typedef boost::network::http::basic_client< Tag , 1 , 1 > http_client;
+	typedef boost::network::http::basic_client<
+			boost::network::http::tags::http_default_8bit_udp_resolve , 1 , 1 > http_client;
 	typedef typename http_client::request http_client_request;
 	typedef typename http_client::response http_client_response;
 
@@ -44,14 +42,38 @@ private:
 	std::string auth_hash_;
 	std::string ui_version_;
 
-	boost::asio::io_service& io_service_;
+	boost::shared_ptr< boost::asio::io_service > io_service_;
 	mutable http_client client_;
 
-	static boost::mutex mutex_;
-	static std::string ip_;
-	static std::string authorization_;
-	static time_t auth_attempt_time_;
-	static bool authorization_error_;
+	inline static boost::mutex& mutex_()
+	{
+		static boost::mutex mutex;
+		return mutex;
+	}
+
+	inline static std::string& ip_()
+	{
+		static std::string ip;
+		return ip;
+	}
+
+	inline static std::string& authorization_()
+	{
+		static std::string authorization;
+		return authorization;
+	}
+
+	inline static time_t& auth_attempt_time_()
+	{
+		static time_t auth_attempt_time = 0;
+		return auth_attempt_time;
+	}
+
+	inline static bool& authorization_error_()
+	{
+		static bool authorization_error = true;
+		return authorization_error;
+	}
 
 	inline std::string get_my_ip() const
 	{
@@ -70,11 +92,11 @@ private:
 			}
 
 			// connect to API and get local IP
-		    boost::asio::ip::tcp::resolver resolver(io_service_);
+		    boost::asio::ip::tcp::resolver resolver(*io_service_);
 		    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), api_host, api_protocol);
 		    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
 
-		    boost::asio::ip::tcp::socket s(io_service_);
+		    boost::asio::ip::tcp::socket s(*io_service_);
 		    s.connect(*iterator);
 
 		    return s.local_endpoint().address().to_string();
@@ -88,18 +110,18 @@ private:
 
 	inline bool get_authorized() const
 	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
+		boost::unique_lock<boost::mutex> lock(mutex_());
 
-		if (auth_attempt_time_ && ((time(0) - auth_attempt_time_) < 10))
-			return !authorization_error_ && !authorization_.empty();
+		if (auth_attempt_time_() && ((time(0) - auth_attempt_time_()) < 10))
+			return !authorization_error_() && !authorization_().empty();
 
-		if(authorization_.empty() || authorization_error_) {
+		if(authorization_().empty() || authorization_error_()) {
 
-			authorization_.clear();
-			ip_ = get_my_ip();
+			authorization_().clear();
+			ip_() = get_my_ip();
 
 			try {
-				time(&auth_attempt_time_);
+				time(&auth_attempt_time_());
 
 				const response& res( get(std::string("/auth/")+auth_hash_, false) );
 
@@ -113,12 +135,12 @@ private:
 					throw rml::exception("Unable to get authorization from CoreAPI");
 
 				// set authorization
-				authorization_ = authResID;
-				authorization_error_ = false;
+				authorization_() = authResID;
+				authorization_error_() = false;
 			}
 			catch(const std::exception& e) {
 				LogError(boost::this_thread::get_id()<<" exception: "<<e.what());
-				authorization_error_ = true;
+				authorization_error_() = true;
 
 				return false;
 			}
@@ -157,37 +179,58 @@ public:
 		auth_hash_(copy.auth_hash_),
 		ui_version_(copy.ui_version_),
 		io_service_(copy.io_service_),
-		client_(io_service_)
+		client_(http_client::options()
+			.cache_resolved(false)
+			.follow_redirects(false)
+			.io_service(io_service_))
 	{
 		init();
 	}
 
-	coreapi(const std::string& base_url, const std::string& auth_hash, const std::string& ui_version, boost::asio::io_service& io_service) :
+	coreapi(const std::string& base_url, const std::string& auth_hash, const std::string& ui_version, const boost::shared_ptr< boost::asio::io_service >& io_service) :
 		base_url_(base_url),
 		auth_hash_(auth_hash),
 		ui_version_(ui_version),
 		io_service_(io_service),
-		client_(io_service_)
+		client_(http_client::options()
+			.cache_resolved(false)
+			.follow_redirects(false)
+			.io_service(io_service_))
 	{
 		init();
 	}
 
-	coreapi(const boost::program_options::variables_map& confMap, const std::string& ui_version, boost::asio::io_service& io_service) :
+	coreapi(const boost::program_options::variables_map& confMap, const std::string& ui_version, const boost::shared_ptr< boost::asio::io_service >& io_service) :
 		base_url_(confMap["coreapi.url"].as<std::string>()),
 		auth_hash_(confMap["coreapi.auth_hash"].as<std::string>()),
 		ui_version_(ui_version),
 		io_service_(io_service),
-		client_(io_service_)
+		client_(http_client::options()
+			.cache_resolved(false)
+			.follow_redirects(false)
+			.io_service(io_service_))
 	{
 		init();
 	}
 
-	coreapi(const std::string& base_url, const std::string& ui_version, boost::asio::io_service& io_service) :
+	/**
+	 * Construct the stub; no initialisation!
+	 *
+	 * Each operation must provide relevant headers including Authorization headers
+	 *
+	 * @param base_url
+	 * @param ui_version
+	 * @param io_service
+	 */
+	coreapi(const std::string& base_url, const std::string& ui_version, const boost::shared_ptr< boost::asio::io_service >& io_service) :
 		base_url_(base_url),
 		auth_hash_(),
 		ui_version_(ui_version),
 		io_service_(io_service),
-		client_(io_service_)
+		client_(http_client::options()
+			.cache_resolved(false)
+			.follow_redirects(false)
+			.io_service(io_service_))
 	{
 	}
 
@@ -198,14 +241,14 @@ public:
 	 */
 	inline bool logout() const
 	{
-		boost::unique_lock<boost::mutex> lock(mutex_);
+		boost::unique_lock<boost::mutex> lock(mutex_());
 
-		if(!authorization_.empty() && !authorization_error_) {
+		if(!authorization_().empty() && !authorization_error_()) {
 			try {
-				const response& res( delete_("/auth/", true, headers(), authorization_) );
+				const response& res( delete_("/auth/", true, headers(), authorization_()) );
 				const bool& ok(res.first >= 200 && res.first < 300);
 				if(ok)
-					authorization_.clear();
+					authorization_().clear();
 				return ok;
 			}
 			catch(const std::exception& e) {
@@ -214,7 +257,7 @@ public:
 			}
 		}
 		else
-			LogDebug("Logout invalid; "<<(authorization_error_? "Auth error": (authorization_.empty()? "Not authed": "Unknown error")));
+			LogDebug("Logout invalid; "<<(authorization_error_()? "Auth error": (authorization_().empty()? "Not authed": "Unknown error")));
 
 		return true;
 	}
@@ -243,8 +286,8 @@ public:
 					if(true != get_authorized())
 						throw rml::exception("Not authorized; invalid call sequence");
 	
-					request << boost::network::header("Authorization", authorization_);
-					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+					request << boost::network::header("Authorization", authorization_());
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_());
 				}
 				else {
 					request << boost::network::header("Authorization", authorization);
@@ -255,8 +298,8 @@ public:
 			request << boost::network::header("UIVERSION", ui_version_);
 			if (!ip.empty())
 				request << boost::network::header("IP", ip);
-			else if (!ip_.empty())
-				request << boost::network::header("IP", ip_);
+			else if (!ip_().empty())
+				request << boost::network::header("IP", ip_());
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -279,7 +322,7 @@ public:
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
 			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
-				authorization_error_ = true;
+				authorization_error_() = true;
 				continue;
 			}
 
@@ -335,8 +378,8 @@ public:
 					if(true != get_authorized())
 						throw rml::exception("Not authorized; invalid call sequence");
 	
-					request << boost::network::header("Authorization", authorization_);
-					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+					request << boost::network::header("Authorization", authorization_());
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_());
 				}
 				else {
 					request << boost::network::header("Authorization", authorization);
@@ -347,8 +390,8 @@ public:
 			request << boost::network::header("UIVERSION", ui_version_);
 			if (!ip.empty())
 				request << boost::network::header("IP", ip);
-			else if (!ip_.empty())
-				request << boost::network::header("IP", ip_);
+			else if (!ip_().empty())
+				request << boost::network::header("IP", ip_());
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -376,7 +419,7 @@ public:
 					throw rml::exception("DELETE failed");
 				}
 
-				authorization_error_ = true;
+				authorization_error_() = true;
 				continue;
 			}
 
@@ -412,8 +455,8 @@ public:
 					if(true != get_authorized())
 						throw rml::exception("Not authorized; invalid call sequence");
 	
-					request << boost::network::header("Authorization", authorization_);
-					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+					request << boost::network::header("Authorization", authorization_());
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_());
 				}
 				else {
 					request << boost::network::header("Authorization", authorization);
@@ -424,8 +467,8 @@ public:
 			request << boost::network::header("UIVERSION", ui_version_);
 			if (!ip.empty())
 				request << boost::network::header("IP", ip);
-			else if (!ip_.empty())
-				request << boost::network::header("IP", ip_);
+			else if (!ip_().empty())
+				request << boost::network::header("IP", ip_());
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -460,7 +503,7 @@ public:
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
 			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
-				authorization_error_ = true;
+				authorization_error_() = true;
 				continue;
 			}
 
@@ -484,8 +527,8 @@ public:
 					if(true != get_authorized())
 						throw rml::exception("Not authorized; invalid call sequence");
 
-					request << boost::network::header("Authorization", authorization_);
-					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_);
+					request << boost::network::header("Authorization", authorization_());
+					LogDebug(boost::this_thread::get_id()<<" Authorization: "<<authorization_());
 				}
 				else {
 					request << boost::network::header("Authorization", authorization);
@@ -496,8 +539,8 @@ public:
 			request << boost::network::header("UIVERSION", ui_version_);
 			if (!ip.empty())
 				request << boost::network::header("IP", ip);
-			else if (!ip_.empty())
-				request << boost::network::header("IP", ip_);
+			else if (!ip_().empty())
+				request << boost::network::header("IP", ip_());
 
 			if(!h.empty()) {
 				for(headers::const_iterator itr = h.begin(); itr != h.end(); ++itr) {
@@ -532,7 +575,7 @@ public:
 			LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message()<<'\n'<<response.body());
 
 			if(use_authorization && authorization.empty() && ( status == 401 || status == 403 )) {
-				authorization_error_ = true;
+				authorization_error_() = true;
 				continue;
 			}
 
@@ -542,25 +585,6 @@ public:
 		throw rml::exception("failed after retry");
 	}
 };
-
-template < typename Tag >
-boost::mutex coreapi< Tag >::mutex_;
-
-template < typename Tag >
-std::string coreapi< Tag >::ip_;
-
-template < typename Tag >
-std::string coreapi< Tag >::authorization_;
-
-template < typename Tag >
-time_t coreapi< Tag >::auth_attempt_time_ = 0;
-
-template < typename Tag >
-bool coreapi< Tag >::authorization_error_ = true;
-
-}  // namespace impl
-
-typedef impl::coreapi< boost::network::http::tags::http_default_8bit_udp_resolve > coreapi;
 
 }  // namespace app
 

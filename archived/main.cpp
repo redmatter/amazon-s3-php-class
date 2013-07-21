@@ -293,10 +293,10 @@ int main(int argc, char *argv[]) try
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
-		boost::asio::io_service io_service;
-		boost::asio::io_service::work work(io_service); // make sure we keep it proped up!
+		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
+		boost::asio::io_service::work work(*p_io_service); // make sure we keep it proped up!
 		
-		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
+		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1), "CachedPolicyFinder");
 		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) try
 //				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
-				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, io_service);
+				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) try
 				new app::retention_purge::runner(
 						app::confMap, cached_endpoint_finder, cached_policy_finder, coreapi, *p_purge_state_reactor, retention_db, internal_db, app::quit));
 
-		app::whisper_client whisper_client(io_service, whisper_channel,
+		app::whisper_client whisper_client(*p_io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
 				app::confMap["distiller_client.server_port"].as<std::string>());
 
@@ -388,7 +388,7 @@ int main(int argc, char *argv[]) try
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
 			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 			while(0 < n_threads--)
-				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
 		}
 
 		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
@@ -478,7 +478,7 @@ int main(int argc, char *argv[]) try
 
 		coreapi.logout();
 
-		io_service.stop();
+		p_io_service->stop();
 
 		fcgi_server.stop();
 

@@ -280,11 +280,11 @@ int main(int argc, char* argv[]) try
 		LogMessage("Initialisation complete");
 
 		boost::thread_group threads;
-		boost::asio::io_service io_service;
+		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
-				new boost::asio::io_service::work(io_service));
+				new boost::asio::io_service::work(*p_io_service));
 
-		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), io_service);
+		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
 
 		archiving::sms_dir_monitor sms_dir_monitor(in_channel, app::hostname);
 
@@ -309,7 +309,7 @@ int main(int argc, char* argv[]) try
 		while (more_to_load_from_db)
 			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, app::archived_client::get_is_archived_ok());
 
-		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, io_service);
+		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, *p_io_service);
 		threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
 		// this blocks until the thread has completed the first run, hopefully dealing with all outstanding items
 		LogMessage("Waiting for processing of all leftover data, if any ...");
@@ -317,7 +317,7 @@ int main(int argc, char* argv[]) try
 		LogMessage("Leftover data, processed, continuing with initialisation");
 
 	    app::archived_client::pointer archived_client(new app::archived_client(
-	    		io_service,
+	    		*p_io_service,
 	    		out_channel,
 	    		archivable_busy_set,
 	    		app::confMap["archived_client.server_host"].as<std::string>(),
@@ -332,7 +332,7 @@ int main(int argc, char* argv[]) try
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
 			LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 			while(0 < --n_threads)
-				threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+				threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
 		}
 
 		archived_client->connect_archived();
@@ -350,7 +350,7 @@ int main(int argc, char* argv[]) try
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
 			if(!(ticks++ % 10))
-				io_service.post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
+				p_io_service->post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
 						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db), app::archived_client::get_is_archived_ok()));
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
@@ -363,7 +363,7 @@ int main(int argc, char* argv[]) try
 
 		p_work.reset();
 
-		io_service.stop();
+		p_io_service->stop();
 
 		threads.join_all();
 

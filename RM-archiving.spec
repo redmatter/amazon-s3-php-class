@@ -27,7 +27,7 @@ BuildRequires: RM-librml-devel >= 0.0.1-26456
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
-BuildRequires: cpp-netlib >= 0.9.4
+BuildRequires: cpp-netlib >= 0.10.1
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool

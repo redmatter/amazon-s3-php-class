@@ -6,7 +6,6 @@
 #include "../archived/compress.hpp"
 #include "../archived/crypto.hpp"
 #include "../archived/storage_endpoint.hpp"
-#include "../common/coreapi.hpp"
 
 #include <rml/logger.h>
 #include <rml/config.h>
@@ -127,11 +126,11 @@ int main(int argc, char* argv[])
 				rml::utils::tmp_fstream::pointer p_tmp_source = rml::utils::tmp_fstream::create(
 						boost::replace_all_copy(source_path, "/", "_"), std::size_t(0), temp_dir);
 
-				boost::asio::io_service io_service;
-				boost::asio::io_service::work work(io_service); // make sure we keep it proped up!
+				boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
+				boost::asio::io_service::work work(*p_io_service); // make sure we keep it proped up!
 
 				app::archived archived(
-						io_service,
+						p_io_service,
 						cli_confMap["archived-host"].as<std::string>(),
 						cli_confMap["api-host"].as<std::string>(),
 						boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]));

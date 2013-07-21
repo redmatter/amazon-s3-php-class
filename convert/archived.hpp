@@ -38,7 +38,7 @@ class archived
 
 	const std::string base_uri_;
 
-	boost::asio::io_service& io_service_;
+	boost::shared_ptr< boost::asio::io_service > p_io_service_;
 
 	http_client client_;
 	app::coreapi coreapi_;
@@ -47,11 +47,11 @@ class archived
 	{
 		try {
 			// connect to ArchiveD and get local IP
-		    boost::asio::ip::tcp::resolver resolver(io_service_);
+		    boost::asio::ip::tcp::resolver resolver(*p_io_service_);
 		    boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), base_uri_, https? "https": "http");
 		    boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
 
-		    boost::asio::ip::tcp::socket s(io_service_);
+		    boost::asio::ip::tcp::socket s(*p_io_service_);
 		    s.connect(*iterator);
 
 		    return s.local_endpoint().address().to_string();
@@ -103,11 +103,11 @@ private:
 	}
 
 public:
-	archived(boost::asio::io_service& io_service, const std::string& base_uri, const std::string& api_host, const std::string& api_ui_version) :
-		base_uri_(base_uri), io_service_(io_service),
+	archived(const boost::shared_ptr< boost::asio::io_service >& io_service, const std::string& base_uri, const std::string& api_host, const std::string& api_ui_version) :
+		base_uri_(base_uri), p_io_service_(io_service),
 		coreapi_(
 				boost::str(boost::format("%1%%2%") % ((api_host[4] == ':' || api_host[5] == ':')? "": "http://")  % api_host),
-				api_ui_version, io_service_)
+				api_ui_version, p_io_service_)
 	{
 	}
 
