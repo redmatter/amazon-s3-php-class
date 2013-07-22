@@ -35,8 +35,8 @@ public:
 private:
 	typedef boost::network::http::basic_client<
 			boost::network::http::tags::http_default_8bit_udp_resolve , 1 , 1 > http_client;
-	typedef typename http_client::request http_client_request;
-	typedef typename http_client::response http_client_response;
+	typedef http_client::request http_client_request;
+	typedef http_client::response http_client_response;
 
 	std::string base_url_;
 	std::string auth_hash_;
