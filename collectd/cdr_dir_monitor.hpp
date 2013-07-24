@@ -125,8 +125,27 @@ public:
 	void handle_event(app::inotify::event event, boost::system::error_code error_code, const filename_decoder_t& filename_decoder)
 	{
 		if (error_code) {
-			LogError("cdr_dir_monitor: err:"<<error_code);
+			LogError("err:"<<error_code);
 			return;
+		}
+
+		if (event.file_name.empty()) {
+			LogVerbose("Event from directory, possibly triggered by activity in the monitored location");
+			return;
+		}
+
+		const std::string file_path(event.dir_name+'/'+event.file_name);
+		{
+			struct stat s;
+			if (-1 == stat(file_path.c_str(), &s)) {
+				LogMessage("stat failed for "<<file_path<<" - err: "<<strerror(errno));
+				return;
+			}
+
+			if(S_ISDIR(s.st_mode)) { // we are not interested in any dirs
+				LogDebug("Ignoring directory "<<file_path);
+				return;
+			}
 		}
 
 		size_t rev_path_uuid_idx;
@@ -135,7 +154,7 @@ public:
 		if (filename_decoder(event.file_name, rev_path_uuid_idx, file_type, data_format))
 			handle_event(event, error_code, rev_path_uuid_idx, file_type, data_format.c_str());
 		else
-			LogWarning("Unknown filename format found; "<<event.dir_name<<'/'<<event.file_name);
+			LogWarning("Unknown filename format found; "<<file_path);
 	}
 
 	// Adds the passed path to the channel.
