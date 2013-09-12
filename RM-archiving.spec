@@ -223,44 +223,44 @@ cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11
 if grep ^cdrmunch: /etc/group &>/dev/null; then
 	: # group already exists
 else
-	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
 fi
 
 if ! /usr/bin/id cdrmunch &>/dev/null; then
-	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 fi
 
 %pre collectd
 if grep ^cdrmunch: /etc/group &>/dev/null; then
 	: # group already exists
 else
-	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
 fi
 
 if ! /usr/bin/id cdrmunch &>/dev/null; then
-	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 fi
 
 %pre collect-smsd
 if grep ^cdrmunch: /etc/group &>/dev/null; then
 	: # group already exists
 else
-	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
 fi
 
 if ! /usr/bin/id cdrmunch &>/dev/null; then
-	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 fi
 
 # %pre migrationd
 # if grep ^cdrmunch: /etc/group &>/dev/null; then
 # 	: # group already exists
 # else
-# 	/usr/sbin/groupadd -g 2051 cdrmunch || exit
+# 	/usr/sbin/groupadd -g 134 cdrmunch || exit
 # fi
 #
 # if ! /usr/bin/id cdrmunch &>/dev/null; then
-# 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 2051 cdrmunch || exit
+# 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 # fi
 
 #%pre common
