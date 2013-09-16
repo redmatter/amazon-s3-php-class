@@ -112,7 +112,7 @@ struct retention_period
 			break;
 
 		default:
-			THROW_RML_EXCEPTION("Invalid retention_unit: "<<retention_units::to_string(unit));
+			THROW_RML_EXCEPTION("Invalid retention_unit: "<<retention_units::to_string(unit))
 			/* no break */
 		}
 	}
@@ -160,7 +160,7 @@ struct policy
 			if(f > archiving::file_type::unknown && f < archiving::file_type::n_file_types)
 				return xlate[f];
 
-			THROW_RML_EXCEPTION("Unknown filetype: "<<int(f));
+			THROW_RML_EXCEPTION("Unknown filetype: "<<int(f))
 		}
 	};
 
@@ -182,7 +182,7 @@ struct policy
 			if(str == "compliance")
 				return compliance;
 
-			THROW_RML_EXCEPTION("Invalid policy mode:"<<str);
+			THROW_RML_EXCEPTION("Invalid policy mode:"<<str)
 		}
 
 		static const char* to_string(mode_t& m)

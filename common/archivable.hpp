@@ -125,7 +125,7 @@ public:
 			else if(str == "discarded")
 				return discarded;
 			else
-				THROW_RML_EXCEPTION("Unknown state from string: "<<str);
+				THROW_RML_EXCEPTION("Unknown state from string: "<<str)
 		}
 	};
 
