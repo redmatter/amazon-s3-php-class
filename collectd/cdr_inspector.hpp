@@ -69,87 +69,73 @@ inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& 
 	return rml::utils::strtoll(get_xpath_single_value(doc, xpath, (const char*)0), default_value);
 }
 
-// Takes a full filename, checks it matches the format used in filenames to specify information for an archive, extracts
-// this information and sets the passed references with it.
+// Checks to see if the passed archivable was in the passed directory and, if so, attempts to extract information
+// from the filename and populate archivable with this information.
 // Returns false if there was a failure.
-static const bool extract_info_from_path(const std::string& path,
-		archiving::org_id_t& org_id, app::policy::id_type& archive_policy_id, std::string& call_uuid, std::string& uuid)
+bool check_info_in_filename(const std::string& directory, archiving::archivable::pointer p_archivable)
 {
 	// Create this regex as a static variable so that we don't construct it each time.
 	// We're expecting the path to look like:
 	// /various/directory/elements/OrgID_ArchivePolicyID_CallUUID_UUID.extension.or.more
-	// Do a regular expression for the text between a starting / and a trailing .ext which is made up of numbers and
+	// Do a regular expression for the text between a starting / and an trailing .ext which is made up of numbers and
 	// UUIDs, e.g. 123_456_01234567-abcd-8901-efab-234567890123_01234567-abcd-8901-efab-234567890123
 	// The below is close enough to extract the string we need.
-	static boost::regex info_regex("(?<=/)([0-9]+)_([0-9]+)_([a-f0-9-]+)_([a-f0-9-]+)(?=\\.(.+))$", boost::regex::icase);
+	static boost::regex info_regex("(?<=/)[0-9]+_[0-9]+_[a-zA-Z0-9-]+_[a-zA-Z0-9-]+(?=\\.[a-zA-Z]+)");
+
+	// Check if the file was in the appropriate directory.
+	std::string path(p_archivable->get_paths().first);
+	if (path.find(directory) != 0)
+	{
+		LogVerbose("directory: " << directory.c_str() << " not found in path: " << path.c_str());
+		return true;
+	}
+
+	LogVerbose("Attempting to extract info from filename");
 
 	// Check that the appropriate format exists in the filename.
 	boost::smatch match;
-	if (!boost::regex_search(path, match, info_regex)) {
-		LogWarning("Path was not in expected format: " << path);
+	if (!boost::regex_search(path, match, info_regex))
+	{
+		LogWarning("Filename was not in expected format: " << path);
 		return false;
 	}
 
-	// Based on the above format, we should expect that there will be five strings.
-	if (match.size() != 5) {
+	if (match.size() != 1)
+	{
 		LogWarning("Unexpected number of matches in path: " << path);
 		return false;
 	}
-	else {
-		// Get the useful bits from the path.
-		LogDebug("Matched path: " << match[0]);
 
-		// The first string should be the OrgID.
-		org_id = rml::utils::strtoull(match[1].str().c_str());
+	// Get the useful bit from the path.
+	path = match[0].str();
 
-		// The second string should be ArchivePolicyID.
-		archive_policy_id = rml::utils::strtoull(match[2].str().c_str());
+	LogVerbose("Matched path: " << path);
 
-		// The third string should be CallUUID.
-		call_uuid = match[3];
+	// Split the path using _ as the separator.
+	std::vector<std::string> split_string;
+	boost::split(split_string, path, boost::is_any_of("_"));
 
-		// The fourth string should be UUID.
-		uuid = match[4];
-
-		return true;
+	// Based on the above format, we should expect that there will be four strings.
+	if (split_string.size() != 4)
+	{
+		LogWarning("String is not in expected format: " << path);
+		return false;
 	}
-}
-
-// Checks to see if the passed archivable was in the passed directory and, if so, attempts to extract information
-// from the filename and populate archivable with this information.
-// Returns false if there was a failure.
-static const bool check_info_in_filename(const std::string& directory, archiving::archivable::pointer p_archivable)
-{
-	// Check if the file was in the appropriate directory.
-	std::string path(p_archivable->get_paths().first);
-	if (path.find(directory) != 0) {
-		LogDebug("directory: " << directory << " not found in path: " << path);
-		return true;
-	}
-
-	archiving::org_id_t org_id(0);
-	app::policy::id_type archive_policy_id(0);
-	std::string call_uuid("");
-	std::string uuid("");
-
-	LogDebug("Attempting to extract info from path");
-	// Attempt to get the various bits of information from the file name.  If this is successful, the function returns true.
-	if (extract_info_from_path(path, org_id, archive_policy_id, call_uuid, uuid)) {
+	else
+	{
 		// The first string should be the OrgID, use this to create owner_info.
-		p_archivable->set_owners(archiving::owner_info(org_id));
+		p_archivable->set_owners(archiving::owner_info(rml::utils::strtoull(split_string[0].c_str())));
 
 		// The second string should be ArchivePolicyID.
-		p_archivable->set_policy_id(archive_policy_id);
+		p_archivable->set_policy_id(rml::utils::strtoull(split_string[1].c_str()));
 
 		// The third string should be CallUUID.
-		p_archivable->set_originator_uuid(call_uuid);
+		p_archivable->set_originator_uuid(split_string[2]);
 
 		// The fourth string should be UUID, but we don't need to populate this.
 
 		return true;
 	}
-	else
-		return false;
 }
 
 }
