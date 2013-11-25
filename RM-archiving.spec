@@ -164,7 +164,7 @@ cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
 cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp collectd/sqlite.conf %{buildroot}/etc/archiving/conf.d/sqlite.conf
-cp collectd/collectd.db3 %{buildroot}/var/lib/archiving/collectd.db3
+cp collectd/collectd.db3 %{buildroot}/usr/share/archiving/blank_collectd.db3
 
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
@@ -281,6 +281,10 @@ fi
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
+if [ ! -f /var/lib/archiving/collectd.db3 ]; then
+	cp /usr/share/archiving/blank_collectd.db3 /var/lib/archiving/collectd.db3
+	# TODO change permissions if we change the user we run collectd as
+fi
 if [ "$1" -eq 1 ]; then # package just got installed ?
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
@@ -372,7 +376,7 @@ fi
 /etc/logrotate.d/rmcollectd
 /etc/rsyslog.d/11-rmcollectd.conf
 /etc/archiving/conf.d/sqlite.conf
-/var/lib/archiving/collectd.db3
+/usr/share/archiving/blank_collectd.db3
 
 %files collect-smsd
 %defattr(-,root,root)
