@@ -340,7 +340,7 @@ namespace app
 							% start_epoch
 							% (FromNumber.empty() ? "0" : FromNumber)
 							% (ToNumber.empty() ? "0" : ToNumber)
-							% ((0 == strcmp(doc.select_single_node("/SMS/Direction").node().child_value(), "Inbound")) ? "Inbound" : "Outbound")
+							% ((0 == strcmp(doc.select_single_node("/SMS/Direction").node().child_value(), "Incoming")) ? "Inbound" : "Outbound")
 							% app::remove_redmatter(hostname)
 						);
 
