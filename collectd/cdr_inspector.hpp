@@ -86,7 +86,7 @@ bool check_info_in_filename(const std::string& directory, archiving::archivable:
 	std::string path(p_archivable->get_paths().first);
 	if (path.find(directory) != 0)
 	{
-		LogVerbose("directory: " << directory.c_str() << " not found in path: " << path.c_str());
+		LogVerbose("directory: " << directory << " not found in path: " << path);
 		return true;
 	}
 
@@ -94,15 +94,9 @@ bool check_info_in_filename(const std::string& directory, archiving::archivable:
 
 	// Check that the appropriate format exists in the filename.
 	boost::smatch match;
-	if (!boost::regex_search(path, match, info_regex))
+	if (!boost::regex_search(path, match, info_regex) || match.size() != 1)
 	{
 		LogWarning("Filename was not in expected format: " << path);
-		return false;
-	}
-
-	if (match.size() != 1)
-	{
-		LogWarning("Unexpected number of matches in path: " << path);
 		return false;
 	}
 

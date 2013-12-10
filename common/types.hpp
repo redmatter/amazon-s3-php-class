@@ -68,7 +68,7 @@ struct file_type
 	 * @param str
 	 * @return
 	 */
-	static const file_type_t from_string(const std::string& str);
+	static file_type_t from_string(const std::string& str);
 };
 
 }

@@ -345,7 +345,7 @@ public:
 	 */
 	inline response get(const std::string& uri, const response::first_type& expected_status, const bool use_authorization = true, const headers& h = headers(), const std::string& authorization = std::string(), const std::string& ip = std::string()) const
 	{
-		const response& r(get(uri, use_authorization, h, authorization));
+		const response& r(get(uri, use_authorization, h, authorization, ip));
 		if(expected_status && r.first != expected_status) {
 			LogError("Unexpected response status; status:"<<r.first<<" (expected status:"<<expected_status<<')');
 			throw rml::exception("Unexpected response status");

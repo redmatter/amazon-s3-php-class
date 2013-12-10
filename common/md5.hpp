@@ -47,6 +47,8 @@ public:
 
 	static hash_vector hash(std::fstream& fstr, const size_t& file_length_ = 0)
 	{
+		(void)file_length_;
+
 		hash_vector ret;
 
 		CryptoPP::Weak1::MD5 hash;

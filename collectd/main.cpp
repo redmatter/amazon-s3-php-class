@@ -537,6 +537,8 @@ int main(int argc, char* argv[]) try
 				itr != end; ++itr)
 			(*itr)->connect_archived();
 
+		DevDebug("app::confMap[\"purge.done_items_max_age_minutes\"].as<unsigned int>() "<<app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>());
+
 		// kick off the purge thread
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),

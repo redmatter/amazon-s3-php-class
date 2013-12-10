@@ -43,7 +43,7 @@ struct retention_units
 		n_retention_units
 	};
 
-	static const retention_units_t from_string(const std::string& str)
+	static retention_units_t from_string(const std::string& str)
 	{
 		if(str == "days")
 			return days;

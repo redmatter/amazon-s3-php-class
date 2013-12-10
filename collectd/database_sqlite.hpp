@@ -529,8 +529,8 @@ public:
 						!res[5].is_null(),
 						res[5].is_null()? "": res[5].as_text(),
 						res[8].as_text(),
-						archiving::archivable::state::state_t(res[6].as_int()),
-						res[17].as_int() // BufferedRecording
+						archiving::archivable::state::state_t(res[6].as_int())
+//						, res[17].as_int() // BufferedRecording
 					));
 
 				p_arc->set_database_id(res[16].as_int64());
@@ -642,10 +642,12 @@ public:
 			const sqlite::result& res(p_query->prepare()
 					->bind(archiving::archivable::state::stored, ":stateStored")
 					->bind(archiving::archivable::state::discarded, ":stateDiscarded")
-					->bind<int>(-done_items_max_age_minutes, ":DoneMaxAge")
+					->bind<int>(-int(done_items_max_age_minutes), ":DoneMaxAge")
 					->bind<int64_t>(max_age_days__boundary, ":MaxAgeDays")
 
 					->execute());
+
+			DevDebug("stateStored:"<<archiving::archivable::state::stored<<" stateDiscarded:"<<archiving::archivable::state::discarded<<" DoneMaxAge:"<<(-int(done_items_max_age_minutes))<<" MaxAgeDays:"<<max_age_days__boundary);
 			while(res) {
 				ret.push_back(
 						purgedef::pointer(

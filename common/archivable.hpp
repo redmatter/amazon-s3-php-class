@@ -317,8 +317,7 @@ public:
 			const bool& is_modified = false,
 			const std::string& modified_file_path = "",
 			const std::string& md5 = "",
-			const state::state_t& state = state::collected,
-			const bool& is_call_buffering_recording = false
+			const state::state_t& state = state::collected
 	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
@@ -428,7 +427,7 @@ public:
 		// if this NOT a CDR usual ownership applies
 		else {
 			ostr << "OrgID: "<<owners_.orgID<<"\r\n";
-			ostr << "RetentionPolicyID: "<<(policy_id_? policy_id_: app::policy::pseudo_id::recording)<<"\r\n";
+			ostr << "RetentionPolicyID: "<<(policy_id_? policy_id_: (app::policy::id_type)app::policy::pseudo_id::recording)<<"\r\n";
 			if(!owners_.userIDs.empty()) {
 				ostr << "UserIDs: ";
 				std::vector< archiving::user_id_t >::const_iterator end(owners_.userIDs.end());
@@ -506,7 +505,7 @@ public:
 		return uuid;
 	}
 
-	inline const time_t get_start_epoch() const
+	inline time_t get_start_epoch() const
 	{
 		return start_epoch;
 	}

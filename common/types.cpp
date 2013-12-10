@@ -45,7 +45,7 @@ const char* file_type::to_string(const file_type_t type)
  * @param str
  * @return
  */
-const file_type::file_type_t file_type::from_string(const std::string& str)
+file_type::file_type_t file_type::from_string(const std::string& str)
 {
 	if(str == "unknown")
 		return file_type::unknown;

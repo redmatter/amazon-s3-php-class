@@ -28,6 +28,57 @@
 
 #include <string.h>
 
+namespace internal
+{
+
+struct safe_ostream_sink
+{
+	typedef char char_type;
+	typedef boost::iostreams::sink_tag category;
+
+	std::ostream& os;
+	bool& failure;
+
+	safe_ostream_sink(std::ostream& os, bool& failure) :
+			os(os), failure(failure)
+	{
+		failure = false;
+	}
+
+	safe_ostream_sink(const safe_ostream_sink& other) :
+			os(other.os), failure(other.failure)
+	{
+	}
+
+	std::streamsize write(const char* s, std::streamsize n)
+	{
+		if (failure)
+			return n;
+
+		try
+		{
+			os.write(s, n);
+		}
+		catch(...) {
+			failure = true;
+			throw;
+		}
+
+		if (!os)
+			failure = true;
+
+		if (failure)
+			throw std::ios::failure("Writing to stream failed");
+
+		return n;
+	}
+
+private:
+	safe_ostream_sink& operator=(const safe_ostream_sink& other);
+};
+
+}  // namespace internal
+
 namespace app {
 
 class bzip2
@@ -50,13 +101,15 @@ public:
 			{	// important to be in a separate scope!
 				// filters wouldn't flush and close ... could call one of its methods ... but ... who could be bothered
 
+				bool failure(false);
+
 				boost::iostreams::filtering_streambuf<boost::iostreams::output> filters;
 				filters.push(boost::iostreams::bzip2_compressor());
-				filters.push(os);
+				filters.push(internal::safe_ostream_sink(os, failure));
 
 				if(content_length > 0) {
 					size_t copied_length = 0;
-					while(copied_length < content_length) {
+					while(!failure && (copied_length < content_length)) {
 						size_t buf_length = std::min<size_t>(content_length - copied_length, 8196);
 
 						std::vector<char> buf(buf_length);
@@ -71,6 +124,9 @@ public:
 				else {
 					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
 				}
+
+				if (failure)
+					throw std::runtime_error("Failed to compress (stream error)");
 			}
 
 			return ( size_t ) ( os.tellp() - start );
@@ -160,13 +216,15 @@ public:
 
 			std::streampos start = os.tellp();
 			{
+				bool failure(false);
 				boost::iostreams::filtering_streambuf<boost::iostreams::output> filters;
 				filters.push(boost::iostreams::bzip2_decompressor());
-				filters.push(os);
+				filters.push(internal::safe_ostream_sink(os, failure));
 
 				if(content_length > 0) {
 					size_t copied_length = 0;
-					while(copied_length < content_length) {
+					while(!failure && (copied_length < content_length)) {
+DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 						size_t buf_length = std::min<size_t>(content_length - copied_length, 8196);
 						std::string buf;
 						buf.reserve(buf_length);
@@ -180,8 +238,12 @@ public:
 					}
 				}
 				else {
+DevDebug("boost::iostreams::copy");
 					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
 				}
+
+				if (failure)
+					throw std::runtime_error("Failed to compress (stream error)");
 			}
 
 			return ( size_t ) ( os.tellp() - start );
@@ -193,7 +255,7 @@ public:
 				throw rml::exception("corrupted compressed data");
 			else if(error == boost::iostreams::bzip2::data_error_magic)
 				throw rml::exception("the 'magic' sequence 'BZh' missing");
-			else if(boost::iostreams::bzip2::config_error)
+			else if(error == boost::iostreams::bzip2::config_error)
 				throw rml::exception("libbzip2 config error (not what it says most of the time)");
 			else
 				THROW_RML_EXCEPTION("Unexpected bzip2 error - err: " << e.what() << " (" << error << ')');

@@ -19,8 +19,6 @@
 
 #include <rml/fcgi/request.hpp>
 
-#include <cryptopp/channels.h>
-
 #define Debug(line) \
 		LogIf(p_request->debug_mode == rml::fcgi::debug::on, p_request->fcgi_req.requestId<<':'<<thread_id<<": "<<line);
 
@@ -90,6 +88,7 @@ public:
 		const std::string& authorization((authprization_header && authprization_header[0])? authprization_header: p_request->querystring.get_first("authorization"));
 		const std::string& remote_ip((ip_header && ip_header[0])? ip_header: p_request->querystring.get_first("remote-ip"));
 
+		// todo verify audit_token !!!
 		audit_token = p_request->querystring.get_first_as< uint64_t >("audit-token");
 
 		archiving::archivable::identifier identifier;
@@ -240,6 +239,7 @@ public:
 				file_format = detail->target_file_format;
 			}
 			catch(const std::exception& e) {
+				LogDWarning("Exception: "<<e.what(), "IGNO");
 				throw rml::fcgi::http_exception(404, e.what());
 			}
 		}
