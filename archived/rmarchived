@@ -15,7 +15,36 @@ prog_projprefix=archiving
 prog_cliopts="--hostname $( uname -n | cut -d. -f1 )"
 prog_syslogtag=rm-archived
 
-callback_before_startup() {
+disk_free_space_KB()
+{
+	/bin/df "$1" | /usr/bin/tail -n 1 | /bin/awk -F' ' '{print $4}'
+}
+
+disk_is_free_enough()
+{
+	[ "$( disk_free_space_KB $(get_conf $prog_configpath archived.cache_dir 0 /var/lib/archiving/cache) )" -gt 500000 ] &&
+		[ "$( disk_free_space_KB $(get_conf $prog_configpath distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache ) )" -gt 500000 ]
+}
+
+disk_watch_dog()
+{
+	sleep 5;
+	while _is_alive; do
+		if ! disk_is_free_enough; then
+			_log err "Insufficient disk space"
+			/sbin/service rmarchived stop
+		fi
+		sleep 0.5;
+	done
+}
+
+callback_before_startup()
+{
+	if ! disk_is_free_enough; then
+		_log err "Insufficient disk space"
+		return 1;
+	fi
+	disk_watch_dog &
 	/usr/bin/rmarchived-hAPI
 }
 
