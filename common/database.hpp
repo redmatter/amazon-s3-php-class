@@ -397,8 +397,8 @@ public:
 						row[5] != "NULL",
 						(row[5] != "NULL")? row[5].c_str(): "",
 						row[8].c_str(),
-						archiving::archivable::state::from_string(row[6].c_str()),
-						row[17] == "true" // BufferedRecording
+						archiving::archivable::state::from_string(row[6].c_str())
+						// , row[17] == "true" // BufferedRecording
 					));
 
 				const uint64_t& id = rml::utils::strtoull(row[16].c_str(), 0ULL);
