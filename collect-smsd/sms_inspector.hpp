@@ -332,6 +332,12 @@ namespace app
 
 						std::string FromNumber(doc.select_single_node("/SMS/FromNumber").node().child_value());
 						std::string ToNumber(doc.select_single_node("/SMS/ToNumber").node().child_value());
+						std::string Direction(doc.select_single_node("/SMS/Direction").node().child_value());
+
+						if (Direction == "Incoming")
+							Direction = "Inbound";
+						else if (Direction == "Outgoing")
+							Direction = "Outbound";
 
 						std::string xml = boost::str (boost::format ("<SMS UUID=\"%1%\" OrgID=\"%2%\" UserID=\"%3%\" Time=\"%4%\" From_Number=\"%5%\" To_Number=\"%6%\" Direction=\"%7%\" HostName=\"%8%\"/>")
 							% app::remove_hyphens(archivable_sms->get_uuid())
@@ -340,7 +346,7 @@ namespace app
 							% start_epoch
 							% (FromNumber.empty() ? "0" : FromNumber)
 							% (ToNumber.empty() ? "0" : ToNumber)
-							% ((0 == strcmp(doc.select_single_node("/SMS/Direction").node().child_value(), "Incoming")) ? "Inbound" : "Outbound")
+							% Direction
 							% app::remove_redmatter(hostname)
 						);
 
