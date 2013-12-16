@@ -77,6 +77,53 @@ private:
 	safe_ostream_sink& operator=(const safe_ostream_sink& other);
 };
 
+struct safe_istream_source
+{
+	typedef char char_type;
+	typedef boost::iostreams::source_tag category;
+
+	std::istream& is;
+	bool& failure;
+
+	safe_istream_source(std::istream& os, bool& failure) :
+			is(os), failure(failure)
+	{
+		failure = false;
+	}
+
+	safe_istream_source(const safe_istream_source& other) :
+			is(other.is), failure(other.failure)
+	{
+	}
+
+	std::streamsize read(char* s, std::streamsize n)
+	{
+		if (failure)
+			return -1;
+
+		std::streamsize ret(0);
+		try
+		{
+			ret = is.readsome(s, n);
+		}
+		catch(...) {
+			failure = true;
+			throw;
+		}
+
+		if (!is)
+			failure = true;
+
+		if (failure)
+			throw std::ios::failure("Reading from stream failed");
+
+		return n;
+	}
+
+private:
+	safe_istream_source& operator=(const safe_istream_source& other);
+};
+
 }  // namespace internal
 
 namespace app {
@@ -122,7 +169,8 @@ public:
 					}
 				}
 				else {
-					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
+					/*std::streamsize copied = */boost::iostreams::copy(
+							internal::safe_istream_source(is), filters);
 				}
 
 				if (failure)
@@ -239,7 +287,8 @@ DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 				}
 				else {
 DevDebug("boost::iostreams::copy");
-					/*std::streamsize copied = */boost::iostreams::copy(is, filters);
+					/*std::streamsize copied = */boost::iostreams::copy(
+							internal::safe_istream_source(is), filters);
 				}
 
 				if (failure)
