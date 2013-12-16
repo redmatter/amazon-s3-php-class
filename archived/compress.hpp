@@ -148,15 +148,16 @@ public:
 			{	// important to be in a separate scope!
 				// filters wouldn't flush and close ... could call one of its methods ... but ... who could be bothered
 
-				bool failure(false);
+				bool ostr_failure(false);
+				bool istr_failure(false);
 
 				boost::iostreams::filtering_streambuf<boost::iostreams::output> filters;
 				filters.push(boost::iostreams::bzip2_compressor());
-				filters.push(internal::safe_ostream_sink(os, failure));
+				filters.push(internal::safe_ostream_sink(os, ostr_failure));
 
 				if(content_length > 0) {
 					size_t copied_length = 0;
-					while(!failure && (copied_length < content_length)) {
+					while(!ostr_failure && (copied_length < content_length)) {
 						size_t buf_length = std::min<size_t>(content_length - copied_length, 8196);
 
 						std::vector<char> buf(buf_length);
@@ -170,10 +171,10 @@ public:
 				}
 				else {
 					/*std::streamsize copied = */boost::iostreams::copy(
-							internal::safe_istream_source(is), filters);
+							internal::safe_istream_source(is, istr_failure), filters);
 				}
 
-				if (failure)
+				if (ostr_failure || istr_failure)
 					throw std::runtime_error("Failed to compress (stream error)");
 			}
 
@@ -264,14 +265,15 @@ public:
 
 			std::streampos start = os.tellp();
 			{
-				bool failure(false);
+				bool ostr_failure(false);
+				bool istr_failure(false);
 				boost::iostreams::filtering_streambuf<boost::iostreams::output> filters;
 				filters.push(boost::iostreams::bzip2_decompressor());
-				filters.push(internal::safe_ostream_sink(os, failure));
+				filters.push(internal::safe_ostream_sink(os, ostr_failure));
 
 				if(content_length > 0) {
 					size_t copied_length = 0;
-					while(!failure && (copied_length < content_length)) {
+					while(!ostr_failure && (copied_length < content_length)) {
 DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 						size_t buf_length = std::min<size_t>(content_length - copied_length, 8196);
 						std::string buf;
@@ -288,10 +290,10 @@ DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 				else {
 DevDebug("boost::iostreams::copy");
 					/*std::streamsize copied = */boost::iostreams::copy(
-							internal::safe_istream_source(is), filters);
+							internal::safe_istream_source(is, istr_failure), filters);
 				}
 
-				if (failure)
+				if (ostr_failure || istr_failure)
 					throw std::runtime_error("Failed to compress (stream error)");
 			}
 
