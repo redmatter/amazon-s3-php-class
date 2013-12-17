@@ -347,20 +347,22 @@ protected:
 
 		LogDebug("status: "<<S3_get_status_name(status));
 
-		if (error && error->message)
-			LogError("Error: "<<error->message);
+		if (error) {
+			if (error->message)
+				LogDError("Error: "<<error->message, "IGNO");
 
-		if (error && error->resource)
-			LogError("Resource: "<<error->resource);
+			if (error->resource)
+				LogDError("Resource: "<<error->resource, "IGNO");
 
-		if (error && error->furtherDetails)
-			LogError("Further Details: "<<error->furtherDetails);
+			if (error->furtherDetails)
+				LogDError("Further Details: "<<error->furtherDetails, "IGNO");
 
-		if (error && error->extraDetailsCount) {
-			LogError("Extra Details:");
-			int i;
-			for (i = 0; i < error->extraDetailsCount; i++)
-				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
+			if (error->extraDetailsCount) {
+				LogDError("Extra Details:", "IGNO");
+				int i;
+				for (i = 0; i < error->extraDetailsCount; i++)
+					LogDError(error->extraDetails[i].name << ": " << error->extraDetails[i].value, "IGNO");
+			}
 		}
 	}
 
