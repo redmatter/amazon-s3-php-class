@@ -164,6 +164,10 @@ public:
 
 						is.read(&buf[0], buf_length);
 						buf_length = is.gcount();
+
+						if(!buf_length)
+							throw std::ios::failure("compress : Reading from input stream failed");
+
 						boost::iostreams::write(filters, &buf[0], buf_length);
 
 						copied_length += buf_length;
@@ -274,7 +278,7 @@ public:
 				if(content_length > 0) {
 					size_t copied_length = 0;
 					while(!ostr_failure && (copied_length < content_length)) {
-DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
+						DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 						size_t buf_length = std::min<size_t>(content_length - copied_length, 8196);
 						std::string buf;
 						buf.reserve(buf_length);
@@ -282,13 +286,15 @@ DevDebug("copied_length:"<<copied_length<<" < content_length:"<<content_length);
 						is.read(&buf[0], buf_length);
 						buf_length = is.gcount();
 
+						if(!buf_length)
+							throw std::ios::failure("decompress : Reading from input stream failed");
+
 						boost::iostreams::write(filters, &buf[0], buf_length);
 
 						copied_length += buf_length;
 					}
 				}
 				else {
-DevDebug("boost::iostreams::copy");
 					/*std::streamsize copied = */boost::iostreams::copy(
 							internal::safe_istream_source(is, istr_failure), filters);
 				}
