@@ -22,8 +22,10 @@ disk_free_space_KB()
 
 disk_is_free_enough()
 {
-	[ "$( disk_free_space_KB $(get_conf $prog_configpath archived.cache_dir 0 /var/lib/archiving/cache) )" -gt 500000 ] &&
-		[ "$( disk_free_space_KB $(get_conf $prog_configpath distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache ) )" -gt 500000 ]
+	[ "$( disk_free_space_KB $(get_conf $prog_configpath archived.cache_dir 0 /var/lib/archiving/cache) )" -gt \
+			"$(get_conf $prog_configpath archived.cache_dir.min_free_space_KB 0 500000)" ] && \
+	[ "$( disk_free_space_KB $(get_conf $prog_configpath distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache ) )" -gt \
+			"$(get_conf $prog_configpath distiller_client.base_dir.min_free_space_KB 0 500000)" ]
 }
 
 disk_watch_dog()
@@ -34,7 +36,7 @@ disk_watch_dog()
 			_log err "Insufficient disk space"
 			/sbin/service rmarchived stop
 		fi
-		sleep 0.5;
+		sleep 1;
 	done
 }
 
