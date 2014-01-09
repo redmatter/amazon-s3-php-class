@@ -104,6 +104,9 @@ struct safe_istream_source
 		std::streamsize ret(0);
 		try
 		{
+			if (is.eof())
+				return -1;
+
 			ret = is.readsome(s, n);
 		}
 		catch(...) {
