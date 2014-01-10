@@ -120,7 +120,7 @@ struct safe_istream_source
 		if (failure)
 			throw std::ios::failure("Reading from stream failed");
 
-		return n;
+		return ret;
 	}
 
 private:
