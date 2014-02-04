@@ -9,6 +9,7 @@
 #define RETENTION_PURGE_HPP_
 
 #include "../common/archivable.hpp"
+#include "../common/types.hpp"
 #include "retention_record.hpp"
 #include "storage_endpoint.hpp"
 
@@ -17,6 +18,9 @@
 #include <boost/program_options.hpp>
 
 #include <list>
+#include <sstream>
+#include <iostream>
+#include <string>
 
 namespace app {
 
@@ -34,6 +38,7 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.auto_expiring_filetypes", boost::program_options::value<std::string>()->default_value("cdr"), "factor in endpoint's (S3 only at the moment) auto-expiration capability")
 			("retention_purge.enabled_orgs", boost::program_options::value<std::string>()->default_value(""), "purge enabled orgs")
+			("retention_purge.enabled_filetypes", boost::program_options::value<std::string>()->default_value(""), "purge enabled filetypes")
 			;
 }
 
@@ -44,6 +49,39 @@ inline std::string& get_retention_purge_restrictions(const boost::program_option
 	if(where.empty()) {
 		if(confMap.empty())
 			throw rml::exception("confMap empty when initialising!");
+
+		std::string where_enabled_filetypes;
+		{
+			const std::string& config(confMap["retention_purge.enabled_filetypes"].as<std::string>());
+			if(config.empty()) {
+				where = "AND 1 = 0 /* retention_purge.enabled_filetypes is empty */";
+				return where;
+			}
+
+			if(config != "all") {
+				std::vector<archiving::file_type::file_type_t> conf_types;
+				std::ostringstream conf_ostr;
+				{
+					std::string tok;
+					std::istringstream istr(config);
+					while (std::getline(istr, tok, ','))
+						if (!tok.empty())
+							conf_types.push_back(archiving::file_type::from_string(tok));
+
+					const std::vector<archiving::file_type::file_type_t>::const_iterator& begin(conf_types.begin());
+					const std::vector<archiving::file_type::file_type_t>::const_iterator& end(conf_types.end());
+					for (std::vector<archiving::file_type::file_type_t>::const_iterator itr=begin; itr != end; ++itr)
+						conf_ostr << ((itr == begin)? ' ': ',') << (int)*itr;
+				}
+
+				if(conf_types.size() == 1)
+					// not a list
+					where_enabled_filetypes = "`r`.`Type` = "+conf_ostr.str();
+				else
+					// a list of file-types
+					where_enabled_filetypes = "`r`.`Type` IN ( "+conf_ostr.str()+" )";
+			}
+		}
 
 		std::string where_enabled_orgs;
 		{
@@ -58,7 +96,7 @@ inline std::string& get_retention_purge_restrictions(const boost::program_option
 					// not a list
 					where_enabled_orgs = "`r`.`OrgID` = "+enabled_orgs;
 				else
-					// a list or orgs
+					// a list of org ids
 					where_enabled_orgs = "`r`.`OrgID` IN ( "+enabled_orgs+" )";
 			}
 		}
@@ -94,6 +132,8 @@ inline std::string& get_retention_purge_restrictions(const boost::program_option
 			}
 		}
 
+		if(!where_enabled_filetypes.empty())
+			where += " AND "+where_enabled_filetypes;
 		if(!where_enabled_orgs.empty())
 			where += " AND "+where_enabled_orgs;
 		if(!where_creation_date_range.empty())

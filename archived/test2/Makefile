@@ -12,4 +12,14 @@ LIBS_test_boost_iostreams_bz2_decompress_hang = \
 	-lboost_iostreams \
 	-lcryptopp
 
+CPPFLAGS_test_purge_by_filetype_selection = \
+	-DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1 \
+
+LIBS_test_purge_by_filetype_selection = \
+	../../common/libarchiving_common.a \
+	-lboost_system \
+	-lboost_iostreams \
+	-lcryptopp \
+	-lrml
+
 include /usr/share/librml/Makefile.gtest
