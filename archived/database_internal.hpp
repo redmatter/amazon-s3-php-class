@@ -740,7 +740,7 @@ public:
 					// here we need to delete by the identifier triplet!
 					mysqlpp::SQLQueryParms qp;
 					mysqlpp::Query query = conn->query();
-
+LogDebug(" >>>>>>>>>>>>>>>>>>>>>> Delete by identifier: "<<identifier);
 					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `OrgID`=%1:OrgID AND `FileType`=%2:FileType AND `UUID`=UNHEX(REPLACE(%3q:UUID, '-', ''))";
 					qp << identifier.org << identifier.filetype << identifier.uuid;
 

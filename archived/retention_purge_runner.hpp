@@ -361,7 +361,7 @@ public:
 
 		static uint64_t loaded_max_id(0);
 
-		if (!require_approval && !(loaded_max_id < max_id)) {
+		if(!require_approval && !(loaded_max_id < max_id)) {
 			LogMessage("Approval not required and we have finished reloading");
 			return false;
 		}
@@ -371,20 +371,29 @@ public:
 						boost::format("`HostName`='%1%' AND (`OrgID` %% @@auto_increment_increment) = (@@auto_increment_offset %% @@auto_increment_increment)")
 						% app::hostname));
 
-		if(loaded_max_id < max_id)
-			where += boost::str(
-					boost::format(" AND %6% ( ID < %1% AND ID > %2% "
-							"AND State NOT IN ( "
-							" %3% /* init_error */, %4% /* approve */, %5% /* approve_error */ "
-							") ) ")
-					% max_id % loaded_max_id
-					% state::init_error % state::approve % state::approve_error
-					% (require_approval? '(': ' '));
+		if(loaded_max_id < max_id) {
+			if(require_approval) {
+				where += boost::str(
+						boost::format(" AND ( ( ID < %1% AND ID > %2% "
+								"AND State NOT IN ( "
+								" %3% /* init_error */, %4% /* approve */, %5% /* approve_ok */, %6% /* approve_error */ "
+								") ) ")
+						% max_id % loaded_max_id
+						% state::init_error % state::approve % state::approve_ok % state::approve_error);
+			}
+			else {
+				where += boost::str(
+						boost::format(" AND ( ID < %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
+						% max_id % loaded_max_id % state::init_error);
+			}
+		}
 
-		if(require_approval)
-			where += boost::str(
-					boost::format(" %1% `State`=%2% /* approve_ok */ %3%")
-					% ((loaded_max_id < max_id)? " OR ": " AND ") % state::approve_ok % ((loaded_max_id < max_id)? ')': ' '));
+		if(require_approval) {
+			if(loaded_max_id < max_id)
+				where += boost::str(boost::format(" OR `State`=%1% /* approve_ok */ )") % state::approve_ok);
+			else
+				where += boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok);
+		}
 
 		const int& limit(get_limit());
 		if(limit <= 0)
