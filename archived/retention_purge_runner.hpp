@@ -389,7 +389,7 @@ public:
 
 		const int& limit(get_limit());
 		if(limit <= 0)
-			return true;
+			return require_approval || (loaded_max_id >= max_id);
 
 		item::list_t loaded_items;
 
@@ -410,7 +410,7 @@ public:
 
 		// if none found, we need to continue only if require_approval == true
 		if(loaded_items.empty())
-			return require_approval;
+			return require_approval || (loaded_max_id >= max_id);
 
 		for(item::list_t::const_iterator itr = loaded_items.begin(); itr != loaded_items.end(); ++itr) {
 			const uint64_t& id((*itr)->id);
@@ -428,15 +428,15 @@ public:
 				move_forward(*itr);
 		}
 
-		return true;
+		return require_approval || (loaded_max_id >= max_id);
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
-		return true;
+		return false;
 	}
 	catch(...) {
 		LogWarning("Exception: Unknown or Unexpected");
-		return true;
+		return false;
 	}
 
 	inline bool is_auto_expiring(const archiving::archivable::identifier& i) const
