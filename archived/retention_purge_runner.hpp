@@ -373,9 +373,9 @@ public:
 
 		if(loaded_max_id < max_id)
 			where += boost::str(
-					boost::format(" AND %7% ( ID < %1% AND ID > %2% "
+					boost::format(" AND %6% ( ID < %1% AND ID > %2% "
 							"AND State NOT IN ( "
-							" %3% /* init_error */, %4% /* approve */, %6% /* approve_error */ "
+							" %3% /* init_error */, %4% /* approve */, %5% /* approve_error */ "
 							") ) ")
 					% max_id % loaded_max_id
 					% state::init_error % state::approve % state::approve_error
