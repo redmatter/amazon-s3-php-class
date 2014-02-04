@@ -521,7 +521,7 @@ public:
 
 		// if we need no approval; skip this stage
 		if(state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
-			p_item->cur_state = state::make(state::next_up(p_item->cur_state), true);
+			p_item->cur_state = state::next_up(p_item->cur_state, /* force = */true);
 
 		switch(state::get_coarse(p_item->cur_state)) {
 

@@ -298,7 +298,7 @@ struct state
 		return ok == get_outcome(state);
 	}
 
-	static inline state_t next_up(const state_t& state)
+	static inline state_t next_up(const state_t& state, const bool force = false)
 	{
 		if (state == invalid)
 			throw rml::exception("next_up NOT possible from 'invalid' state");
@@ -306,7 +306,7 @@ struct state
 		if (state == finished)
 			throw rml::exception("next_up NOT possible from 'finished' state");
 
-		if(!is_outcome_ok(state))
+		if(!force && !is_outcome_ok(state))
 			throw rml::exception("next_up NOT possible if outcome != ok");
 
 		if(state == delete_retention_ok)
