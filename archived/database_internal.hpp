@@ -742,7 +742,7 @@ public:
 					mysqlpp::Query query = conn->query();
 LogDebug(" >>>>>>>>>>>>>>>>>>>>>> Delete by identifier: "<<identifier);
 					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `OrgID`=%1:OrgID AND `FileType`=%2:FileType AND `UUID`=UNHEX(REPLACE(%3q:UUID, '-', ''))";
-					qp << identifier.org << identifier.filetype << identifier.uuid;
+					qp << identifier.org << (int)(identifier.filetype) << identifier.uuid;
 
 					query.parse();
 					__SQL_DEBUG(query.str(qp));
