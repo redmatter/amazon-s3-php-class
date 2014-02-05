@@ -738,16 +738,12 @@ public:
 
 					// we do not have the id updated in the object after save()
 					// here we need to delete by the identifier triplet!
-					mysqlpp::SQLQueryParms qp;
 					mysqlpp::Query query = conn->query();
 LogDebug(" >>>>>>>>>>>>>>>>>>>>>> Delete by identifier: "<<identifier);
-					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `OrgID`=%1:OrgID AND `FileType`=%2:FileType AND `UUID`=UNHEX(REPLACE(%3q:UUID, '-', ''))";
-					qp << identifier.org << (int)(identifier.filetype) << identifier.uuid;
-
-					query.parse();
-					__SQL_DEBUG(query.str(qp));
-
-					query.execute(qp);
+					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue`"
+							" WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=UNHEX(REPLACE( '"<< identifier.uuid <<"' , '-', ''))";
+					__SQL_DEBUG(query.str());
+					query.execute();
 				}
 			}
 			query << " )";
