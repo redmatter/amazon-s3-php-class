@@ -523,10 +523,13 @@ public:
 
 			if(!enabled_orgs.empty()) {
 
+				bool very_few_orgs_enabled(false);
 				std::string where_enabled_orgs;
 				{
 					if(enabled_orgs != "all") {
-						if(std::string::npos == enabled_orgs.find(','))
+						const size_t& commas_count(std::count(enabled_orgs.begin(), enabled_orgs.end(), ','));
+						very_few_orgs_enabled = (commas_count < 15);
+						if(commas_count == 0)
 							// not a list
 							where_enabled_orgs = " AND `OrgID` = "+enabled_orgs;
 						else
@@ -542,7 +545,7 @@ public:
 
 				mysqlpp::Query query = conn->query();
 				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
-							"LastRunTime < DATE_ADD(NOW(), INTERVAL -1 HOUR) LastRunMoreThanOneHourAgo "
+							"LastRunTime < DATE_SUB(NOW(), INTERVAL "<<(very_few_orgs_enabled? 20: 60)<<" MINUTE) LastRunMoreThan__MinutesAgo "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 						"WHERE (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "<<where_enabled_orgs<<" "
 						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
@@ -552,8 +555,10 @@ public:
 					const unsigned long long OrgID(rml::utils::strtoull(row[0].c_str()));
 					const unsigned long long MaxRetentionID(rml::utils::strtoull(row[1].c_str()));
 					const bool LastResetMoreThanOneDayAgo(row[2]=="1");
-					const bool LastRunMoreThanOneHourAgo(row[3]=="1");
-					if(LastRunMoreThanOneHourAgo) {
+					const bool LastRunMoreThan__MinutesAgo(row[3]=="1");
+					// If we loaded more than XX minutes ago, we need to load further for the Org
+					// only if it has not already been reset to zero within the past one day
+					if(LastRunMoreThan__MinutesAgo) {
 						if(!MaxRetentionID && !LastResetMoreThanOneDayAgo)
 							continue;
 
@@ -738,8 +743,10 @@ public:
 
 					// we do not have the id updated in the object after save()
 					// here we need to delete by the identifier triplet!
+					// this is more likely to happen if automatic purge is in progress.
+					// this is not so bad as we are within a transaction (thats the theory at least)
+					// todo(dino.korah) how to reload the ID after save
 					mysqlpp::Query query = conn->query();
-LogDebug(" >>>>>>>>>>>>>>>>>>>>>> Delete by identifier: "<<identifier);
 					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue`"
 							" WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=UNHEX(REPLACE( '"<< identifier.uuid <<"' , '-', ''))";
 					__SQL_DEBUG(query.str());
@@ -748,6 +755,7 @@ LogDebug(" >>>>>>>>>>>>>>>>>>>>>> Delete by identifier: "<<identifier);
 			}
 			query << " )";
 
+			// if we encountered any ID, we can use the more optimised SQL
 			if(!list_first) {
 				__SQL_DEBUG(query.str());
 				query.execute();
