@@ -28,6 +28,7 @@
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
+#include <rml/hapi.hpp>
 #include <rml/config.h>
 #include <rml/siginit.h>
 #include <rml/daemon.h>
@@ -177,6 +178,8 @@ int main(int argc, char *argv[]) try
 
 	// default initialization to catch any initialization error
 	rml::logger::configure();
+
+	rml::hapi::host_cache::initialise();
 
 	{
 		boost::program_options::variables_map cli_confMap;
