@@ -14,7 +14,7 @@ BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
 Requires: boost >= 1.49.0-24737
-Requires: mysql++ >= 3.1.0-14089
+Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -22,7 +22,7 @@ Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-22215
 BuildRequires: boost-devel >= 1.49.0-24737
-BuildRequires: mysql++-devel >= 3.1.0-14089
+BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: RM-librml-devel >= 0.0.1-26456
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
@@ -36,7 +36,7 @@ BuildRequires: threadpool
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
-Requires: mysql++ >= 3.1.0-14089
+Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-22215
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -48,7 +48,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
-Requires: mysql++ >= 3.1.0-14089
+Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-22215
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -60,7 +60,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
 # Requires: boost >= 1.49.0-24737
-# Requires: mysql++ >= 3.1.0-14089
+# Requires: mysql++ >= 3.1.0-29693
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
