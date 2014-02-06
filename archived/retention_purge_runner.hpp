@@ -383,7 +383,7 @@ public:
 			}
 			else {
 				where += boost::str(
-						boost::format(" AND ( ID < %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
+						boost::format(" AND ( ID <= %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
 						% max_id % loaded_max_id % state::init_error);
 			}
 		}
