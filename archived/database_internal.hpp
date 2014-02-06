@@ -747,8 +747,12 @@ public:
 					// this is not so bad as we are within a transaction (thats the theory at least)
 					// todo(dino.korah) how to reload the ID after save
 					mysqlpp::Query query = conn->query();
+
+					std::string uuid_hex(identifier.uuid);
+					boost::algorithm::erase_all(uuid_hex, "-");
+
 					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue`"
-							" WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=UNHEX(REPLACE( '"<< identifier.uuid <<"' , '-', ''))";
+							" WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=0x"<<uuid_hex<<" /* "<< identifier.uuid <<" */";
 					__SQL_DEBUG(query.str());
 					query.execute();
 				}

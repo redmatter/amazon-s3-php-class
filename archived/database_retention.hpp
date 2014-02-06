@@ -593,12 +593,18 @@ public:
 						const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
 						const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
 
+						std::string uuid_hex(itr->uuid);
+						boost::algorithm::erase_all(uuid_hex, "-");
+
 						query << ((itr != batch_range.first)? ',': '\n')
 								<<"( "
-								<<"UNHEX(REPLACE( '"<<itr->uuid<<"', '-', '' )), ";
+								<<"0x"<<uuid_hex<<" /* "<<itr->uuid<<" */, ";
 
-						if(!itr->leg_uuid.empty())
-							query << "UNHEX(REPLACE( '"<<itr->leg_uuid<<"', '-', '' )), ";
+						if(!itr->leg_uuid.empty()) {
+							std::string uuid_hex(itr->leg_uuid);
+							boost::algorithm::erase_all(uuid_hex, "-");
+							query << "0x"<<uuid_hex<<" /* "<<itr->leg_uuid<<" */, ";
+						}
 						else
 							query << "NULL, ";
 

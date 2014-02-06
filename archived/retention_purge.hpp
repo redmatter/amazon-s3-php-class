@@ -16,6 +16,7 @@
 #include <mysql++/mysql++.h>
 
 #include <boost/program_options.hpp>
+#include <boost/algorithm/string/erase.hpp>
 
 #include <list>
 #include <sstream>
@@ -578,12 +579,15 @@ struct item
 
 	static inline void save_db(const pointer& p, mysqlpp::Query& query, mysqlpp::SQLQueryParms& qp, const std::string& hostname)
 	{
+		std::string uuid_hex(p->identifier.uuid);
+		boost::algorithm::erase_all(uuid_hex, "-");
+
 		query << "\n("
 				<< static_cast<int>(p->cur_state)<<','
 
 				<< static_cast<int>(p->identifier.filetype)<<", "
 				<< static_cast<int64_t>(p->identifier.org)<<", "
-				<< "UNHEX(REPLACE( '"<<p->identifier.uuid<<"', '-', '' )), "
+				<< "0x"<<uuid_hex<<" /* "<<p->identifier.uuid<<" */, "
 
 				<< static_cast<int64_t>(p->retention->endpoint_id)<<", "
 
