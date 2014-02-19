@@ -136,7 +136,7 @@ mkdir -p %{buildroot}/etc/archiving/conf.d/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
-mkdir -p %{buildroot}/usr/share/archiving
+mkdir -p %{buildroot}/usr/share/archiving/bin
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
@@ -165,6 +165,7 @@ cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
 cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp collectd/sqlite.conf %{buildroot}/etc/archiving/conf.d/sqlite.conf
 cp collectd/collectd.db3 %{buildroot}/usr/share/archiving/blank_collectd.db3
+cp external/sqlite/bin/sqlite3 %{buildroot}/usr/share/archiving/bin/sqlite3
 
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
@@ -377,6 +378,7 @@ fi
 /etc/rsyslog.d/11-rmcollectd.conf
 /etc/archiving/conf.d/sqlite.conf
 /usr/share/archiving/blank_collectd.db3
+/usr/share/archiving/bin/sqlite3
 
 %files collect-smsd
 %defattr(-,root,root)
