@@ -5,10 +5,8 @@ MYSQL_USER=archiving
 CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
 CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
-CONFIG_ARCHIVED=/etc/archiving/rmarchived.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
-CONFIG_STORAGEGATEWAY=/etc/archiving/gateway.d/gateway.conf
 
 function Die
 {
@@ -87,14 +85,6 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.password $MYSQL_PW
 fi
 
-if [ -f $CONFIG_ARCHIVED ]; then
-	ChangeConfig $CONFIG_ARCHIVED coreapi.url "http://api.${SEARCHDOMAIN}/"
-	ChangeConfig $CONFIG_ARCHIVED distiller_client.server_host "cdrmunch.${SEARCHDOMAIN}"
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED log.level 6
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_ARCHIVED app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
-fi
-
 if [ -f $CONFIG_COLLECTD ]; then
 	ChangeConfig $CONFIG_COLLECTD archived_client.server_host "archived.${SEARCHDOMAIN}"
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
@@ -111,10 +101,6 @@ if [ -f $CONFIG_COLLECTSMSD ]; then
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
 	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
-fi
-
-if [ -f $CONFIG_STORAGEGATEWAY ]; then
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_STORAGEGATEWAY log.level 6
 fi
 
 exit 0
