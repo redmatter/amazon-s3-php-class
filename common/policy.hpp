@@ -208,9 +208,29 @@ struct policy
 	const retention_period max_retention;
 
 	const archiving::endpoint_id_t endpoint_id;
-	
-	const bool allow_unrestricted_access;
-	const bool disallow_recording_download;
+
+private:
+	const bool allow_unrestricted_access_;
+	const bool disallow_recording_download_;
+
+	const bool is_acl_type_default;
+
+public:
+	const bool allow_unrestricted_access()
+	{
+		if(is_acl_type_default)
+			return allow_unrestricted_access_;
+
+		return true;
+	}
+
+	const bool disallow_recording_download()
+	{
+		if(is_acl_type_default)
+			return disallow_recording_download_;
+
+		return true;
+	}
 
 	typedef boost::shared_ptr< policy > pointer;
 
@@ -219,13 +239,14 @@ struct policy
 			const retention_period::period_type& min_retention_period, const retention_units::retention_units_t& min_retention_unit,
 			const retention_period::period_type& max_retention_period, const retention_units::retention_units_t& max_retention_unit,
 			const archiving::endpoint_id_t& endpoint_id,
-			const bool& allow_unrestricted_access, const bool& disallow_recording_download) :
+			const bool& allow_unrestricted_access, const bool& disallow_recording_download, const bool& is_acl_type_default) :
 				id(id), version(version), type(type),
 				min_retention(min_retention_period, min_retention_unit),
 				max_retention(max_retention_period, max_retention_unit),
 				endpoint_id(endpoint_id),
-				allow_unrestricted_access(allow_unrestricted_access),
-				disallow_recording_download(disallow_recording_download)
+				allow_unrestricted_access_(allow_unrestricted_access),
+				disallow_recording_download_(disallow_recording_download),
+				is_acl_type_default(is_acl_type_default)
 	{
 		//ctor
 	}
@@ -266,6 +287,9 @@ struct policy
 	    const bool allow_unrestricted_access ( 0 == strcmp("yes", policy_node.select_single_node("AllowUnrestrictedAccess/text()").node().value()) );
 	    const bool disallow_recording_download ( 0 == strcmp("yes", policy_node.select_single_node("DisallowRecordingDownload/text()").node().value()) );
 
+	    // XXX TODO Ugly fudge to get around the new Salesforce.com ACL type. Revisit this when we do refactoring
+	    const bool is_acl_type_default ( 0 == strcmp("Default", policy_node.select_single_node("ACLType/text()").node().value()) );
+
 	    // assign 0 if no endpoint-id set
 	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
 
@@ -275,7 +299,8 @@ struct policy
 				rml::utils::strtoull(max_retention_period_str), retention_units::from_string(max_retention_period_unit_str),
 				endpoint_id,
 				allow_unrestricted_access,
-				disallow_recording_download));
+				disallow_recording_download,
+				is_acl_type_default));
 	}
 	catch(const std::exception& e) {
 		LogCritical("Exception: "<<e.what());

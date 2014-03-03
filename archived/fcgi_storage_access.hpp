@@ -166,7 +166,7 @@ public:
 		}
 		else {
 			// it could be an unrestricted access; lets check the policy
-			if(!policy->allow_unrestricted_access)
+			if(!policy->allow_unrestricted_access())
 				throw rml::fcgi::http_exception(401, "Authorization not given");
 
 			LogMessage(this_op<<"allowing policy based unrestricted access; policy:"<<retention->policy_id);
@@ -202,7 +202,7 @@ public:
 			detail->target_file_format = target_file_format;
 			/*
 			// implemented in API using a lame based stream filter... dont need this anymore
-			if (policy->disallow_recording_download && (detail->target_file_format == types::file_format::clear_wav))
+			if (policy->disallow_recording_download() && (detail->target_file_format == types::file_format::clear_wav))
 				detail->target_file_format = types::file_format::clear_mp3;
 			*/
 

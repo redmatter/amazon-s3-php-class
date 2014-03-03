@@ -13,6 +13,7 @@ DEFAULT_APP_LONG_NAME=ArchiveD Monitor
 CPPFLAGS += -DDEFAULT_APP_LONG_NAME='"$(DEFAULT_APP_LONG_NAME)"'
 
 LIBS += \
+	-lboost_system$(BOOST_NAME_EXT) \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lrt \
 
