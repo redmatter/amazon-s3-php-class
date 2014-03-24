@@ -584,6 +584,7 @@ public:
 
 									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
+									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
 
 									if(!recording_location.empty()) {
 										try {
@@ -608,7 +609,10 @@ public:
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
-											if(recording_policy == policy::pseudo_id::do_not_archive || (recording_send_email && (0 < strlen(recording_send_email_to_recips))))
+											if(recording_policy == policy::pseudo_id::do_not_archive ||
+													(recording_send_email &&
+															((recording_send_email_to_recips && 0 < strlen(recording_send_email_to_recips)) ||
+																	(recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips)))))
 												archivable_recording->set_add_to_cdrmunch_cache(true);
 
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
