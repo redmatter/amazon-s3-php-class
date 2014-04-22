@@ -18,7 +18,7 @@ function ChangeConfig
 {
 	CFG=$1
 	KEY=$2
-	VAL=(echo "$3" | sed -e 's/[\/&]/\\&/g')
+	VAL=$(echo "$3" | sed -e 's/[\/&]/\\&/g')
 
 	if `egrep "^${PKG}\$" /etc/RedMatterCfgExclude &> /dev/null`; then
 		return
