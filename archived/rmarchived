@@ -46,7 +46,7 @@ callback_before_startup()
 		_log err "Insufficient disk space"
 		return 1;
 	fi
-	disk_watch_dog &
+	disk_watch_dog &>/dev/null </dev/null &
 	/usr/bin/rmarchived-hAPI
 }
 
