@@ -266,10 +266,9 @@ public:
 			size_t content_length = fs->get_size();
 
 			FCGX_FPrintF(p_request->fcgi_req.out, "Status: 200 OK\r\n"
-					"Pragma: public\r\n"
+					"Pragma: no-cache\r\n"
 					"Expires: 0\r\n"
-					"Cache-Control: must-revalidate, post-check=0, pre-check=0\r\n"
-					"Cache-Control: private\r\n"
+					"Cache-Control: no-store, no-cache, private, must-revalidate, post-check=0, pre-check=0\r\n"
 					"Content-Type: application/octet-stream\r\n"
 					"Content-Disposition: attachment; filename=\"%s.%s\";\r\n"
 					"Content-Transfer-Encoding: binary\r\n"
