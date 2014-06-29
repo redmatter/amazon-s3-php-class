@@ -35,11 +35,47 @@ struct retention_record
 	applied_policy::ymd_t retention_max_date;
 	time_t midnight_offset;
 	bool purged;
-	bool expired;
 	archiving::endpoint_id_t endpoint_id;
 	uint64_t id;
 	
 	typedef boost::shared_ptr<retention_record> pointer;
+	typedef boost::function< bool (const retention_record&) > fn_is_expired_t;
+
+	/**
+	 * Verify that the item is purged according to the latest policy retention rules
+	 * It is similar to is_purgeable() but **fail closes**!
+	 *
+	 * @param policy_finder
+	 * @param p_retention
+	 * @return
+	 */
+	static bool is_expired(const policy::cached_finder_t& policy_finder, const pointer& p_retention) try
+	{
+		if(!p_retention)
+			return true;
+
+		std::pair< archiving::org_id_t, policy::id_type > lookup = std::make_pair(p_retention->identifier.org, p_retention->policy_id);
+		policy::pointer p_policy = policy_finder(lookup);
+		if(!p_policy) {
+			policy_finder.forget(lookup);
+			return true;
+		}
+
+		static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+
+		// TODO look into any need for optimising this by using a memorizer for date calculations
+		// We could benefit because of we normally purge in the date order.
+		// We need to profile it to make this decision
+		return boost::posix_time::second_clock::universal_time() > applied_policy(p_policy,
+				(boost::posix_time::ptime(boost::gregorian::date(
+						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day)) - epoch)
+								.total_seconds() + p_retention->midnight_offset).get_min_retention();
+	}
+	catch(const std::exception& e) {
+		LogWarning("Exception: "<<e.what());
+		return true;
+	}
+
 
 	/**
 	 * Verify that the item is purgable according to the **LATEST** version
@@ -72,7 +108,7 @@ struct retention_record
 		// We need to profile it to make this decision
 		return boost::posix_time::second_clock::universal_time() > applied_policy(p_policy,
 				(boost::posix_time::ptime(boost::gregorian::date(
-						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day))- epoch)
+						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day)) - epoch)
 								.total_seconds() + p_retention->midnight_offset).get_min_retention();
 	}
 	catch(const std::exception& e) {
@@ -88,7 +124,7 @@ struct retention_record
 				<<r.creation_date.year<<'-'<<r.creation_date.month<<'-'<<r.creation_date.day<<','
 				<<r.retention_min_date.year<<'-'<<r.retention_min_date.month<<'-'<<r.retention_min_date.day<<','
 				<<r.retention_max_date.year<<'-'<<r.retention_max_date.month<<'-'<<r.retention_max_date.day<<','
-				<<r.midnight_offset<<','<<RML_YES_NO(r.purged)<<','<<RML_YES_NO(r.expired)<<','<<r.endpoint_id<<'}';
+				<<r.midnight_offset<<','<<RML_YES_NO(r.purged)<<','<<r.endpoint_id<<'}';
 	}
 
 	retention_record() :
@@ -102,7 +138,6 @@ struct retention_record
 		retention_max_date(1970,1,1),
 		midnight_offset(0),
 		purged(false),
-		expired(false),
 		endpoint_id(0),
 		id(0)
 	{
@@ -120,7 +155,6 @@ struct retention_record
 			const applied_policy::ymd_t& retention_max_date,
 			const time_t& midnight_offset,
 			const bool& purged,
-			const bool& expired,
 			const archiving::endpoint_id_t& endpoint_id,
 			const uint64_t& id
 			) :
@@ -134,7 +168,6 @@ struct retention_record
 				retention_max_date(retention_max_date),
 				midnight_offset(midnight_offset),
 				purged(purged),
-				expired(expired),
 				endpoint_id(endpoint_id),
 				id(id)
 	{

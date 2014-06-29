@@ -32,6 +32,7 @@ namespace fcgi {
 class storage_access_handler : public rml::fcgi::request::handler
 {
 	const retention_record::cached_finder_t& retention_record_cached_finder_;
+	const retention_record::fn_is_expired_t& retention_record_is_expired_;
 	const policy::cached_finder_t& cached_policy_finder_;
 	const coreapi_user::cached_finder_t& coreapi_user_finder_;
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
@@ -58,6 +59,7 @@ public:
 
 	explicit storage_access_handler(
 			const retention_record::cached_finder_t& retention_record_cached_finder,
+			const retention_record::fn_is_expired_t& retention_record_is_expired,
 			const policy::cached_finder_t& cached_policy_finder,
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
@@ -66,6 +68,7 @@ public:
 			rml::fcgi::request::handler(p_request, routed_path),
 
 			retention_record_cached_finder_(retention_record_cached_finder),
+			retention_record_is_expired_(retention_record_is_expired),
 			cached_policy_finder_(cached_policy_finder),
 			coreapi_user_finder_(coreapi_user_finder),
 			storage_endpoint_finder_(storage_endpoint_finder),
@@ -173,7 +176,7 @@ public:
 			user_org_id = retention->identifier.org;
 		}
 
-		if(retention->purged || retention->expired) {
+		if(retention->purged || retention_record_is_expired_(*retention)) {
 			Debug(this_op<<(retention->purged? "object found purged": "object found expired"));
 			throw rml::fcgi::http_exception(410, "object found purged" /*shush... till we purge; no matter what!*/);
 		}

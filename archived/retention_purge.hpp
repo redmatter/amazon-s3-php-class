@@ -170,6 +170,7 @@ struct state
 		interrupted  = 0x03
 	};
 
+	// XXX keep this enum in sync with Toolbox and archiving/scripts
 	enum state_t
 	{
 		invalid                = _invalid_,

@@ -547,7 +547,7 @@ public:
 				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
 							"LastRunTime < DATE_SUB(NOW(), INTERVAL "<<(very_few_orgs_enabled? 20: 60)<<" MINUTE) LastRunMoreThan__MinutesAgo "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
-						"WHERE (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "<<where_enabled_orgs<<" "
+						"WHERE ( `OrgID` % 47 ) % 2 + 1 = @@auto_increment_offset "<<where_enabled_orgs<<" "
 						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
 				__SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
@@ -595,7 +595,7 @@ public:
 				query << "SELECT COUNT(*) QSize, @@auto_increment_increment FROM ( "
 						"    SELECT 1 FROM ArchiveDPurgeQueue "
 						"        WHERE HostName=%0q:HostName "
-						"            AND (`OrgID` % @@auto_increment_increment) = (@@auto_increment_offset % @@auto_increment_increment) "
+						"            AND ( `OrgID` % 47 ) % 2 + 1 = @@auto_increment_offset "
 						"        LIMIT %1:MinQueueSizePlusOne ) x";
 				query.parse();
 

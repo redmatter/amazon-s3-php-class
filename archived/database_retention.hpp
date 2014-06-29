@@ -417,34 +417,18 @@ public:
 		try {
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 
-			static unsigned int auto_increment_offset(0);
-			static unsigned int auto_increment_increment(0);
-			if(!auto_increment_increment) {
-				mysqlpp::Query query = conn->query();
-				query << "SELECT @@auto_increment_offset, @@auto_increment_increment";
-
-				__SQL_DEBUG(query.str());
-
-				mysqlpp::UseQueryResult res = query.use();
-				while (mysqlpp::Row row = res.fetch_row()) { // only once
-					auto_increment_increment = rml::utils::strtoull(row[1].c_str(), 0ULL);
-					auto_increment_offset = rml::utils::strtoull(row[0].c_str(), 0ULL) % auto_increment_increment;
-				}
-
-				if(!auto_increment_increment)
-					throw rml::exception("Failed to figure out auto_increment_XXX");
-			}
-
 			mysqlpp::Query query = conn->query();
-			query << "SELECT TABLE_NAME FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template'";
+			query << "SELECT OrgID FROM ("
+					" SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template'"
+					") X WHERE ( X.OrgID % 47 ) % 2 + 1 = @@auto_increment_offset";
 
 			__SQL_DEBUG(query.str());
 
 			mysqlpp::UseQueryResult res = query.use();
 			while (mysqlpp::Row row = res.fetch_row()) {
-				const archiving::org_id_t org(rml::utils::strtoull(row[0].c_str() + 10));
-				if ((org % auto_increment_increment) == auto_increment_offset)
-					ret->set.insert(types::purge_def::org_def(org));
+				const archiving::org_id_t org(rml::utils::strtoull(row[0].c_str()));
+				ret->set.insert(
+						types::purge_def::org_def(org));
 			}
 		}
 		catch(const mysqlpp::Exception& e) {

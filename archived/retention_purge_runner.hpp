@@ -12,6 +12,7 @@
 #include "retention_record.hpp"
 #include "state_reactor.hpp"
 #include "retention_purge.hpp"
+#include "org_policy_versions.hpp"
 #include "./database_retention.hpp"
 #include "./database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
@@ -54,6 +55,10 @@ namespace app {
 
 namespace retention_purge {
 
+class policy_version_not_latest_exception : rml::exception
+{
+};
+
 /**
  * Retention policy based purge
  * Here we identify the purge set and feed them through the purge statemachine backed
@@ -65,6 +70,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 	const policy::cached_finder_t& cached_policy_finder_;
+	const org_policy_versions::cached_finder_t& org_policy_versions_finder_;
 	coreapi& api_;
 
 	state_reactor<>& reactor_;
@@ -120,10 +126,12 @@ public:
 			const boost::program_options::variables_map& confMap,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
 			const policy::cached_finder_t& cached_policy_finder,
+			const org_policy_versions::cached_finder_t& org_policy_versions_finder,
 			coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
-				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder), api_(api), reactor_(reactor),
+				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
+				org_policy_versions_finder_(org_policy_versions_finder), api_(api), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
@@ -162,7 +170,7 @@ public:
 			} \
 		}
 
-		// stop intermediately and setup save for al except the finished channel
+		// stop intermediately and setup save for all except the finished channel
 		ConsumeAllAndSave(item_save_channel_)
 		ConsumeAllAndSave(delete_file_channel_)
 		ConsumeAllAndSave(delete_usage_channel_)
@@ -318,27 +326,31 @@ public:
 
 #undef AssertProps
 
-		const retention_record r(
-				p_item->identifier,
-				p_item->retention->file_format,
-				p_item->retention->user_id,
-				rml::utils::strtoll(props["policy-id"].c_str(), 0LL),
-				rml::utils::strtoull(props["policy-version"].c_str(), 0ULL),
-				boost::gregorian::from_simple_string(props["creation-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["retention-min-date"]).year_month_day(),
-				boost::gregorian::from_simple_string(props["retention-max-date"]).year_month_day(),
-				0,
-				false,
-				true,
-				p_item->endpoint->id,
-				p_item->retention->id);
-		if(*(p_item->retention) != r) {
-			LogDebug("database: "<<p_item->retention);
-			LogDebug("s3-metadata: "<<r);
-			throw rml::exception("Retention data mismatch (s3-metadata != database)");
+		const policy::id_type policy_id(rml::utils::strtoull(props["policy-id"].c_str()));
+		const policy::version_type policy_version(rml::utils::strtoull(props["policy-version"].c_str()));
+		org_policy_versions::pointer p_opv(org_policy_versions_finder_(p_item->identifier.org));
+		if (!p_opv) {
+			org_policy_versions_finder_.forget(p_item->identifier.org);
+			throw rml::exception("Org policies could not be found");
 		}
 
+		if (!p_opv->is_policy_version_latest(policy_id, policy_version))
+			throw policy_version_not_latest_exception();
+
+		const retention_record& retention_from_db(*(p_item->retention));
+		const applied_policy::ymd_t& creation_date(
+				boost::gregorian::from_simple_string(props["creation-date"]).year_month_day());
+		if (!(creation_date.year  == retention_from_db.creation_date.year &&
+				creation_date.month == retention_from_db.creation_date.month &&
+				creation_date.day   == retention_from_db.creation_date.day &&
+				policy_id == retention_from_db.policy_id))
+			throw rml::exception("Retention data mismatch (s3-metadata != database)");
+
 		return true;
+	}
+	catch(const policy_version_not_latest_exception& e) {
+		LogDebug(p_item->identifier<<" Skip initialise; Policy version found to be NOT the latest (fixer, fix it faster)");
+		return false;
 	}
 	catch(const std::exception& e) {
 		LogWarning(p_item->identifier<<" Failed to initialise; err:"<<e.what());
@@ -368,7 +380,7 @@ public:
 
 		std::string where(
 				boost::str(
-						boost::format("`HostName`='%1%' AND (`OrgID` %% @@auto_increment_increment) = (@@auto_increment_offset %% @@auto_increment_increment)")
+						boost::format("`HostName`='%1%' AND ( `OrgID` % 47 ) % 2 + 1 = @@auto_increment_offset")
 						% app::hostname));
 
 		if(loaded_max_id < max_id) {
@@ -456,6 +468,8 @@ public:
 	{
 		const state::outcome_t& cur_outcome(state::get_outcome(p_item->cur_state));
 		switch(cur_outcome) {
+
+		// if the outcome was OK, move forward
 		case state::ok:
 			move_forward(p_item, true);
 			break;

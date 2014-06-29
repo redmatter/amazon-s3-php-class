@@ -12,7 +12,7 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 # set RML_LOG_SOURCE_LOCATION=NO from make command line to disable source-location in log lines
 RML_LOG_SOURCE_LOCATION=YES
 
-CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib  -I$(DEV_LIBS_BASEDIR)/usr/include/threadpool
+CXX_INCLUDES += -isystem $(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib  -isystem $(DEV_LIBS_BASEDIR)/usr/include/threadpool
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -48,7 +48,7 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/rm$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-CPPFLAGS += -I/usr/include/cpp-netlib
+CPPFLAGS += -isystem /usr/include/cpp-netlib
 
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \

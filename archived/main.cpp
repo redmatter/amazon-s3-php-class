@@ -21,6 +21,7 @@
 #include "state_reactor.hpp"
 #include "retention_purge_runner.hpp"
 #include "fcgi_storage_access.hpp"
+#include "org_policy_versions.hpp"
 
 #include "../common/types.hpp"
 
@@ -311,6 +312,12 @@ int main(int argc, char *argv[]) try
 		app::coreapi_user::cached_finder_t cached_coreapi_user_finder(
 				boost::bind(app::coreapi_user::find, boost::ref(coreapi), _1), "CachedUserFinder", 1, 2, 10);
 
+		app::org_policy_versions::cached_finder_t cached_org_policy_versions_finder(
+				boost::bind(app::org_policy_versions::find_from_api, boost::ref(coreapi), _1), "CachedOrgPolicyVersionsFinder");
+
+		app::retention_record::fn_is_expired_t retention_record_is_expired(
+				boost::bind(app::retention_record::is_expired, boost::ref(cached_policy_finder), _1));
+
 //		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
 //				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
@@ -361,9 +368,13 @@ int main(int argc, char *argv[]) try
 		
 		rml::fcgi::server fcgi_server(app::confMap, app::quit);
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
-				boost::ref(cached_retention_record_finder), boost::ref(cached_policy_finder),
-				boost::ref(cached_coreapi_user_finder), boost::ref(cached_endpoint_finder), _1, _2));
+				boost::ref(cached_retention_record_finder), boost::ref(retention_record_is_expired),
+				boost::ref(cached_policy_finder), boost::ref(cached_coreapi_user_finder),
+				boost::ref(cached_endpoint_finder), _1, _2));
 		
+		// todo add ondemand purge notification handler
+
+
 		initialized = true;
 		LogMessage("Initialisation complete");
 
@@ -414,6 +425,7 @@ int main(int argc, char *argv[]) try
 			if(0 == (ticker % 20)) {
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
+				cached_org_policy_versions_finder.clear_unused(10);
 				cached_retention_record_finder.clear_unused(10);
 				cached_coreapi_user_finder.clear_unused(10);
 			}
