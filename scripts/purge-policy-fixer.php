@@ -213,8 +213,10 @@ class PurgePolicyFixerApp extends BaseDaemonApp
 
 						$batchCount++;
 
-						if ($batchCount > 1000) {
-							foreach ($updatesBatch as $orgPolicy => $retentionIds) {
+						if ($batchCount > 1000)
+						{
+							foreach ($updatesBatch as $orgPolicy => $retentionIds)
+							{
 								list($org, $policy) = explode(':', $orgPolicy);
 								$batchCallback($org, $policy, $retentionIds, true);
 
@@ -232,7 +234,8 @@ class PurgePolicyFixerApp extends BaseDaemonApp
 			// sort out any remaining in the last / partial batch
 			if ($batchCount)
 			{
-				foreach ($updatesBatch as $orgPolicy => $retentionIds) {
+				foreach ($updatesBatch as $orgPolicy => $retentionIds)
+				{
 					list($org, $policy) = explode(':', $orgPolicy);
 					$batchCallback($org, $policy, $retentionIds);
 				}

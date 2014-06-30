@@ -156,7 +156,7 @@ class ArchivingPolicy
 					"FROM Archiving.PolicyVersions WHERE ID={$this->id} ORDER BY Version DESC"
 				)->fetch_all();
 
-			if(!$this->storageEndpointID)
+			if (!$this->storageEndpointID)
 			{
 				$endpoint = ArchivingEndpoint::Get($dbc, $this->org, $this->storageEndpointID);
 				$this->storageEndpointID = $endpoint->id;
@@ -198,7 +198,7 @@ class ArchivingPolicy
 		{
 			$xpath = new XPath($stream->getContents());
 			$policyNode = $xpath('/Archiving/Policy', true);
-			if(!$policyNode)
+			if (!$policyNode)
 				throw new Exception('Invalid response for Archiving Policy from API');
 			/** @noinspection PhpUndefinedMethodInspection */
 			$policyNode = $policyNode->item(0);
@@ -218,14 +218,14 @@ class ArchivingPolicy
 			$this->allowUnrestrictedAccess = $xpath('AllowUnrestrictedAccess', false, $policyNode);
 			$this->disallowRecordingDownload = $xpath('DisallowRecordingDownload', false, $policyNode);
 
-			if(!$this->storageEndpointID)
+			if (!$this->storageEndpointID)
 			{
 				$endpoint = ArchivingEndpoint::Get($api, $this->org, $this->storageEndpointID, true);
 				$this->storageEndpointID = $endpoint->id;
 			}
 
 			$this->users = array();
-			if($nodes = $xpath('Users/User', true, $policyNode))
+			if ($nodes = $xpath('Users/User', true, $policyNode))
 			{
 				foreach($nodes as $node)
 					$this->users[] = (object)array(
@@ -236,7 +236,7 @@ class ArchivingPolicy
 			}
 
 			$this->groups = array();
-			if($nodes = $xpath('Groups/Group', true, $policyNode))
+			if ($nodes = $xpath('Groups/Group', true, $policyNode))
 			{
 				foreach($nodes as $node)
 					$this->groups[] = (object)array(
@@ -248,7 +248,7 @@ class ArchivingPolicy
 				
 			$this->notifyDataCustodians = $xpath('DataCustodians/@Notify', false, $policyNode);
 			$this->dataCustodians = array();
-			if($nodes = $xpath('DataCustodians/DataCustodian', true, $policyNode))
+			if ($nodes = $xpath('DataCustodians/DataCustodian', true, $policyNode))
 			{
 				foreach($nodes as $node)
 					$this->dataCustodians[] = (object)array(

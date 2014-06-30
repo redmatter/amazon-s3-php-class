@@ -138,20 +138,20 @@ class MakePurgeDataApp extends BaseApp
 	 */
 	public static function BatchSaveRetentionObjs(&$retention_array, $obj = null)
 	{
-		if(!is_null($obj))
+		if (!is_null($obj))
 		{
 			$retention_array[] = $obj;
-			if(count($retention_array) < 200)
+			if (count($retention_array) < 200)
 				return;
 		}
 
-		if(!count($retention_array))
+		if (!count($retention_array))
 			return;
 
 		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` ( `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID`, `UserID` ) VALUES ";
 		$sql_usage = "INSERT INTO `Usage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `OrgID`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
 		$first = true;
-		foreach($retention_array as $retention)
+		foreach ($retention_array as $retention)
 		{
 			$sql_retention .= sprintf("\n%s( UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, 0 )", $first? '': ', ', $retention->UUID, $retention->Format, Archiving::GetFileType($retention->Type), $retention->OrgID, $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID);
 			$sql_usage .= sprintf("\n%s( '%s', '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, $retention->Type, $retention->OrgID, $retention->EndpointID, 1, 0, $retention->RealUsage);
@@ -193,7 +193,7 @@ class MakePurgeDataApp extends BaseApp
 		$headers['file-type-is-compressed'] = 'false';
 		$headers['file-type-is-encrypted'] = 'false';
 		
-		if($isLegacyMode)
+		if ($isLegacyMode)
 			return;
 		
 		$now = new DateTime('@'.self::$_CreationDate);
@@ -250,7 +250,7 @@ class MakePurgeDataApp extends BaseApp
 		self::$_CreationDate = new DateTime(cli::get('--creation-date', $config->get('dataset.creation_date', 'now')));
 		self::$_CreationDate = self::$_CreationDate->getTimestamp();
 		
-		if($org != 1 && in_array(Archiving::FILE_TYPE_CDR, $filetypes))
+		if ($org != 1 && in_array(Archiving::FILE_TYPE_CDR, $filetypes))
 			throw new Exception('CDR not allowed for anyone other than Org:1');
 
 		$batchSize = cli::get('--batch-size', $config->get('dataset.batch_size', self::DEFAULT_BATCH_SIZE));
@@ -281,12 +281,12 @@ class MakePurgeDataApp extends BaseApp
 
 		$policyVersion = 0;
 		$policyID = cli::get('--policy-id', $config->get('dataset.policy_id', 0));
-		if(false !== strstr($policyID, ':'))
+		if (false !== strstr($policyID, ':'))
 			list($policyID, $policyVersion) = explode(':', $policyID);
 		
 		$policy = ArchivingPolicy::Get(array($coreapi, $authorization), $org, $policyID, $policyVersion);
 		$endpoint = ArchivingEndpoint::Get(array($coreapi, $authorization), $org, $policy->storageEndpointID, true);
-		if($endpoint->type != 's3')
+		if ($endpoint->type != 's3')
 			throw new Exception('Endpoint is not on Amazon S3');
 
 		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
@@ -305,7 +305,7 @@ class MakePurgeDataApp extends BaseApp
 			function() use (&$files)
 			{
 				$frand = fopen('/dev/urandom', 'r');
-				for($i = 0; $i < 10; $i++)
+				for ($i = 0; $i < 10; $i++)
 				{
 					if (!is_readable('/dev/urandom'))
 						throw new Exception('/dev/urandom not readable!!');
@@ -325,7 +325,7 @@ class MakePurgeDataApp extends BaseApp
 		$files_sentry = new ScopeSentry(
 			function() use ($files)
 			{
-				foreach($files as $f)
+				foreach ($files as $f)
 				{
 					unlink($f[0]);
 					LogDebug($f[0], 'Unlinked');
@@ -335,11 +335,11 @@ class MakePurgeDataApp extends BaseApp
 
 
 		$filetype = $filetypes[0];
-		for($i = $batchSize; $i > 0; $i--)
+		for ($i = $batchSize; $i > 0; $i--)
 		{
 			list($file_name, $file_size) = $files[mt_rand(0, 9)];
 			
-			if(count($filetypes) != 1)
+			if (count($filetypes) != 1)
 				$filetype = $filetypes[mt_rand(0, count($filetypes) - 1)];
 			
 			$uuid = UUID::v4();
@@ -351,7 +351,7 @@ class MakePurgeDataApp extends BaseApp
 			self::_MakeMetaHeaders($headers, $retention, $isLegacyMode, $makeErrors);
 
 			LogMessage("New object: {$storage_key} file: {$file_name}");
-			if(!$s3->putObjectFile($file_name, $endpoint->bucket, $storage_key, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
+			if (!$s3->putObjectFile($file_name, $endpoint->bucket, $storage_key, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
 				throw new Exception("Failed to store {$endpoint->bucket}/{$storage_key}");
 
 			LogDebug($retention, "Retention:$storage_key");

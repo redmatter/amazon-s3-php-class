@@ -153,7 +153,8 @@ class ArchivingExtractApp extends BaseApp
 						}
 					}
 				);
-		} while($rows == 100);
+		}
+		while($rows == 100);
 		
 		exit(0);
 	}

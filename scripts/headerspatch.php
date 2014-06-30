@@ -261,7 +261,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 									$retry = 5;
 									$delay = 0;
 									$copy_ok = null;
-									do {
+									do
+									{
 										if (!is_null($copy_ok))
 											sleep($delay);
 
@@ -275,7 +276,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 											else
 												LogError('Error copying new metadata; giving up!', $identifier);
 										}
-									} while ($retry-- && !$copy_ok);
+									}
+									while ($retry-- && !$copy_ok);
 
 									LogMessage(sprintf('outcome:%s', $copy_ok? 'ok': 'failed'), $identifier);
 								}
@@ -285,7 +287,8 @@ class ArchivingHeadersPatchApp extends BaseApp
 								unset($s3);
 							}
 						);
-				} while ($rows == $batchSize);
+				}
+				while ($rows == $batchSize);
 			}
 		}
 	}
