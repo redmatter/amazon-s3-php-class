@@ -44,12 +44,19 @@ class ArchivingHeadersPatchApp extends BaseApp
 	const BATCH_SIZE_MIN = 50;
 	const BATCH_SIZE_MAX = 1000;
 
-	private static function getFileTypes($types_str)
+	/**
+	 * Get filetypes
+	 *
+	 * @param string $types_str config value
+	 *
+	 * @return array
+	 */
+	private static function _GetFileTypes($types_str)
 	{
 		$ret = array();
 
 		if (0 === strcasecmp($types_str, 'all'))
-			return array(Archiving::FILE_TYPE_CDR, Archiving::FILE_TYPE_RECORDING, Archiving::FILE_TYPE_SMS);
+			return Archiving::GetAllFileTypes();
 
 		foreach (preg_split('/[,;] */', $types_str) as $type)
 			if ($type = Archiving::GetFileType($type))
@@ -58,7 +65,14 @@ class ArchivingHeadersPatchApp extends BaseApp
 		return array_unique($ret);
 	}
 
-	private static function getOrgIds($str)
+	/**
+	 * Get Orgs IDs from the setting value
+	 *
+	 * @param string $str config value
+	 *
+	 * @return array
+	 */
+	private static function _GetOrgIds($str)
 	{
 		$ret = array();
 
@@ -74,12 +88,14 @@ class ArchivingHeadersPatchApp extends BaseApp
 		}
 
 		$dbc->query(
-				"SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND {$where}"
-				)->for_each(
-						function(MySQLiResult_Row $row) use (&$ret)
-						{
-							$ret[] = (int)$row->OrgID;
-						});
+			"SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND {$where}"
+		)
+			->for_each(
+				function(MySQLiResult_Row $row) use (&$ret)
+				{
+					$ret[] = (int)$row->OrgID;
+				}
+			);
 
 		return $ret;
 	}
@@ -87,19 +103,19 @@ class ArchivingHeadersPatchApp extends BaseApp
 	/**
 	 * run
 	 *
-	 * @return none
+	 * @throws Exception
+	 *
+	 * @return void
 	 */
 	public function run()
 	{
-		$maxId = 0;
-
 		$config = $this->conf;
 
-		$filetypes = self::getFileTypes(cli::get('--types', $config->get('subset.file_types', 'cdr')));
+		$filetypes = self::_GetFileTypes(cli::get('--types', $config->get('subset.file_types', 'cdr')));
 		if (!count($filetypes))
 			throw new Exception('Invalid file types specified');
 
-		$orgIds = self::getOrgIds(cli::get('--orgs', $config->get('subset.org_ids', '1')));
+		$orgIds = self::_GetOrgIds(cli::get('--orgs', $config->get('subset.org_ids', '1')));
 		if (!count($orgIds))
 			throw new Exception('Invalid OrgID(s) specified');
 
@@ -129,15 +145,15 @@ class ArchivingHeadersPatchApp extends BaseApp
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
 
+		/** @noinspection PhpUnusedLocalVariableInspection */
 		$authorization_sentry = new ScopeSentry(
-				/**
-				 * Cleanup function for auth
-				 */
-				function() use ($authorization, $coreapi)
-				{
-					$stream = HTTPStream::Make('DELETE', "{$coreapi}/auth", null, array('Authorization'=>$authorization));
-					LogVerbose('Auth deleted', $authorization);
-				});
+			// Cleanup function for auth
+			function() use ($authorization, $coreapi)
+			{
+				HTTPStream::Make('DELETE', "{$coreapi}/auth", null, array('Authorization'=>$authorization));
+				LogVerbose('Auth deleted', $authorization);
+			}
+		);
 
 		$where = array();
 
@@ -183,92 +199,92 @@ class ArchivingHeadersPatchApp extends BaseApp
 						LogWarning('PUT_RATE_10_MINS_COMMAND failed');
 
 					$dbc->query(
-							"SELECT ID, IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted, IF(Format & (0x000f << 8), 'true', 'false') Compressed, Format & 0xff SubType, ".
-							"Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, ".
-							"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, ".
-							"LCASE(CONCAT(HEX(SUBSTR(LegUUID, 1, 4)),'-',HEX(SUBSTR(LegUUID, 5, 2)),'-',HEX(SUBSTR(LegUUID, 7, 2)),'-',HEX(SUBSTR(LegUUID, 9, 2)),'-',HEX(SUBSTR(LegUUID, 11)))) `LegUUID`, ISNULL(retention.LegUUID) `LegUUIDNull`".
-							"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} AND retention.CreationDate < '{$absoluteStopDate}' AND {$where} LIMIT {$batchSize}"
-							)->for_each(
-									/**
-									 * Record handler lambda
-									 *
-									 * @param MySQLiResult_Row $row one record
-									 */
-									function(MySQLiResult_Row $row) use ($orgId, $coreapi, $authorization, &$rows, &$maxId)
+						"SELECT ID, IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted, IF(Format & (0x000f << 8), 'true', 'false') Compressed, Format & 0xff SubType, ".
+						"Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, ".
+						"LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID`, ".
+						"LCASE(CONCAT(HEX(SUBSTR(LegUUID, 1, 4)),'-',HEX(SUBSTR(LegUUID, 5, 2)),'-',HEX(SUBSTR(LegUUID, 7, 2)),'-',HEX(SUBSTR(LegUUID, 9, 2)),'-',HEX(SUBSTR(LegUUID, 11)))) `LegUUID`, ISNULL(retention.LegUUID) `LegUUIDNull`".
+						"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} AND retention.CreationDate < '{$absoluteStopDate}' AND {$where} LIMIT {$batchSize}"
+					)
+						->for_each(
+							// Record handler lambda
+							//
+							// @param MySQLiResult_Row $row one record
+							function(MySQLiResult_Row $row) use ($orgId, $coreapi, $authorization, &$rows, &$maxId)
+							{
+								$rows++;
+								$maxId = $row->ID;
+
+								$identifier = sprintf('%s/%d/%s', Archiving::GetFileTypeStr($row->Type), $orgId, $row->UUID);
+								$endpoint = ArchivingEndpoint::Get(array($coreapi, $authorization), $orgId, $row->EndpointID, true);
+
+								LogDebug($maxId, $identifier);
+
+								if ($endpoint->type != 's3')
+								{
+									LogMessage('Ignoring object from non-S3 endpoint', $identifier);
+									return;
+								}
+
+								$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+
+								$inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
+								LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
+								$real_size = $inf['size'];
+
+								$headers = array(
+										'creation-date' => $row->CreationDate,
+										'file-type' => Archiving::GetSubFormatStr($row->SubType),
+										'file-type-is-compressed' => $row->Compressed,
+										'file-type-is-encrypted' => $row->Encrypted,
+										'policy-id' => $row->PolicyID,
+										'policy-version' => $row->PolicyVersion,
+										'real-size' => $real_size,
+										'retention-max-date' => $row->RetentionMaxDate,
+										'retention-min-date' => $row->RetentionMinDate,
+										'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
+									);
+
+								$header_mismatch = false;
+								foreach ($headers as $hKey => $hValue)
+								{
+									$amzKey = sprintf('x-amz-meta-%s', $hKey);
+									$amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
+									if (is_null($amzValue) || ($amzValue != $hValue))
 									{
-										$rows++;
-										$maxId = $row->ID;
+										$header_mismatch = true;
+										LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
+									}
+								}
 
-										$identifier = sprintf('%s/%d/%s', Archiving::GetFileTypeStr($row->Type), $orgId, $row->UUID);
-										$endpoint = ArchivingEndpoint::Get(array($coreapi, $authorization), $orgId, $row->EndpointID, true);
+								if ($header_mismatch)
+								{
+									$retry = 5;
+									$delay = 0;
+									$copy_ok = null;
+									do {
+										if (!is_null($copy_ok))
+											sleep($delay);
 
-										LogDebug($maxId, $identifier);
-
-										if ($endpoint->type != 's3')
+										if (false === ($copy_ok = $s3->copyObject($endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, array('Content-Type'=>'binary/octet-stream'))))
 										{
-											LogMessage('Ignoring object from non-S3 endpoint', $identifier);
-											return;
-										}
-
-										$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
-
-										$inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
-										LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
-										$real_size = $inf['size'];
-
-										$headers = array(
-												'creation-date' => $row->CreationDate,
-												'file-type' => Archiving::GetSubFormatStr($row->SubType),
-												'file-type-is-compressed' => $row->Compressed,
-												'file-type-is-encrypted' => $row->Encrypted,
-												'policy-id' => $row->PolicyID,
-												'policy-version' => $row->PolicyVersion,
-												'real-size' => $real_size,
-												'retention-max-date' => $row->RetentionMaxDate,
-												'retention-min-date' => $row->RetentionMinDate,
-												'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
-											);
-
-										$header_mismatch = false;
-										foreach ($headers as $hKey => $hValue)
-										{
-											$amzKey = sprintf('x-amz-meta-%s', $hKey);
-											$amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
-											if (is_null($amzValue) || ($amzValue != $hValue))
+											if ($retry)
 											{
-												$header_mismatch = true;
-												LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
+												$delay = pow(6 - $retry, 2);
+												LogWarning("Error copying new metadata; retrying in $delay seconds", $identifier);
 											}
+											else
+												LogError('Error copying new metadata; giving up!', $identifier);
 										}
+									} while ($retry-- && !$copy_ok);
 
-										if ($header_mismatch)
-										{
-											$retry = 5;
-											$delay = 0;
-											$copy_ok = null;
-											do {
-												if (!is_null($copy_ok))
-													sleep($delay);
+									LogMessage(sprintf('outcome:%s', $copy_ok? 'ok': 'failed'), $identifier);
+								}
+								else
+									LogMessage('No mismatch in metadata', $identifier);
 
-												if (false === ($copy_ok = $s3->copyObject($endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, array('Content-Type'=>'binary/octet-stream'))))
-												{
-													if ($retry)
-													{
-														$delay = pow(6 - $retry, 2);
-														LogWarning("Error copying new metadata; retrying in $delay seconds", $identifier);
-													}
-													else
-														LogError('Error copying new metadata; giving up!', $identifier);
-												}
-											} while ($retry-- && !$copy_ok);
-
-											LogMessage(sprintf('outcome:%s', $copy_ok? 'ok': 'failed'), $identifier);
-										}
-										else
-											LogMessage('No mismatch in metadata', $identifier);
-
-										unset($s3);
-									});
+								unset($s3);
+							}
+						);
 				} while ($rows == $batchSize);
 			}
 		}
@@ -278,9 +294,9 @@ class ArchivingHeadersPatchApp extends BaseApp
 /**
  * Show usage help, optionally with error messag
  *
- * @param string $error
+ * @param string $error error
  *
- * @return none
+ * @return void
  */
 function Usage($error = null)
 {

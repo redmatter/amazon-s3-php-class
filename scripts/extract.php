@@ -1,6 +1,5 @@
 #!/usr/bin/php
 <?php
-//NoSniff
 
 /**
  * ArchivingExtractApp
@@ -44,7 +43,9 @@ class ArchivingExtractApp extends BaseApp
 	/**
 	 * run
 	 *
-	 * @return none
+	 * @throws Exception
+	 *
+	 * @return void
 	 */
 	public function run()
 	{
@@ -93,11 +94,10 @@ class ArchivingExtractApp extends BaseApp
 		
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
-		
+
+		/** @noinspection PhpUnusedLocalVariableInspection */
 		$authorization_sentry = new ScopeSentry(
-			/**
-			 * Cleanup function for auth
-			 */
+			// Cleanup function for auth
 			function() use ($authorization, $coreapi)
 			{
 				$stream = HTTPStream::Make('DELETE', "{$coreapi}/auth", null, array('Authorization'=>$authorization));
@@ -125,38 +125,34 @@ class ArchivingExtractApp extends BaseApp
 			$rows = 0;
 			$dbc->query(
 				"SELECT ID, Type, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` ".
-					"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} {$where} LIMIT 100"
-			)->for_each(
-				/**
-				 * Handler for each row
-				 * 
-				 * @param MySQLiResult_Row $row row from the result set
-				 */
-				function(MySQLiResult_Row $row) use (&$maxId, &$rows, $outDir, $orgId)
-				{
-					$rows++;
-					$maxId = $row->ID;
-					
-					if ($row->Type == ARCHIVING_FILE_TYPE_RECORDING)
+				"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} {$where} LIMIT 100"
+			)
+				->for_each(
+					function(MySQLiResult_Row $row) use (&$maxId, &$rows, $outDir, $orgId)
 					{
-						try
+						$rows++;
+						$maxId = $row->ID;
+
+						if ($row->Type == ARCHIVING_FILE_TYPE_RECORDING)
 						{
-							if ($stream = ArchiveD::Fetch('recording', $row->UUID))
+							try
 							{
-								$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.wav');
-								/*
-								if ($stream = ArchiveD::Head('recording', $row->UUID))
-									$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.meta');
-								*/
+								if ($stream = ArchiveD::Fetch('recording', $row->UUID))
+								{
+									$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.wav');
+									/*
+									if ($stream = ArchiveD::Head('recording', $row->UUID))
+										$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.meta');
+									*/
+								}
+							}
+							catch (Exception $e)
+							{
+								LogWarning($e, "recording/{$orgId}/{$row->UUID}");
 							}
 						}
-						catch (Exception $e)
-						{
-							LogWarning($e, "recording/{$orgId}/{$row->UUID}");
-						}
 					}
-				}
-			);
+				);
 		} while($rows == 100);
 		
 		exit(0);

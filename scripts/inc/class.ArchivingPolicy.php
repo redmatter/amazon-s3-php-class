@@ -43,37 +43,80 @@ class ArchivingPolicy
 	public $dataCustodians;
 	public $allowUnrestrictedAccess;
 	public $disallowRecordingDownload;
-	
-	private static $_objs = array();
+	public $description;
+	public $systemPolicy;
+	public $otherVersions;
+
+	const CACHE_TIMEOUT_SECONDS = 600;
 
 	/**
 	 * Cached getter of instance
 	 *
-	 * @param dbc $dbc dbc
-	 * @param int $org org
-	 * @param int $id  id
+	 * @param MySQLiConnection|array $dbc     dbc
+	 * @param int                    $org     org
+	 * @param int                    $id      id
+	 * @param int                    $version version
 	 *
 	 * @return ArchivingPolicy
 	 */
 	public static function Get($dbc, $org, $id, $version)
 	{
-		if (!isset(self::$_objs[$org]))
-			self::$_objs[$org] = array();
-		
-		if (!isset(self::$_objs[$org][$id]))
+		static $objs = array();
+		static $objOrgTimeout = array();
+
+		$now = time();
+		if (!isset($objOrgTimeout[$org]) || ($now - $objOrgTimeout[$org]) > 0)
 		{
-			self::$_objs[$org][$id] = new ArchivingPolicy($dbc, $org, $id, $version);
-			if($id <= 0)
-				self::$_objs[$org][self::$_objs[$org][$id]->id] =& self::$_objs[$org][$id];
+			if (isset($objOrgTimeout[$org]) && ($now - $objOrgTimeout[$org]) > 0)
+				unset($objs[$org]);
+
+			$objOrgTimeout[$org] = $now + self::CACHE_TIMEOUT_SECONDS;
 		}
 
-		return self::$_objs[$org][$id];
+		if (!isset($objs[$org]))
+			$objs[$org] = array();
+
+		if (!isset($objs[$org][$id]))
+			$objs[$org][$id] = array();
+
+		if (!isset($objs[$org][$id][$version]))
+		{
+			$policy = new ArchivingPolicy($dbc, $org, $id, $version);
+			$gotVersion = $policy->version;
+			$gotId = $policy->id;
+
+			$objs[$org][$gotId][$gotVersion] = $policy;
+			if ($version != $gotVersion)
+				$objs[$org][$gotId][$version] = $objs[$org][$gotId][$gotVersion];
+
+			if ($gotId != $id)
+				$objs[$org][$id] = $objs[$org][$gotId];
+		}
+
+		return $objs[$org][$id][$version];
+	}
+
+	/**
+	 * Convert the period spec to MySQL interval
+	 *
+	 * @param array $periodSpec array($no, $unit)
+	 *
+	 * @throws Exception
+	 *
+	 * @return string
+	 */
+	public static function GetSQLIntervalSpec($periodSpec)
+	{
+		if (!in_array($periodSpec[1], array('days','weeks','months','years')))
+			throw new Exception('Unexpected period unit');
+
+		return 'INTERVAL '.$periodSpec[0].' '.strtoupper(substr($periodSpec[1], 0, -1));
 	}
 
 	/**
 	 * updateFromDb
-	 * 
-	 * @param object $dbc database connection object
+	 *
+	 * @param \MySQLiConnection $dbc database connection object
 	 *
 	 * @return bool
 	 */
@@ -108,9 +151,10 @@ class ArchivingPolicy
 			$this->dataCustodians = $dbc->query("SELECT UserID, SendEmail, SendSMS FROM Archiving.PolicyDataCustodians WHERE PolicyID={$this->id}")->fetch_all();
 			$this->otherVersions = null;
 			if (!$this->systemPolicy)
-				$this->otherVersions = $this->_dbc->query(
-						"SELECT IF(Version = {$this->version}, 'yes', 'no') AS `ThisVersion`, Version, UNIX_TIMESTAMP(ModifyTime) AS `ModifyTimeEpoch`, UserModifiedBy ".
-						"FROM Archiving.PolicyVersions WHERE ID={$this->id} ORDER BY Version DESC")->fetch_all();
+				$this->otherVersions = $dbc->query(
+					"SELECT IF(Version = {$this->version}, 'yes', 'no') AS `ThisVersion`, Version, UNIX_TIMESTAMP(ModifyTime) AS `ModifyTimeEpoch`, UserModifiedBy ".
+					"FROM Archiving.PolicyVersions WHERE ID={$this->id} ORDER BY Version DESC"
+				)->fetch_all();
 
 			if(!$this->storageEndpointID)
 			{
@@ -123,37 +167,40 @@ class ArchivingPolicy
 
 		return false;
 	}
-	
+
 	/**
 	 * Update the data from API
-	 * 
+	 *
 	 * @param array $api api details (url, auth)
-	 * 
+	 *
+	 * @throws Exception
 	 * @return bool
 	 */
 	protected function updateFromApi($api)
 	{
 		$url = $this->version? 
 			sprintf('%s/archiving/policy/%d/%d/%d', $api[0], $this->org, $this->id, $this->version):
-			sprintf('%s/archiving/policy/%d/%d', $api[0], $this->org, $this->id)
-			;
+			sprintf('%s/archiving/policy/%d/%d', $api[0], $this->org, $this->id);
 		
 		$stream = HTTPStream::Make('GET', $url, null, array('Authorization'=>$api[1]));
+		/** @noinspection PhpUnusedLocalVariableInspection */
 		$streamKiller = new ScopeSentry(
-				function() use (&$stream)
+			function() use (&$stream)
+			{
+				if ($stream)
 				{
-					if ($stream)
-					{
-						$stream = null;
-						unset($stream);
-					}
-				});
+					$stream = null;
+					unset($stream);
+				}
+			}
+		);
 		if ($stream && $stream->httpCode == 200)
 		{
 			$xpath = new XPath($stream->getContents());
 			$policyNode = $xpath('/Archiving/Policy', true);
 			if(!$policyNode)
 				throw new Exception('Invalid response for Archiving Policy from API');
+			/** @noinspection PhpUndefinedMethodInspection */
 			$policyNode = $policyNode->item(0);
 
 			$this->id = $xpath('ID', false, $policyNode);
@@ -233,10 +280,10 @@ class ArchivingPolicy
 	/**
 	 * Constructor
 	 *
-	 * @param dbc/api $dbc
-	 * @param int     $rmOrgId
-	 * @param int     $policyID
-	 * @param int     $policyVersion
+	 * @param MySQLiConnection|array $dbc           database connection OR the API access thing (array)
+	 * @param int                    $rmOrgId       Org
+	 * @param int                    $policyID      Policy
+	 * @param int                    $policyVersion Version
 	 *
 	 * @throws Exception
 	 */

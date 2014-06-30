@@ -35,7 +35,7 @@ class ArchivingChecker
 	 * @param int    $rmOrgID  org
 	 * @param string $uuid     uuid
 	 *
-	 * @return status
+	 * @return array result of the check
 	 */
 	public static function Check($fileType, $rmOrgID, $uuid)
 	{
@@ -78,7 +78,7 @@ class ArchivingChecker
 	/**
 	 * attempts to loads the file; throws on not found or access permission violations
 	 *
-	 * @return none
+	 * @return array a result row
 	 */
 	private function _check()
 	{
@@ -115,7 +115,9 @@ class ArchivingChecker
 
 			$resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
 
-			$retry = 0; $resS3 = false;
+			$retry = 0;
+			/** @noinspection PhpUnusedLocalVariableInspection */
+			$resS3 = false;
 			while (true)
 			{
 				$s3_start_time = microtime(true);

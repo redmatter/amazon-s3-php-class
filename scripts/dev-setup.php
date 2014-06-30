@@ -1,8 +1,5 @@
 #!/usr/bin/php
 <?php
-//NoSniff
-
-define('SYSPATH', 'bla');
 
 /**
  * Updates
@@ -17,6 +14,8 @@ define('SYSPATH', 'bla');
  * @version   SVN: <svn_id>
  * @link      http://www.redmatter.com
  */
+
+define('SYSPATH', 'bla');
 
 require_once 'syslogger/class.SysLogger.php';
 require_once 'restclient/RestClient.class.php';
@@ -43,9 +42,9 @@ class API
 	/**
 	 * Ctor
 	 * 
-	 * @param string $baseUrl
-	 * @param string $username
-	 * @param string $password
+	 * @param string $baseUrl  base url
+	 * @param string $username username
+	 * @param string $password password
 	 */
 	public function __construct($baseUrl, $username, $password)
 	{
@@ -63,14 +62,15 @@ class API
 	
 	/**
 	 * Make the rest call
-	 * @param string $method
-	 * @param string $url
-	 * @param string $body
-	 * @param array  $headers
-	 * @param string $user
-	 * @param string $pwd
-	 * @param string $contentType
-	 * @param mixed  $expectation
+	 *
+	 * @param string $method      method
+	 * @param string $url         url
+	 * @param string $body        body
+	 * @param array  $headers     headers
+	 * @param string $user        user
+	 * @param string $pwd         password
+	 * @param string $contentType content-type
+	 * @param mixed  $expectation expectation
 	 * 
 	 * @throws Exception
 	 * 
@@ -106,14 +106,16 @@ class API
 	
 		return $res;
 	}
-	
+
 	/**
 	 * Check exception
-	 * 
+	 *
 	 * @param RestClient $res         mr Resty
 	 * @param mixed      $expectation what do you expect?
-	 * 
+	 *
 	 * return bool
+	 *
+	 * @return bool|mixed
 	 */
 	private function _checkExpectation(RestClient $res, $expectation)
 	{
@@ -133,27 +135,29 @@ class API
 		
 		return false;
 	}
-	
+
 	/**
-	* Do a GET
-	*
-	* @param string $url     url
-	* @param bool   $useAuth auth?
-	*
-	* @return mixed
-	*/
+	 * Do a GET
+	 *
+	 * @param string $url         url
+	 * @param null   $expectation expectation
+	 * @param bool   $useAuth     auth?
+	 *
+	 * @return mixed
+	 */
 	public function Get($url, $expectation=null, $useAuth=true)
 	{
 		return $this->_RestCall('GET', $url, null, $useAuth? array('Authorization'=>$this->_key): null, null, null, 'application/xml', $expectation);
 	}
-	
+
 	/**
 	 * Do a POST
-	 * 
-	 * @param string $url     url
-	 * @param string $body    body
-	 * @param bool   $useAuth auth?
-	 * 
+	 *
+	 * @param string $url         url
+	 * @param string $body        body
+	 * @param null   $expectation expectation
+	 * @param bool   $useAuth     auth?
+	 *
 	 * @return mixed
 	 */
 	public function Post($url, $body, $expectation=null, $useAuth=true)
@@ -163,11 +167,12 @@ class API
 
 	/**
 	 * Do a PUT
-	 * 
-	 * @param string $url     url
-	 * @param string $body    body
-	 * @param bool   $useAuth auth?
-	 * 
+	 *
+	 * @param string $url         url
+	 * @param string $body        body
+	 * @param null   $expectation expectation
+	 * @param bool   $useAuth     auth?
+	 *
 	 * @return mixed
 	 */
 	public function Put($url, $body, $expectation=null, $useAuth=true)
@@ -187,11 +192,11 @@ class API
 
 /**
  * Log a message and optionally quit
- * 
- * @param string $str      log message
- * @param int    $exitCode optional exit code
- * 
- * @return none
+ *
+ * @param string   $str      log message
+ * @param bool|int $exitCode optional exit code
+ *
+ * @return void
  */
 function MessageLog($str, $exitCode=false)
 {
@@ -221,7 +226,7 @@ function dbmigrate($schema, $cmd)
  * 
  * @throws Exception
  * 
- * @return none
+ * @return void
  */
 function runcmd($cmd, $expectation=0)
 {

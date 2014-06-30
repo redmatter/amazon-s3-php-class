@@ -29,6 +29,7 @@ require_once 'eventlog/class.EventLog.php';
  */
 class ArchiveD
 {
+	/** @var  ArchiveD */
 	private static $_instance;
 	
 	private $_baseUrl;
@@ -37,6 +38,7 @@ class ArchiveD
 	
 	private $_org;
 	private $_user;
+	/** @var EventLog  */
 	private $_evLog = null;
 	
 	/**
@@ -88,8 +90,8 @@ class ArchiveD
 	 * @param ConfigMap $config        config
 	 * @param string    $authorization auth
 	 * @param string    $caseRef       case ref
-	 * 
-	 * @return none
+	 *
+	 * @return void
 	 */
 	public static function Init(ConfigMap $config, $authorization, $caseRef)
 	{

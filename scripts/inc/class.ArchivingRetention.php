@@ -38,26 +38,22 @@ class ArchivingRetention
 	/**
 	 * ArchivingRetention - Retention lookup utility class
 	 *
-	 * @param object $dbc      database
-	 * @param int    $org      org id
-	 * @param int    $fileType fileType
-	 * @param string $uuid_hex uuid as hex
+	 * @param \MySQLiConnection $dbc      database
+	 * @param int               $org      org id
+	 * @param int               $fileType fileType
+	 * @param string            $uuid_hex uuid as hex
 	 *
-	 * @return none
+	 * @throws Exception
+	 * @return \ArchivingRetention
 	 */
-	private function __construct($dbc, $org, $fileType, $uuid_hex)
+	private function __construct(MySQLiConnection $dbc, $org, $fileType, $uuid_hex)
 	{
 		LogDebug($sql = "SELECT EndpointID FROM Retention_{$org} r WHERE Type={$fileType} AND UUID=0x{$uuid_hex} AND Purged='no'", 'SQL');
-		$res = $dbc->query($sql);
-		
-		if ($row = $res->fetch_row())
-		{
-			$this->EndpointID = $row[0];
-		}
-		else
-		{
+		$res = $dbc->query($sql)->fetch_all();
+		if (!count($res))
 			throw new Exception('Not Retention data found');
-		}
+
+		$this->EndpointID = $res[0]->EndpointID;
 	}
 
 	/**
