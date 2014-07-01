@@ -380,7 +380,7 @@ struct item
 					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
 					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
 					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
-					0, false, true, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+					0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),

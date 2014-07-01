@@ -57,6 +57,10 @@ namespace retention_purge {
 
 class policy_version_not_latest_exception : rml::exception
 {
+public:
+	policy_version_not_latest_exception() : rml::exception("policy_version_not_latest_exception")
+	{
+	}
 };
 
 /**

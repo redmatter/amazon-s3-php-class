@@ -39,7 +39,7 @@ struct retention_record
 	uint64_t id;
 	
 	typedef boost::shared_ptr<retention_record> pointer;
-	typedef boost::function< bool (const retention_record&) > fn_is_expired_t;
+	typedef boost::function< bool (const retention_record::pointer&) > fn_is_expired_t;
 
 	/**
 	 * Verify that the item is purged according to the latest policy retention rules

@@ -111,7 +111,7 @@ public:
 			" DAYOFMONTH(`RetentionMinDate`), MONTH(`RetentionMinDate`), YEAR(`RetentionMinDate`),"
 			" DAYOFMONTH(`RetentionMaxDate`), MONTH(`RetentionMaxDate`), YEAR(`RetentionMaxDate`),"
 			" `MidnightOffsetSeconds`, `EndpointID`,"
-			" `Purged`, `RetentionMaxDate` <= CURDATE(), ID ";
+			" `Purged`, `RetentionMaxDate` <= CURDATE() /*NOT-USED*/, ID ";
 	}
 
 	static inline_ retention_record::pointer make_retention_record(const mysqlpp::Row& row)
@@ -142,7 +142,6 @@ public:
 					creation_date, retention_min_date, retention_max_date,
 					rml::utils::strtoull(row[17].c_str()),
 					row[19] == "yes",
-					row[20] == "1",
 					rml::utils::strtoull(row[18].c_str()),
 					rml::utils::strtoull(row[21].c_str())));
 		}

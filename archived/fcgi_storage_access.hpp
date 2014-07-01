@@ -47,6 +47,7 @@ class storage_access_handler : public rml::fcgi::request::handler
 public:
 	static inline rml::fcgi::request::handler::pointer make(
 			const retention_record::cached_finder_t& retention_record_cached_finder,
+			const retention_record::fn_is_expired_t& retention_record_is_expired,
 			const policy::cached_finder_t& cached_policy_finder,
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
@@ -54,7 +55,7 @@ public:
 	{
 		return boost::static_pointer_cast<rml::fcgi::request::handler>(
 				boost::make_shared< storage_access_handler >(
-						retention_record_cached_finder, cached_policy_finder, coreapi_user_finder, storage_endpoint_finder, p_request, routed_path));
+						retention_record_cached_finder, retention_record_is_expired, cached_policy_finder, coreapi_user_finder, storage_endpoint_finder, p_request, routed_path));
 	}
 
 	explicit storage_access_handler(
@@ -176,7 +177,7 @@ public:
 			user_org_id = retention->identifier.org;
 		}
 
-		if(retention->purged || retention_record_is_expired_(*retention)) {
+		if(retention->purged || retention_record_is_expired_(retention)) {
 			Debug(this_op<<(retention->purged? "object found purged": "object found expired"));
 			throw rml::fcgi::http_exception(410, "object found purged" /*shush... till we purge; no matter what!*/);
 		}

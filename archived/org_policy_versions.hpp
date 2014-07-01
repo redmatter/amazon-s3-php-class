@@ -19,7 +19,7 @@
 
 #include <pugixml/pugixml.hpp>
 
-#include <strstream>
+#include <sstream>
 
 namespace app
 {
@@ -65,8 +65,6 @@ public:
 		return pointer(new org_policy_versions(org, doc));
 	}
 
-	friend pointer org_policy_versions::find_from_api(coreapi&, const archiving::org_id_t&);
-
 	typedef cache::result_cache<const archiving::org_id_t, pointer> cached_finder_t;
 
 	/**
@@ -86,8 +84,8 @@ public:
 		return itr->second == version;
 	}
 
-protected:
-	org_policy_versions(const archiving::org_id_t& org, pugi::xml_document doc) : org_(org)
+private:
+	org_policy_versions(const archiving::org_id_t& org, const pugi::xml_document& doc) : org_(org)
 	{
 		const pugi::xpath_node_set& policy_nodes(doc.select_nodes("/Archiving/Policies/Policy"));
 		if (!policy_nodes.empty()) {
@@ -95,14 +93,13 @@ protected:
 			const pugi::xpath_node_set::const_iterator& end(policy_nodes.end());
 			for (; itr != end; ++itr) {
 				const pugi::xpath_node& policy_node(*itr);
-				const char* id_str = policy_node.select_single_node("ID/text()").node().value();
-				const char* version_str = policy_node.select_single_node("Version/text()").node().value();
+				const char* id_str = policy_node.node().select_single_node("ID/text()").node().value();
+				const char* version_str = policy_node.node().select_single_node("Version/text()").node().value();
 				policy_id_version_map_[rml::utils::strtoull(id_str)] = rml::utils::strtoull(version_str);
 			}
 		}
 	}
 
-private:
 	const archiving::org_id_t org_;
 	std::map<policy::id_type, policy::version_type> policy_id_version_map_;
 };
