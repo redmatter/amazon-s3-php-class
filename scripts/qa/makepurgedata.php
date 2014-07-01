@@ -46,7 +46,7 @@ class MakePurgeDataApp extends BaseApp
 	 * @param string $types_str config value
 	 * @param int    $org       org-id
 	 *
-	 * @return array
+	 * @return int[]
 	 */
 	private static function _GetFileTypes($types_str, $org)
 	{
@@ -370,6 +370,8 @@ try
 	if (true === CLI::get('--help'))
 	{
 		$prog = basename(__FILE__, '.php');
+		$fileTypes = implode(' | ', Archiving::GetAllFileTypesAsString(true));
+		$fileTypesOperational = implode(', ', Archiving::$OperationalDataFileTypesAsString);
 		echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
@@ -382,8 +384,8 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
         OrgID for which we are generating test data for
 
     --filetype=< FileType1[,FileType2] >
-        Filetype(s) that need to be created; cdr only for Org:1
-        FileType = cdr | recording | sms
+        Filetype(s) that need to be created; Operational types ( $fileTypesOperational ) are only for Org:1
+        FileType = $fileTypes
 
     --policy-id=< PolicyID[:PolicyVersion] >
         PolicyID of the Org under which files are to be put
