@@ -431,8 +431,8 @@ fi
 /usr/share/archiving/archiving-checker.conf.sample
 /usr/share/archiving/archiving-extract.conf.sample
 /usr/share/archiving/archiving-headerspatch.conf.sample
-/usr/share/archiving/scripts-retention_ro.conf.sample
-/usr/share/archiving/scripts-retention_rw.conf.sample
+/etc/archiving/scripts-retention_ro.conf
+/etc/archiving/scripts-retention_rw.conf
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
