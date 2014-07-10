@@ -210,8 +210,8 @@ cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
 cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch
-cp scripts/retention_ro.conf %{buildroot}/usr/share/archiving/scripts-retention_ro.conf.sample
-cp scripts/retention_rw.conf %{buildroot}/usr/share/archiving/scripts-retention_rw.conf.sample
+cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
+cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.conf
 
 # QA Scripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
