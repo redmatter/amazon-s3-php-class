@@ -168,7 +168,16 @@ class MakePurgeDataApp extends BaseApp
 			$dbc->query($sql_retention);
 			$dbc->query($sql_usage);
 			$dbc->CommitTransaction();
-			
+
+            static $stdout = null;
+            if (null === $stdout && isset($retention_array[0]))
+            {
+                $stdout = fopen('php://stdout', 'w');
+                fputcsv($stdout, array('Type/OrgID/UUID', 'PolicyID', 'PolicyVersion', 'CreationDate', 'RetentionMinDate', 'RetentionMaxDate', 'EndpointID'));
+            }
+            foreach ($retention_array as $retention)
+                fputcsv($stdout, array("{$retention->Type}/{$retention->OrgID}/{$retention->UUID}", $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID));
+
 			$retention_array = array();
 		}
 		catch(Exception $e)
