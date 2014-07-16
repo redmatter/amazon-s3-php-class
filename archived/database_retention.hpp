@@ -419,7 +419,7 @@ public:
 			mysqlpp::Query query = conn->query();
 			query << "SELECT OrgID FROM ("
 					" SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template'"
-					") X WHERE ( X.OrgID % 47 ) % 2 + 1 = @@auto_increment_offset";
+					") X WHERE ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset";
 
 			__SQL_DEBUG(query.str());
 
