@@ -384,7 +384,7 @@ public:
 
 		std::string where(
 				boost::str(
-						boost::format("`HostName`='%1%' AND ( `OrgID` % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset")
+						boost::format("`HostName`='%1%' AND ( `OrgID` %% 47 ) %% @@auto_increment_increment + 1 = @@auto_increment_offset")
 						% app::hostname));
 
 		if(loaded_max_id < max_id) {
