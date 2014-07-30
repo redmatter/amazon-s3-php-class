@@ -210,6 +210,10 @@ cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
 cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch
+cp scripts/purge-policy-fixer.php %{buildroot}/usr/bin/archiving-purge-policy-fixer
+cp scripts/purge-policy-fixer.conf %{buildroot}/etc/archiving/purge-policy-fixer.conf
+cp scripts/archiving-purge-policy-fixer-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
+cp scripts/archiving-purge-policy-fixer-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-purge-policy-fixer
 cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
 cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.conf
 
@@ -428,15 +432,19 @@ fi
 /usr/bin/archiving-checker-feed.sh
 /usr/bin/archiving-extract
 /usr/bin/archiving-headerspatch
+/usr/bin/archiving-purge-policy-fixer
 /usr/share/archiving/archiving-checker.conf.sample
 /usr/share/archiving/archiving-extract.conf.sample
 /usr/share/archiving/archiving-headerspatch.conf.sample
 /etc/archiving/scripts-retention_ro.conf
 /etc/archiving/scripts-retention_rw.conf
+/etc/archiving/purge-policy-fixer.conf
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
+/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 /etc/logrotate.d/archiving-headerspatch
+/etc/logrotate.d/archiving-purge-policy-fixer
 
 %files qascripts
 %defattr(-,root,root)

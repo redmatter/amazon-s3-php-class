@@ -35,7 +35,7 @@ require_once 'rmapp/class.BaseApp.php';
 */
 class PurgePolicyFixerApp extends BaseDaemonApp
 {
-	const CONFIG_PATH = '/etc/archiving/policy-fixer.conf';
+	const CONFIG_PATH = '/etc/archiving/purge-policy-fixer.conf';
 
 	private $_nextRunTime = 0;
 
