@@ -330,18 +330,19 @@ public:
 
 #undef AssertProps
 
-		const policy::id_type policy_id(rml::utils::strtoull(props["policy-id"].c_str()));
-		const policy::version_type policy_version(rml::utils::strtoull(props["policy-version"].c_str()));
-		org_policy_versions::pointer p_opv(org_policy_versions_finder_(p_item->identifier.org));
-		if (!p_opv) {
-			org_policy_versions_finder_.forget(p_item->identifier.org);
-			throw rml::exception("Org policies could not be found");
+		const retention_record& retention_from_db(*(p_item->retention));
+		{
+			org_policy_versions::pointer p_opv(org_policy_versions_finder_(p_item->identifier.org));
+			if (!p_opv) {
+				org_policy_versions_finder_.forget(p_item->identifier.org);
+				throw rml::exception("Org policies could not be found");
+			}
+
+			if (!p_opv->is_policy_version_latest(retention_from_db.policy_id, retention_from_db.policy_version))
+				throw policy_version_not_latest_exception();
 		}
 
-		if (!p_opv->is_policy_version_latest(policy_id, policy_version))
-			throw policy_version_not_latest_exception();
-
-		const retention_record& retention_from_db(*(p_item->retention));
+		const policy::id_type policy_id(rml::utils::strtoull(props["policy-id"].c_str()));
 		const applied_policy::ymd_t& creation_date(
 				boost::gregorian::from_simple_string(props["creation-date"]).year_month_day());
 		if (!(creation_date.year  == retention_from_db.creation_date.year &&
