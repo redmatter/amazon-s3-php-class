@@ -163,7 +163,7 @@ class ArchivingDevSetupApp extends BaseApp
 
 try
 {
-	$default_conf = getcwd().'/dev-setup.conf';
+	$default_conf = __DIR__.'/dev-setup.conf';
 	if (false === CLI::get('--conf', false) && !is_readable($default_conf))
 		throw new Exception("No configuration given and no config found at $default_conf; use --conf option to specify the config file");
 

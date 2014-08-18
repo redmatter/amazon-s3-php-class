@@ -84,6 +84,7 @@ Requires: RM-php-rmapp >= 0.0.1-23541
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-20785
 Requires: RM-%{appname}-convert >= %{version}-%{release}
+Requires: RM-daemonscripts-php
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -212,6 +213,7 @@ cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arc
 cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch
 cp scripts/purge-policy-fixer.php %{buildroot}/usr/bin/archiving-purge-policy-fixer
 cp scripts/purge-policy-fixer.conf %{buildroot}/etc/archiving/purge-policy-fixer.conf
+cp scripts/rmarchpolfix.sh %{buildroot}/etc/rc.d/init.d/rmarchpolfix
 cp scripts/archiving-purge-policy-fixer-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 cp scripts/archiving-purge-policy-fixer-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-purge-policy-fixer
 cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
@@ -319,6 +321,8 @@ fi
 # fi
 
 %post scripts
+/sbin/chkconfig --add rmarchpolfix
+/sbin/chkconfig rmarchpolfix on
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
@@ -445,6 +449,7 @@ fi
 /etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 /etc/logrotate.d/archiving-headerspatch
 /etc/logrotate.d/archiving-purge-policy-fixer
+/etc/rc.d/init.d/rmarchpolfix
 
 %files qascripts
 %defattr(-,root,root)
