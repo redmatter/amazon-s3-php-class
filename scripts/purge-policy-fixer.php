@@ -95,7 +95,7 @@ class PurgePolicyFixerApp extends BaseApp
     /**
      * Get all enabled OrgIDs
      *
-     * @return int[]|bool true for all, false for none, or an array of enabled OrgIDs
+     * @return int[]|bool false for none, or an array of enabled OrgIDs
      */
     private function _GetEnabledOrgs()
     {
@@ -453,7 +453,11 @@ class PurgePolicyFixerApp extends BaseApp
             $retention_db = MySQLiTransactional::Get('retention', true);
 
 			// fix any that could be in the begining of the table
-            foreach ($this->_GetEnabledOrgs() as $org)
+            $enabledOrgs = $this->_GetEnabledOrgs();
+            if ($enabledOrgs === false)
+                return 0;
+
+            foreach ($enabledOrgs as $org)
             {
                 $retention_db->StartTransaction();
 
