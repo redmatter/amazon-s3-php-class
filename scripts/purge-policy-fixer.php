@@ -130,7 +130,7 @@ class PurgePolicyFixerApp extends BaseApp
                 return false;
 
             if (1 == count($enabledOrgs))
-                $where = "X.OrgID = {$enabledOrgs}";
+                $where = "X.OrgID = {$enabledOrgs[0]}";
             else
                 $where = sprintf('X.OrgID IN (%s)', implode(',', $enabledOrgs));
         }
