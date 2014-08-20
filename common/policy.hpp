@@ -328,6 +328,12 @@ struct applied_policy
 	{
 	}
 
+	applied_policy(policy::pointer policy, const boost::posix_time::ptime& creation_time) :
+		p_policy(policy),
+		creation_time(creation_time)
+	{
+	}
+
 	std::time_t get_creation_epoch() const
 	{
 		boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
@@ -345,19 +351,24 @@ struct applied_policy
 		return creation_time.date().year_month_day();
 	}
 
-	ymd_t get_max_retention_ymd() const
+	inline ymd_t get_max_retention_ymd() const
 	{
-		return p_policy->max_retention.add_to(creation_time).date().year_month_day();
+		return get_max_retention_time().date().year_month_day();
 	}
 
-	ymd_t get_min_retention_ymd() const
+	inline ymd_t get_min_retention_ymd() const
 	{
-		return p_policy->min_retention.add_to(creation_time).date().year_month_day();
+		return get_min_retention_time().date().year_month_day();
 	}
 
-	boost::posix_time::ptime get_min_retention() const
+	inline boost::posix_time::ptime get_min_retention_time() const
 	{
 		return p_policy->min_retention.add_to(creation_time);
+	}
+
+	inline boost::posix_time::ptime get_max_retention_time() const
+	{
+		return p_policy->max_retention.add_to(creation_time);
 	}
 
 	std::ostream& operator<<(std::ostream& os) const

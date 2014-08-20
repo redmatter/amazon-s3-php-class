@@ -61,15 +61,17 @@ struct retention_record
 			return true;
 		}
 
-		static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+		const applied_policy appd_policy(
+						p_policy,
+						boost::posix_time::ptime(
+								boost::gregorian::date(
+										p_retention->creation_date.year,
+										p_retention->creation_date.month,
+										p_retention->creation_date.day),
+								boost::posix_time::seconds(p_retention->midnight_offset)));
 
-		// TODO look into any need for optimising this by using a memorizer for date calculations
-		// We could benefit because of we normally purge in the date order.
-		// We need to profile it to make this decision
-		return boost::posix_time::second_clock::universal_time() > applied_policy(p_policy,
-				(boost::posix_time::ptime(boost::gregorian::date(
-						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day)) - epoch)
-								.total_seconds() + p_retention->midnight_offset).get_min_retention();
+		return appd_policy.get_max_retention_time() < boost::posix_time::second_clock::universal_time();
+
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
@@ -98,18 +100,28 @@ struct retention_record
 			return false;
 		}
 
-		if(!is_regular_purge && (p_policy->type == policy::mode::loose))
-			return true;
+		const applied_policy appd_policy(
+						p_policy,
+						boost::posix_time::ptime(
+								boost::gregorian::date(
+										p_retention->creation_date.year,
+										p_retention->creation_date.month,
+										p_retention->creation_date.day),
+								boost::posix_time::seconds(p_retention->midnight_offset)));
 
-		static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+		// is it on-demand deletion
+		if(!is_regular_purge) {
+			// loose policy allows at any time
+			if(p_policy->type == policy::mode::loose)
+				return true;
 
-		// TODO look into any need for optimising this by using a memorizer for date calculations
-		// We could benefit because of we normally purge in the date order.
-		// We need to profile it to make this decision
-		return boost::posix_time::second_clock::universal_time() > applied_policy(p_policy,
-				(boost::posix_time::ptime(boost::gregorian::date(
-						p_retention->creation_date.year, p_retention->creation_date.month, p_retention->creation_date.day)) - epoch)
-								.total_seconds() + p_retention->midnight_offset).get_min_retention();
+			// else if compliance, only beyond the min-retention period
+			return appd_policy.get_min_retention_time() < boost::posix_time::second_clock::universal_time();
+		}
+
+		// else not on-demand deletion; i.e regular purge is after max-retention period
+		return appd_policy.get_max_retention_time() < boost::posix_time::second_clock::universal_time();
+
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
