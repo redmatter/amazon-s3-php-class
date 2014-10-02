@@ -223,6 +223,12 @@ cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.con
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
+
+# Other scripts
+cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
+cp scripts/archiving-sms-recovery.conf %{buildroot}/usr/share/archiving/archiving-sms-recovery.conf.sample
+cp scripts/archiving-sms-recovery-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-sms-recovery.conf
+
 # ----------
 
 %pre
@@ -431,20 +437,24 @@ fi
 /usr/share/php/archiving/class.ArchivingEndpoint.php
 /usr/share/php/archiving/class.ArchivingRetention.php
 /usr/share/php/archiving/class.ArchivingPolicy.php
+/usr/share/php/archiving/class.ArchivingProcessFile.php
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
 /usr/bin/archiving-extract
+/usr/bin/archiving-sms-recovery
 /usr/bin/archiving-headerspatch
 /usr/bin/archiving-purge-policy-fixer
 /usr/share/archiving/archiving-checker.conf.sample
 /usr/share/archiving/archiving-extract.conf.sample
+/usr/share/archiving/archiving-sms-recovery.conf.sample
 /usr/share/archiving/archiving-headerspatch.conf.sample
 /etc/archiving/scripts-retention_ro.conf
 /etc/archiving/scripts-retention_rw.conf
 /etc/archiving/purge-policy-fixer.conf
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
+/etc/rsyslog.d/11-archiving-sms-recovery.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
 /etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 /etc/logrotate.d/archiving-headerspatch
