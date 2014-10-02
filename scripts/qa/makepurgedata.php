@@ -157,6 +157,9 @@ class MakePurgeDataApp extends BaseApp
 			$sql_usage .= sprintf("\n%s( '%s', '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, $retention->Type, $retention->OrgID, $retention->EndpointID, 1, 0, $retention->RealUsage);
 			$first = false;
 		}
+		// XXX FIXME Duplicates due to successive generation of UUIDs on the same host leading to random pool exhaustion
+		$sql_retention .= ' ON DUPLICATE KEY UPDATE `OrgID`=VALUES(`OrgID`)';
+		
 		$sql_usage .= ' ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)';
 		
 		LogDebug($sql_retention, 'Retention');
@@ -351,7 +354,7 @@ class MakePurgeDataApp extends BaseApp
 			if (count($filetypes) != 1)
 				$filetype = $filetypes[mt_rand(0, count($filetypes) - 1)];
 			
-			$uuid = UUID::v4();
+			$uuid = trim(file_get_contents('/proc/sys/kernel/random/uuid'));
 			
 			$storage_key = Archiving::GetFileTypeStr($filetype).'/'.$org.'/'.$uuid;
 

@@ -521,7 +521,12 @@ public:
 		else {
 			// TODO handle errors mid way!!!
 			// currently we will retry when archived restarts
-			LogWarning(p_item<<" Failed");
+			if (p_item->cur_state == state::init_error) {
+				LogMessage(p_item<<" Failed (not distinguishable from BAD errors)");
+			}
+			else {
+				LogWarning(p_item<<" Failed");
+			}
 		}
 	}
 	catch(const item::channel_t::finishing_exception& e) {
@@ -1046,7 +1051,7 @@ public:
 
 							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
 							if(new_max_id == itr->max_retention_id) {
-								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to zero": ""));
+								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to Max-ID to zero": "; Max-ID already zero"));
 								new_max_id = 0;
 							}
 

@@ -512,8 +512,12 @@ public:
 						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", 0, '2009-01-01', '2009-01-01')";
 				}
 
-				if (previous->limit || previous->offset)
-					query << " ON DUPLICATE KEY UPDATE LastRunTime=VALUES(LastRunTime), MaxRetentionID=VALUES(MaxRetentionID), LastResetTime=IF(0 = VALUES(MaxRetentionID), NOW(), LastResetTime)";
+				if (previous->limit || previous->offset) {
+					query << " ON DUPLICATE KEY UPDATE"
+							" LastRunTime=VALUES(LastRunTime),"
+							" MaxRetentionID=VALUES(MaxRetentionID),"
+							" LastResetTime=IF(0 = VALUES(MaxRetentionID), NOW(), LastResetTime)";
+				}
 				else
 					query << " ON DUPLICATE KEY UPDATE OrgID=VALUES(OrgID)";
 
@@ -554,13 +558,20 @@ public:
 				while(mysqlpp::Row row = res.fetch_row()) {
 					const unsigned long long OrgID(rml::utils::strtoull(row[0].c_str()));
 					const unsigned long long MaxRetentionID(rml::utils::strtoull(row[1].c_str()));
+					/*
 					const bool LastResetMoreThanOneDayAgo(row[2]=="1");
+					*/
 					const bool LastRunMoreThan__MinutesAgo(row[3]=="1");
 					// If we loaded more than XX minutes ago, we need to load further for the Org
 					// only if it has not already been reset to zero within the past one day
+					//
+					// Update: Removing the LastResetMoreThanOneDayAgo check; the LastRunTime is always updated
+					// so in theory it is enough only to check the interval between last attemp and this.
 					if(LastRunMoreThan__MinutesAgo) {
+						/*
 						if(!MaxRetentionID && !LastResetMoreThanOneDayAgo)
 							continue;
+						*/
 
 						p_ret->set.insert(types::purge_def::org_def(OrgID, MaxRetentionID));
 					}

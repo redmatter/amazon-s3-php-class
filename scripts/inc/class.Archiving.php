@@ -83,7 +83,7 @@ class Archiving
 		$refl = new ReflectionClass('Archiving');
 		foreach ($refl->getConstants() as $name => $value)
 		{
-			if (0 === strpos($name, 'FILE_TYPE_') && $name != 'FILE_TYPE_UNKNOWN')
+			if (0 === strpos($name, 'FILE_TYPE_') && 0 !== strpos($name, 'FILE_TYPE_STR_') && $name != 'FILE_TYPE_UNKNOWN')
 			{
 				if ($includeSystemTypes || !in_array($value, self::$OperationalDataFileTypes))
 					$ret[] = $value;

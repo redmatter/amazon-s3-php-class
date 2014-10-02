@@ -357,18 +357,18 @@ struct item
 	}
 
 
-	item(const archiving::archivable::identifier& identifier,
-			const storage::cached_endpoint_finder_t& endpoint_finder,
-			const retention_record::pointer& retention_from_db,
-			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
-			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
-		identifier(identifier),
-		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
-				identifier.org, retention_from_db->endpoint_id))),
-		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
-		id(id), cur_state(cur_state), save_pending(false)
-	{
-	}
+//	item(const archiving::archivable::identifier& identifier,
+//			const storage::cached_endpoint_finder_t& endpoint_finder,
+//			const retention_record::pointer& retention_from_db,
+//			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
+//			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
+//		identifier(identifier),
+//		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+//				identifier.org, retention_from_db->endpoint_id))),
+//		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
+//		id(id), cur_state(cur_state), save_pending(false)
+//	{
+//	}
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
@@ -478,7 +478,7 @@ struct item
 	{
 		inline uint64_t operator()(const pointer& p) const
 		{
-			return p->retention->id;
+			return p->retention? p->retention->id: 0;
 		}
 	};
 
