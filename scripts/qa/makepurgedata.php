@@ -176,10 +176,10 @@ class MakePurgeDataApp extends BaseApp
             if (null === $stdout && isset($retention_array[0]))
             {
                 $stdout = fopen('php://stdout', 'w');
-                fputcsv($stdout, array('Type/OrgID/UUID', 'PolicyID', 'PolicyVersion', 'CreationDate', 'RetentionMinDate', 'RetentionMaxDate', 'EndpointID'));
+                fputcsv($stdout, array('Type/OrgID/UUID', 'PolicyID', 'PolicyVersion', 'CreationDate', 'RetentionMinDate', 'RetentionMaxDate', 'EndpointID', 'PurgedByDate', 'PurgedByPolicyVersion'));
             }
             foreach ($retention_array as $retention)
-                fputcsv($stdout, array("{$retention->Type}/{$retention->OrgID}/{$retention->UUID}", $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID));
+                fputcsv($stdout, array("{$retention->Type}/{$retention->OrgID}/{$retention->UUID}", $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID, $retention->PurgedByDate, $retention->PurgedByPolicyVersion));
 
 			$retention_array = array();
 		}
@@ -296,10 +296,14 @@ class MakePurgeDataApp extends BaseApp
 		if (false !== strstr($policyID, ':'))
 			list($policyID, $policyVersion) = explode(':', $policyID);
 		
+		$policyLatestVersion = null;
 		$policy = ArchivingPolicy::Get(array($coreapi, $authorization), $org, $policyID, $policyVersion);
+		if ($policyVersion != 0)
+			$policyLatestVersion = ArchivingPolicy::Get(array($coreapi, $authorization), $org, $policyID, 0);
+
 		$endpoint = ArchivingEndpoint::Get(array($coreapi, $authorization), $org, $policy->storageEndpointID, true);
 		if ($endpoint->type != 's3')
-			throw new Exception('Endpoint is not on Amazon S3');
+			throw new Exception('Storage Endpoint is not on Amazon S3');
 
 		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
 
@@ -362,12 +366,30 @@ class MakePurgeDataApp extends BaseApp
 			$retention = self::_MakeRetentionObj($policy, $filetype, $org, $uuid, $file_size);
 			self::_MakeMetaHeaders($headers, $retention, $isLegacyMode, $makeErrors);
 
-			LogMessage("New object: {$storage_key} file: {$file_name}");
+			LogDebug("New object: {$storage_key} using file: {$file_name}");
+
 			if (!$s3->putObjectFile($file_name, $endpoint->bucket, $storage_key, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
 				throw new Exception("Failed to store {$endpoint->bucket}/{$storage_key}");
 
 			LogDebug($retention, "Retention:$storage_key");
 			LogDebug($headers, "Metadata:$storage_key");
+
+			if (null !== $policyLatestVersion)
+			{
+				$retentionUpToDate = self::_MakeRetentionObj($policyLatestVersion, $filetype, $org, $uuid, $file_size);
+				$purgedByDate = $retentionUpToDate->RetentionMaxDate;
+				$purgedByPolicyVersion = $retentionUpToDate->PolicyVersion;
+			}
+			else
+			{
+				$purgedByDate = $retention->RetentionMaxDate;
+				$purgedByPolicyVersion = $retention->PolicyVersion;
+			}
+
+			$retention->PurgedByDate = $purgedByDate;
+			$retention->PurgedByPolicyVersion = $purgedByPolicyVersion;
+
+			LogMessage("Added {$retention->Type}/{$retention->OrgID}/{$retention->UUID},{$retention->PolicyID},{$retention->PolicyVersion},{$retention->CreationDate},{$retention->RetentionMinDate},{$retention->RetentionMaxDate},{$retention->EndpointID} PurgedBy: {$purgedByDate} ({$purgedByPolicyVersion})");
 
 			// store Retention record
 			self::BatchSaveRetentionObjs($retention_recs, $retention);
