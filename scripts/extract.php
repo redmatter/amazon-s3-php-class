@@ -19,14 +19,10 @@ define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
+define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 // define('RM_CLI_APP', true);
 
 require_once 'rmapp/class.BaseApp.php';
-
-define('ARCHIVING_FILE_TYPE_UNKNOWN', 0);
-define('ARCHIVING_FILE_TYPE_CDR', 1);
-define('ARCHIVING_FILE_TYPE_RECORDING', 2);
-define('ARCHIVING_FILE_TYPE_SMS', 3);
 
 /**
 * ArchivingExtractApp
@@ -50,29 +46,46 @@ class ArchivingExtractApp extends BaseApp
 	public function run()
 	{
 		$maxId = 0;
-		
+
 		$config = $this->conf;
-		
+
 		if (false === ($orgId = cli::get('--org', $config->get('extract.org_id', false))))
 			throw new Exception('OrgID not given');
-		
+
 		if (false === ($caseRef = cli::get('--case-ref', $config->get('extract.case_reference', false))))
 			throw new Exception('Case reference not given');
 
 		if (false === ($outDir = cli::get('--out-dir', $config->get('extract.output_dir', false))))
 			throw new Exception('Output dir not given');
-		
+
 		if (false === ($username = cli::get('--user', $config->get('extract.username', false))))
 			throw new Exception('Username not given');
 
 		if (false === ($password = cli::get('--password', $config->get('extract.password', false))))
-			throw new Exception('Username not given');
-		
+			throw new Exception('Password not given');
+
+		$extractTypes = cli::get('--type', $config->get('extract.type', 'recording'));
+		$extractTypes = preg_split('/[;, ]+/', $extractTypes);
+		$extractTypes = array_map(
+			function($str)
+			{
+				$int = Archiving::GetFileType($str);
+				if ($int === Archiving::FILE_TYPE_UNKNOWN)
+					throw new Exception('Unknown file-type '.$str);
+
+				return $int;
+			},
+			$extractTypes
+		);
+
+		if (empty($extractTypes))
+			throw new Exception('No valid file-types specified');
+
 		$passcode = cli::get('--passcode', null);
-		
+
 		$startDate = cli::get('--start-date', $config->get('extract.start_date', null));
 		$endDate = cli::get('--end-date', $config->get('extract.end_date', null));
-		
+
 		$authorization = null;
 		$coreapi = $config->get('coreapi.url', 'http://api.redmatter.com');
 		$hash = urlencode(sha1(utf8_encode(mb_strtolower($username, 'UTF-8'))).sha1(utf8_encode($password)).(isset($passcode)? $passcode: ''));
@@ -87,11 +100,11 @@ class ArchivingExtractApp extends BaseApp
 		{
 			LogDebug($stream->getContents(), $stream->httpCode);
 		}
-		
+
 		unset($stream);
 		unset($username);
 		unset($password);
-		
+
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
 
@@ -105,57 +118,62 @@ class ArchivingExtractApp extends BaseApp
 				LogVerbose('Auth deleted', $authorization);
 			}
 		);
-		
+
 		ArchiveD::Init(self::getConf(), $authorization, $caseRef);
-		
+
 		if ((!is_dir($outDir) && (false === mkdir($outDir, 0755, true))) || !is_writable($outDir))
 			throw new Exception("Failed to find / make usable output dir:$outDir");
-		
-		$where = '';
+
+		$where = array();
+		$where[] = "`retention`.`Type` IN (" . implode(', ', $extractTypes) . ")";
+
 		if (!is_null($startDate))
-			$where = "retention.CreationDate >= '{$startDate}'";
+			$where[] = "`retention`.`CreationDate` >= '{$startDate}'";
 		if (!is_null($endDate))
-			$where = ($where? "{$where} AND ": '')."retention.CreationDate <= '{$endDate}'";
-		
-		$where = $where? "AND ( {$where} )": '';
-		
+			$where[] = "`retention`.`CreationDate` <= '{$endDate}'";
+
+		$where = implode(' AND ', $where);
+
 		$dbc = MySQLiConnection::Get('retention_ro');
 		do
 		{
 			$rows = 0;
-			$dbc->query(
-				"SELECT ID, Type, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` ".
-				"FROM ArchivingRetention.Retention_{$orgId} retention WHERE ID > {$maxId} {$where} LIMIT 100"
-			)
+			$query = "SELECT ID, Type, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) `UUID` ".
+				"FROM ArchivingRetention.Retention_{$orgId} retention WHERE `retention`.`ID` > {$maxId} AND {$where} LIMIT 100";
+			$dbc->query($query)
 				->for_each(
-					function(MySQLiResult_Row $row) use (&$maxId, &$rows, $outDir, $orgId)
+					function (MySQLiResult_Row $row) use (&$maxId, &$rows, $outDir, $orgId)
 					{
 						$rows++;
+
+						/** @var MySQLiResult_Row|stdClass $row */
 						$maxId = $row->ID;
 
-						if ($row->Type == ARCHIVING_FILE_TYPE_RECORDING)
+						$file_type_str = Archiving::GetFileTypeStr($row->Type);
+
+						try
 						{
-							try
+							if ($stream = ArchiveD::Fetch($file_type_str, $row->UUID))
 							{
-								if ($stream = ArchiveD::Fetch('recording', $row->UUID))
-								{
-									$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.wav');
-									/*
-									if ($stream = ArchiveD::Head('recording', $row->UUID))
-										$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.meta');
-									*/
-								}
+								$stream->spitContents(
+									$outDir . DIRECTORY_SEPARATOR . $row->UUID .
+									Archiving::GetFileTypeExtension($row->Type)
+								);
+								/*
+								if ($stream = ArchiveD::Head('recording', $row->UUID))
+									$stream->spitContents($outDir.DIRECTORY_SEPARATOR.$row->UUID.'.meta');
+								*/
 							}
-							catch (Exception $e)
-							{
-								LogWarning($e, "recording/{$orgId}/{$row->UUID}");
-							}
+						}
+						catch (Exception $e)
+						{
+							LogWarning($e, "{$file_type_str}/{$orgId}/{$row->UUID}");
 						}
 					}
 				);
 		}
-		while($rows == 100);
-		
+		while ($rows == 100);
+
 		exit(0);
 	}
 }

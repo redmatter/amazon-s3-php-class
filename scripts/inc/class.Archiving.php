@@ -44,6 +44,15 @@ class Archiving
 	const FILE_TYPE_STR_INFO               = 'info';
 	const FILE_TYPE_STR_PCAP_SIP_ONLY      = 'pcap-sip-only';
 
+	const FILE_TYPE_EXTENSION_UNKNOWN            = '.bin';
+	const FILE_TYPE_EXTENSION_CDR                = '.cdr.xml';
+	const FILE_TYPE_EXTENSION_RECORDING          = '.wav';
+	const FILE_TYPE_EXTENSION_SMS                = '.xml';
+	const FILE_TYPE_EXTENSION_BUFFERED_RECORDING = '.wav';
+	const FILE_TYPE_EXTENSION_PCAP               = '.pcap';
+	const FILE_TYPE_EXTENSION_INFO               = '.info.xml';
+	const FILE_TYPE_EXTENSION_PCAP_SIP_ONLY      = '.sip.pcap';
+
 	const SUBFORMAT_UNKNOWN                = 0; // flags errors
 	const SUBFORMAT_BINARY                 = 1; // BLOB ( catchall for any unrecognized data )
 	const SUBFORMAT_XML                    = 2;
@@ -130,9 +139,9 @@ class Archiving
 
 	/**
 	 * Get types in int form
-	 * 
+	 *
 	 * @param string $str str
-	 * 
+	 *
 	 * @return int
 	 */
 	public static function GetFileType($str)
@@ -191,6 +200,36 @@ class Archiving
 	}
 
 	/**
+	 * File type to extension
+	 *
+	 * @param int $type The file type constant
+	 *
+	 * @return string
+	 */
+	public static function GetFileTypeExtension($type)
+	{
+		switch ($type)
+		{
+			case self::FILE_TYPE_CDR:
+				return self::FILE_TYPE_EXTENSION_CDR;
+			case self::FILE_TYPE_RECORDING:
+				return self::FILE_TYPE_EXTENSION_RECORDING;
+			case self::FILE_TYPE_SMS:
+				return self::FILE_TYPE_EXTENSION_SMS;
+			case self::FILE_TYPE_BUFFERED_RECORDING:
+				return self::FILE_TYPE_EXTENSION_BUFFERED_RECORDING;
+			case self::FILE_TYPE_PCAP:
+				return self::FILE_TYPE_EXTENSION_PCAP;
+			case self::FILE_TYPE_INFO:
+				return self::FILE_TYPE_EXTENSION_INFO;
+			case self::FILE_TYPE_PCAP_SIP_ONLY:
+				return self::FILE_TYPE_EXTENSION_PCAP_SIP_ONLY;
+			default:
+				return self::FILE_TYPE_EXTENSION_UNKNOWN;
+		}
+	}
+
+	/**
 	 * sub-format to int
 	 *
 	 * @param string $str subformat string
@@ -209,7 +248,6 @@ class Archiving
 				return self::SUBFORMAT_WAV;
 			case self::SUBFORMAT_STR_MP3:
 				return self::SUBFORMAT_MP3;
-				
 			default:
 				return self::SUBFORMAT_UNKNOWN;
 		}
@@ -234,7 +272,6 @@ class Archiving
 				return self::SUBFORMAT_STR_WAV;
 			case self::SUBFORMAT_MP3:
 				return self::SUBFORMAT_STR_MP3;
-	
 			default:
 				return self::SUBFORMAT_STR_UNKNOWN;
 		}
