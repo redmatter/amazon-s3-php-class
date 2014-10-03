@@ -424,11 +424,17 @@ class PurgePolicyFixerApp extends BaseApp
 
 			// reset the purge marker
             if (count($orgMinRetentionIds))
-            {
+			{
+				$first = true;
                 $sql = 'INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` ( `OrgID`, `MaxRetentionID`, `LastResetTime`, `LastRunTime` )' .
                     ' VALUES ';
-                foreach ($orgMinRetentionIds as $orgId => $minRetentionId)
-                    $sql .= sprintf(' ( %d, %d, "2009-01-01", "2009-01-01" ) ', $orgId, $minRetentionId);
+				foreach ($orgMinRetentionIds as $orgId => $minRetentionId)
+				{
+					if (!$first)
+						$sql .= ', ';
+					$sql .= sprintf('( %d, %d, "2009-01-01", "2009-01-01" ) ', $orgId, $minRetentionId);
+					$first = false;
+				}
                 $sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
                 LogDebug($sql);
                 $internal_db->query($sql);
