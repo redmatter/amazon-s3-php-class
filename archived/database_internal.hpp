@@ -498,6 +498,8 @@ public:
 
 			if(!previous->set.empty())
 			{
+				const bool not_the_very_first_time(previous->limit || previous->offset);
+
 				mysqlpp::Query query = conn->query();
 
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` "
@@ -506,13 +508,13 @@ public:
 				const types::purge_def::set_t::const_iterator& end(previous->set.end());
 				const types::purge_def::set_t::const_iterator& begin(previous->set.begin());
 				for(types::purge_def::set_t::const_iterator itr = begin; itr != end; ++itr) {
-					if (previous->limit || previous->offset)
+					if (not_the_very_first_time)
 						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", "<<itr->max_retention_id<<", NOW(), NOW())";
 					else
 						query << (itr == begin? '\n': ',') << '(' << itr->org_id << ", 0, '2009-01-01', '2009-01-01')";
 				}
 
-				if (previous->limit || previous->offset) {
+				if (not_the_very_first_time) {
 					query << " ON DUPLICATE KEY UPDATE"
 							" LastRunTime=VALUES(LastRunTime),"
 							" MaxRetentionID=VALUES(MaxRetentionID),"
@@ -566,7 +568,7 @@ public:
 					// only if it has not already been reset to zero within the past one day
 					//
 					// Update: Removing the LastResetMoreThanOneDayAgo check; the LastRunTime is always updated
-					// so in theory it is enough only to check the interval between last attemp and this.
+					// so in theory it is enough only to check the interval between last attempt and this.
 					if(LastRunMoreThan__MinutesAgo) {
 						/*
 						if(!MaxRetentionID && !LastResetMoreThanOneDayAgo)

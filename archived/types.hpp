@@ -719,7 +719,7 @@ struct purge_def
 
 	typedef boost::shared_ptr< purge_def > pointer;
 
-	purge_def(const time_t creation_time = 0) : offset(0), limit(0), creation_time(creation_time)
+	explicit purge_def(const time_t creation_time = 0) : offset(0), limit(0), creation_time(creation_time)
 	{
 	}
 };

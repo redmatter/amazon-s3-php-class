@@ -1051,7 +1051,7 @@ public:
 
 							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
 							if(new_max_id == itr->max_retention_id) {
-								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting to Max-ID to zero": "; Max-ID already zero"));
+								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting Max-ID to zero": "; Max-ID already zero"));
 								new_max_id = 0;
 							}
 
