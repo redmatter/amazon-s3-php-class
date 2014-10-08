@@ -132,7 +132,7 @@ namespace app
 							xml += *i + "\n";
 						xml += "</Messages>";
 
-						app::coreapi::response r = coreapi_.post(std::string("/smslogs/push"), xml);
+						const app::coreapi::response& r(coreapi_.post("/smslogs/push", xml));
 						if (r.first < 200 || r.first >= 300)
 						{
 							LogError("sms_inspector: smslog: error submitting SMS logs: " << r.first << ": " << r.second);
