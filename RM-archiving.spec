@@ -223,6 +223,7 @@ cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.con
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
+cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
 
 # Other scripts
 cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
@@ -466,6 +467,7 @@ fi
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
+/etc/logrotate.d/archiving-makepurgedata
 
 # ----------
 
