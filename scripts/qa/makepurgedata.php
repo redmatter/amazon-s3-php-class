@@ -401,18 +401,12 @@ class MakePurgeDataApp extends BaseApp
 
 try
 {
-	$default_conf = getenv('PWD').'/makepurgedata.conf';
-	if (false === CLI::get('--conf', false) && !is_readable($default_conf))
-		throw new Exception("No configuration given and no config found at $default_conf; use --conf option to specify the config file");
-
-	$app = MakePurgeDataApp::getInstance(CLI::get('--conf', $default_conf));
-
-	if (true === CLI::get('--help'))
-	{
-		$prog = basename(__FILE__, '.php');
-		$fileTypes = implode(' | ', Archiving::GetAllFileTypesAsString(true));
-		$fileTypesOperational = implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString));
-		echo <<<USAGE
+    if (true === CLI::get('--help'))
+    {
+        $prog = basename(__FILE__, '.php');
+        $fileTypes = implode(' | ', Archiving::GetAllFileTypesAsString(true));
+        $fileTypesOperational = implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString));
+        echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
         --policy-id=< PolicyID[:PolicyVersion] > --batch-size=< N >
@@ -439,7 +433,7 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
 
     --introduce-errors
         Introduce retention record mismatch ( compared to metadata headers )
-        
+
     --creation-date=< YYYY-MM-DD >
         Use the specified creation date rather than the current date (NOW)
 
@@ -452,8 +446,14 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
 
 
 USAGE;
-		exit(0);
-	}
+        exit(0);
+    }
+
+	$default_conf = getenv('PWD').'/makepurgedata.conf';
+	if (false === CLI::get('--conf', false) && !is_readable($default_conf))
+		throw new Exception("No configuration given and no config found at $default_conf; use --conf option to specify the config file");
+
+	$app = MakePurgeDataApp::getInstance(CLI::get('--conf', $default_conf));
 
 	$app->run();
 	exit(0);
