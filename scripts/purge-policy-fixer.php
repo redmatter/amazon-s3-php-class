@@ -21,8 +21,9 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
+require_once 's3/S3.php';
 require_once 'rmapp/class.BaseApp.php';
-require_once "rmdaemonscripts/DaemonScripts.php";
+require_once 'rmdaemonscripts/DaemonScripts.php';
 
 /**
 * PurgePolicyFixerApp
@@ -338,7 +339,6 @@ class PurgePolicyFixerApp extends BaseApp
 			$retentionDb->CommitTransaction();
 		};
 
-        // todo : factor this in to the looped select
         $fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
         $fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
         {
