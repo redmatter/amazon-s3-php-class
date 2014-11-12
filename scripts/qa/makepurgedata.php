@@ -36,6 +36,8 @@ require_once 'rmapp/class.BaseApp.php';
 class MakePurgeDataApp extends BaseApp
 {
 	const DEFAULT_BATCH_SIZE = 1000;
+
+    const CONF_SAMPLE = '/usr/share/archiving/archiving-makepurgedata.conf.sample';
 	
 	private static $_CreationDate;
 	private static $_API;
@@ -404,8 +406,6 @@ try
     if (true === CLI::get('--help'))
     {
         $prog = basename(__FILE__, '.php');
-        $fileTypes = implode(' | ', Archiving::GetAllFileTypesAsString(true));
-        $fileTypesOperational = implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString));
         echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
@@ -418,8 +418,8 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
         OrgID for which we are generating test data for
 
     --filetype=< FileType1[,FileType2] >
-        Filetype(s) that need to be created; Operational types ( $fileTypesOperational ) are only for Org:1
-        FileType = $fileTypes
+        Filetype(s) that need to be created; Operational types are only for Org:1.
+        Use --list-operational-filetypes to see a list
 
     --policy-id=< PolicyID[:PolicyVersion] >
         PolicyID of the Org under which files are to be put
@@ -441,22 +441,54 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
         Path to a config file; sample file available at
         /usr/share/archiving/archiving-makepurgedata.conf.sample
 
+    INFORMATION
+
+    The script will terminate after showing the requested information.
+
     --help
 	    This help message
 
+    --list-filetypes
+        To see the list of file-types that you can use.
+
+    --list-operational-filetypes
+        To see the list of operational file-types that you can use ( only for Org:1 ).
 
 USAGE;
         exit(0);
     }
 
 	$default_conf = getenv('PWD').'/makepurgedata.conf';
+
+    // fudge to get around autoloader error with help or any other informational CLI option
+    if (true === CLI::get('--help')
+        || true === CLI::get('--list-filetypes')
+        || true === CLI::get('--list-operational-filetypes'))
+    {
+        if (!is_readable($default_conf) && is_readable(MakePurgeDataApp::CONF_SAMPLE))
+            $default_conf = MakePurgeDataApp::CONF_SAMPLE;
+    }
+
 	if (false === CLI::get('--conf', false) && !is_readable($default_conf))
 		throw new Exception("No configuration given and no config found at $default_conf; use --conf option to specify the config file");
 
 	$app = MakePurgeDataApp::getInstance(CLI::get('--conf', $default_conf));
 
-	$app->run();
-	exit(0);
+    if (true === CLI::get('--list-filetypes'))
+    {
+        echo "Filetypes available are  ".implode(', ', Archiving::GetAllFileTypesAsString(true))."\n";
+        exit(0);
+    }
+    elseif (true === CLI::get('--list-operational-filetypes'))
+    {
+        echo "Filetypes available are  ".implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString))."\n";
+        exit(0);
+    }
+    else
+    {
+        $app->run();
+        exit(0);
+    }
 }
 catch (Exception $e)
 {
