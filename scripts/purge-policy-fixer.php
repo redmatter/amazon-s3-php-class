@@ -342,7 +342,7 @@ class PurgePolicyFixerApp extends BaseApp
         $fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
         $fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
         {
-            if (!$fixS3HeaderAbsoluteStopDate/* === null */)
+            if (!$fixS3HeaderAbsoluteStopDate/* === null */ || !count($retentionIds))
                 return;
 
             $retentionDb->query(
@@ -453,9 +453,11 @@ class PurgePolicyFixerApp extends BaseApp
 			$deleteIDs = array();
 			$orgMinRetentionIds = array();
 			$orgMaxRetentionIds = array();
+            $orgHeaderFixRetentionIds = array();
 
 			$internalDb->query(
-				"SELECT `ID`, `OrgID`, `RetentionID`, `PolicyID`" .
+				"SELECT `ID`, `OrgID`, `RetentionID`, `PolicyID`," .
+                " `CreationDate` <= '$fixS3HeaderAbsoluteStopDate' `PossiblyNeedHeaderFix`" .
 				" FROM `ArchivingInternal`.`ArchiveDPurgeQueue`" .
 				" WHERE `State`=" . Archiving::PurgeStateFromString('init_error') .
                 "  AND `HostName`='" . self::_GetHostName() . "'" .
@@ -465,7 +467,7 @@ class PurgePolicyFixerApp extends BaseApp
 				->for_each(
 					function (MySQLiResult_Row $row) use (
                         &$updatesBatch, &$deleteIDs, &$orgMinRetentionIds, &$orgMaxRetentionIds,
-                        &$batchCount, $batchCallback)
+                        &$batchCount, $batchCallback, $fixS3Headers, &$orgHeaderFixRetentionIds)
 					{
 						/** @var MySQLiResult_Row|stdClass $row */
 						$orgId = (int)($row->OrgID);
@@ -485,6 +487,15 @@ class PurgePolicyFixerApp extends BaseApp
 						if (!isset($orgMaxRetentionIds[$orgId]) || $retentionId > $orgMaxRetentionIds[$orgId])
 							$orgMaxRetentionIds[$orgId] = $retentionId;
 
+                        // track the items which possibly need header fixing
+                        if ($row->PossiblyNeedHeaderFix)
+                        {
+                            if (!isset($orgHeaderFixRetentionIds[$orgId]))
+                                $orgHeaderFixRetentionIds[$orgId] = array($retentionId);
+                            else
+                                $orgHeaderFixRetentionIds[$orgId][] = $retentionId;
+                        }
+
 						$batchCount++;
 
 						if ($batchCount > 1000)
@@ -498,8 +509,14 @@ class PurgePolicyFixerApp extends BaseApp
 								$updatesBatch[$orgPolicy] = null;
 							}
 
+                            foreach ($orgHeaderFixRetentionIds as $orgId => $retentionIds)
+                            {
+                                $fixS3Headers($orgId, $retentionIds);
+                            }
+
 							// reset the batch ( NOT the delete IDs )
 							$updatesBatch = array();
+                            $orgHeaderFixRetentionIds = array();
 							$batchCount = 0;
 						}
 					}
