@@ -99,7 +99,7 @@ class PurgePolicyFixerApp extends BaseApp
      */
     private function _GetEnabledOrgs()
     {
-        $retention_db = MySQLiTransactional::Get('retention');
+        $retentionDb = MySQLiTransactional::Get('retention');
         $archivedConfig = $this->_GetArchiveDConf();
         $enabledOrgs = $archivedConfig->get('retention_purge.enabled_orgs', '');
         $enabledOrgs = strtolower($enabledOrgs);
@@ -139,7 +139,7 @@ class PurgePolicyFixerApp extends BaseApp
             $where = '1';
         }
 
-        $res = $retention_db->query(
+        $res = $retentionDb->query(
             "SELECT OrgID ".
             "  FROM ( ".
             "    SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` ".
@@ -300,7 +300,7 @@ class PurgePolicyFixerApp extends BaseApp
 		API::Login($authHash);
 		$api = array($coreapi, API::GetToken());
 		/** @noinspection PhpUnusedLocalVariableInspection */
-		$authorization_sentry = new ScopeSentry(
+		$authorizationSentry = new ScopeSentry(
 			function() use (&$api)
 			{
 				unset($api);
@@ -308,14 +308,14 @@ class PurgePolicyFixerApp extends BaseApp
 			}
 		);
 
-		/** @var MySQLiTransactional $internal_db */
-		$internal_db = MySQLiTransactional::Get('internal');
-		/** @var MySQLiTransactional $retention_db */
-		$retention_db = MySQLiTransactional::Get('retention');
+		/** @var MySQLiTransactional $internalDb */
+		$internalDb = MySQLiTransactional::Get('internal');
+		/** @var MySQLiTransactional $retentionDb */
+		$retentionDb = MySQLiTransactional::Get('retention');
 
-		$batchCallback = function($org, $policy, $retentionIds, $resetPurgeState) use ($retention_db, $api)
+		$batchCallback = function($org, $policy, $retentionIds, $resetPurgeState) use ($retentionDb, $api)
 		{
-			$retention_db->StartTransaction();
+			$retentionDb->StartTransaction();
 
 			$policy = ArchivingPolicy::Get($api, $org, $policy, 0);
 
@@ -333,18 +333,120 @@ class PurgePolicyFixerApp extends BaseApp
 				implode(', ', $retentionIds)
 			);
 			LogDebug($sql);
-			$retention_db->query($sql);
+			$retentionDb->query($sql);
 
-			$retention_db->CommitTransaction();
+			$retentionDb->CommitTransaction();
 		};
+
+        // todo : factor this in to the looped select
+        $fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
+        $fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
+        {
+            if (!$fixS3HeaderAbsoluteStopDate/* === null */)
+                return;
+
+            $retentionDb->query(
+                "SELECT" .
+                " ID," .
+                " IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted," .
+                " IF(Format & (0x000f << 8), 'true', 'false') Compressed," .
+                " Format & 0xff SubType," .
+                " Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, " .
+                Archiving::SqlSelectUuid('UUID', 'UUID').", ".Archiving::SqlSelectUuid('LegUUID', 'LegUUID')."," .
+                " ISNULL(retention.LegUUID) `LegUUIDNull`" .
+                "FROM ArchivingRetention.Retention_{$orgId} retention " .
+                "WHERE ID IN (".implode(', ', $retentionIds).")" .
+                " AND retention.CreationDate < '{$fixS3HeaderAbsoluteStopDate}'"
+            )
+                ->for_each(
+                    // Record handler lambda that gets records from retention database and compares them with S3 headers
+                    function(MySQLiResult_Row $row) use ($orgId, $api)
+                    {
+                        $identifier = sprintf('%s/%d/%s', Archiving::GetFileTypeStr($row->Type), $orgId, $row->UUID);
+                        $endpoint = ArchivingEndpoint::Get($api, $orgId, $row->EndpointID, true);
+
+                        if ($endpoint->type != 's3')
+                        {
+                            LogMessage('Ignoring object from non-S3 endpoint', $identifier);
+                            return;
+                        }
+
+                        $s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+
+                        $inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
+                        LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
+                        $realSize = $inf['size'];
+
+                        $headers = array(
+                            'creation-date' => $row->CreationDate,
+                            'file-type' => Archiving::GetSubFormatStr($row->SubType),
+                            'file-type-is-compressed' => $row->Compressed,
+                            'file-type-is-encrypted' => $row->Encrypted,
+                            'policy-id' => $row->PolicyID,
+                            'policy-version' => $row->PolicyVersion,
+                            'real-size' => $realSize,
+                            'retention-max-date' => $row->RetentionMaxDate,
+                            'retention-min-date' => $row->RetentionMinDate,
+                            'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
+                        );
+
+                        $headerMismatch = false;
+                        foreach ($headers as $hKey => $hValue)
+                        {
+                            $amzKey = sprintf('x-amz-meta-%s', $hKey);
+                            $amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
+                            if (is_null($amzValue) || ($amzValue != $hValue))
+                            {
+                                $headerMismatch = true;
+                                LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
+                            }
+                        }
+
+                        if ($headerMismatch)
+                        {
+                            $retry = 5;
+                            $delay = 0;
+                            $copyOk = null;
+                            do
+                            {
+                                if (!is_null($copyOk))
+                                    sleep($delay);
+
+                                // S3 copy on to itself to update headers
+                                $copyOk = $s3->copyObject(
+                                    $endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE,
+                                    $headers, array('Content-Type'=>'binary/octet-stream')
+                                );
+                                if (false === $copyOk)
+                                {
+                                    if ($retry)
+                                    {
+                                        $delay = pow(6 - $retry, 2);
+                                        LogWarning("Error copying new metadata; retrying in $delay seconds (sleeping..)", $identifier);
+                                    }
+                                    else
+                                        LogError('Error copying new metadata; giving up!', $identifier);
+                                }
+                            }
+                            while ($retry-- && !$copyOk);
+
+                            LogMessage(sprintf('outcome:%s', $copyOk? 'ok': 'failed'), $identifier);
+                        }
+                        else
+                            LogMessage('No mismatch in metadata', $identifier);
+
+                        unset($s3);
+                    }
+                );
+        };
 
 		try
 		{
-			$internal_db->StartTransaction();
-			$retention_db->StartTransaction();
+			$internalDb->StartTransaction();
+			$retentionDb->StartTransaction();
 
-			$internal_db->query('SET innodb_lock_wait_timeout = 30');
-			$retention_db->query('SET innodb_lock_wait_timeout = 30');
+			$internalDb->query('SET innodb_lock_wait_timeout = 30');
+			$retentionDb->query('SET innodb_lock_wait_timeout = 30');
 
 			$batchCount = 0;
 			$updatesBatch = array();
@@ -352,15 +454,18 @@ class PurgePolicyFixerApp extends BaseApp
 			$orgMinRetentionIds = array();
 			$orgMaxRetentionIds = array();
 
-			$internal_db->query(
+			$internalDb->query(
 				"SELECT `ID`, `OrgID`, `RetentionID`, `PolicyID`" .
 				" FROM `ArchivingInternal`.`ArchiveDPurgeQueue`" .
-				" WHERE `State`=" . Archiving::PurgeStateFromString('init_error') . " AND `HostName`='" . self::_GetHostName() . "'" .
+				" WHERE `State`=" . Archiving::PurgeStateFromString('init_error') .
+                "  AND `HostName`='" . self::_GetHostName() . "'" .
 				" ORDER BY `OrgID`, `PolicyID`",
 				MYSQLI_USE_RESULT
 			)
 				->for_each(
-					function (MySQLiResult_Row $row) use (&$updatesBatch, &$deleteIDs, &$orgMinRetentionIds, &$orgMaxRetentionIds, &$batchCount, $batchCallback)
+					function (MySQLiResult_Row $row) use (
+                        &$updatesBatch, &$deleteIDs, &$orgMinRetentionIds, &$orgMaxRetentionIds,
+                        &$batchCount, $batchCallback)
 					{
 						/** @var MySQLiResult_Row|stdClass $row */
 						$orgId = (int)($row->OrgID);
@@ -419,7 +524,7 @@ class PurgePolicyFixerApp extends BaseApp
             {
                 $sql = sprintf('DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `ID` IN ( %s )', implode(', ', $deleteIDs));
                 LogDebug($sql);
-                $internal_db->query($sql);
+                $internalDb->query($sql);
             }
 
 			// reset the purge marker
@@ -437,7 +542,7 @@ class PurgePolicyFixerApp extends BaseApp
 				}
                 $sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
                 LogDebug($sql);
-                $internal_db->query($sql);
+                $internalDb->query($sql);
             }
 
 			// fix more than what needs to so that the archived has more chance of clean purge run!
@@ -446,17 +551,17 @@ class PurgePolicyFixerApp extends BaseApp
                 foreach ($orgMaxRetentionIds as $org => $maxRetentionId)
                 {
 					$sql = $GetMassUpdateSQL($org);
-                    $retention_db->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
+                    $retentionDb->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
                 }
             }
 
-			$internal_db->CommitTransaction();
-			$retention_db->CommitTransaction();
+			$internalDb->CommitTransaction();
+			$retentionDb->CommitTransaction();
 
             unset($orgMinRetentionIds);
             unset($orgMaxRetentionIds);
 
-            $retention_db = MySQLiTransactional::Get('retention', true);
+            $retentionDb = MySQLiTransactional::Get('retention', true);
 
 			// fix any that could be in the begining of the table
             $enabledOrgs = $this->_GetEnabledOrgs();
@@ -465,12 +570,12 @@ class PurgePolicyFixerApp extends BaseApp
 
             foreach ($enabledOrgs as $org)
             {
-                $retention_db->StartTransaction();
+                $retentionDb->StartTransaction();
 
                 $sql = $GetMassUpdateSQL($org);
 
                 // fetching the first ID; relying on the table's ordering
-                $minId = $retention_db->query(
+                $minId = $retentionDb->query(
                     sprintf(
                         'SELECT `ID` FROM `ArchivingRetention`.`Retention_%d` WHERE `State`="Available" %s LIMIT 1',
                         $org, $GetPurgeRestrictions()
@@ -478,7 +583,7 @@ class PurgePolicyFixerApp extends BaseApp
                 )->fetch_all();
                 $minId = count($minId)? $minId[0]->ID: 1;
 
-                $maxId = $retention_db->query(
+                $maxId = $retentionDb->query(
                     "SELECT `AUTO_INCREMENT` FROM `INFORMATION_SCHEMA`.`TABLES` ".
                     " WHERE `TABLE_SCHEMA` = 'ArchivingRetention' AND `TABLE_NAME` = 'Retention_{$org}'"
                 )->fetch_all();
@@ -488,18 +593,18 @@ class PurgePolicyFixerApp extends BaseApp
                 {
                     $sqlWithIDsRange = sprintf($sql, $idRangeStart, $idRangeStart+10000);
                     LogDebug($sqlWithIDsRange, '$sqlWithIDsRange');
-                    $retention_db->query($sqlWithIDsRange);
-                    LogDebug($retention_db->affected_rows, '$retention_db->affected_rows');
+                    $retentionDb->query($sqlWithIDsRange);
+                    LogDebug($retentionDb->affected_rows, '$retention_db->affected_rows');
                 }
 
-                $retention_db->CommitTransaction();
+                $retentionDb->CommitTransaction();
             }
 		}
 		catch (Exception $e)
 		{
 			LogError($e);
-			$internal_db->RollbackTransaction();
-			$retention_db->RollbackTransaction();
+			$internalDb->RollbackTransaction();
+			$retentionDb->RollbackTransaction();
 
             return 1;
 		}
