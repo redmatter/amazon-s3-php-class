@@ -26,14 +26,24 @@
  */
 class Archiving
 {
-	const FILE_TYPE_UNKNOWN                = 0;
-	const FILE_TYPE_CDR                    = 1;
-	const FILE_TYPE_RECORDING              = 2;
-	const FILE_TYPE_SMS                    = 3;
-	const FILE_TYPE_BUFFERED_RECORDING     = 4;
-	const FILE_TYPE_PCAP                   = 5;
-	const FILE_TYPE_INFO                   = 6;
-	const FILE_TYPE_PCAP_SIP_ONLY          = 7;
+    // the below pairs are only to keep legacy code happy
+    // ** Do remember to maintain it! **
+	const FILE_TYPE_INT_UNKNOWN            = 0;
+    const FILE_TYPE_UNKNOWN                = self::FILE_TYPE_INT_UNKNOWN;
+	const FILE_TYPE_INT_CDR                = 1;
+    const FILE_TYPE_CDR                    = self::FILE_TYPE_INT_CDR;
+	const FILE_TYPE_INT_RECORDING          = 2;
+    const FILE_TYPE_RECORDING              = self::FILE_TYPE_INT_RECORDING;
+	const FILE_TYPE_INT_SMS                = 3;
+    const FILE_TYPE_SMS                    = self::FILE_TYPE_INT_SMS;
+	const FILE_TYPE_INT_BUFFERED_RECORDING = 4;
+    const FILE_TYPE_BUFFERED_RECORDING     = self::FILE_TYPE_INT_RECORDING;
+	const FILE_TYPE_INT_PCAP               = 5;
+    const FILE_TYPE_PCAP                   = self::FILE_TYPE_INT_PCAP;
+	const FILE_TYPE_INT_INFO               = 6;
+    const FILE_TYPE_INFO                   = self::FILE_TYPE_INT_INFO;
+	const FILE_TYPE_INT_PCAP_SIP_ONLY      = 7;
+    const FILE_TYPE_PCAP_SIP_ONLY          = self::FILE_TYPE_INT_PCAP_SIP_ONLY;
 
 	const FILE_TYPE_STR_UNKNOWN            = 'unknown';
 	const FILE_TYPE_STR_CDR                = 'cdr';
@@ -66,15 +76,15 @@ class Archiving
 	const SUBFORMAT_STR_MP3                = 'mp3';
 
 	static $OperationalDataFileTypes = array(
-		self::FILE_TYPE_CDR,
-		self::FILE_TYPE_PCAP,
-		self::FILE_TYPE_PCAP_SIP_ONLY
+		self::FILE_TYPE_INT_CDR,
+		self::FILE_TYPE_INT_PCAP,
+		self::FILE_TYPE_INT_PCAP_SIP_ONLY
 	);
 
 	static $OperationalDataFileTypesAsString = array(
-		self::FILE_TYPE_CDR,
-		self::FILE_TYPE_PCAP,
-		self::FILE_TYPE_PCAP_SIP_ONLY
+		self::FILE_TYPE_INT_CDR,
+		self::FILE_TYPE_INT_PCAP,
+		self::FILE_TYPE_INT_PCAP_SIP_ONLY
 	);
 
 	const CONFIG_FILE_RMARCHIVED = '/etc/archiving/rmarchived.conf';
@@ -92,7 +102,7 @@ class Archiving
 		$refl = new ReflectionClass('Archiving');
 		foreach ($refl->getConstants() as $name => $value)
 		{
-			if (0 === strpos($name, 'FILE_TYPE_') && 0 !== strpos($name, 'FILE_TYPE_STR_') && $name != 'FILE_TYPE_UNKNOWN')
+			if (0 === strpos($name, 'FILE_TYPE_INT_') && $name != 'FILE_TYPE_INT_UNKNOWN')
 			{
 				if ($includeSystemTypes || !in_array($value, self::$OperationalDataFileTypes))
 					$ret[] = $value;
@@ -149,22 +159,22 @@ class Archiving
 		switch (strtolower($str))
 		{
 			case self::FILE_TYPE_STR_CDR:
-				return self::FILE_TYPE_CDR;
+				return self::FILE_TYPE_INT_CDR;
 			case self::FILE_TYPE_STR_RECORDING:
-				return self::FILE_TYPE_RECORDING;
+				return self::FILE_TYPE_INT_RECORDING;
 			case self::FILE_TYPE_STR_SMS:
-				return self::FILE_TYPE_SMS;
+				return self::FILE_TYPE_INT_SMS;
 			case self::FILE_TYPE_STR_BUFFERED_RECORDING:
-				return self::FILE_TYPE_BUFFERED_RECORDING;
+				return self::FILE_TYPE_INT_BUFFERED_RECORDING;
 			case self::FILE_TYPE_STR_PCAP:
-				return self::FILE_TYPE_PCAP;
+				return self::FILE_TYPE_INT_PCAP;
 			case self::FILE_TYPE_STR_INFO:
-				return self::FILE_TYPE_INFO;
+				return self::FILE_TYPE_INT_INFO;
 			case self::FILE_TYPE_STR_PCAP_SIP_ONLY:
-				return self::FILE_TYPE_PCAP_SIP_ONLY;
+				return self::FILE_TYPE_INT_PCAP_SIP_ONLY;
 
 			default:
-				return self::FILE_TYPE_UNKNOWN;
+				return self::FILE_TYPE_INT_UNKNOWN;
 		}
 	}
 
@@ -179,19 +189,19 @@ class Archiving
 	{
 		switch ($type)
 		{
-			case self::FILE_TYPE_CDR:
+			case self::FILE_TYPE_INT_CDR:
 				return self::FILE_TYPE_STR_CDR;
-			case self::FILE_TYPE_RECORDING:
+			case self::FILE_TYPE_INT_RECORDING:
 				return self::FILE_TYPE_STR_RECORDING;
-			case self::FILE_TYPE_SMS:
+			case self::FILE_TYPE_INT_SMS:
 				return self::FILE_TYPE_STR_SMS;
-			case self::FILE_TYPE_BUFFERED_RECORDING:
+			case self::FILE_TYPE_INT_BUFFERED_RECORDING:
 				return self::FILE_TYPE_STR_BUFFERED_RECORDING;
-			case self::FILE_TYPE_PCAP:
+			case self::FILE_TYPE_INT_PCAP:
 				return self::FILE_TYPE_STR_PCAP;
-			case self::FILE_TYPE_INFO:
+			case self::FILE_TYPE_INT_INFO:
 				return self::FILE_TYPE_STR_INFO;
-			case self::FILE_TYPE_PCAP_SIP_ONLY:
+			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_STR_PCAP_SIP_ONLY;
 
 			default:
@@ -210,19 +220,19 @@ class Archiving
 	{
 		switch ($type)
 		{
-			case self::FILE_TYPE_CDR:
+			case self::FILE_TYPE_INT_CDR:
 				return self::FILE_TYPE_EXTENSION_CDR;
-			case self::FILE_TYPE_RECORDING:
+			case self::FILE_TYPE_INT_RECORDING:
 				return self::FILE_TYPE_EXTENSION_RECORDING;
-			case self::FILE_TYPE_SMS:
+			case self::FILE_TYPE_INT_SMS:
 				return self::FILE_TYPE_EXTENSION_SMS;
-			case self::FILE_TYPE_BUFFERED_RECORDING:
+			case self::FILE_TYPE_INT_BUFFERED_RECORDING:
 				return self::FILE_TYPE_EXTENSION_BUFFERED_RECORDING;
-			case self::FILE_TYPE_PCAP:
+			case self::FILE_TYPE_INT_PCAP:
 				return self::FILE_TYPE_EXTENSION_PCAP;
-			case self::FILE_TYPE_INFO:
+			case self::FILE_TYPE_INT_INFO:
 				return self::FILE_TYPE_EXTENSION_INFO;
-			case self::FILE_TYPE_PCAP_SIP_ONLY:
+			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_EXTENSION_PCAP_SIP_ONLY;
 			default:
 				return self::FILE_TYPE_EXTENSION_UNKNOWN;
@@ -363,4 +373,23 @@ class Archiving
 
 		throw new Exception("Unknown purge-state: $str");
 	}
+
+    /**
+     * Format SQL SELECT formula for binary UUID fields
+     *
+     * @param string $field field name
+     * @param string $alias field alias
+     *
+     * @return string
+     */
+    public static function SqlSelectUuid($field, $alias = null)
+    {
+        return "LCASE(CONCAT(".
+            "HEX(SUBSTR(`{$field}`, 1, 4)), '-', ".
+            "HEX(SUBSTR(`{$field}`, 5, 2)), '-', ".
+            "HEX(SUBSTR(`{$field}`, 7, 2)), '-', ".
+            "HEX(SUBSTR(`{$field}`, 9, 2)), '-', ".
+            "HEX(SUBSTR(`{$field}`, 11))" .
+        "))".($alias !== null? " `{$alias}`": '');
+    }
 }
