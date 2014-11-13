@@ -26,24 +26,24 @@
  */
 class Archiving
 {
-    // the below pairs are only to keep legacy code happy
-    // ** Do remember to maintain it! **
+	// the below pairs are only to keep legacy code happy
+	// ** Do remember to maintain it! **
 	const FILE_TYPE_INT_UNKNOWN            = 0;
-    const FILE_TYPE_UNKNOWN                = self::FILE_TYPE_INT_UNKNOWN;
+	const FILE_TYPE_UNKNOWN                = self::FILE_TYPE_INT_UNKNOWN;
 	const FILE_TYPE_INT_CDR                = 1;
-    const FILE_TYPE_CDR                    = self::FILE_TYPE_INT_CDR;
+	const FILE_TYPE_CDR                    = self::FILE_TYPE_INT_CDR;
 	const FILE_TYPE_INT_RECORDING          = 2;
-    const FILE_TYPE_RECORDING              = self::FILE_TYPE_INT_RECORDING;
+	const FILE_TYPE_RECORDING              = self::FILE_TYPE_INT_RECORDING;
 	const FILE_TYPE_INT_SMS                = 3;
-    const FILE_TYPE_SMS                    = self::FILE_TYPE_INT_SMS;
+	const FILE_TYPE_SMS                    = self::FILE_TYPE_INT_SMS;
 	const FILE_TYPE_INT_BUFFERED_RECORDING = 4;
-    const FILE_TYPE_BUFFERED_RECORDING     = self::FILE_TYPE_INT_RECORDING;
+	const FILE_TYPE_BUFFERED_RECORDING     = self::FILE_TYPE_INT_BUFFERED_RECORDING;
 	const FILE_TYPE_INT_PCAP               = 5;
-    const FILE_TYPE_PCAP                   = self::FILE_TYPE_INT_PCAP;
+	const FILE_TYPE_PCAP                   = self::FILE_TYPE_INT_PCAP;
 	const FILE_TYPE_INT_INFO               = 6;
-    const FILE_TYPE_INFO                   = self::FILE_TYPE_INT_INFO;
+	const FILE_TYPE_INFO                   = self::FILE_TYPE_INT_INFO;
 	const FILE_TYPE_INT_PCAP_SIP_ONLY      = 7;
-    const FILE_TYPE_PCAP_SIP_ONLY          = self::FILE_TYPE_INT_PCAP_SIP_ONLY;
+	const FILE_TYPE_PCAP_SIP_ONLY          = self::FILE_TYPE_INT_PCAP_SIP_ONLY;
 
 	const FILE_TYPE_STR_UNKNOWN            = 'unknown';
 	const FILE_TYPE_STR_CDR                = 'cdr';
@@ -122,7 +122,7 @@ class Archiving
 	public static function GetAllFileTypesAsString($includeSystemTypes=true)
 	{
 		$ret = array();
-		$refl = new ReflectionClass('Archiving');
+		$refl = new ReflectionClass(__CLASS__);
 		foreach ($refl->getConstants() as $name => $value)
 		{
 			if (0 === strpos($name, 'FILE_TYPE_STR_') && $name != 'FILE_TYPE_STR_UNKNOWN')
@@ -374,22 +374,36 @@ class Archiving
 		throw new Exception("Unknown purge-state: $str");
 	}
 
-    /**
-     * Format SQL SELECT formula for binary UUID fields
-     *
-     * @param string $field field name
-     * @param string $alias field alias
-     *
-     * @return string
-     */
-    public static function SqlSelectUuid($field, $alias = null)
-    {
-        return "LCASE(CONCAT(".
-            "HEX(SUBSTR(`{$field}`, 1, 4)), '-', ".
-            "HEX(SUBSTR(`{$field}`, 5, 2)), '-', ".
-            "HEX(SUBSTR(`{$field}`, 7, 2)), '-', ".
-            "HEX(SUBSTR(`{$field}`, 9, 2)), '-', ".
-            "HEX(SUBSTR(`{$field}`, 11))" .
-        "))".($alias !== null? " `{$alias}`": '');
-    }
+	/**
+	 * Format SQL SELECT formula for binary UUID fields
+	 *
+	 * @param string $field field name
+	 * @param string $alias field alias
+	 *
+	 * @return string
+	 */
+	public static function SqlSelectUuid($field, $alias = null)
+	{
+		return "LCASE(CONCAT(".
+		"HEX(SUBSTR(`{$field}`, 1, 4)), '-', ".
+		"HEX(SUBSTR(`{$field}`, 5, 2)), '-', ".
+		"HEX(SUBSTR(`{$field}`, 7, 2)), '-', ".
+		"HEX(SUBSTR(`{$field}`, 9, 2)), '-', ".
+		"HEX(SUBSTR(`{$field}`, 11))" .
+		"))".($alias !== null? " `{$alias}`": '');
+	}
+
+	/**
+	 * Determine the object identifier based on the file type, Org ID and UUID of a record
+	 *
+	 * @param int    $file_type File type
+	 * @param int    $org_id    Org ID
+	 * @param string $uuid      UUID
+	 *
+	 * @return string
+	 */
+	public static function ConstructIdentifier($file_type, $org_id, $uuid)
+	{
+		return sprintf('%s/%d/%s', Archiving::GetFileTypeStr($file_type), $org_id, $uuid);
+	}
 }

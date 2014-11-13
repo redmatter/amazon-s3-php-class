@@ -26,48 +26,48 @@ require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
 
 /**
-* PurgePolicyFixerApp
-*
-* @category  Archiving
-* @package   RedMatter_Archiving
-* @author    Dino Korah <dino.korah@redmatter.com>
-* @copyright 2009-2014 RedMatter
-* @license   http://www.redmatter.com/license private
-* @link      http://www.redmatter.com
-*/
+ * PurgePolicyFixerApp
+ *
+ * @category  Archiving
+ * @package   RedMatter_Archiving
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2014 RedMatter
+ * @license   http://www.redmatter.com/license private
+ * @link      http://www.redmatter.com
+ */
 class PurgePolicyFixerApp extends BaseApp
 {
 	const CONFIG_PATH = '/etc/archiving/purge-policy-fixer.conf';
 	const TIMEOUT_MASS_UPDATE_SQL_CACHE = 300 /* seconds */;
-    const TIMEOUT_ARCHIVED_CONF = 300 /* seconds */;
+	const TIMEOUT_ARCHIVED_CONF = 300 /* seconds */;
 
-    private $_nextRunTime = 0;
+	private $_nextRunTime = 0;
 
 	protected $massUpdateSQLCache = array();
 
-    private $_archivedConf = null;
-    private $_archivedConfTimeout = null;
+	private $_archivedConf = null;
+	private $_archivedConfTimeout = null;
 
-    /**
-     * Get the config obj for archived conf
-     *
-     * @return ConfigMap
-     */
-    private function _GetArchiveDConf()
-    {
-        $now = time();
+	/**
+	 * Get the config obj for archived conf
+	 *
+	 * @return ConfigMap
+	 */
+	private function _GetArchiveDConf()
+	{
+		$now = time();
 
-        if ($this->_archivedConf !== null)
-        {
-            if ($this->_archivedConfTimeout > $now)
-                return $this->_archivedConf;
-        }
+		if ($this->_archivedConf !== null)
+		{
+			if ($this->_archivedConfTimeout > $now)
+				return $this->_archivedConf;
+		}
 
-        $this->_archivedConf = new ConfigMap(Archiving::CONFIG_FILE_RMARCHIVED);
-        $this->_archivedConfTimeout = $now + self::TIMEOUT_ARCHIVED_CONF;
+		$this->_archivedConf = new ConfigMap(Archiving::CONFIG_FILE_RMARCHIVED);
+		$this->_archivedConfTimeout = $now + self::TIMEOUT_ARCHIVED_CONF;
 
-        return $this->_archivedConf;
-    }
+		return $this->_archivedConf;
+	}
 
 	/**
 	 * Get hostname (not FQDN) and cache it
@@ -93,74 +93,74 @@ class PurgePolicyFixerApp extends BaseApp
 		return $hostname;
 	}
 
-    /**
-     * Get all enabled OrgIDs
-     *
-     * @return int[]|bool false for none, or an array of enabled OrgIDs
-     */
-    private function _GetEnabledOrgs()
-    {
-        $retentionDb = MySQLiTransactional::Get('retention');
-        $archivedConfig = $this->_GetArchiveDConf();
-        $enabledOrgs = $archivedConfig->get('retention_purge.enabled_orgs', '');
-        $enabledOrgs = strtolower($enabledOrgs);
+	/**
+	 * Get all enabled OrgIDs
+	 *
+	 * @return int[]|bool false for none, or an array of enabled OrgIDs
+	 */
+	private function _GetEnabledOrgs()
+	{
+		$retentionDb = MySQLiTransactional::Get('retention');
+		$archivedConfig = $this->_GetArchiveDConf();
+		$enabledOrgs = $archivedConfig->get('retention_purge.enabled_orgs', '');
+		$enabledOrgs = strtolower($enabledOrgs);
 
-        if ($enabledOrgs === '' || $enabledOrgs === 'none')
-            return false;
+		if ($enabledOrgs === '' || $enabledOrgs === 'none')
+			return false;
 
-        if ($enabledOrgs !== 'all')
-        {
-            $enabledOrgs = preg_split('/[,;] */', $enabledOrgs);
-            $enabledOrgs = array_map(
-                function($val)
-                {
-                    return (int)$val;
-                },
-                $enabledOrgs
-            );
+		if ($enabledOrgs !== 'all')
+		{
+			$enabledOrgs = preg_split('/[,;] */', $enabledOrgs);
+			$enabledOrgs = array_map(
+				function($val)
+				{
+					return (int)$val;
+				},
+				$enabledOrgs
+			);
 
-            $enabledOrgs = array_filter(
-                $enabledOrgs,
-                function($val)
-                {
-                    return $val > 0;
-                }
-            );
+			$enabledOrgs = array_filter(
+				$enabledOrgs,
+				function($val)
+				{
+					return $val > 0;
+				}
+			);
 
-            if (!count($enabledOrgs))
-                return false;
+			if (!count($enabledOrgs))
+				return false;
 
-            if (1 == count($enabledOrgs))
-                $where = "X.OrgID = {$enabledOrgs[0]}";
-            else
-                $where = sprintf('X.OrgID IN (%s)', implode(',', $enabledOrgs));
-        }
-        else
-        {
-            $where = '1';
-        }
+			if (1 == count($enabledOrgs))
+				$where = "X.OrgID = {$enabledOrgs[0]}";
+			else
+				$where = sprintf('X.OrgID IN (%s)', implode(',', $enabledOrgs));
+		}
+		else
+		{
+			$where = '1';
+		}
 
-        $res = $retentionDb->query(
-            "SELECT OrgID ".
-            "  FROM ( ".
-            "    SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` ".
-            "    FROM `information_schema`.TABLES ".
-            "    WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template' ".
-            "  ) X ".
-            "WHERE ( $where ) AND ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset"
-        )->fetch_all();
+		$res = $retentionDb->query(
+			"SELECT OrgID ".
+			"  FROM ( ".
+			"    SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` ".
+			"    FROM `information_schema`.TABLES ".
+			"    WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template' ".
+			"  ) X ".
+			"WHERE ( $where ) AND ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset"
+		)->fetch_all();
 
-        if (!count($res))
-            return false;
+		if (!count($res))
+			return false;
 
-        return array_map(
-            function (MySQLiResult_Row $row)
-            {
-                return (int)($row->OrgID);
-            },
-            $res
-        );
-    }
+		return array_map(
+			function (MySQLiResult_Row $row)
+			{
+				return (int)($row->OrgID);
+			},
+			$res
+		);
+	}
 
 	/**
 	 * run
@@ -184,12 +184,12 @@ class PurgePolicyFixerApp extends BaseApp
 			throw new Exception('No authorization hash specified');
 
 		// Figure out restrictions according to archived-purge configuration
-		$PurgeRestrictions = null;
-        $archivedConf = $this->_GetArchiveDConf();
-		$GetPurgeRestrictions = function() use (&$PurgeRestrictions, $archivedConf)
+		$purgeRestrictions = null;
+		$archivedConf = $this->_GetArchiveDConf();
+		$getPurgeRestrictions = function() use (&$purgeRestrictions, $archivedConf)
 		{
-			if ($PurgeRestrictions !== null)
-				return $PurgeRestrictions;
+			if ($purgeRestrictions !== null)
+				return $purgeRestrictions;
 
 			$restrictions = array();
 
@@ -231,7 +231,7 @@ class PurgePolicyFixerApp extends BaseApp
 		};
 
 		$massUpdateSQLCache =& $this->massUpdateSQLCache;
-		$GetMassUpdateSQL = function($org) use ($GetPurgeRestrictions, $massUpdateSQLCache)
+		$getMassUpdateSQL = function($org) use ($getPurgeRestrictions, $massUpdateSQLCache)
 		{
 			$now = time();
 			if (isset($massUpdateSQLCache[$org]) && $massUpdateSQLCache[$org]['expireTime'] >= $now)
@@ -279,7 +279,7 @@ class PurgePolicyFixerApp extends BaseApp
 				"		CASE `PolicyID` {$policyVersionUpdate} END AS PolicyVersion_NEW, `PolicyVersion` ".
 				"	FROM `ArchivingRetention`.`Retention_{$org}` ".
 				"	WHERE `ID` > %d AND `ID` < %d AND `State`='Available' ".
-				"		{$GetPurgeRestrictions()} ".
+				"		{$getPurgeRestrictions()} ".
 				"	HAVING PolicyVersion != PolicyVersion_NEW ".
 				") AS upd ".
 				"ON orig.`ID`=upd.`ID` ".
@@ -339,106 +339,105 @@ class PurgePolicyFixerApp extends BaseApp
 			$retentionDb->CommitTransaction();
 		};
 
-        $fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
-        $fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
-        {
-            if (!$fixS3HeaderAbsoluteStopDate/* === null */ || !count($retentionIds))
-                return;
+		$fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
+		$fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
+		{
+			if (!$fixS3HeaderAbsoluteStopDate/* === null */ || !count($retentionIds))
+				return;
 
-            $retentionDb->query(
-                "SELECT" .
-                " ID," .
-                " IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted," .
-                " IF(Format & (0x000f << 8), 'true', 'false') Compressed," .
-                " Format & 0xff SubType," .
-                " Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, " .
-                Archiving::SqlSelectUuid('UUID', 'UUID').", ".Archiving::SqlSelectUuid('LegUUID', 'LegUUID')."," .
-                " ISNULL(retention.LegUUID) `LegUUIDNull`" .
-                "FROM ArchivingRetention.Retention_{$orgId} retention " .
-                "WHERE ID IN (".implode(', ', $retentionIds).")" .
-                " AND retention.CreationDate < '{$fixS3HeaderAbsoluteStopDate}'"
-            )
-                ->for_each(
-                    // Record handler lambda that gets records from retention database and compares them with S3 headers
-                    function(MySQLiResult_Row $row) use ($orgId, $api)
-                    {
-                        $identifier = sprintf('%s/%d/%s', Archiving::GetFileTypeStr($row->Type), $orgId, $row->UUID);
-                        $endpoint = ArchivingEndpoint::Get($api, $orgId, $row->EndpointID, true);
+			$retentionDb->query(
+				"SELECT" .
+				" ID," .
+				" IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted," .
+				" IF(Format & (0x000f << 8), 'true', 'false') Compressed," .
+				" Format & 0xff SubType," .
+				" Type, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, EndpointID, " .
+				Archiving::SqlSelectUuid('UUID', 'UUID').", ".Archiving::SqlSelectUuid('LegUUID', 'LegUUID')."," .
+				" ISNULL(retention.LegUUID) `LegUUIDNull`" .
+				"FROM ArchivingRetention.Retention_{$orgId} retention " .
+				"WHERE ID IN (".implode(', ', $retentionIds).")" .
+				" AND retention.CreationDate < '{$fixS3HeaderAbsoluteStopDate}'"
+			)
+				->for_each(
+					// Record handler lambda that gets records from retention database and compares them with S3 headers
+					function(MySQLiResult_Row $row) use ($orgId, $api)
+					{
+						$identifier = Archiving::ConstructIdentifier($row->Type, $orgId, $row->UUID);
+						$endpoint = ArchivingEndpoint::Get($api, $orgId, $row->EndpointID, true);
 
-                        if ($endpoint->type != 's3')
-                        {
-                            LogMessage('Ignoring object from non-S3 endpoint', $identifier);
-                            return;
-                        }
+						if ($endpoint->type != 's3')
+						{
+							LogMessage('Ignoring object from non-S3 endpoint', $identifier);
+							return;
+						}
 
-                        $s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+						$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
 
-                        $inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
-                        LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
-                        $realSize = $inf['size'];
+						$inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
+						LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
+						$realSize = $inf['size'];
 
-                        $headers = array(
-                            'creation-date' => $row->CreationDate,
-                            'file-type' => Archiving::GetSubFormatStr($row->SubType),
-                            'file-type-is-compressed' => $row->Compressed,
-                            'file-type-is-encrypted' => $row->Encrypted,
-                            'policy-id' => $row->PolicyID,
-                            'policy-version' => $row->PolicyVersion,
-                            'real-size' => $realSize,
-                            'retention-max-date' => $row->RetentionMaxDate,
-                            'retention-min-date' => $row->RetentionMinDate,
-                            'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
-                        );
+						$headers = array(
+							'creation-date' => $row->CreationDate,
+							'file-type' => Archiving::GetSubFormatStr($row->SubType),
+							'file-type-is-compressed' => $row->Compressed,
+							'file-type-is-encrypted' => $row->Encrypted,
+							'policy-id' => $row->PolicyID,
+							'policy-version' => $row->PolicyVersion,
+							'real-size' => $realSize,
+							'retention-max-date' => $row->RetentionMaxDate,
+							'retention-min-date' => $row->RetentionMinDate,
+							'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
+						);
 
-                        $headerMismatch = false;
-                        foreach ($headers as $hKey => $hValue)
-                        {
-                            $amzKey = sprintf('x-amz-meta-%s', $hKey);
-                            $amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
-                            if (is_null($amzValue) || ($amzValue != $hValue))
-                            {
-                                $headerMismatch = true;
-                                LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
-                            }
-                        }
+						$headerMismatch = false;
+						foreach ($headers as $hKey => $hValue)
+						{
+							$amzKey = sprintf('x-amz-meta-%s', $hKey);
+							$amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
+							if (is_null($amzValue) || ($amzValue != $hValue))
+							{
+								$headerMismatch = true;
+								LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
+							}
+						}
 
-                        if ($headerMismatch)
-                        {
-                            $retry = 5;
-                            $delay = 0;
-                            $copyOk = null;
-                            do
-                            {
-                                if (!is_null($copyOk))
-                                    sleep($delay);
+						if ($headerMismatch)
+						{
+							$retry = 5;
+							$copyOk = null;
+							do
+							{
+								// S3 copy on to itself to update headers
+								$copyOk = $s3->copyObject(
+									$endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE,
+									$headers, array('Content-Type'=>'binary/octet-stream')
+								);
+								if (false === $copyOk)
+								{
+									if ($retry)
+									{
+										$delay = pow(6 - $retry, 2);
+										LogWarning("Error copying new metadata; retrying in $delay seconds (sleeping..)", $identifier);
 
-                                // S3 copy on to itself to update headers
-                                $copyOk = $s3->copyObject(
-                                    $endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE,
-                                    $headers, array('Content-Type'=>'binary/octet-stream')
-                                );
-                                if (false === $copyOk)
-                                {
-                                    if ($retry)
-                                    {
-                                        $delay = pow(6 - $retry, 2);
-                                        LogWarning("Error copying new metadata; retrying in $delay seconds (sleeping..)", $identifier);
-                                    }
-                                    else
-                                        LogError('Error copying new metadata; giving up!', $identifier);
-                                }
-                            }
-                            while ($retry-- && !$copyOk);
+										// TODO: Make use of daemonscripts sleep function.
+										sleep($delay);
+									}
+									else
+										LogError('Error copying new metadata; giving up!', $identifier);
+								}
+							}
+							while ($retry-- && !$copyOk);
 
-                            LogMessage(sprintf('outcome:%s', $copyOk? 'ok': 'failed'), $identifier);
-                        }
-                        else
-                            LogMessage('No mismatch in metadata', $identifier);
+							LogMessage(sprintf('outcome:%s', $copyOk? 'ok': 'failed'), $identifier);
+						}
+						else
+							LogMessage('No mismatch in metadata', $identifier);
 
-                        unset($s3);
-                    }
-                );
-        };
+						unset($s3);
+					}
+				);
+		};
 
 		try
 		{
@@ -453,21 +452,21 @@ class PurgePolicyFixerApp extends BaseApp
 			$deleteIDs = array();
 			$orgMinRetentionIds = array();
 			$orgMaxRetentionIds = array();
-            $orgHeaderFixRetentionIds = array();
+			$orgHeaderFixRetentionIds = array();
 
 			$internalDb->query(
 				"SELECT `ID`, `OrgID`, `RetentionID`, `PolicyID`," .
-                " `CreationDate` <= '$fixS3HeaderAbsoluteStopDate' `PossiblyNeedHeaderFix`" .
+				" `CreationDate` <= '$fixS3HeaderAbsoluteStopDate' `PossiblyNeedHeaderFix`" .
 				" FROM `ArchivingInternal`.`ArchiveDPurgeQueue`" .
 				" WHERE `State`=" . Archiving::PurgeStateFromString('init_error') .
-                "  AND `HostName`='" . self::_GetHostName() . "'" .
+				"  AND `HostName`='" . self::_GetHostName() . "'" .
 				" ORDER BY `OrgID`, `PolicyID`",
 				MYSQLI_USE_RESULT
 			)
 				->for_each(
 					function (MySQLiResult_Row $row) use (
-                        &$updatesBatch, &$deleteIDs, &$orgMinRetentionIds, &$orgMaxRetentionIds,
-                        &$batchCount, $batchCallback, $fixS3Headers, &$orgHeaderFixRetentionIds)
+						&$updatesBatch, &$deleteIDs, &$orgMinRetentionIds, &$orgMaxRetentionIds,
+						&$batchCount, $batchCallback, $fixS3Headers, &$orgHeaderFixRetentionIds)
 					{
 						/** @var MySQLiResult_Row|stdClass $row */
 						$orgId = (int)($row->OrgID);
@@ -487,14 +486,14 @@ class PurgePolicyFixerApp extends BaseApp
 						if (!isset($orgMaxRetentionIds[$orgId]) || $retentionId > $orgMaxRetentionIds[$orgId])
 							$orgMaxRetentionIds[$orgId] = $retentionId;
 
-                        // track the items which possibly need header fixing
-                        if ($row->PossiblyNeedHeaderFix)
-                        {
-                            if (!isset($orgHeaderFixRetentionIds[$orgId]))
-                                $orgHeaderFixRetentionIds[$orgId] = array($retentionId);
-                            else
-                                $orgHeaderFixRetentionIds[$orgId][] = $retentionId;
-                        }
+						// track the items which possibly need header fixing
+						if ($row->PossiblyNeedHeaderFix)
+						{
+							if (!isset($orgHeaderFixRetentionIds[$orgId]))
+								$orgHeaderFixRetentionIds[$orgId] = array($retentionId);
+							else
+								$orgHeaderFixRetentionIds[$orgId][] = $retentionId;
+						}
 
 						$batchCount++;
 
@@ -509,14 +508,14 @@ class PurgePolicyFixerApp extends BaseApp
 								$updatesBatch[$orgPolicy] = null;
 							}
 
-                            foreach ($orgHeaderFixRetentionIds as $orgId => $retentionIds)
-                            {
-                                $fixS3Headers($orgId, $retentionIds);
-                            }
+							foreach ($orgHeaderFixRetentionIds as $orgId => $retentionIds)
+							{
+								$fixS3Headers($orgId, $retentionIds);
+							}
 
 							// reset the batch ( NOT the delete IDs )
 							$updatesBatch = array();
-                            $orgHeaderFixRetentionIds = array();
+							$orgHeaderFixRetentionIds = array();
 							$batchCount = 0;
 						}
 					}
@@ -537,19 +536,19 @@ class PurgePolicyFixerApp extends BaseApp
 			}
 
 			// delete items from Queue
-            if (count($deleteIDs))
-            {
-                $sql = sprintf('DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `ID` IN ( %s )', implode(', ', $deleteIDs));
-                LogDebug($sql);
-                $internalDb->query($sql);
-            }
+			if (count($deleteIDs))
+			{
+				$sql = sprintf('DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `ID` IN ( %s )', implode(', ', $deleteIDs));
+				LogDebug($sql);
+				$internalDb->query($sql);
+			}
 
 			// reset the purge marker
-            if (count($orgMinRetentionIds))
+			if (count($orgMinRetentionIds))
 			{
 				$first = true;
-                $sql = 'INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` ( `OrgID`, `MaxRetentionID`, `LastResetTime`, `LastRunTime` )' .
-                    ' VALUES ';
+				$sql = 'INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` ( `OrgID`, `MaxRetentionID`, `LastResetTime`, `LastRunTime` )' .
+					' VALUES ';
 				foreach ($orgMinRetentionIds as $orgId => $minRetentionId)
 				{
 					if (!$first)
@@ -557,65 +556,65 @@ class PurgePolicyFixerApp extends BaseApp
 					$sql .= sprintf('( %d, %d, "2009-01-01", "2009-01-01" ) ', $orgId, $minRetentionId);
 					$first = false;
 				}
-                $sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
-                LogDebug($sql);
-                $internalDb->query($sql);
-            }
+				$sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
+				LogDebug($sql);
+				$internalDb->query($sql);
+			}
 
 			// fix more than what needs to so that the archived has more chance of clean purge run!
-            if (count($orgMaxRetentionIds))
-            {
-                foreach ($orgMaxRetentionIds as $org => $maxRetentionId)
-                {
-					$sql = $GetMassUpdateSQL($org);
-                    $retentionDb->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
-                }
-            }
+			if (count($orgMaxRetentionIds))
+			{
+				foreach ($orgMaxRetentionIds as $org => $maxRetentionId)
+				{
+					$sql = $getMassUpdateSQL($org);
+					$retentionDb->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
+				}
+			}
 
 			$internalDb->CommitTransaction();
 			$retentionDb->CommitTransaction();
 
-            unset($orgMinRetentionIds);
-            unset($orgMaxRetentionIds);
+			unset($orgMinRetentionIds);
+			unset($orgMaxRetentionIds);
 
-            $retentionDb = MySQLiTransactional::Get('retention', true);
+			$retentionDb = MySQLiTransactional::Get('retention', true);
 
 			// fix any that could be in the begining of the table
-            $enabledOrgs = $this->_GetEnabledOrgs();
-            if ($enabledOrgs === false)
-                return 0;
+			$enabledOrgs = $this->_GetEnabledOrgs();
+			if ($enabledOrgs === false)
+				return 0;
 
-            foreach ($enabledOrgs as $org)
-            {
-                $retentionDb->StartTransaction();
+			foreach ($enabledOrgs as $org)
+			{
+				$retentionDb->StartTransaction();
 
-                $sql = $GetMassUpdateSQL($org);
+				$sql = $getMassUpdateSQL($org);
 
-                // fetching the first ID; relying on the table's ordering
-                $minId = $retentionDb->query(
-                    sprintf(
-                        'SELECT `ID` FROM `ArchivingRetention`.`Retention_%d` WHERE `State`="Available" %s LIMIT 1',
-                        $org, $GetPurgeRestrictions()
-                    )
-                )->fetch_all();
-                $minId = count($minId)? $minId[0]->ID: 1;
+				// fetching the first ID; relying on the table's ordering
+				$minId = $retentionDb->query(
+					sprintf(
+						'SELECT `ID` FROM `ArchivingRetention`.`Retention_%d` WHERE `State`="Available" %s LIMIT 1',
+						$org, $getPurgeRestrictions()
+					)
+				)->fetch_all();
+				$minId = count($minId)? $minId[0]->ID: 1;
 
-                $maxId = $retentionDb->query(
-                    "SELECT `AUTO_INCREMENT` FROM `INFORMATION_SCHEMA`.`TABLES` ".
-                    " WHERE `TABLE_SCHEMA` = 'ArchivingRetention' AND `TABLE_NAME` = 'Retention_{$org}'"
-                )->fetch_all();
-                $maxId = $maxId[0]->AUTO_INCREMENT;
+				$maxId = $retentionDb->query(
+					"SELECT `AUTO_INCREMENT` FROM `INFORMATION_SCHEMA`.`TABLES` ".
+					" WHERE `TABLE_SCHEMA` = 'ArchivingRetention' AND `TABLE_NAME` = 'Retention_{$org}'"
+				)->fetch_all();
+				$maxId = $maxId[0]->AUTO_INCREMENT;
 
-                for ($idRangeStart = $minId; (($idRangeStart < ($minId + 100000)) && ($idRangeStart < $maxId)); $idRangeStart += 10000)
-                {
-                    $sqlWithIDsRange = sprintf($sql, $idRangeStart, $idRangeStart+10000);
-                    LogDebug($sqlWithIDsRange, '$sqlWithIDsRange');
-                    $retentionDb->query($sqlWithIDsRange);
-                    LogDebug($retentionDb->affected_rows, '$retention_db->affected_rows');
-                }
+				for ($idRangeStart = $minId; (($idRangeStart < ($minId + 100000)) && ($idRangeStart < $maxId)); $idRangeStart += 10000)
+				{
+					$sqlWithIDsRange = sprintf($sql, $idRangeStart, $idRangeStart+10000);
+					LogDebug($sqlWithIDsRange, '$sqlWithIDsRange');
+					$retentionDb->query($sqlWithIDsRange);
+					LogDebug($retentionDb->affected_rows, '$retention_db->affected_rows');
+				}
 
-                $retentionDb->CommitTransaction();
-            }
+				$retentionDb->CommitTransaction();
+			}
 		}
 		catch (Exception $e)
 		{
@@ -623,7 +622,7 @@ class PurgePolicyFixerApp extends BaseApp
 			$internalDb->RollbackTransaction();
 			$retentionDb->RollbackTransaction();
 
-            return 1;
+			return 1;
 		}
 
 		return 0;
@@ -639,13 +638,13 @@ class PurgePolicyFixerApp extends BaseApp
  */
 function Usage($error = null)
 {
-		$self = basename(__FILE__, '.php');
-		if(!is_null($error))
-			$error = "\n\nERROR: $error\n\n";
-		else
-			$error = '';
+	$self = basename(__FILE__, '.php');
+	if(!is_null($error))
+		$error = "\n\nERROR: $error\n\n";
+	else
+		$error = '';
 
-		echo <<<HELP
+	echo <<<HELP
 
 Archiving Policy Fixer (for Retention Records)$error
 (C) Red Matter Ltd. UK

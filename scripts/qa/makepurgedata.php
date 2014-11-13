@@ -24,21 +24,21 @@ require_once "s3/S3.php";
 require_once 'rmapp/class.BaseApp.php';
 
 /**
-* MakePurgeDataApp
-*
-* @category  MakePurgeDataApp
-* @package   RedMatter_API
-* @author    Dino Korah <dino.korah@redmatter.com>
-* @copyright 2009-2010 RedMatter
-* @license   http://www.redmatter.com/license private
-* @link      http://www.redmatter.com
-*/
+ * MakePurgeDataApp
+ *
+ * @category  MakePurgeDataApp
+ * @package   RedMatter_API
+ * @author    Dino Korah <dino.korah@redmatter.com>
+ * @copyright 2009-2010 RedMatter
+ * @license   http://www.redmatter.com/license private
+ * @link      http://www.redmatter.com
+ */
 class MakePurgeDataApp extends BaseApp
 {
 	const DEFAULT_BATCH_SIZE = 1000;
 
-    const CONF_SAMPLE = '/usr/share/archiving/archiving-makepurgedata.conf.sample';
-	
+	const CONF_SAMPLE = '/usr/share/archiving/archiving-makepurgedata.conf.sample';
+
 	private static $_CreationDate;
 	private static $_API;
 
@@ -56,11 +56,11 @@ class MakePurgeDataApp extends BaseApp
 
 		if (0 === strcasecmp($types_str, 'all'))
 			return ($org==1)? Archiving::GetAllFileTypes(true) : Archiving::GetAllFileTypes(false);
-		
+
 		foreach (preg_split('/[,;] */', $types_str) as $type)
 			if ($type = Archiving::GetFileType($type))
 				$ret[] = $type; // anything not UNKNOWN
-		
+
 		return array_unique($ret);
 	}
 
@@ -87,7 +87,7 @@ class MakePurgeDataApp extends BaseApp
 		{
 			LogWarning($e);
 		}
-		
+
 		return false;
 	}
 
@@ -113,26 +113,26 @@ class MakePurgeDataApp extends BaseApp
 		$retention_max_date = $now->add(DateInterval::createFromDateString($retMax))->format('Y-m-d');
 		$storageEndpoint = ArchivingEndpoint::Get(self::$_API, $orgId, $policy->storageEndpointID);
 		return (object)array(
-				'UUID' => $uuid,
-				'OrgID' => $orgId,
-				'Type' =>  Archiving::GetFileTypeStr($filetype),
-				'Format' => 0 /* unknown */,
-				'PolicyID' => $policy->id,
-				'PolicyVersion' => $policy->version,
-				'EndpointID' => $storageEndpoint->id,
-				'UserID' => 0,
-				'State' => 'Available',
-				'Purged' => 'no',
-				'CreationDate' => $creation_date,
-				'RetentionMinDate' => $retention_min_date,
-				'RetentionMaxDate' => $retention_max_date,
-				'RealUsage' => $real_usage
+			'UUID' => $uuid,
+			'OrgID' => $orgId,
+			'Type' =>  Archiving::GetFileTypeStr($filetype),
+			'Format' => 0 /* unknown */,
+			'PolicyID' => $policy->id,
+			'PolicyVersion' => $policy->version,
+			'EndpointID' => $storageEndpoint->id,
+			'UserID' => 0,
+			'State' => 'Available',
+			'Purged' => 'no',
+			'CreationDate' => $creation_date,
+			'RetentionMinDate' => $retention_min_date,
+			'RetentionMaxDate' => $retention_max_date,
+			'RealUsage' => $real_usage
 		);
 	}
-	
+
 	/**
 	 * Batch save retention objects
-	 * 
+	 *
 	 * @param array  &$retention_array ret array
 	 * @param object $obj              obj
 	 *
@@ -161,9 +161,9 @@ class MakePurgeDataApp extends BaseApp
 		}
 		// XXX FIXME Duplicates due to successive generation of UUIDs on the same host leading to random pool exhaustion
 		$sql_retention .= ' ON DUPLICATE KEY UPDATE `OrgID`=VALUES(`OrgID`)';
-		
+
 		$sql_usage .= ' ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)';
-		
+
 		LogDebug($sql_retention, 'Retention');
 		LogDebug($sql_usage, 'Usage');
 
@@ -174,14 +174,14 @@ class MakePurgeDataApp extends BaseApp
 			$dbc->query($sql_usage);
 			$dbc->CommitTransaction();
 
-            static $stdout = null;
-            if (null === $stdout && isset($retention_array[0]))
-            {
-                $stdout = fopen('php://stdout', 'w');
-                fputcsv($stdout, array('Type/OrgID/UUID', 'PolicyID', 'PolicyVersion', 'CreationDate', 'RetentionMinDate', 'RetentionMaxDate', 'EndpointID', 'PurgedByDate', 'PurgedByPolicyVersion'));
-            }
-            foreach ($retention_array as $retention)
-                fputcsv($stdout, array("{$retention->Type}/{$retention->OrgID}/{$retention->UUID}", $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID, $retention->PurgedByDate, $retention->PurgedByPolicyVersion));
+			static $stdout = null;
+			if (null === $stdout && isset($retention_array[0]))
+			{
+				$stdout = fopen('php://stdout', 'w');
+				fputcsv($stdout, array('Type/OrgID/UUID', 'PolicyID', 'PolicyVersion', 'CreationDate', 'RetentionMinDate', 'RetentionMaxDate', 'EndpointID', 'PurgedByDate', 'PurgedByPolicyVersion'));
+			}
+			foreach ($retention_array as $retention)
+				fputcsv($stdout, array("{$retention->Type}/{$retention->OrgID}/{$retention->UUID}", $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID, $retention->PurgedByDate, $retention->PurgedByPolicyVersion));
 
 			$retention_array = array();
 		}
@@ -190,10 +190,10 @@ class MakePurgeDataApp extends BaseApp
 			LogError($e, 'Retetion COMMIT failed');
 		}
 	}
-	
+
 	/**
 	 * Make metadata headers from retention record
-	 * 
+	 *
 	 * @param array  &$headers        headers
 	 * @param object $retention       retention
 	 * @param bool   $isLegacyMode    is legacy mode
@@ -206,16 +206,16 @@ class MakePurgeDataApp extends BaseApp
 		$headers['file-type'] = 'unknown';
 		$headers['file-type-is-compressed'] = 'false';
 		$headers['file-type-is-encrypted'] = 'false';
-		
+
 		if ($isLegacyMode)
 			return;
-		
+
 		$now = new DateTime('@'.self::$_CreationDate);
 		$mangled_date = $now->add(
 			DateInterval::createFromDateString(sprintf('%d day', mt_rand(10, 90)))
 		)->format('Y-m-d');
 		$mangle_target = mt_rand(0, 3);
-		
+
 		$headers['creation-date'] = ($introduceErrors && ($mangle_target <= 0))? $mangled_date: $retention->CreationDate;
 		$headers['policy-id'] = $retention->PolicyID;
 		$headers['policy-version'] = $retention->PolicyVersion;
@@ -239,7 +239,7 @@ class MakePurgeDataApp extends BaseApp
 	public function run()
 	{
 		$config = $this->conf;
-		
+
 		$retention_recs = array();
 		/** @noinspection PhpUnusedLocalVariableInspection */
 		$retention_recs_sentry = new ScopeSentry(
@@ -256,14 +256,14 @@ class MakePurgeDataApp extends BaseApp
 		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
 		if (!self::_VerifyOrgID($org))
 			throw new Exception('Invalid OrgID specified');
-		
+
 		$filetypes = self::_GetFileTypes(cli::get('--filetype', $config->get('dataset.filetype', 'cdr')), $org);
 		if (!count($filetypes))
 			throw new Exception('Invalid file types specified');
-		
+
 		self::$_CreationDate = new DateTime(cli::get('--creation-date', $config->get('dataset.creation_date', 'now')));
 		self::$_CreationDate = self::$_CreationDate->getTimestamp();
-		
+
 		if ($org != 1 && in_array(Archiving::FILE_TYPE_CDR, $filetypes))
 			throw new Exception('CDR not allowed for anyone other than Org:1');
 
@@ -281,7 +281,7 @@ class MakePurgeDataApp extends BaseApp
 
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
-		
+
 		self::$_API = array($coreapi, $authorization);
 
 		/** @noinspection PhpUnusedLocalVariableInspection */
@@ -297,7 +297,7 @@ class MakePurgeDataApp extends BaseApp
 		$policyID = cli::get('--policy-id', $config->get('dataset.policy_id', 0));
 		if (false !== strstr($policyID, ':'))
 			list($policyID, $policyVersion) = explode(':', $policyID);
-		
+
 		$policyLatestVersion = null;
 		$policy = ArchivingPolicy::Get(array($coreapi, $authorization), $org, $policyID, $policyVersion);
 		if ($policyVersion != 0)
@@ -313,10 +313,10 @@ class MakePurgeDataApp extends BaseApp
 		$makeErrors = CLI::get('--introduce-errors', $config->get('dataset.introduce_errors', 'false') != 'false');
 		if ($isLegacyMode && $makeErrors)
 			LogWarning('The "introduce-errors" mode wouldnt have any effect in "legacy-headers" mode');
-		
+
 		unset($stream);
 		unset($xpath);
-		
+
 		// make a set of randomised files
 		$files = array();
 		call_user_func(
@@ -356,12 +356,12 @@ class MakePurgeDataApp extends BaseApp
 		for ($i = $batchSize; $i > 0; $i--)
 		{
 			list($file_name, $file_size) = $files[mt_rand(0, 9)];
-			
+
 			if (count($filetypes) != 1)
 				$filetype = $filetypes[mt_rand(0, count($filetypes) - 1)];
-			
+
 			$uuid = trim(file_get_contents('/proc/sys/kernel/random/uuid'));
-			
+
 			$storage_key = Archiving::GetFileTypeStr($filetype).'/'.$org.'/'.$uuid;
 
 			$headers = array();
@@ -403,10 +403,10 @@ class MakePurgeDataApp extends BaseApp
 
 try
 {
-    if (true === CLI::get('--help'))
-    {
-        $prog = basename(__FILE__, '.php');
-        echo <<<USAGE
+	if (true === CLI::get('--help'))
+	{
+		$prog = basename(__FILE__, '.php');
+		echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
         --policy-id=< PolicyID[:PolicyVersion] > --batch-size=< N >
@@ -455,40 +455,44 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
         To see the list of operational file-types that you can use ( only for Org:1 ).
 
 USAGE;
-        exit(0);
-    }
+		exit(0);
+	}
 
 	$default_conf = getenv('PWD').'/makepurgedata.conf';
 
-    // fudge to get around autoloader error with help or any other informational CLI option
-    if (true === CLI::get('--help')
-        || true === CLI::get('--list-filetypes')
-        || true === CLI::get('--list-operational-filetypes'))
-    {
-        if (!is_readable($default_conf) && is_readable(MakePurgeDataApp::CONF_SAMPLE))
-            $default_conf = MakePurgeDataApp::CONF_SAMPLE;
-    }
+	// fudge to get around autoloader error with help or any other informational CLI option
+	if (true === CLI::get('--help')
+		|| true === CLI::get('--list-filetypes')
+		|| true === CLI::get('--list-operational-filetypes'))
+	{
+		if (!is_readable($default_conf) && is_readable(MakePurgeDataApp::CONF_SAMPLE))
+			$default_conf = MakePurgeDataApp::CONF_SAMPLE;
+	}
 
 	if (false === CLI::get('--conf', false) && !is_readable($default_conf))
-		throw new Exception("No configuration given and no config found at $default_conf; use --conf option to specify the config file");
+		throw new Exception(
+			"No configuration given and no config found at $default_conf; " .
+			"use --conf option to specify the config file; ".
+			"a sample config file can be found at " . MakePurgeDataApp::CONF_SAMPLE
+		);
 
 	$app = MakePurgeDataApp::getInstance(CLI::get('--conf', $default_conf));
 
-    if (true === CLI::get('--list-filetypes'))
-    {
-        echo "Filetypes available are  ".implode(', ', Archiving::GetAllFileTypesAsString(true))."\n";
-        exit(0);
-    }
-    elseif (true === CLI::get('--list-operational-filetypes'))
-    {
-        echo "Filetypes available are  ".implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString))."\n";
-        exit(0);
-    }
-    else
-    {
-        $app->run();
-        exit(0);
-    }
+	if (true === CLI::get('--list-filetypes'))
+	{
+		echo "Filetypes available are  ".implode(', ', Archiving::GetAllFileTypesAsString(true))."\n";
+		exit(0);
+	}
+	elseif (true === CLI::get('--list-operational-filetypes'))
+	{
+		echo "Filetypes available are  ".implode(', ', array_map(array('Archiving', 'GetFileTypeStr'), Archiving::$OperationalDataFileTypesAsString))."\n";
+		exit(0);
+	}
+	else
+	{
+		$app->run();
+		exit(0);
+	}
 }
 catch (Exception $e)
 {
