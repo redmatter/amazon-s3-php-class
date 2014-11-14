@@ -530,14 +530,14 @@ class PurgePolicyFixerApp extends BaseApp
 					$batchCallback($org, $policy, $retentionIds, true);
 				}
 
-                foreach ($orgHeaderFixRetentionIds as $orgId => $retentionIds)
-                {
-                    $fixS3Headers($orgId, $retentionIds);
-                }
+				foreach ($orgHeaderFixRetentionIds as $orgId => $retentionIds)
+				{
+					$fixS3Headers($orgId, $retentionIds);
+				}
 
-                // reset the batch ( NOT the delete IDs )
+				// reset the batch ( NOT the delete IDs )
 				unset($updatesBatch);
-                unset($orgHeaderFixRetentionIds);
+				unset($orgHeaderFixRetentionIds);
 				unset($batchCount);
 			}
 
