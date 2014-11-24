@@ -49,19 +49,33 @@ struct constants
 		db_retry_factor = 5
 	};
 };
+
+struct fixable_init_failure_exception : rml::exception
+{
+	fixable_init_failure_exception(const std::string& message) : rml::exception(message)
+	{
+	}
+};
+
+struct required_header_missing_exception : fixable_init_failure_exception
+{
+	required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
+	{
+	}
+};
+
+struct policy_version_not_latest_exception : fixable_init_failure_exception
+{
+	policy_version_not_latest_exception() : fixable_init_failure_exception("policy version found to be not the latest")
+	{
+	}
+};
+
 }
 
 namespace app {
 
 namespace retention_purge {
-
-class policy_version_not_latest_exception : rml::exception
-{
-public:
-	policy_version_not_latest_exception() : rml::exception("policy_version_not_latest_exception")
-	{
-	}
-};
 
 /**
  * Retention policy based purge
@@ -320,7 +334,7 @@ public:
 			p_item->real_size = rml::utils::strtoull(props["content-length"].c_str(), 0ULL);
 
 #define AssertProps(key) \
-		if(props.find(key) == props.end()) throw rml::exception(key" not found in HEAD response")
+		if(props.find(key) == props.end()) throw required_header_missing_exception(key)
 
 		AssertProps("policy-id");
 		AssertProps("policy-version");
@@ -353,8 +367,8 @@ public:
 
 		return true;
 	}
-	catch(const policy_version_not_latest_exception& e) {
-		LogDebug(p_item->identifier<<" Skip initialise; Policy version found to be NOT the latest (fixer, fix it faster)");
+	catch(const fixable_init_failure_exception& e) {
+		LogDMessage(p_item->identifier<<" Skip initialise; Waiting for the policy-fixer - error: "<<e.what(), "FXBL");
 		return false;
 	}
 	catch(const std::exception& e) {
