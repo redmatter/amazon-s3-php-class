@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) try
 		app::converter::describe_config(optsDesc);
 		app::storage::s3::backend::describe_config(optsDesc);
 		app::storage::s3::runner::describe_config(optsDesc);
-		app::coreapi::describe_config(optsDesc);
+		rml::coreapi::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 		app::database::retention::describe_config(optsDesc);
 		app::database::cdrmunch::describe_config(optsDesc);
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) try
 		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
 		boost::asio::io_service::work work(*p_io_service); // make sure we keep it proped up!
 		
-		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
+		rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1), "CachedPolicyFinder");
 		app::storage::cached_endpoint_finder_t cached_endpoint_finder(
@@ -319,7 +319,7 @@ int main(int argc, char *argv[]) try
 				boost::bind(app::retention_record::is_expired, boost::ref(cached_policy_finder), _1));
 
 //		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
-//				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
+//				boost::bind(app::coreapi_eventlog::find, boost::ref(rml::coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);

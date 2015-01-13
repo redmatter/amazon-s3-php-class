@@ -15,9 +15,8 @@
 #include "converter.hpp"
 #include "coreapi_user.hpp"
 
-#include "../common/coreapi.hpp"
-
 #include <rml/fcgi/request.hpp>
+#include <rml/coreapi.hpp>
 
 #define Debug(line) \
 		LogIf(p_request->debug_mode == rml::fcgi::debug::on, p_request->fcgi_req.requestId<<':'<<thread_id<<": "<<line);

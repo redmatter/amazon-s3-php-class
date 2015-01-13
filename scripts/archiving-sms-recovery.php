@@ -70,8 +70,11 @@ class ArchivingSmsRecoveryApp extends BaseApp
     {
         $config = $this->conf;
 
-		if (false === ($auth_hash = cli::get('--auth-hash', $config->get('api.authorization_hash', false))))
-			throw new Exception('Authorization hash not specified');
+		if (false === ($auth_creds = cli::get('--auth-creds', $config->get('api.authorization_creds', false))))
+		{
+			if (false === ($auth_hash = cli::get('--auth-hash', $config->get('api.authorization_hash', false))))
+				throw new Exception('No authorization creds or hash specified');
+		}
 
         if (false === ($this->org = cli::get('--org', $config->get('extract.org_id', false))))
             throw new Exception('OrgID not specified');
@@ -92,14 +95,30 @@ class ArchivingSmsRecoveryApp extends BaseApp
 		// Log in to API
         $authorization = null;
         $coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
-        $stream = HTTPStream::Make('GET', "{$coreapi}/auth/{$auth_hash}");
+        
+		if ($auth_creds)
+		{
+			if (strpos($auth_creds, ' ') === false) 
+				// no scheme specified, assume it's basic auth
+				$auth_creds = "Basic {$auth_creds}";
+			$auth_hdrs = array('Authorization' => $auth_creds);
+			$auth_url = "{$coreapi}/auth";
+		} 
+		else 
+		{
+			// use old auth hash scheme
+			$auth_hdrs = null;
+			$auth_url = "{$coreapi}/auth/{$auth_hash}";
+		}
+
+		$stream = HTTPStream::Make('GET', $auth_url, null/*body*/, $auth_hdrs);
         if ($stream && $stream->httpCode == 201)
 		{
             $xpath = new XPath($stream->getContents());
             $authorization = $xpath('/Success/ResourceID');
 			LogMessage('Authenticated');
         }
-
+        
         if (!$authorization)
 		{
             throw new Exception('Failed to authenticate using the credentials given');
@@ -352,8 +371,11 @@ Available options:
     --batch-size=< N >
         Batch size of the set of SMSLogs to be recovered
 
-	--max-batches=< N >
-		Maximum number of batches to process (0 means no maximum)
+    --max-batches=< N >
+        Maximum number of batches to process (0 means no maximum)
+
+    --auth-creds=< creds >
+        API auth creds base64(username:password)
 
     --auth-hash=< Hash >
         API auth hash SHA1(username).SHA1(password)

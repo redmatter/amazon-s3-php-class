@@ -8,7 +8,6 @@
 #ifndef STORAGE_ENDPOINT_HPP_
 #define STORAGE_ENDPOINT_HPP_
 
-#include "../common/coreapi.hpp"
 #include "../common/archivable.hpp"
 #include "../common/cache.hpp"
 #include "../common/types.hpp"
@@ -19,6 +18,8 @@
 #include <cryptopp/base64.h>
 
 #include <boost/shared_ptr.hpp>
+
+#include <rml/coreapi.hpp>
 
 namespace app {
 
@@ -268,7 +269,7 @@ struct endpoint : public basic_endpoint
 }  // namespace s3_compatible
 
 
-inline basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< archiving::org_id_t, archiving::endpoint_id_t >& endpoint_def)
+inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pair< archiving::org_id_t, archiving::endpoint_id_t >& endpoint_def)
 {
 	const archiving::org_id_t& org_id(endpoint_def.first);
 	const archiving::endpoint_id_t& endpoint_id(endpoint_def.second);
@@ -277,7 +278,7 @@ inline basic_endpoint::pointer endpoint_finder(coreapi& api, const std::pair< ar
 
 	ostr << "/archiving/endpoint/" << org_id << '/' << endpoint_id;
 
-	const coreapi::response& response(api.get(ostr.str(), 200, true));
+	const rml::coreapi::response& response(api.get(ostr.str(), 200, true));
 
 	// run xpath
 	pugi::xml_document doc;

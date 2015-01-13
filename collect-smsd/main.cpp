@@ -12,7 +12,6 @@
 
 #include "../common/types.hpp"
 #include "sms_dir_monitor.hpp"
-#include "../common/coreapi.hpp"
 
 #include "../common/logstack.h"
 
@@ -23,6 +22,7 @@
 #include <rml/siginit.h>
 #include <rml/daemon.h>
 #include <rml/version.h>
+#include <rml/coreapi.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -141,7 +141,7 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 	while(!quit) {
 
 		boost::this_thread::sleep(boost::posix_time::seconds(1));
-		if(ticks++ % (frequency_minutes * 60))
+		if(ticks % (frequency_minutes * 60))
 			continue;
 
 		try {
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) try
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
 				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
-				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(500), "Purge batch size")
+				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(4), "Purge batch size")
 				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()->default_value(1), "Purge frequency")
 				;
 
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) try
 		app::archived_client::describe_config(optsDesc);
 		app::directory_loader::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
-		app::coreapi::describe_config(optsDesc);
+		rml::coreapi::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -284,7 +284,7 @@ int main(int argc, char* argv[]) try
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
 				new boost::asio::io_service::work(*p_io_service));
 
-		app::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
+		rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
 
 		archiving::sms_dir_monitor sms_dir_monitor(in_channel, app::hostname);
 

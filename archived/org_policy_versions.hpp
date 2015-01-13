@@ -10,12 +10,12 @@
 
 #include "../common/policy.hpp"
 #include "../common/types.hpp"
-#include "../common/coreapi.hpp"
 #include "../common/cache.hpp"
 
 #include <rml/exception.h>
 #include <rml/utils.h>
 #include <rml/logger.h>
+#include <rml/coreapi.hpp>
 
 #include <pugixml/pugixml.hpp>
 
@@ -44,12 +44,12 @@ public:
 	 * @param org
 	 * @return
 	 */
-	static pointer find_from_api(coreapi& api, const archiving::org_id_t& org)
+	static pointer find_from_api(rml::coreapi& api, const archiving::org_id_t& org)
 	{
 		std::ostringstream ostr;
 		ostr << "/archiving/policy/"<< org << "/all";
 
-		coreapi::response response(api.get(ostr.str(), true));
+		rml::coreapi::response response(api.get(ostr.str(), true));
 		if(response.first != 200) {
 			LogCritical("Policies NOT found ( Org: "<<org<<" )");
 			return pointer();

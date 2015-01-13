@@ -200,7 +200,7 @@ public:
 	}
 
 	retention_record::set_t get_retention_for_purge_ondemand(
-			coreapi& api, const archiving::org_id_t& org_id,
+			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired)
 	{
@@ -302,7 +302,7 @@ public:
 	}
 
 	std::pair< uint64_t, retention_record::set_t > get_retention_for_purge(
-			coreapi& api, const archiving::org_id_t& org_id,
+			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
 			const std::string& where_configured_restrictions,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,

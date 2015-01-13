@@ -179,9 +179,13 @@ class PurgePolicyFixerApp extends BaseApp
 
 		$config = $this->conf;
 
-		$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
-		if (!$authHash)
-			throw new Exception('No authorization hash specified');
+		$authCreds = cli::get('--auth-creds', $config->get('api.authorization_creds', false));
+		if (!$authCreds)
+		{
+			$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
+			if (!$authHash)
+				throw new Exception('No authorization creds or hash specified');
+		}
 
 		// Figure out restrictions according to archived-purge configuration
 		$purgeRestrictions = null;
@@ -298,7 +302,12 @@ class PurgePolicyFixerApp extends BaseApp
 
 		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
 		API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
-		API::Login($authHash);
+		if ($authCreds)
+			API::LoginBasicAuth($authCreds);
+		else
+			// use old auth hash scheme
+			API::Login($authHash);
+
 		$api = array($coreapi, API::GetToken());
 		/** @noinspection PhpUnusedLocalVariableInspection */
 		$authorizationSentry = new ScopeSentry(
@@ -675,7 +684,7 @@ $terminateCallback = function($signo)
 
 try
 {
-	cli::init(null, array('auth-hash:', 'conf:', 'help', 'no-daemon'));
+	cli::init(null, array('auth-creds:', 'auth-hash:', 'conf:', 'help', 'no-daemon'));
 
 	if (true === cli::get('help', false))
 	{

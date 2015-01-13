@@ -249,9 +249,13 @@ class MakePurgeDataApp extends BaseApp
 			}
 		);
 
-		$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
-		if (!$authHash)
-			throw new Exception('No authorization hash specified');
+		$authCreds = cli::get('--auth-creds', $config->get('api.authorization_creds', false));
+		if (!$authCreds)
+		{
+			$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
+			if (!$authHash)
+				throw new Exception('No authorization creds or hash specified');
+		}
 
 		$org = cli::get('--org', $config->get('dataset.org_id', '1'));
 		if (!self::_VerifyOrgID($org))
@@ -271,7 +275,23 @@ class MakePurgeDataApp extends BaseApp
 
 		$authorization = null;
 		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
-		$stream = HTTPStream::Make('GET', "{$coreapi}/auth/{$authHash}");
+
+		if ($authCreds)
+		{
+			if (strpos($authCreds, ' ') === false) 
+				// no scheme specified, assume it's basic auth
+				$authCreds = "Basic {$authCreds}";
+			$authHdrs = array('Authorization' => $authCreds);
+			$authUrl = "{$coreapi}/auth";
+		} 
+		else 
+		{
+			// use old auth hash scheme
+			$authHdrs = null;
+			$authUrl = "{$coreapi}/auth/{$authHash}";
+		}
+
+		$stream = HTTPStream::Make('GET', $authUrl, null/*body*/, $authHdrs);
 		if ($stream && $stream->httpCode == 201)
 		{
 			$xpath = new XPath($stream->getContents());
@@ -425,8 +445,11 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
         PolicyID of the Org under which files are to be put
 
     --batch-size=< N >
-	    Batch size of the set we are generating; if more than one file types
-	    are specified, the set will be randomised.
+        Batch size of the set we are generating; if more than one file types
+        are specified, the set will be randomised.
+
+    --auth-creds=< creds >
+        API auth creds base64(username:password)
 
     --auth-hash=< Hash >
         API auth hash SHA1(username).SHA1(password)

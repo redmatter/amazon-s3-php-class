@@ -16,10 +16,10 @@
 #include "./database_retention.hpp"
 #include "./database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
-#include "../common/coreapi.hpp"
 #include "../common/policy.hpp"
 
 #include <rml/pc_channel.h>
+#include <rml/coreapi.hpp>
 
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -89,7 +89,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 	const policy::cached_finder_t& cached_policy_finder_;
 	const org_policy_versions::cached_finder_t& org_policy_versions_finder_;
-	coreapi& api_;
+	rml::coreapi& api_;
 
 	state_reactor<>& reactor_;
 	database::retention& retention_db_;
@@ -145,7 +145,7 @@ public:
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
 			const policy::cached_finder_t& cached_policy_finder,
 			const org_policy_versions::cached_finder_t& org_policy_versions_finder,
-			coreapi& api, state_reactor<>& reactor,
+			rml::coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
 				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),

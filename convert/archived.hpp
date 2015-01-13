@@ -12,11 +12,11 @@
 #include "../common/types.hpp"
 #include "../common/archivable.hpp"
 #include "../common/coreapi_eventlog.hpp"
-#include "../common/coreapi.hpp"
 
 #include <rml/logger.h>
 #include <rml/exception.h>
 #include <rml/utils.h>
+#include <rml/coreapi.hpp>
 
 #include <pugixml/pugixml.hpp>
 
@@ -41,7 +41,7 @@ class archived
 	boost::shared_ptr< boost::asio::io_service > p_io_service_;
 
 	http_client client_;
-	app::coreapi coreapi_;
+	rml::coreapi coreapi_;
 
 	inline std::string get_my_ip(const bool https) const
 	{

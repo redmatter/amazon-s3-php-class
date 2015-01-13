@@ -31,9 +31,9 @@ struct coreapi_user
 	{
 	}
 
-	static pointer find(coreapi& api, const lookup& param)
+	static pointer find(rml::coreapi& api, const lookup& param)
 	{
-		const coreapi::response& res(api.get("/users/me", true, coreapi::headers(), param.first, param.second));
+		const rml::coreapi::response& res(api.get("/users/me", true, rml::coreapi::headers(), param.first, param.second));
 		if(res.first != 200 && res.first != 404) {
 			LogUMessage("Authorization:"<<param.first<<" Invalid", "SSXP");
 			return pointer();

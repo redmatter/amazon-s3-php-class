@@ -118,11 +118,15 @@ class ArchivingHeadersPatchApp extends BaseApp
 		$orgIds = self::_GetOrgIds(cli::get('--orgs', $config->get('subset.org_ids', '1')));
 		if (!count($orgIds))
 			throw new Exception('Invalid OrgID(s) specified');
-
-		$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
-		if (!$authHash)
-			throw new Exception('No authorization hash specified');
-
+			
+		$authCreds = cli::get('--auth-creds', $config->get('api.authorization_creds', false));	
+		if (!$authCreds)
+		{
+			$authHash = cli::get('--auth-hash', $config->get('api.authorization_hash', false));
+			if (!$authHash)
+				throw new Exception('No authorization creds or hash specified');
+		}
+		
 		$absoluteStopDate = cli::get('--absolute-stop-date', $config->get('subset.absolute_stop_date', '2012-02-15'));
 		if (!$absoluteStopDate)
 			throw new Exception('No absolute stop date not specified');
@@ -132,7 +136,24 @@ class ArchivingHeadersPatchApp extends BaseApp
 
 		$authorization = null;
 		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
-		$stream = HTTPStream::Make('GET', "{$coreapi}/auth/{$authHash}");
+
+		if ($authCreds)
+		{
+			if (strpos($authCreds, ' ') === false) 
+				// no scheme specified, assume it's basic auth
+				$authCreds = "Basic {$authCreds}";
+			$authHdrs = array('Authorization' => $authCreds);
+			$authUrl = "{$coreapi}/auth";
+		} 
+		else
+		{ 
+			// use old auth hash scheme
+			$authHdrs = null;
+			$authUrl = "{$coreapi}/auth/{$authHash}";
+		}
+		
+		$stream = HTTPStream::Make('GET', $authUrl, null/*body*/, $authHdrs);
+		
 		if ($stream && $stream->httpCode == 201)
 		{
 			$xpath = new XPath($stream->getContents());
@@ -141,7 +162,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 		}
 
 		unset($stream);
-
+		
 		if (!$authorization)
 			throw new Exception('Failed to authenticate using the credentials given');
 
@@ -331,9 +352,9 @@ HELP;
 }
 
 try
-{
-	cli::init(null, array('auth-hash:', 'orgs:', 'types:', 'start-date:', 'end-date:', 'conf:', 'help', 'absolute-stop-date'));
-
+{	
+	cli::init(null, array('auth-creds:', 'auth-hash:', 'orgs:', 'types:', 'start-date:', 'end-date:', 'conf:', 'help', 'absolute-stop-date'));
+	
 	if (true === cli::get('help', false))
 	{
 		Usage();

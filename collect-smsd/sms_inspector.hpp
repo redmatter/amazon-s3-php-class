@@ -55,7 +55,7 @@ namespace app
 
 		const std::string& pbx_hostname_;
 
-		app::coreapi& coreapi_;
+		rml::coreapi& coreapi_;
 		app::policy::cached_finder_t policy_cache_;
 
 		boost::asio::io_service &io_service_;
@@ -94,7 +94,7 @@ namespace app
 				database::internal& internal_db,
 				const boost::program_options::variables_map& confMap,
 				const std::string& pbx_hostname,
-				app::coreapi& coreapi,
+				rml::coreapi& coreapi,
 				boost::asio::io_service &io_service) :
 				in_channel(in_channel), out_channel(out_channel), archivable_busy_set_(archivable_busy_set), internal_db_(
 						internal_db), confMap(confMap), pbx_hostname_(pbx_hostname), coreapi_(coreapi),
@@ -132,7 +132,7 @@ namespace app
 							xml += *i + "\n";
 						xml += "</Messages>";
 
-						const app::coreapi::response& r(coreapi_.post("/smslogs/push", xml));
+						const rml::coreapi::response& r(coreapi_.post("/smslogs/push", xml));
 						if (r.first < 200 || r.first >= 300)
 						{
 							LogError("sms_inspector: smslog: error submitting SMS logs: " << r.first << ": " << r.second);
