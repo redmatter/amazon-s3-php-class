@@ -141,7 +141,7 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 	while(!quit) {
 
 		boost::this_thread::sleep(boost::posix_time::seconds(1));
-		if(ticks % (frequency_minutes * 60))
+		if(ticks++ % (frequency_minutes * 60))
 			continue;
 
 		try {
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) try
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
 				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
-				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(4), "Purge batch size")
+				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(500), "Purge batch size")
 				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()->default_value(1), "Purge frequency")
 				;
 

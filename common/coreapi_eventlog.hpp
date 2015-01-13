@@ -9,10 +9,10 @@
 #define COREAPI_EVENTLOG_HPP_
 
 #include "types.hpp"
-#include "coreapi.hpp"
 #include "cache.hpp"
 
 #include <rml/utils.h>
+#include <rml/coreapi.hpp>
 
 #include <pugixml/pugixml.hpp>
 
@@ -130,9 +130,9 @@ public:
 
 	typedef cache::result_cache<const std::pair<archiving::org_id_t, id_t>, pointer> cached_finder_t;
 
-	inline static pointer find(coreapi& api, const std::pair<archiving::org_id_t, id_t>& id)
+	inline static pointer find(rml::coreapi& api, const std::pair<archiving::org_id_t, id_t>& id)
 	{
-		const coreapi::response& res(api.get(boost::str(boost::format("/eventlog/%1%/%2%") % id.first % id.second)));
+		const rml::coreapi::response& res(api.get(boost::str(boost::format("/eventlog/%1%/%2%") % id.first % id.second)));
 		if(res.first != 200)
 			return pointer();
 
@@ -140,7 +140,7 @@ public:
 	}
 
 	inline static pointer create(
-			coreapi& api,
+			rml::coreapi& api,
 
 			const archiving::org_id_t& org,
 			levels::levels_t level, const std::string& message,
@@ -171,7 +171,7 @@ public:
 			doc.save(ostr_body, "  ");
 		}
 
-		const coreapi::response& res(api.put(boost::str(boost::format("/eventlog/%1%") % org), ostr_body.str(), "application/xml", true, coreapi::headers(), authorization, ip));
+		const rml::coreapi::response& res(api.put(boost::str(boost::format("/eventlog/%1%") % org), ostr_body.str(), "application/xml", true, rml::coreapi::headers(), authorization, ip));
 		if (res.first != 201)
 			throw rml::exception("Failed creating event-log");
 

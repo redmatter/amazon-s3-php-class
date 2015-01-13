@@ -8,11 +8,11 @@
 #ifndef POLICY_HPP_
 #define POLICY_HPP_
 
-#include "coreapi.hpp"
 #include "cache.hpp"
 #include "types.hpp"
 
 #include <rml/exception.h>
+#include <rml/coreapi.hpp>
 
 #include <pugixml/pugixml.hpp>
 
@@ -251,12 +251,12 @@ public:
 		//ctor
 	}
 
-	static pointer finder(coreapi& api, const std::pair<archiving::org_id_t, id_type>& org_policy) try
+	static pointer finder(rml::coreapi& api, const std::pair<archiving::org_id_t, id_type>& org_policy) try
 	{
 		std::ostringstream ostr;
 		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
 
-		coreapi::response response(api.get(ostr.str(), true));
+		rml::coreapi::response response(api.get(ostr.str(), true));
 		if(response.first != 200) {
 			LogCritical("Policy NOT found ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" )");
 			return pointer();
@@ -421,10 +421,10 @@ struct access_control_list
 
 class policy_acl_finder
 {
-	coreapi& api_;
+	rml::coreapi& api_;
 
 public:
-	policy_acl_finder(coreapi& api) : api_(api)
+	policy_acl_finder(rml::coreapi& api) : api_(api)
 	{
 	}
 
@@ -435,7 +435,7 @@ public:
 
 //		policy::pointer p = policy_finder_(id);
 
-		const coreapi::response& response(api_.get(ostr.str(), 200U, true));
+		const rml::coreapi::response& response(api_.get(ostr.str(), 200U, true));
 
 		// FIXME run XPath & create definition;
 		(void)response;
