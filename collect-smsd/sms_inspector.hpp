@@ -284,8 +284,14 @@ namespace app
 						archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
 						archivable_sms->set_originator_uuid(archivable_sms->get_uuid());
 						archivable_sms->set_start_epoch(start_epoch);
+						/*
+						 * We do not need to set the hostname here as we are interested in the hostname where the SMS was handled from Archiving perspective.
+						 * So in this case, the API generates the individual files, but they are archived from CDR host.
+
 						if (!hostname.empty())
 							archivable_sms->set_hostname(hostname);
+
+						 */
 						archivable_sms->set_policy_id(looked_up_policy_id);
 						archivable_sms->set_current_state(archiving::archivable::state::inspected);
 
