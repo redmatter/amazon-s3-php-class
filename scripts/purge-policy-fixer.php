@@ -303,7 +303,7 @@ class PurgePolicyFixerApp extends BaseApp
 		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
 		API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
 		if ($authCreds)
-			API::LoginBasicAuth($authCreds);
+			API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
 		else
 			// use old auth hash scheme
 			API::Login($authHash);
