@@ -490,11 +490,11 @@ public:
 	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
 	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end, const bool& delete_cdrs)
 	{
+		rml::MySQLConnection conn(*p_pool_);
+		mysqlpp::Transaction transaction(*conn, false);
 		try {
 			ExtractRetentionID extract_id;
 			IsFileTypeCDR is_cdr;
-
-			rml::MySQLConnection conn(*p_pool_);
 
 			unsigned int cdrs_found(0);
 			bool noncdrs_found(false);
@@ -505,14 +505,15 @@ public:
 			query_update_noncdrs << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
 
 			for(Iter itr = begin; itr != end; ++itr) {
-				if(delete_cdrs && is_cdr(*itr)) {
-					query_bin_cdrs << (cdrs_found?',':' ')<<extract_id(*itr);
-					cdrs_found++;
-				}
-				else {
+// TODO Move this functionality out and fix JIRA https://jira.redmatter.com/browse/PLAT-776
+//				if(delete_cdrs && is_cdr(*itr)) {
+//					query_bin_cdrs << (cdrs_found?',':' ')<<extract_id(*itr);
+//					cdrs_found++;
+//				}
+//				else {
 					query_update_noncdrs << (noncdrs_found?',':' ')<<extract_id(*itr);
 					noncdrs_found = true;
-				}
+//				}
 			}
 
 			query_bin_cdrs << " )";
@@ -520,14 +521,19 @@ public:
 
 			if(delete_cdrs && cdrs_found) {
 				__SQL_DEBUG(query_bin_cdrs.str());
-				mysqlpp::SimpleResult res = query_bin_cdrs.execute();
-				assert(cdrs_found == res.rows());
+				const mysqlpp::SimpleResult& res(query_bin_cdrs.execute());
+				if (cdrs_found != res.rows()) {
+					LogError("Not all CDRs were deleted ("<<cdrs_found<<" != "<<res.rows()<<")");
+					// not bailing out here as there is nothing that can be done to fix it!
+				}
 			}
 
 			if(noncdrs_found) {
 				__SQL_DEBUG(query_update_noncdrs.str());
 				query_update_noncdrs.execute();
 			}
+
+			transaction.commit();
 
 			return true;
 		}

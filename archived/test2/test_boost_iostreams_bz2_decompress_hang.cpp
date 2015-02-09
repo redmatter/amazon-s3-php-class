@@ -98,7 +98,6 @@ TEST(Corruption, GetFailure)
 
 	// pass in for decompression
 
-	bool failure(false);
 	std::ofstream ofs("/media/a411458f-874b-4f92-a71c-6084f6106fc3/dkorah/bad.wav");
 	ofs.exceptions(std::ios::badbit);
 

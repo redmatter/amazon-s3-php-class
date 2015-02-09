@@ -17,6 +17,7 @@
 #include "./database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
 #include "../common/policy.hpp"
+#include "suppress_headers_check.hpp"
 
 #include <rml/pc_channel.h>
 #include <rml/coreapi.hpp>
@@ -25,7 +26,8 @@
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <boost/date_time/period.hpp>
-#include <boost/date_time/gregorian/gregorian_types.hpp>
+//#include <boost/date_time/gregorian/gregorian_types.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/preprocessor/cat.hpp>
@@ -86,6 +88,9 @@ class runner : public boost::enable_shared_from_this<runner>
 {
 	const boost::program_options::variables_map& confMap_;
 
+	const boost::gregorian::date legacy_s3_headers_last_date_;
+	const headers_check::suppressions headers_check_suppressions_;
+
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 	const policy::cached_finder_t& cached_policy_finder_;
 	const org_policy_versions::cached_finder_t& org_policy_versions_finder_;
@@ -139,6 +144,12 @@ class runner : public boost::enable_shared_from_this<runner>
 		purge_finished_batch_size = 500
 	};
 
+	inline bool headers_check_is_suppressed(const item::pointer& p_item) const
+	{
+		return headers_check_suppressions_.is_suppressed(
+				p_item->identifier.filetype, boost::gregorian::date(p_item->retention->creation_date));
+	}
+
 public:
 	runner(
 			const boost::program_options::variables_map& confMap,
@@ -148,6 +159,12 @@ public:
 			rml::coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
+				legacy_s3_headers_last_date_(
+						boost::gregorian::from_simple_string(
+								confMap["retention_purge.legacy_s3_headers_last_date"].as<std::string>())),
+				headers_check_suppressions_(
+						confMap["retention_purge.bypass_headers_check_for"].as<std::string>(),
+						legacy_s3_headers_last_date_),
 				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
 				org_policy_versions_finder_(org_policy_versions_finder), api_(api), reactor_(reactor),
 				retention_db_(retention_db), internal_db_(internal_db),
@@ -157,6 +174,10 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				quit_(quit)
 	{
+		// set all to false
+		for(int i = 0; i < archiving::file_type::n_file_types; i++)
+			auto_expire_filetype_[i] = false;
+
 		const std::string& auto_expiring_filetypes(confMap["retention_purge.auto_expiring_filetypes"].as<std::string>());
 		if(!auto_expiring_filetypes.empty()) {
 			std::vector<std::string> str_filetypes;
@@ -166,6 +187,9 @@ public:
 			for(; itr != end; ++itr)
 				auto_expire_filetype_[(int)archiving::file_type::from_string(*itr)] = true;
 		}
+
+		if (legacy_s3_headers_last_date_.is_not_a_date())
+			throw rml::exception("Invalid date found in config (retention_purge.legacy_s3_headers_last_date)");
 
 		// initialise it! not thread-safe
 		(void) get_retention_purge_restrictions(confMap);
@@ -293,6 +317,10 @@ public:
 
 	bool purge_initialise(item::pointer p_item) try
 	{
+		// if headers check is suppressed by config, just move forward
+		if (headers_check_is_suppressed(p_item))
+			return true;
+
 		storage::s3::backend::pointer storage_backend = storage::s3::backend::get_instance();
 
 		storage::string_map_t props;
@@ -302,24 +330,24 @@ public:
 		}
 		catch(const std::exception& e) {
 			bool const* isKeyNotFound = boost::get_error_info< storage::s3::KeyNotFound_error_info >(e);
-	        if (isKeyNotFound && *isKeyNotFound) {
-	        	LogMessage("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
+			if (isKeyNotFound && *isKeyNotFound) {
+				LogMessage("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
 
-	        	if(is_auto_expiring(p_item->identifier)) {
-	        		LogMessage("HEAD "<<p_item->identifier<<" failed; Assuming auto-expiry on storage endpoint "<<p_item->endpoint->id);
-	        		return true;
-	        	}
+				if(is_auto_expiring(p_item->identifier)) {
+					LogMessage("HEAD "<<p_item->identifier<<" failed; Assuming auto-expiry on storage endpoint "<<p_item->endpoint->id);
+					return true;
+				}
 
-        		LogError("HEAD on "<<p_item->identifier<<" failed; could be data loss in storage endpoint "<<p_item->endpoint->id);
-        		return false;
-	        }
+				LogError("HEAD on "<<p_item->identifier<<" failed; could be data loss in storage endpoint "<<p_item->endpoint->id);
+				return false;
+			}
 
-	        if (std::string const* statusStr = boost::get_error_info< storage::s3::StatusStr_error_info >(e))
-	        	LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what()<<" Status:"<<*statusStr);
-	        else
-	        	LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
+			if (std::string const* statusStr = boost::get_error_info< storage::s3::StatusStr_error_info >(e))
+				LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what()<<" Status:"<<*statusStr);
+			else
+				LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
 
-	        return false;
+			return false;
 		}
 
 		LogDebug("stat("<<p_item->identifier<<") "<<props);
@@ -333,16 +361,25 @@ public:
 		if(props.find("content-length") != props.end())
 			p_item->real_size = rml::utils::strtoull(props["content-length"].c_str(), 0ULL);
 
-#define AssertProps(key) \
-		if(props.find(key) == props.end()) throw required_header_missing_exception(key)
+		try {
+			#define AssertProps(key) \
+				if(props.find(key) == props.end()) throw required_header_missing_exception(key)
 
-		AssertProps("policy-id");
-		AssertProps("policy-version");
-		AssertProps("creation-date");
-		AssertProps("retention-min-date");
-		AssertProps("retention-max-date");
+			AssertProps("policy-id");
+			AssertProps("policy-version");
+			AssertProps("creation-date");
+			AssertProps("retention-min-date");
+			AssertProps("retention-max-date");
 
-#undef AssertProps
+			#undef AssertProps
+		}
+		catch(const required_header_missing_exception& e) {
+			if(boost::gregorian::date(p_item->retention->creation_date) >= legacy_s3_headers_last_date_) {
+				LogWarning(p_item->identifier<<" Required headers missing; "<<e.what()<<" ( creation_date >= "<<legacy_s3_headers_last_date_<<" )");
+			}
+
+			throw;
+		}
 
 		const retention_record& retention_from_db(*(p_item->retention));
 		{
@@ -588,6 +625,8 @@ public:
 						boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
 						boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
 						state_reactor<>::low, false);
+
+				// NOT break-ing from here so that the below batching logic wouldn't get starved
 			}
 
 			if(p_item->retention) // if not dummy
@@ -720,7 +759,7 @@ public:
 											state_reactor<>::low, false);
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
-									__pc_produce(delete_usage_channel_, p_item, 600, 0, 0);
+									__pc_produce(delete_usage_channel_, *itr_, 600, 0, 0);
 							}
 
 							itr = itr_batch.second;
@@ -783,26 +822,30 @@ public:
 										boost::this_thread::sleep(boost::posix_time::seconds(1));
 								}
 
-								if(!quit_)
+								if(!quit_) {
+									// all or nothing here; if any of them fail, a retry will be scheduled (see below) by requeueing into the channel
 									done_ok = retention_db_.set_purged<
 										item::org_grouped_multiset_t::const_iterator,
 										item::extract_retention_id, item::is_filetype_cdr >(
 												(*itr_batch.first)->identifier.org,
 												itr_batch.first, itr_batch.second,
 												confMap_["retention_purge.delete_cdr_retention_records"].as<bool>());
+								}
 							}
 
 							for(item::org_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
-									itr_ != itr_batch.second; ++itr_) {
+									itr_ != itr_batch.second; ++itr_)
+							{
 								// if done ok, move forward
-								if(done_ok)
+								if(done_ok) {
 									reactor_.schedule(
 											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
 											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
 											state_reactor<>::low, false);
+								}
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
-									__pc_produce(delete_retention_channel_, p_item, 600, 0, 0);
+									__pc_produce(delete_retention_channel_, *itr_, 600, 0, 0);
 							}
 
 							itr = itr_batch.second;

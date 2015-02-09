@@ -1,4 +1,4 @@
-%define version 0.1.0
+%define version 0.1.1
 %define appname archiving
 %define buildtype dbgrel
 %define __os_install_post %{nil}
@@ -20,10 +20,10 @@ Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
-Requires: RM-daemonscripts >= 0.0.1-22215
+Requires: RM-daemonscripts >= 0.0.1-35038
 BuildRequires: boost-devel >= 1.49.0-24737
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 0.0.1-34680
+BuildRequires: RM-librml-devel >= 0.0.1-35005
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -38,7 +38,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 0.0.1-22215
+Requires: RM-daemonscripts >= 0.0.1-35038
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -50,7 +50,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 0.0.1-22215
+Requires: RM-daemonscripts >= 0.0.1-35038
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
