@@ -21,9 +21,15 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
-require_once 's3/S3.php';
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
+
+// todo remove the phar file from repo and use composer; also sort out the require_onces below
+//     for \RedMatter\Archiving\AWS namespace
+define('ARCHIVING_INC_DIR', is_dir(__DIR__.DIRECTORY_SEPARATOR.'inc')? (__DIR__.DIRECTORY_SEPARATOR.'inc'): 'archiving');
+require_once ARCHIVING_INC_DIR.'/aws.phar';
+require_once ARCHIVING_INC_DIR.'/RedMatter/Archiving/AWS/GuzzleLogAdapter.php';
+require_once ARCHIVING_INC_DIR.'/RedMatter/Archiving/AWS/StorageEndpointCredentials.php';
 
 /**
  * PurgePolicyFixerApp
@@ -40,6 +46,7 @@ class PurgePolicyFixerApp extends BaseApp
 	const CONFIG_PATH = '/etc/archiving/purge-policy-fixer.conf';
 	const TIMEOUT_MASS_UPDATE_SQL_CACHE = 300 /* seconds */;
 	const TIMEOUT_ARCHIVED_CONF = 300 /* seconds */;
+	const AWS_MAX_PARALLEL_COMMANDS = 20;
 
 	private $_nextRunTime = 0;
 
@@ -156,6 +163,7 @@ class PurgePolicyFixerApp extends BaseApp
 		return array_map(
 			function (MySQLiResult_Row $row)
 			{
+				/** @var stdClass|MySQLiResult_Row $row */
 				return (int)($row->OrgID);
 			},
 			$res
@@ -179,6 +187,7 @@ class PurgePolicyFixerApp extends BaseApp
 
 		$config = $this->conf;
 
+		$authHash = null;
 		$authCreds = cli::get('--auth-creds', $config->get('api.authorization_creds', false));
 		if (!$authCreds)
 		{
@@ -348,11 +357,35 @@ class PurgePolicyFixerApp extends BaseApp
 			$retentionDb->CommitTransaction();
 		};
 
+		$guzzleLogger = new \RedMatter\Archiving\AWS\GuzzleLogAdapter('[BackOff-Retry] ');
 		$fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
-		$fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api)
+		$fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api, &$guzzleLogger)
 		{
 			if (!$fixS3HeaderAbsoluteStopDate/* === null */ || !count($retentionIds))
 				return;
+
+			// Execute all Guzzle Service Commands and make them trigger OnComplete
+			$fnExecuteCommands = function (\Aws\S3\S3Client $s3Client, $commands)
+			{
+				if (empty($commands))
+					return;
+
+				/** @var \Guzzle\Service\Command\CommandInterface[] $exCommands */
+				try
+				{
+					$exCommands = $s3Client->execute($commands);
+				}
+				catch (\Guzzle\Service\Exception\CommandTransferException $e)
+				{
+					$exCommands = $e->getAllCommands();
+				}
+
+				// loop through and call getResult() to trigger the OnComplete callbacks
+				foreach ($exCommands as $command)
+				{
+					$command->getResult();
+				}
+			};
 
 			$retentionDb->query(
 				"SELECT" .
@@ -365,87 +398,192 @@ class PurgePolicyFixerApp extends BaseApp
 				" ISNULL(retention.LegUUID) `LegUUIDNull`" .
 				"FROM ArchivingRetention.Retention_{$orgId} retention " .
 				"WHERE ID IN (".implode(', ', $retentionIds).")" .
-				" AND retention.CreationDate < '{$fixS3HeaderAbsoluteStopDate}'"
-			)
-				->for_each(
-					// Record handler lambda that gets records from retention database and compares them with S3 headers
-					function(MySQLiResult_Row $row) use ($orgId, $api)
+				" AND retention.CreationDate < '{$fixS3HeaderAbsoluteStopDate}'" .
+				"ORDER BY `EndpointID`"
+			)->for_each_batch(
+				// Batch handler that gets records from retention database and compares them with S3 headers
+				//
+				// Here we batch by EndpointID so that the connection to S3 can be created once and used many times.
+				function($batch, $batch_hint) use ($orgId, $api, &$guzzleLogger, $fnExecuteCommands)
+				{
+					// todo do the same for any database callback
+					if (DaemonScripts::DispatchAndSleep() && true === DaemonScripts::Terminate())
+					{
+						// abort the callback if Terminate was flagged
+						return false;
+					}
+
+					if (empty($batch))
+						return true;
+
+					$headCommands = array();
+					$copyDetails = array();
+
+					// every object in this batch is from one endpoint
+					$endpoint = ArchivingEndpoint::Get($api, $orgId, reset($batch)->EndpointID, true);
+
+					if ($endpoint->type != 's3')
+					{
+						LogMessage('Ignoring '.count($batch).' objects from non-S3 endpoint');
+						return true;
+					}
+
+					$s3Client = \Aws\S3\S3Client::factory(
+						array(
+							'scheme' => 'https',
+							'credentials' => new \RedMatter\Archiving\AWS\StorageEndpointCredentials($endpoint)
+						)
+					);
+
+					// setup guzzle's auto-retry
+					$backoffPlugin = \Guzzle\Plugin\Backoff\BackoffPlugin::getExponentialBackoff();
+					$s3Client->addSubscriber($backoffPlugin);
+
+					// setup guzzle's auto-retry logger
+					$backoffLogger = new \Guzzle\Plugin\Backoff\BackoffLogger($guzzleLogger);
+					$s3Client->addSubscriber($backoffLogger);
+
+					$bucket = $endpoint->bucket;
+
+					/** @var stdClass[]|MySQLiResult_Row[] $batch */
+					foreach ($batch as $row)
 					{
 						$identifier = Archiving::ConstructIdentifier($row->Type, $orgId, $row->UUID);
-						$endpoint = ArchivingEndpoint::Get($api, $orgId, $row->EndpointID, true);
+						$headCommands[] = $s3Client->getCommand(
+							'HeadObject',
+							array('Bucket' => $bucket, 'Key' => $identifier, 'PathStyle' => false)
+						)->setOnComplete(
+							function(\Guzzle\Service\Command\CommandInterface $completedHeadCommand)
+									use ($s3Client, &$copyDetails, $identifier, $bucket, $row)
+							{
+								if (!$completedHeadCommand->isExecuted())
+								{
+									LogError('Failed to fix the headers; HeadObject failed [not executed]', $identifier);
+									return;
+								}
 
-						if ($endpoint->type != 's3')
-						{
-							LogMessage('Ignoring object from non-S3 endpoint', $identifier);
-							return;
-						}
+								$statusCode = $completedHeadCommand->getResponse()->getStatusCode();
+								if ($statusCode != 200)
+								{
+									LogError('Failed to fix the headers; HeadObject failed [status: '.$statusCode.']', $identifier);
+									LogDebug($completedHeadCommand->getResponse()->getBody(true), 'HEAD '.$identifier.' Response');
+									return;
+								}
 
-						$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+								// we are ok; do header comparison
 
-						$inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
-						LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
-						$realSize = $inf['size'];
+								/** @var \Guzzle\Service\Resource\Model $headResult */
+								$headResult = $completedHeadCommand->getResult();
+								// LogDebug($headResult, '$headResult '.$identifier);
 
-						$headers = array(
-							'creation-date' => $row->CreationDate,
-							'file-type' => Archiving::GetSubFormatStr($row->SubType),
-							'file-type-is-compressed' => $row->Compressed,
-							'file-type-is-encrypted' => $row->Encrypted,
-							'policy-id' => $row->PolicyID,
-							'policy-version' => $row->PolicyVersion,
-							'real-size' => $realSize,
-							'retention-max-date' => $row->RetentionMaxDate,
-							'retention-min-date' => $row->RetentionMinDate,
-							'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
+								$metadata = $headResult->get('Metadata');
+								LogDebug('Metadata from S3: '.json_encode($metadata), $identifier);
+
+								$headers = array(
+									'creation-date' => $row->CreationDate,
+									'file-type' => Archiving::GetSubFormatStr($row->SubType),
+									'file-type-is-compressed' => $row->Compressed,
+									'file-type-is-encrypted' => $row->Encrypted,
+									'policy-id' => $row->PolicyID,
+									'policy-version' => $row->PolicyVersion,
+									'real-size' => $headResult->get('ContentLength'),
+									'retention-max-date' => $row->RetentionMaxDate,
+									'retention-min-date' => $row->RetentionMinDate,
+									'leg-uuid' => ($row->LegUUIDNull == 1)? '': $row->LegUUID
+								);
+								LogDebug('Metadata re-constructed from Db: '.json_encode($headers), $identifier);
+
+								$headerMismatch = false;
+								foreach ($headers as $hKey => $hValue)
+								{
+									$amzValue = isset($metadata[$hKey])? $metadata[$hKey]: null;
+									if (is_null($amzValue) || ($amzValue != $hValue))
+									{
+										$headerMismatch = true;
+										LogDebug("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
+									}
+								}
+
+								if (!$headerMismatch)
+								{
+									LogVerbose('outcome:ok; NO metadata mismatch', $identifier);
+									return;
+								}
+
+								LogMessage("Metadata mismatch found; fixing it", $identifier);
+								// LogDebug('New Metadata: '.json_encode($headers), $identifier);
+								$copyDetails[] = array(
+									'Bucket' => $bucket,
+									'Key' => $identifier,
+									'Metadata' => $headers,
+									'CopySource' => rawurlencode("{$bucket}/{$identifier}"),
+									'ContentType' => $headResult->get('ContentType')
+								);
+							}
+						);
+					}
+
+					// Execute all the commands and let them culminate in the OnComplete callback
+					// By the end of that $copy_details will be filled with details of copy commands to be run
+					//    to fix headers
+					$fnExecuteCommands($s3Client, $headCommands);
+
+					// Empty $copyDetails means all of the objects checked out OK in the comparison; so nothing to do!
+					if (empty($copyDetails))
+						return true;
+
+					// we have a few that need fixing; setup the copy-on-to-itself commands
+					// NB: intentionally not handling the error scenario; retry will happen the next time the object gets loaded
+					$copyCommands = array();
+					foreach ($copyDetails as $copyDetail)
+					{
+						// merge the $copyDetail with static command options
+						$commandParams = array_merge(
+							$copyDetail,
+							array(
+								'MetadataDirective' => 'REPLACE',
+								'ACL' => 'private',
+								'PathStyle' => false
+							)
 						);
 
-						$headerMismatch = false;
-						foreach ($headers as $hKey => $hValue)
-						{
-							$amzKey = sprintf('x-amz-meta-%s', $hKey);
-							$amzValue = isset($inf[$amzKey])? $inf[$amzKey]: null;
-							if (is_null($amzValue) || ($amzValue != $hValue))
-							{
-								$headerMismatch = true;
-								LogMessage("Metadata mismatch: {$hKey}: (s3) '{$amzValue}' != (db) '{$hValue}'", $identifier);
-							}
-						}
-
-						if ($headerMismatch)
-						{
-							$retry = 5;
-							$copyOk = null;
-							do
-							{
-								// S3 copy on to itself to update headers
-								$copyOk = $s3->copyObject(
-									$endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE,
-									$headers, array('Content-Type'=>'binary/octet-stream')
-								);
-								if (false === $copyOk)
+						// LogDebug(json_encode($commandParams), 'COPY params');
+						$copyCommands[] = $s3Client->getCommand('CopyObject', $commandParams)
+							->setOnComplete(
+								function(\Guzzle\Service\Command\CommandInterface $completedCopyCommand) use ($copyDetail)
 								{
-									if ($retry)
+									if (!$completedCopyCommand->isExecuted())
 									{
-										$delay = pow(6 - $retry, 2);
-										LogWarning("Error copying new metadata; retrying in $delay seconds (sleeping..)", $identifier);
-
-										// TODO: Make use of daemonscripts sleep function.
-										sleep($delay);
+										LogError('outcome:failed; CopyObject failed; [not executed]', $copyDetail['Key']);
+										return;
 									}
-									else
-										LogError('Error copying new metadata; giving up!', $identifier);
+
+									$statusCode = $completedCopyCommand->getResponse()->getStatusCode();
+									if ($statusCode != 200)
+									{
+										LogError('outcome:failed; CopyObject failed [status: '.$statusCode.']', $copyDetail['Key']);
+										LogDebug($completedCopyCommand->getResponse()->getBody(true), 'COPY '.$copyDetail['Key'].' Response');
+										return;
+									}
+
+									LogMessage('outcome:ok', $copyDetail['Key']);
 								}
-							}
-							while ($retry-- && !$copyOk);
-
-							LogMessage(sprintf('outcome:%s', $copyOk? 'ok': 'failed'), $identifier);
-						}
-						else
-							LogMessage('No mismatch in metadata', $identifier);
-
-						unset($s3);
+							);
 					}
-				);
+
+					// Execute all the commands and let them culminate in the OnComplete callback
+					// By the end of that $copy_details will be filled with details of copy commands to be run to fix headers
+					$fnExecuteCommands($s3Client, $copyCommands);
+
+					unset($s3Client);
+
+					return true;
+				},
+				// limit the batch size by the max simultaneous request we want to do to AWS
+				PurgePolicyFixerApp::AWS_MAX_PARALLEL_COMMANDS,
+				// Group by EndpointID so that we can re-use the S3 client object
+				'EndpointID'
+			);
 		};
 
 		try

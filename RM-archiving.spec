@@ -1,4 +1,4 @@
-%define version 0.1.1
+%define version 0.1.2
 %define appname archiving
 %define buildtype dbgrel
 %define __os_install_post %{nil}
@@ -20,7 +20,7 @@ Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
-Requires: RM-daemonscripts >= 0.0.1-35038
+Requires: RM-daemonscripts >= 0.0.1-35099
 BuildRequires: boost-devel >= 1.49.0-24737
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: RM-librml-devel >= 0.0.1-35005
@@ -38,7 +38,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 0.0.1-35038
+Requires: RM-daemonscripts >= 0.0.1-35099
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -50,7 +50,7 @@ Group: RedMatter/Archiving
 Requires: boost >= 1.49.0-24737
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 0.0.1-35038
+Requires: RM-daemonscripts >= 0.0.1-35099
 Requires: RM-%{appname}-common = %{version}-%{release}
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
@@ -80,11 +80,11 @@ Group: RedMatter/Archiving
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: RM-php-rmapp >= 0.0.1-34760
+Requires: RM-php-rmapp >= 0.0.1-35101
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-33483
 Requires: RM-%{appname}-convert >= %{version}-%{release}
-Requires: RM-daemonscripts-php
+Requires: RM-daemonscripts-php => 0.0.1-35099
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -198,7 +198,10 @@ cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 # cp common/migration_database.conf %{buildroot}/etc/archiving/conf.d/migration_database.conf
 
 # Scripts
-cp scripts/inc/*.php  %{buildroot}/usr/share/php/archiving/.
+for file in $(find scripts/inc -type f); do
+	install -m 644 -D ${file} %{buildroot}/usr/share/php/archiving/${file#scripts/inc/}
+done
+ln -sf /usr/share/php/archiving/aws-2.7.17.phar %{buildroot}/usr/share/php/archiving/aws.phar
 cp scripts/archiving.sh %{buildroot}/usr/bin/archiving
 cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
@@ -432,13 +435,7 @@ fi
 
 %files scripts
 %defattr(-,root,root)
-/usr/share/php/archiving/class.ArchiveD.php
-/usr/share/php/archiving/class.Archiving.php
-/usr/share/php/archiving/class.ArchivingChecker.php
-/usr/share/php/archiving/class.ArchivingEndpoint.php
-/usr/share/php/archiving/class.ArchivingRetention.php
-/usr/share/php/archiving/class.ArchivingPolicy.php
-/usr/share/php/archiving/class.ArchivingProcessFile.php
+/usr/share/php/archiving/*
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
