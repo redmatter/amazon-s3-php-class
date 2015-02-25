@@ -44,7 +44,9 @@ class Archiving
 	const FILE_TYPE_INFO                   = self::FILE_TYPE_INT_INFO;
 	const FILE_TYPE_INT_PCAP_SIP_ONLY      = 7;
 	const FILE_TYPE_PCAP_SIP_ONLY          = self::FILE_TYPE_INT_PCAP_SIP_ONLY;
-
+	const FILE_TYPE_INT_MMS                = 8;
+	const FILE_TYPE_MMS                    = self::FILE_TYPE_INT_MMS;
+	
 	const FILE_TYPE_STR_UNKNOWN            = 'unknown';
 	const FILE_TYPE_STR_CDR                = 'cdr';
 	const FILE_TYPE_STR_RECORDING          = 'recording';
@@ -53,7 +55,8 @@ class Archiving
 	const FILE_TYPE_STR_PCAP               = 'pcap';
 	const FILE_TYPE_STR_INFO               = 'info';
 	const FILE_TYPE_STR_PCAP_SIP_ONLY      = 'pcap-sip-only';
-
+	const FILE_TYPE_STR_MMS                = 'mms';
+	
 	const FILE_TYPE_EXTENSION_UNKNOWN            = '.bin';
 	const FILE_TYPE_EXTENSION_CDR                = '.cdr.xml';
 	const FILE_TYPE_EXTENSION_RECORDING          = '.wav';
@@ -62,19 +65,22 @@ class Archiving
 	const FILE_TYPE_EXTENSION_PCAP               = '.pcap';
 	const FILE_TYPE_EXTENSION_INFO               = '.info.xml';
 	const FILE_TYPE_EXTENSION_PCAP_SIP_ONLY      = '.sip.pcap';
-
+	const FILE_TYPE_EXTENSION_MMS                = '.eml';
+	
 	const SUBFORMAT_UNKNOWN                = 0; // flags errors
 	const SUBFORMAT_BINARY                 = 1; // BLOB ( catchall for any unrecognized data )
 	const SUBFORMAT_XML                    = 2;
 	const SUBFORMAT_WAV                    = 3;
 	const SUBFORMAT_MP3                    = 4;
-
+	const SUBFORMAT_EMAIL                  = 5;
+	
 	const SUBFORMAT_STR_UNKNOWN            = 'unknown'; // flags errors
 	const SUBFORMAT_STR_BINARY             = 'binary';  // BLOB ( catchall for any unrecognized data )
 	const SUBFORMAT_STR_XML                = 'xml';
 	const SUBFORMAT_STR_WAV                = 'wav';
 	const SUBFORMAT_STR_MP3                = 'mp3';
-
+	const SUBFORMAT_STR_EMAIL              = 'email';
+	
 	static $OperationalDataFileTypes = array(
 		self::FILE_TYPE_INT_CDR,
 		self::FILE_TYPE_INT_PCAP,
@@ -203,7 +209,9 @@ class Archiving
 				return self::FILE_TYPE_STR_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_STR_PCAP_SIP_ONLY;
-
+			case self::FILE_TYPE_INT_MMS:
+				return self::FILE_TYPE_STR_MMS;
+				
 			default:
 				return 'unknown';
 		}
@@ -234,6 +242,8 @@ class Archiving
 				return self::FILE_TYPE_EXTENSION_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_EXTENSION_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_INT_MMS:
+				return self::FILE_TYPE_EXTENSION_MMS;
 			default:
 				return self::FILE_TYPE_EXTENSION_UNKNOWN;
 		}
