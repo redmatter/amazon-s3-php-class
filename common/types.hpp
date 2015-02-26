@@ -50,7 +50,6 @@ struct file_type
 		pcap,
 		info,
 		pcap_sip_only,
-		mms,
 
 		n_file_types
 	};
