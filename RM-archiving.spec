@@ -100,6 +100,7 @@ Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
 BuildRequires: sendmail-devel
 BuildRequires: pugixml
+BuildRequires: db4-devel
 
 # ------------ description---------------
 
