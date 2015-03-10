@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# eml2a-milter  This shell script takes care of starting and stopping
+#               the archiving milter daemon.
+#
+# chkconfig: 2345 80 05
+# description: Archiving milter daemon
+# processname: eml2a-milter
+# config: /etc/archiving/eml2a-milter.conf
+# pidfile: /var/run/eml2a/eml2a-milter.pid
+
+prog_longname="Archiving milter daemon"
+prog_shortname=eml2a-milter
+prog_binpath=/usr/bin/${prog_shortname}
+prog_pidfile=/var/run/eml2a/${prog_shortname}.pid
+prog_projprefix=archiving
+prog_cliopts="-p /var/lib/eml2a/eml2a-milter.sock"
+prog_syslogtag=eml2a-milter
+
+. /usr/share/rmdaemonscripts/init.sh
+

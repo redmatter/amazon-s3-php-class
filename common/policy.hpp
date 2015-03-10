@@ -139,6 +139,7 @@ struct policy
 			pcap = -4,
 			info = -5,
 			pcap_sip_only = -6,
+			mms = -7,
 
 			do_not_archive = -999
 		};
@@ -154,7 +155,8 @@ struct policy
 					/*buffered_recording*/ pseudo_id::buffered_recording,
 					/*pcap*/               pseudo_id::pcap,
 					/*info*/               pseudo_id::info,
-					/*pcap_sip_only*/      pseudo_id::pcap_sip_only
+					/*pcap_sip_only*/      pseudo_id::pcap_sip_only,
+					/*mms*/                pseudo_id::mms
 			};
 
 			if(f > archiving::file_type::unknown && f < archiving::file_type::n_file_types)
@@ -276,22 +278,22 @@ public:
 
 		const char* type_str = policy_node.select_single_node("Mode/text()").node().value();
 
-	    pugi::xpath_node min_retention_period_node = policy_node.select_single_node("RetentionMin");
-	    const char* min_retention_period_str = min_retention_period_node.node().select_single_node("text()").node().value();
-	    const char* min_retention_period_unit_str = min_retention_period_node.node().attribute("Unit").value();
+		pugi::xpath_node min_retention_period_node = policy_node.select_single_node("RetentionMin");
+		const char* min_retention_period_str = min_retention_period_node.node().select_single_node("text()").node().value();
+		const char* min_retention_period_unit_str = min_retention_period_node.node().attribute("Unit").value();
 
-	    pugi::xpath_node max_retention_period_node = policy_node.select_single_node("RetentionMax");
-	    const char* max_retention_period_str = max_retention_period_node.node().select_single_node("text()").node().value();
-	    const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
-	    
-	    const bool allow_unrestricted_access ( 0 == strcmp("yes", policy_node.select_single_node("AllowUnrestrictedAccess/text()").node().value()) );
-	    const bool disallow_recording_download ( 0 == strcmp("yes", policy_node.select_single_node("DisallowRecordingDownload/text()").node().value()) );
+		pugi::xpath_node max_retention_period_node = policy_node.select_single_node("RetentionMax");
+		const char* max_retention_period_str = max_retention_period_node.node().select_single_node("text()").node().value();
+		const char* max_retention_period_unit_str = max_retention_period_node.node().attribute("Unit").value();
 
-	    // XXX TODO Ugly fudge to get around the new Salesforce.com ACL type. Revisit this when we do refactoring
-	    const bool is_acl_type_default ( 0 == strcmp("Default", policy_node.select_single_node("ACLType/text()").node().value()) );
+		const bool allow_unrestricted_access ( 0 == strcmp("yes", policy_node.select_single_node("AllowUnrestrictedAccess/text()").node().value()) );
+		const bool disallow_recording_download ( 0 == strcmp("yes", policy_node.select_single_node("DisallowRecordingDownload/text()").node().value()) );
 
-	    // assign 0 if no endpoint-id set
-	    const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
+		// XXX TODO Ugly fudge to get around the new Salesforce.com ACL type. Revisit this when we do refactoring
+		const bool is_acl_type_default ( 0 == strcmp("Default", policy_node.select_single_node("ACLType/text()").node().value()) );
+
+		// assign 0 if no endpoint-id set
+		const archiving::endpoint_id_t& endpoint_id( rml::utils::strtoull(policy_node.select_single_node("StorageEndpointID/text()").node().value(), 0) );
 
 		return pointer(new policy(
 				rml::utils::strtoull(id_str), rml::utils::strtoull(version_str), mode::from_string(type_str),

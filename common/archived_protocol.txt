@@ -19,9 +19,9 @@ ResourceID: <ResourceUuid>\r\n
 CustomHeader: <Value>\r\n
 \r\n
 ( TODO Check for local space and reserve it )
-<- OK PUT <OrgID> <original-md5>\r\n
+<- OK PUT <Type> <OrgID> <UUID>\r\n
 --- OR ---
-<- ERR PUT <OrgID> <original-md5> <message>\r\n
+<- ERR PUT <Type> <OrgID> <UUID> <message>\r\n
 
 ( Now we are good to send data as binary followed by end-of-file [^Z] )
 
@@ -29,8 +29,8 @@ CustomHeader: <Value>\r\n
 
 ( ArchiveD can verify content length and MD5 and do ACK or NACK )
 
-<- OK RECV <OrgID> <original-md5>\r\n
+<- OK RECV <Type> <OrgID> <UUID>\r\n
 --- OR ---
-<- ERR RECV <OrgID> <original-md5> <message>\r\n
+<- ERR RECV <Type> <OrgID> <UUID> <message>\r\n
 
 ( CollectD deleted the file if OK else queues for retransmission )

@@ -1,0 +1,253 @@
+#!/bin/bash
+
+# Enable debug
+# set -x
+
+program_name=eml2a-milter
+
+syslog_tag=eml2a-milter
+
+pid_file=/var/run/eml2a/${program_name}_safe.pid
+
+__is_numeric() {
+	[ -z "$@" ] && return 1
+	echo "$@" | grep -q -v "[^0-9]"
+} 
+
+__log() {
+	level=$1; shift;
+	[ -n "$0" ] &&
+		/usr/bin/logger -t "$syslog_tag" -p "local0.$level" -- "[safe] $@";
+}
+
+npipe=/tmp/${program_name}_safe_$$.tmp
+trap "rm -f $npipe /tmp/mail.$$" EXIT
+mknod $npipe p
+while read a_line_; do __log info "$a_line_"; done <$npipe &
+exec 1>&-
+exec 1>$npipe
+exec 2>&1
+
+__run() {
+	ret_status=1
+	
+	if [ "$__VALGRIND_RUN" = "true" ] && [ -n "$__VALGRIND" ]; then
+		__log info "Enabling Valgrind"
+		valgrind_options="${valgrind_extra_options}"
+		case "$__VALGRIND_TOOL" in
+		  memcheck+track_origins)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full --track-origins=yes"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		  memcheck)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		  callgrind)
+		    valgrind_options="${valgrind_options} --tool=callgrind --callgrind-out-file=${__VALGRIND_LOG}_callgrind.%p"
+			;;
+		  *)
+		    valgrind_options="${valgrind_options} --show-reachable=yes --leak-check=full"
+			[ "$__VALGRIND_GEN_SUPP" = "true" ] && valgrind_options="${valgrind_options} --gen-suppressions=all";
+			;;
+		esac
+		
+		[ "$__VALGRIND_TRACK_FDS" = "true" ] && valgrind_options="${valgrind_options} --track-fds=yes";
+		
+		# run the program under valgrind			
+		#$__VALGRIND $valgrind_options --suppressions=/usr/share/archiving/${program_name}.supp --time-stamp=yes --log-file="$__VALGRIND_LOG".%p "$@"		
+		$__VALGRIND $valgrind_options ---time-stamp=yes --log-file="$__VALGRIND_LOG".%p "$@"		
+		ret_status=$?
+		
+		unset valgrind_options
+	else
+		[ "$__VALGRIND_RUN" = "true" ] &&
+			__log warning "No valgrind found; continuing normal startup"
+
+		[ "$__MALLOC_CHECK" = "true" ] &&
+			__log info "Enabling MALLOC_CHECK_=1"
+		[ "$__MALLOC_CHECK" = "true" ] &&
+			export MALLOC_CHECK_=1
+
+		# run the program			
+		$@
+		ret_status=$?
+	fi
+
+	return $ret_status
+}
+
+if [ -r "$pid_file" ]; then
+	pid=$( cat $pid_file );
+
+	if [ -n "$pid" ]; then
+
+		## hack!!!
+		if [ "$1" = "stop" ]; then
+			kill "$pid"; ( sleep 1; kill -0 "$pid" >/dev/null 2>&1 && kill -9 "$pid" )&
+			exit 0;
+		else
+			kill -0 "$pid" >/dev/null 2>&1 && exit 1;
+		fi
+	fi
+fi
+
+[ "$1" = "stop" ] && exit 0;
+
+program=$1; shift
+
+if [ -z "$program" ]; then
+	__log err Missing arguments;
+	exit 1;
+fi
+
+_01st_crash_time=0
+
+echo $$ > $pid_file
+
+if [ "$__CORE_ENABLED" -eq 1 ]; then
+	if [ -n "${__CORE_DIR}" ] && [ "${__CORE_DIR}" != 'false' ]; then
+		[ -d "${__CORE_DIR}" ] || mkdir -p "${__CORE_DIR}"
+		chmod 777 "${__CORE_DIR}"
+		echo "${__CORE_DIR}/core.%e.sig%s.%p" > /proc/sys/kernel/core_pattern
+	fi
+
+	if [ "$__CORE_NEED_SUID_FIX" -eq 1 ]; then
+		/sbin/sysctl fs.suid_dumpable=1
+	fi
+fi
+
+if [ -n "$__NICENESS" ] && [ "$__NICENESS" != 'false' ]; then
+	if [ -z "$__NICE" ]; then
+		__log err "nice not found in PATH ( you can set NICE variable in rc script )";
+		exit 1;
+	fi
+
+	if ! __is_numeric "$__NICENESS" || [ "$__NICENESS" -lt 0 ] || [ "$__NICENESS" -gt 19 ]; then
+		__log err "Invalid niceness given in config file";
+		exit 3;
+	fi
+	__nice="$__NICE -n $__NICENESS"
+fi
+
+while true; do
+	
+	__log info "+------------------------------------------------------------+"
+	__log info Starting $program_name under safe wrapper - $program "$@"
+	__log info "+------------------------------------------------------------+"
+	
+	__run $__nice $program "$@"
+	exit_status=$?
+
+	echo $'\n'
+
+	__log debug "${program_name} ended with exit status $exit_status";
+	
+	# exit codes from rml/utils.h
+	case "$exit_status" in
+		0)
+			__log info "${program_name} stopped normally."
+			exit 0;
+			;;
+			
+		1)
+			__log err "${program_name} stopped abnormally (general failure)."
+			;;
+			
+		2)
+			__log err "${program_name} stopped abnormally (config file missing)."
+			exit 2;
+			;;
+			
+		3)
+			__log err "${program_name} stopped abnormally (config file unreadable)."
+			exit 3;
+			;;
+			
+		4)
+			__log err "${program_name} stopped abnormally (config file invalid)."
+			exit 3;
+			;;
+
+		5)
+			__log err "${program_name} stopped abnormally (general initialization error)."
+			exit 3;
+			;;
+			
+		*)
+			__log err "${program_name} stopped abnormally (possibly a crash)."
+			;;
+	esac
+
+	if [ "$_01st_crash_time" -eq 0 ]; then
+		_01st_crash_time=$(date +%s)
+		_crash_count=1
+	elif [ "$_crash_count" -eq 10 ]; then
+		if [ $(( $(date +%s) - $_01st_crash_time )) -lt 10 ]; then
+			__log crit "${program_name} died ( status: $exit_status ) several times; Giving-up..."
+			exit 1;
+		else
+			_01st_crash_time=0
+			_crash_count=0
+		fi
+	fi
+
+	_crash_count=$(( $_crash_count + 1 ))
+	
+	if [ "$exit_status" -gt 128 ]; then
+		program_bin=${program##*/}
+		core="${__CORE_DIR}/core.${program_bin:0:15}.sig$(($exit_status - 128)).$(cat /var/run/eml2a/${program_name}.pid)"
+		core_trace=${core}.backtrace
+
+		__log debug "core: $core trace: $core_trace";
+		
+		if [ -r "$core" ]; then
+			gdb -batch-silent \
+				-ex "set logging overwrite on" \
+				-ex "set logging file ${core_trace}" \
+				-ex "set logging on" \
+				-ex "set pagination off" \
+				-ex "handle SIG33 pass nostop noprint" \
+				-ex "echo backtrace:\n" \
+				-ex "backtrace full" \
+				-ex "echo \n\nregisters:\n" \
+				-ex "info registers" \
+				-ex "echo \n\ncurrent instructions:\n" \
+				-ex "x/16i \$pc" \
+				-ex "echo \n\nthreads backtrace:\n" \
+				-ex "thread apply all backtrace" \
+				-ex "set logging off" \
+				-ex "quit" \
+				--core $core $program
+		fi
+	fi
+
+	if [ "$__ON_RESTART_NOTIFY_EMAILS" != "false" ]; then
+		__log debug "__ON_RESTART_NOTIFY_EMAILS: $__ON_RESTART_NOTIFY_EMAILS";
+		
+		echo "$(date) - ${program_name} died ( status: $exit_status )" > /tmp/mail.$$
+		if [ "$__DISABLE_RESTART" = "true" ]; then
+			echo "NOT restarting; manual intervention needed"          >> /tmp/mail.$$
+		else
+			echo "Restarting in a few seconds; no action needed"       >> /tmp/mail.$$
+		fi
+		echo ""                                                        >> /tmp/mail.$$
+		if [ -n "$core_trace" ] && [ -r "$core_trace" ]; then
+			echo "--8<----------------- trace -------------------8<--" >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			echo "$( $program --version )"                             >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			echo "core: $core"                                         >> /tmp/mail.$$
+			echo ""                                                    >> /tmp/mail.$$
+			cat "$core_trace"                                          >> /tmp/mail.$$
+		fi
+		
+		[ -x /bin/mail ] && /bin/mail -s "${program_name} died on $(uname -n)" ${__ON_RESTART_NOTIFY_EMAILS} < /tmp/mail.$$
+	fi
+
+	if [ "$__DISABLE_RESTART" = "true" ]; then
+		exit $exit_status;
+	else
+		__log warning "${program_name} died ( status: $exit_status ) Restarting...";
+	fi
+done;

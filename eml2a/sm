@@ -1,0 +1,2 @@
+#!/bin/bash
+curl --url "smtp://jim.redmatter.com" --mail-from "s336rl@gmail.com" --mail-rcpt "sms@telia.capture.redmatter.com" --upload-file "$1"

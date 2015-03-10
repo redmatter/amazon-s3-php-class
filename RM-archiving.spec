@@ -93,6 +93,14 @@ Group: RedMatter/Archiving
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
+%package eml2a
+Summary: Tools to puush SMS and MMS email messages into archive
+Group: RedMatter/Archiving
+Requires: postfix
+Requires: RM-syslogger >= 0.0.1-22449
+BuildRequires: sendmail-devel
+BuildRequires: pugixml
+
 # ------------ description---------------
 
 %description
@@ -120,6 +128,11 @@ Archiving Utility scripts for verification etc
 
 %description qascripts
 Archiving QA scripts for verification etc
+
+%description eml2a
+A milter that attaches to postscript, and processes messages from recognised
+email addresses and pushes them into the archive using a one-shot archiving
+tool.
 
 # ----------
 
@@ -233,6 +246,16 @@ cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recover
 cp scripts/archiving-sms-recovery.conf %{buildroot}/usr/share/archiving/archiving-sms-recovery.conf.sample
 cp scripts/archiving-sms-recovery-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-sms-recovery.conf
 
+# eml2a
+mkdir -p %{buildroot}/var/lib/eml2a/messages
+mkdir -p %{buildroot}/var/run/eml2a
+cp eml2a/tmp-%{buildtype}-build/eml2a %{buildroot}/usr/bin
+cp eml2a/eml2a-milter %{buildroot}/usr/bin
+cp eml2a/eml2a-milter_safe %{buildroot}/usr/bin/
+cp eml2a/eml2a-milter.init %{buildroot}/etc/rc.d/init.d/eml2a-milter
+cp eml2a/eml2a.conf %{buildroot}/etc/archiving/
+cp eml2a/eml2a-milter.conf %{buildroot}/etc/archiving/
+
 # ----------
 
 %pre
@@ -278,6 +301,17 @@ fi
 # if ! /usr/bin/id cdrmunch &>/dev/null; then
 # 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 # fi
+
+%pre eml2a
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
+fi
 
 #%pre common
 
@@ -340,6 +374,19 @@ fi
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
+%post eml2a
+/sbin/chkconfig --add eml2a-milter
+/sbin/chkconfig eml2a-milter on
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
+/usr/sbin/postconf -e "smtpd_milters = unix:/var/lib/eml2a/eml2a-milter.sock"
+/usr/sbin/postconf -e "milter_default_action = tempfail"
+# note: this will do nothing is postfix is not running
+/sbin/service postfix condrestart &> /dev/null
+
 # ----------
 
 %postun
@@ -362,6 +409,13 @@ if [ "$1" -eq 0 ]; then
 		/etc/init.d/rsyslog condrestart ||
 		/bin/true
 fi
+
+%postun eml2a
+/usr/sbin/postconf -x smtpd_milters
+/usr/sbin/postconf -x milter_default_action
+# note: this will do nothing is postfix is not running
+/sbin/service postfix condrestart &> /dev/null
+
 
 # ----------
 
@@ -465,6 +519,20 @@ fi
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
+
+%files eml2a
+%defattr(-,root,root)
+%dir /etc/archiving
+%dir %attr(755,postfix,postfix) /var/run/eml2a
+%dir %attr(755,postfix,postfix) /var/lib/eml2a
+%dir %attr(755,postfix,postfix) /var/lib/eml2a/messages
+/etc/archiving/eml2a.conf
+/etc/archiving/eml2a-milter.conf
+/etc/rc.d/init.d/eml2a-milter
+%attr(4755,cdrmunch,cdrmunch)/usr/bin/eml2a
+%attr(4755,postfix,postfix) /usr/bin/eml2a-milter
+/usr/bin/eml2a-milter_safe
+/etc/rc.d/init.d/eml2a-milter
 
 # ----------
 
