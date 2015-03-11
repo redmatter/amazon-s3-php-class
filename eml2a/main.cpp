@@ -752,6 +752,8 @@ int main(int argc, char* argv[]) try
 		// process message twice: once for 'from', once for 'to'
 		typedef enum { from_number, to_number, done } state_t;
 		state_t state;
+		bool FromUserNotFound = true;
+		bool ToUserNotFound = true;
 
 		for (state = from_number; state != done; state = static_cast<state_t>(static_cast<int>(state)+1))
 		{
@@ -767,6 +769,7 @@ int main(int argc, char* argv[]) try
 				apiresponse = coreapi.get(apicall.c_str());
 				if (!DecodeAPIResponse (apiresponse, OrgID, UserID, FromNumber))
 					continue;
+				FromUserNotFound = false;
 				direction = "Outbound";
 				current_ini_state = STATE_FROM_ARCHIVE;
 			}
@@ -776,6 +779,7 @@ int main(int argc, char* argv[]) try
 				apiresponse = coreapi.get(apicall.c_str());
 				if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
 					continue;
+				ToUserNotFound = true;
 				direction = "Inbound";
 				current_ini_state = STATE_TO_ARCHIVE;
 			}
@@ -864,6 +868,13 @@ int main(int argc, char* argv[]) try
 			}
 			else
 				LogMessage("Not sending to index, already done");
+		}
+
+		// throw an exception if no valid users
+		if (FromUserNotFound && ToUserNotFound)
+		{
+			LogError ("Unable to map either " << FromNumber << " or " << ToNumber << " to users on the system - exiting with error");
+			throw rml::exception("Unable to map FromNumber or ToNumber to users.");
 		}
 
 		// if we are here there were no exceptions and we can delete
