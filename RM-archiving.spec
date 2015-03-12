@@ -413,8 +413,10 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %postun eml2a
-/usr/sbin/postconf -x smtpd_milters
-/usr/sbin/postconf -x milter_default_action
+# update main.cf with the DEFAULT values for the settings we changed
+# on installation
+/usr/sbin/postconf -e "`/usr/sbin/postconf -d smtpd_milters`"
+/usr/sbin/postconf -e "`/usr/sbin/postconf -d milter_default_action`"
 # note: this will do nothing is postfix is not running
 /sbin/service postfix condrestart &> /dev/null
 
