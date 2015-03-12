@@ -10,6 +10,7 @@
 #include <rml/config.h>
 #include <rml/version.h>
 #include <rml/coreapi.hpp>
+#include <rml/hapi.hpp>
 
 #include <cryptopp/md5.h>
 
@@ -539,6 +540,9 @@ void Configure(int argc, char* argv[])
 {
 	// default initialization to catch any initialization error
 	rml::logger::configure();
+
+	// initialise host cache for performing hapi substitution in config files
+	rml::hapi::host_cache::initialise();
 
 	boost::program_options::variables_map cli_confMap;
 	{
