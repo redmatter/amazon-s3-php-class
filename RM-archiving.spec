@@ -98,6 +98,7 @@ Summary: Tools to puush SMS and MMS email messages into archive
 Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
+Requires: RM-daemonscripts
 BuildRequires: sendmail-devel
 BuildRequires: pugixml
 BuildRequires: db4-devel
@@ -529,11 +530,10 @@ fi
 %dir %attr(755,postfix,postfix) /var/lib/eml2a/messages
 /etc/archiving/eml2a.conf
 /etc/archiving/eml2a-milter.conf
-/etc/rc.d/init.d/eml2a-milter
-%attr(4755,cdrmunch,cdrmunch)/usr/bin/eml2a
+%attr(4755,cdrmunch,cdrmunch) /usr/bin/eml2a
 %attr(4755,postfix,postfix) /usr/bin/eml2a-milter
 /usr/bin/eml2a-milter_safe
-/etc/rc.d/init.d/eml2a-milter
+%attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
 
 # ----------
 
