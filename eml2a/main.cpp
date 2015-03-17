@@ -80,7 +80,7 @@ typedef std::map<std::string, stringvec> stringmapvec;
 #define STATE_FROM_INDEX 2
 #define STATE_TO_ARCHIVE 3
 #define STATE_TO_INDEX 4
-#define STATE_DB_NAME "/var/lib/archiving/eml2astate.db"
+#define STATE_DB_NAME "/var/lib/eml2a/eml2astate.db"
 
 int load_ini_state(std::string MessageID)
 {
@@ -90,8 +90,7 @@ int load_ini_state(std::string MessageID)
 
 	if ((ret = db_create(&dbp, NULL, 0)) != 0)
 	{
-		LogError ("db_create: " << db_strerror(ret));
-		throw rml::exception("Unable to create bdb handle for state db");
+		THROW_RML_EXCEPTION ("db_create: " << db_strerror(ret));
 	}
 
 	try
@@ -99,8 +98,7 @@ int load_ini_state(std::string MessageID)
 		if ((ret = dbp->open(dbp,
 			NULL, STATE_DB_NAME, NULL, DB_BTREE, DB_CREATE, 0664)) != 0)
 		{
-			LogError ("bdb failed to open state db: " << db_strerror(ret));
-			throw rml::exception("Unable to create/open bdb state database");
+			THROW_RML_EXCEPTION ("bdb failed to open state db: " << db_strerror(ret));
 		}
 
 		DBT key, data;
@@ -141,8 +139,7 @@ void update_ini_state(std::string MessageID, int state)
 
 	if ((ret = db_create(&dbp, NULL, 0)) != 0)
 	{
-		LogError ("db_create: " << db_strerror(ret));
-		throw rml::exception("Unable to create bdb handle for state db");
+		THROW_RML_EXCEPTION ("db_create: " << db_strerror(ret));
 	}
 
 	try
@@ -150,8 +147,7 @@ void update_ini_state(std::string MessageID, int state)
 		if ((ret = dbp->open(dbp,
 			NULL, STATE_DB_NAME, NULL, DB_BTREE, DB_CREATE, 0664)) != 0)
 		{
-			LogError ("bdb failed to open state db: " << db_strerror(ret));
-			throw rml::exception("Unable to create/open bdb state database");
+			THROW_RML_EXCEPTION ("bdb failed to open state db: " << db_strerror(ret));
 		}
 
 		DBT key, data;
@@ -166,8 +162,7 @@ void update_ini_state(std::string MessageID, int state)
 		if ((ret = dbp->put(dbp, NULL, &key, &data, 0)) == 0)
 			LogDebug ("db put: " << MessageID << " = " << datastr);
 		else {
-			LogError ("bdb failed to put state into db: " << db_strerror(ret));
-			throw rml::exception("Unable to put state into bdb state database");
+			THROW_RML_EXCEPTION ("bdb failed to put state into db: " << db_strerror(ret));
 		}
 	}
 	catch(...)
@@ -188,8 +183,7 @@ void delete_ini_state(std::string MessageID)
 
 	if ((ret = db_create(&dbp, NULL, 0)) != 0)
 	{
-		LogError ("db_create: " << db_strerror(ret));
-		throw rml::exception("Unable to create bdb handle for state db");
+		THROW_RML_EXCEPTION ("db_create: " << db_strerror(ret));
 	}
 
 	try
@@ -197,8 +191,7 @@ void delete_ini_state(std::string MessageID)
 		if ((ret = dbp->open(dbp,
 			NULL, STATE_DB_NAME, NULL, DB_BTREE, DB_CREATE, 0664)) != 0)
 		{
-			LogError ("bdb failed to open state db: " << db_strerror(ret));
-			throw rml::exception("Unable to create/open bdb state database");
+			THROW_RML_EXCEPTION ("bdb failed to open state db: " << db_strerror(ret));
 		}
 
 		DBT key;
@@ -319,24 +312,21 @@ bool DecodeAPIResponse (rml::coreapi::response &apiresponse, std::string &OrgID,
 {
 	if (apiresponse.first < 200 || apiresponse.first >= 300)
 	{
-		LogError ("Error from API querying " << apiresponse.first << ": " << apiresponse.second);
-		throw rml::exception("Error querying API");
+		THROW_RML_EXCEPTION ("Error from API " << apiresponse.first << ": " << apiresponse.second);
 	}
 
 	pugi::xml_document doc;
 	pugi::xml_parse_result result = doc.load_buffer(apiresponse.second.c_str(), apiresponse.second.length());
 	if (!result)
 	{
-		LogError ("XML error parsing data from the API: " << result.description() << ": " << apiresponse.second);
-		throw rml::exception("XML error parsing data from the API");
+		THROW_RML_EXCEPTION ("XML error parsing data from the API: " << result.description() << ": " << apiresponse.second);
 	}
 	else
 	{
 		pugi::xml_node SIMs_node = doc.child("SIMs");
 		if (!SIMs_node)
 		{
-			LogError ("API returned strange XML without SIMs tag: " << apiresponse.second);
-			throw rml::exception("API returned strange XML without SIMs tag");
+			THROW_RML_EXCEPTION ("API returned strange XML without SIMs tag: " << apiresponse.second);
 		}
 		else
 		{
@@ -347,8 +337,7 @@ bool DecodeAPIResponse (rml::coreapi::response &apiresponse, std::string &OrgID,
 				UserID = SIM_node.attribute("UserID").value();
 				if (OrgID.empty())
 				{
-					LogError ("API returned SIM item with null OrgID: " << apiresponse.second);
-					throw rml::exception("API returned SIM item with null OrgID");
+					THROW_RML_EXCEPTION ("API returned SIM item with null OrgID: " << apiresponse.second);
 				}
 				LogMessage ("API got UserID " << UserID << ", OrgID " << OrgID << " for number " << Number);
 				return true;
@@ -461,8 +450,7 @@ void sendItemToArchive(const std::string &archivedHost, const std::string &archi
 			is3.get(rLF)) &&
 			rOK == "OK" && rVerb == "PUT" && rType == metadata["FileType"] && rOrgID == metadata["OrgID"] && uuid == rUUID)) 
 		{
-			LogError("archived failed the put command: " << rOK << " " << rVerb << " " << rType << " " << rOrgID << " " << rUUID);
-			throw rml::exception("archived failed the PUT command");
+			THROW_RML_EXCEPTION("archived failed the put command: " << rOK << " " << rVerb << " " << rType << " " << rOrgID << " " << rUUID);
 		}
 
 		// send the data followed by ctrl-z
@@ -482,8 +470,7 @@ void sendItemToArchive(const std::string &archivedHost, const std::string &archi
 			std::getline(is4, fUUID, '\r')) &&
 			fOK == "OK" && fVerb == "RECV" && fType == metadata["FileType"] && fOrgID == metadata["OrgID"] && uuid == fUUID))
 		{
-			LogError("archived failed receiving the file: " << fOK << " " << fVerb << " " << fType << " " << fOrgID << " " << fUUID);
-			throw rml::exception("archived failed receiving the file");
+			THROW_RML_EXCEPTION("archived failed receiving the file: " << fOK << " " << fVerb << " " << fType << " " << fOrgID << " " << fUUID);
 		}
 
 		// if we are here, we're good!
@@ -491,13 +478,11 @@ void sendItemToArchive(const std::string &archivedHost, const std::string &archi
 	}
 	catch (const boost::system::error_code& err)
 	{
-		LogError("Boost library exception while sending item to archive: "<<err);
-		throw rml::exception("Boost library exception while sending item to archive");
+		THROW_RML_EXCEPTION("Boost library exception while sending item to archive: "<<err);
 	}	
 	catch (const std::exception& e)
 	{
-		LogError("Exception while sending item to archive: "<<e.what());
-		throw rml::exception("Exception while sending item to archive");
+		THROW_RML_EXCEPTION("Exception while sending item to archive: "<<e.what());
 	}
 }
 
@@ -532,8 +517,7 @@ bool StringToBool(const std::string &str)
 	else if (boost::iequals(str, "no"))
 		return false;
 
-	LogError("Unable to interpret string as bool (true/false/1/0/yes/no): " << str);
-	throw rml::exception("Unable to interpret string as bool (true/false/1/0/yes/no)");
+	THROW_RML_EXCEPTION("Unable to interpret string as bool (true/false/1/0/yes/no): " << str);
 }
 
 void Configure(int argc, char* argv[])
@@ -630,8 +614,7 @@ std::string GetFromHeader(const std::string &header, const boost::regex &number_
 		return std::string(what[1]);
 	}
 
-	LogError("Unable to extract number from header: " << header);
-	throw rml::exception("Unable to extract number from header");
+	THROW_RML_EXCEPTION("Unable to extract number from header: " << header);
 }
 
 void ProcessEmailHeaders(std::string message, stringmapvec &headers)
@@ -664,8 +647,7 @@ void ProcessEmailHeaders(std::string message, stringmapvec &headers)
 		{
 			if (header.empty() || headers[header].empty())
 			{
-				LogError ("Error processing message continuation header: not a continuation: " << raw);
-				throw rml::exception("Error processing email continuation header");
+				THROW_RML_EXCEPTION ("Error processing message continuation header: not a continuation: " << raw);
 			}
 
 			// continuation of previous header
@@ -679,8 +661,7 @@ void ProcessEmailHeaders(std::string message, stringmapvec &headers)
 			pos = raw.find(":");
 			if (pos == std::string::npos)
 			{
-				LogError ("Error processing message headers: strangely written header: " << raw);
-				throw rml::exception("Error processing email header");
+				THROW_RML_EXCEPTION ("Error processing message headers: strangely written header: " << raw);
 			}
 
 			header = boost::algorithm::trim_copy(raw.substr(0, pos));
@@ -717,8 +698,7 @@ int main(int argc, char* argv[]) try
 
 		if (headers.find("Message-ID") == headers.end())
 		{
-			LogError ("No Message-ID header - looks like the wrong kind of file");
-			throw rml::exception("Missing Message-ID header");
+			THROW_RML_EXCEPTION ("No Message-ID header - looks like the wrong kind of file");
 		}
 
 		// do MMS/SMS-specific things
@@ -864,8 +844,7 @@ int main(int argc, char* argv[]) try
 				apiresponse = coreapi.post("/smslogs/push", xml);
 				if (apiresponse.first < 200 || apiresponse.first >= 300)
 				{
-					LogError ("Error adding SMS " << uuid << " to index: " << apiresponse.first << ", " << apiresponse.second);
-					throw rml::exception("Exception while sending item to index");
+					THROW_RML_EXCEPTION ("Error adding SMS " << uuid << " to index: " << apiresponse.first << ", " << apiresponse.second);
 				}
 				else
 					LogMessage (uuid << " added to index ok");
@@ -877,8 +856,7 @@ int main(int argc, char* argv[]) try
 		// throw an exception if no valid users
 		if (FromUserNotFound && ToUserNotFound)
 		{
-			LogError ("Unable to map either " << FromNumber << " or " << ToNumber << " to users on the system - exiting with error");
-			throw rml::exception("Unable to map FromNumber or ToNumber to users.");
+			THROW_RML_EXCEPTION ("Unable to map either " << FromNumber << " or " << ToNumber << " to users on the system - exiting with error");
 		}
 
 		// if we are here there were no exceptions and we can delete
@@ -887,11 +865,6 @@ int main(int argc, char* argv[]) try
 
 		LogMessage("Program terminated normally");
 		exit(rml::utils::exit_codes::normal);
-	}
-	catch(const std::exception &e) {
-		LogError("exception: "<<e.what());
-		LogMessage("Abnormal program termination");
-		exit(rml::utils::exit_codes::failure);
 	}
 }
 catch(const std::exception& e) {
