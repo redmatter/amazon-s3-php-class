@@ -534,7 +534,7 @@ fi
 %dir %attr(755,postfix,postfix) /var/lib/eml2a/messages
 /etc/archiving/eml2a.conf
 /etc/archiving/eml2a-milter.conf
-%attr(4755,cdrmunch,cdrmunch) /usr/bin/eml2a
+%attr(4755,postfix,postfix) /usr/bin/eml2a
 %attr(4755,postfix,postfix) /usr/bin/eml2a-milter
 /usr/bin/eml2a-milter_safe
 %attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
