@@ -386,7 +386,7 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 fi
 /usr/sbin/postconf -e "smtpd_milters = unix:/var/lib/eml2a/eml2a-milter.sock"
 /usr/sbin/postconf -e "milter_default_action = tempfail"
-# note: this will do nothing is postfix is not running
+# note: this will do nothing if postfix is not running
 /sbin/service postfix condrestart &> /dev/null
 
 # ----------
@@ -413,12 +413,14 @@ if [ "$1" -eq 0 ]; then
 fi
 
 %postun eml2a
-# update main.cf with the DEFAULT values for the settings we changed
-# on installation
-/usr/sbin/postconf -e "`/usr/sbin/postconf -d smtpd_milters`"
-/usr/sbin/postconf -e "`/usr/sbin/postconf -d milter_default_action`"
-# note: this will do nothing is postfix is not running
-/sbin/service postfix condrestart &> /dev/null
+if [ "$1" -eq 0 ]; then
+	# update main.cf with the DEFAULT values for the settings we changed
+	# on installation
+	/usr/sbin/postconf -e "`/usr/sbin/postconf -d smtpd_milters`"
+	/usr/sbin/postconf -e "`/usr/sbin/postconf -d milter_default_action`"
+	# note: this will do nothing if postfix is not running
+	/sbin/service postfix condrestart &> /dev/null
+fi
 
 
 # ----------
