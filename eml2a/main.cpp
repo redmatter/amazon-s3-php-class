@@ -677,199 +677,195 @@ void ProcessEmailHeaders(std::string message, stringmapvec &headers)
 
 int main(int argc, char* argv[]) try
 {
-	try 
+	Configure(argc, argv);
+
+	// get the current time
+	time_t timenow = time(NULL);
+
+	// set up connection to coreapi
+	boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
+	rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
+	rml::coreapi::response apiresponse;
+
+	// read contents of stdin
+	std::string message (static_cast<std::stringstream const&>(std::stringstream() << std::cin.rdbuf()).str());
+
+	// process the email into headers and body
+	stringmapvec headers;
+	ProcessEmailHeaders(message, headers);
+
+	if (headers.find("Message-ID") == headers.end())
 	{
-		Configure(argc, argv);
+		THROW_RML_EXCEPTION ("No Message-ID header - looks like the wrong kind of file");
+	}
 
-		// get the current time
-		time_t timenow = time(NULL);
+	// do MMS/SMS-specific things
+	std::string decoded_body;
+	std::string FromNumber;
+	std::string ToNumber;
+	std::string MessageID = headers["Message-ID"].back();
 
-		// set up connection to coreapi
-		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
-		rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
-		rml::coreapi::response apiresponse;
+	// get the current ini state value, if any, so we don't
+	// reprocess anything on retry
+	int saved_ini_state = load_ini_state(MessageID);
+	int current_ini_state = STATE_NONE;
 
-		// read contents of stdin
-		std::string message (static_cast<std::stringstream const&>(std::stringstream() << std::cin.rdbuf()).str());
+	if (app::message_type == app::is_sms)
+	{
+		// note - this currently covers MT SMS only! We don't have a sample of an MO SMS
+		// SMS: the From header
+		// From: <4793859166@sms.netcom.no>
+		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
+		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
+		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("[^0-9]*([0-9]+)"));
 
-		// process the email into headers and body
-		stringmapvec headers;
-		ProcessEmailHeaders(message, headers);
+		sms_content_decoder sms_decoder;
+		decoded_body = sms_decoder.run(message);
+	}
+	else
+	{
+		// MMS: the From and To headers contain our numbers, eg
+		// From: <4793224070@mms.netcom.no>
+		// To: <4799324091@mms.netcom.no>
+		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
+		ToNumber   = GetFromHeader(headers["To"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
+	}
 
-		if (headers.find("Message-ID") == headers.end())
+	// process message twice: once for 'from', once for 'to'
+	typedef enum { from_number, to_number, done } state_t;
+	state_t state;
+	bool FromUserNotFound = true;
+	bool ToUserNotFound = true;
+
+	for (state = from_number; state != done; state = static_cast<state_t>(static_cast<int>(state)+1))
+	{
+		std::string direction;
+		std::string apicall;
+		std::string UserID, OrgID;
+
+		// look up numbers in API
+
+		if (state == from_number)
 		{
-			THROW_RML_EXCEPTION ("No Message-ID header - looks like the wrong kind of file");
+			apicall = std::string("/newmobile/bynumber/") + FromNumber;
+			apiresponse = coreapi.get(apicall.c_str());
+			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, FromNumber))
+				continue;
+			FromUserNotFound = false;
+			direction = "Outbound";
+			current_ini_state = STATE_FROM_ARCHIVE;
+		}
+		else if (state == to_number)
+		{
+			apicall = std::string("/newmobile/bynumber/") + ToNumber;
+			apiresponse = coreapi.get(apicall.c_str());
+			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
+				continue;
+			ToUserNotFound = true;
+			direction = "Inbound";
+			current_ini_state = STATE_TO_ARCHIVE;
 		}
 
-		// do MMS/SMS-specific things
-		std::string decoded_body;
-		std::string FromNumber;
-		std::string ToNumber;
-		std::string MessageID = headers["Message-ID"].back();
+		// note: a different UUID for 'from' and 'to' users
+		boost::uuids::uuid uuid = boost::uuids::random_generator()();
 
-		// get the current ini state value, if any, so we don't
-		// reprocess anything on retry
-		int saved_ini_state = load_ini_state(MessageID);
-		int current_ini_state = STATE_NONE;
-
-		if (app::message_type == app::is_sms)
+		if (current_ini_state > saved_ini_state)
 		{
-			// note - this currently covers MT SMS only! We don't have a sample of an MO SMS
-			// SMS: the From header
-			// From: <4793859166@sms.netcom.no>
-			FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
-			// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
-			ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("[^0-9]*([0-9]+)"));
+			update_ini_state(MessageID, current_ini_state);
 
-			sms_content_decoder sms_decoder;
-			decoded_body = sms_decoder.run(message);
+			// load the org's sms retention policy (we use sms retention policy for mms too)
+			app::policy::cached_finder_t policyCache(boost::bind(&app::policy::finder, coreapi, _1), "PolicyCache");
+			app::policy::pointer thepolicy = policyCache(std::make_pair(boost::lexical_cast<int>(OrgID), app::policy::id_type(
+				app::message_type == app::is_sms ?
+					app::policy::pseudo_id::sms :
+					app::use_sms_policy_for_mms ?
+						app::policy::pseudo_id::sms :
+						app::policy::pseudo_id::mms
+			)));
+			if (!thepolicy)
+				throw rml::exception("Error trying to get the policy from the core API");
+
+			stringmap metadata;
+			metadata["OrgID"] 				= OrgID;
+			metadata["UserIDs"] 			= UserID;
+			metadata["FileType"] 			= app::message_type == app::is_sms ? "sms" : "mms";
+			metadata["RetentionPolicyID"] 	= boost::lexical_cast<std::string>(thepolicy->id);
+	//		metadata["MD5"] 				= MD5(item);
+			metadata["CreateTime"] 			= boost::lexical_cast<std::string>(timenow);
+	//		metadata["LegUUID"] 			= "";
+	//		metadata["OriginatorUUID"] 		= "";
+			metadata["DataFormat"] 			= app::message_type == app::is_sms ? "xml" : "email";
+			metadata["PBXHostName"] 		= app::hostname;
+	//		metadata["AddToCDRMunchCache"] 	= "";
+
+			std::string host = app::confMap["archived_server_host"].as<std::string>();
+			std::string port = app::confMap["archived_server_port"].as<std::string>();
+
+			std::string smsxml;
+
+			// if it's an SMS make an XML doc for the SMS archive
+			if (app::message_type == app::is_sms)
+			{
+				smsxml = GenerateSMSXML(uuid, metadata, FromNumber, ToNumber, direction, decoded_body);
+				LogDebug("SMS XML: " << smsxml);
+			}
+
+			std::string &item = app::message_type == app::is_sms ? smsxml : message;
+
+			metadata["MD5"] = MD5(item);
+
+			sendItemToArchive(host, port, metadata, boost::lexical_cast<std::string>(uuid), item);
 		}
 		else
+			LogMessage("Not sending to archive, already done");
+
+		current_ini_state ++;
+
+		if (current_ini_state > saved_ini_state)
 		{
-			// MMS: the From and To headers contain our numbers, eg
-			// From: <4793224070@mms.netcom.no>
-			// To: <4799324091@mms.netcom.no>
-			FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
-			ToNumber   = GetFromHeader(headers["To"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
-		}
+			update_ini_state(MessageID, current_ini_state);
 
-		// process message twice: once for 'from', once for 'to'
-		typedef enum { from_number, to_number, done } state_t;
-		state_t state;
-		bool FromUserNotFound = true;
-		bool ToUserNotFound = true;
+			// add to the index
+			std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Messages>\n";
+			xml += boost::str (boost::format ("<SMS UUID=\"%1%\" OrgID=\"%2%\" UserID=\"%3%\" Time=\"%4%\" From_Number=\"%5%\" To_Number=\"%6%\" Direction=\"%7%\" HostName=\"%8%\"/>\n")
+				% remove_hyphens(boost::lexical_cast<std::string>(uuid))
+				% OrgID
+				% UserID
+				% timenow
+				% FromNumber
+				% ToNumber
+				% direction
+				% remove_redmatter(app::hostname)
+			);
+			xml += "</Messages>";
 
-		for (state = from_number; state != done; state = static_cast<state_t>(static_cast<int>(state)+1))
-		{
-			std::string direction;
-			std::string apicall;
-			std::string UserID, OrgID;
-
-			// look up numbers in API
-
-			if (state == from_number)
+			apiresponse = coreapi.post("/smslogs/push", xml);
+			if (apiresponse.first < 200 || apiresponse.first >= 300)
 			{
-				apicall = std::string("/newmobile/bynumber/") + FromNumber;
-				apiresponse = coreapi.get(apicall.c_str());
-				if (!DecodeAPIResponse (apiresponse, OrgID, UserID, FromNumber))
-					continue;
-				FromUserNotFound = false;
-				direction = "Outbound";
-				current_ini_state = STATE_FROM_ARCHIVE;
-			}
-			else if (state == to_number)
-			{
-				apicall = std::string("/newmobile/bynumber/") + ToNumber;
-				apiresponse = coreapi.get(apicall.c_str());
-				if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
-					continue;
-				ToUserNotFound = true;
-				direction = "Inbound";
-				current_ini_state = STATE_TO_ARCHIVE;
-			}
-
-			// note: a different UUID for 'from' and 'to' users
-			boost::uuids::uuid uuid = boost::uuids::random_generator()();
-
-			if (current_ini_state > saved_ini_state)
-			{
-				update_ini_state(MessageID, current_ini_state);
-
-				// load the org's sms retention policy (we use sms retention policy for mms too)
-				app::policy::cached_finder_t policyCache(boost::bind(&app::policy::finder, coreapi, _1), "PolicyCache");
-				app::policy::pointer thepolicy = policyCache(std::make_pair(boost::lexical_cast<int>(OrgID), app::policy::id_type(
-					app::message_type == app::is_sms ?
-						app::policy::pseudo_id::sms :
-						app::use_sms_policy_for_mms ?
-							app::policy::pseudo_id::sms :
-							app::policy::pseudo_id::mms
-				)));
-				if (!thepolicy)
-					throw rml::exception("Error trying to get the policy from the core API");
-
-				stringmap metadata;
-				metadata["OrgID"] 				= OrgID;
-				metadata["UserIDs"] 			= UserID;
-				metadata["FileType"] 			= app::message_type == app::is_sms ? "sms" : "mms";
-				metadata["RetentionPolicyID"] 	= boost::lexical_cast<std::string>(thepolicy->id);
-		//		metadata["MD5"] 				= MD5(item);
-				metadata["CreateTime"] 			= boost::lexical_cast<std::string>(timenow);
-		//		metadata["LegUUID"] 			= "";
-		//		metadata["OriginatorUUID"] 		= "";
-				metadata["DataFormat"] 			= app::message_type == app::is_sms ? "xml" : "email";
-				metadata["PBXHostName"] 		= app::hostname;
-		//		metadata["AddToCDRMunchCache"] 	= "";
-
-				std::string host = app::confMap["archived_server_host"].as<std::string>();
-				std::string port = app::confMap["archived_server_port"].as<std::string>();
-
-				std::string smsxml;
-
-				// if it's an SMS make an XML doc for the SMS archive
-				if (app::message_type == app::is_sms)
-				{
-					smsxml = GenerateSMSXML(uuid, metadata, FromNumber, ToNumber, direction, decoded_body);
-					LogDebug("SMS XML: " << smsxml);
-				}
-
-				std::string &item = app::message_type == app::is_sms ? smsxml : message;
-
-				metadata["MD5"] = MD5(item);
-
-				sendItemToArchive(host, port, metadata, boost::lexical_cast<std::string>(uuid), item);
+				THROW_RML_EXCEPTION ("Error adding SMS " << uuid << " to index: " << apiresponse.first << ", " << apiresponse.second);
 			}
 			else
-				LogMessage("Not sending to archive, already done");
-
-			current_ini_state ++;
-
-			if (current_ini_state > saved_ini_state)
-			{
-				update_ini_state(MessageID, current_ini_state);
-
-				// add to the index
-				std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Messages>\n";
-				xml += boost::str (boost::format ("<SMS UUID=\"%1%\" OrgID=\"%2%\" UserID=\"%3%\" Time=\"%4%\" From_Number=\"%5%\" To_Number=\"%6%\" Direction=\"%7%\" HostName=\"%8%\"/>\n")
-					% remove_hyphens(boost::lexical_cast<std::string>(uuid))
-					% OrgID
-					% UserID
-					% timenow
-					% FromNumber
-					% ToNumber
-					% direction
-					% remove_redmatter(app::hostname)
-				);
-				xml += "</Messages>";
-
-				apiresponse = coreapi.post("/smslogs/push", xml);
-				if (apiresponse.first < 200 || apiresponse.first >= 300)
-				{
-					THROW_RML_EXCEPTION ("Error adding SMS " << uuid << " to index: " << apiresponse.first << ", " << apiresponse.second);
-				}
-				else
-					LogMessage (uuid << " added to index ok");
-			}
-			else
-				LogMessage("Not sending to index, already done");
+				LogMessage (uuid << " added to index ok");
 		}
-
-		// throw an exception if no valid users
-		if (FromUserNotFound && ToUserNotFound)
-		{
-			THROW_RML_EXCEPTION ("Unable to map either " << FromNumber << " or " << ToNumber << " to users on the system - exiting with error");
-		}
-
-		// if we are here there were no exceptions and we can delete
-		// the state setting in the ini file
-		delete_ini_state(MessageID);
-
-		LogMessage("Program terminated normally");
-		exit(rml::utils::exit_codes::normal);
+		else
+			LogMessage("Not sending to index, already done");
 	}
+
+	// throw an exception if no valid users
+	if (FromUserNotFound && ToUserNotFound)
+	{
+		THROW_RML_EXCEPTION ("Unable to map either " << FromNumber << " or " << ToNumber << " to users on the system - exiting with error");
+	}
+
+	// if we are here there were no exceptions and we can delete
+	// the state setting in the ini file
+	delete_ini_state(MessageID);
+
+	LogMessage("Program terminated normally");
+	exit(rml::utils::exit_codes::normal);
 }
 catch(const std::exception& e) {
 	LogError("Exception: "<<e.what());
-	logstack();
 	LogMessage("Abnormal program termination");
 	exit(rml::utils::exit_codes::failure);
 }
