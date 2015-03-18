@@ -286,7 +286,7 @@ private:
 	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
 		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
-			LogMessage("Timeout; reconnecting...");
+			LogMessage("Timeout; reconnecting... (local-port:"<<local_port_<<" current-state:"<<state::to_string(current_state_)<<")");
 			connect_archived(force_reconnect);
 		}
 		else if(!timer_expired && (error == boost::asio::error::operation_aborted)) {
