@@ -100,7 +100,7 @@ namespace std {
  * @param hash
  * @return
  */
-std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
+ostream& operator<<(ostream& ostr, const archiving::hash_vector& hash)
 {
 	string ret;
 
@@ -123,7 +123,7 @@ std::ostream& operator<<(std::ostream& ostr, const archiving::hash_vector& hash)
  * @param hv
  * @return
  */
-std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
+istream& operator>>(istream& istr, archiving::hash_vector& hv)
 {
 	string encoded;
 	istr >> encoded;
@@ -138,6 +138,8 @@ std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
 	size_t size = decoder.MaxRetrievable();
 	if(size)
 		decoder.Get(&hv[0], archiving::hash_vector::static_size);
+	else
+		istr.setstate(ios_base::failbit);
 
 	return istr;
 }
@@ -151,11 +153,12 @@ std::istream& operator>>(std::istream& istr, archiving::hash_vector& hv)
  */
 istream& operator>>(istream& istr, archiving::file_type::file_type_t& t)
 {
-	std::string tmp; istr >> tmp;
+	string tmp; istr >> tmp;
 	try {
 		t = archiving::file_type::from_string(tmp); // we may throw here
 	}
 	catch(...) {
+		istr.setstate(ios_base::failbit);
 		LogWarning("Invalid file_type");
 	}
 
@@ -174,4 +177,4 @@ ostream& operator<<(ostream& ostr, const archiving::file_type::file_type_t& type
 	return ostr << archiving::file_type::to_string(type);
 }
 
-}
+} // namespace std
