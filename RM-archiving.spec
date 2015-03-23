@@ -257,6 +257,8 @@ cp eml2a/eml2a-milter_safe %{buildroot}/usr/bin/
 cp eml2a/eml2a-milter.init %{buildroot}/etc/rc.d/init.d/eml2a-milter
 cp eml2a/eml2a.conf %{buildroot}/etc/archiving/
 cp eml2a/eml2a-milter.conf %{buildroot}/etc/archiving/
+cp eml2a/logrotate.conf %{buildroot}/etc/logrotate.d/eml2a
+cp eml2a/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-eml2a.conf
 
 # ----------
 
@@ -538,6 +540,8 @@ fi
 %attr(4755,postfix,postfix) /usr/bin/eml2a-milter
 /usr/bin/eml2a-milter_safe
 %attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
+/etc/logrotate.d/eml2a
+/etc/rsyslog.d/11-eml2a.conf
 
 # ----------
 
