@@ -306,16 +306,15 @@ std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &meta
 	pugi::xml_document doc;
 	doc.load_buffer("<SMS/>", 6);
 	pugi::xml_node smsnode = doc.child("SMS");
-	pugi::xml_node node;
-	node = smsnode.append_child("UUID"); 		node.set_value(boost::lexical_cast<std::string>(uuid).c_str());
-	node = smsnode.append_child("OrgID");		node.set_value(metadata.at("OrgID").c_str());
-	node = smsnode.append_child("UserID"); 		node.set_value(metadata.at("UserIDs").c_str());
-	node = smsnode.append_child("HostName"); 	node.set_value(metadata.at("PBXHostName").c_str());
-	node = smsnode.append_child("StartEpoch"); 	node.set_value(metadata.at("CreateTime").c_str());
-	node = smsnode.append_child("FromNumber"); 	node.set_value(FromNumber.c_str());
-	node = smsnode.append_child("ToNumber"); 	node.set_value(ToNumber.c_str());
-	node = smsnode.append_child("Direction"); 	node.set_value(Direction.c_str());
-	node = smsnode.append_child("Text");		node.set_value(escaped.c_str());
+	smsnode.append_child("UUID").append_child(pugi::node_pcdata).set_value(boost::lexical_cast<std::string>(uuid).c_str());
+	smsnode.append_child("OrgID").append_child(pugi::node_pcdata).set_value(metadata.at("OrgID").c_str());
+	smsnode.append_child("UserID").append_child(pugi::node_pcdata).set_value(metadata.at("UserIDs").c_str());
+	smsnode.append_child("HostName").append_child(pugi::node_pcdata).set_value(metadata.at("PBXHostName").c_str());
+	smsnode.append_child("StartEpoch").append_child(pugi::node_pcdata).set_value(metadata.at("CreateTime").c_str());
+	smsnode.append_child("FromNumber").append_child(pugi::node_pcdata).set_value(FromNumber.c_str());
+	smsnode.append_child("ToNumber").append_child(pugi::node_pcdata).set_value(ToNumber.c_str());
+	smsnode.append_child("Direction").append_child(pugi::node_pcdata).set_value(Direction.c_str());
+	smsnode.append_child("Text").append_child(pugi::node_pcdata).set_value(escaped.c_str());
 
 	std::ostringstream stream;
 	doc.save(stream);
