@@ -761,7 +761,7 @@ int main(int argc, char* argv[]) try
 			apiresponse = coreapi.get(apicall.c_str());
 			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
 				continue;
-			ToUserNotFound = true;
+			ToUserNotFound = false;
 			direction = "Inbound";
 			current_ini_state = STATE_TO_ARCHIVE;
 		}
@@ -792,7 +792,7 @@ int main(int argc, char* argv[]) try
 			metadata["RetentionPolicyID"] 	= boost::lexical_cast<std::string>(thepolicy->id);
 	//		metadata["MD5"] 				= MD5(item);
 			metadata["CreateTime"] 			= boost::lexical_cast<std::string>(timenow);
-	//		metadata["LegUUID"] 			= "";
+			metadata["LegUUID"] 			= boost::lexical_cast<std::string>(uuid);
 	//		metadata["OriginatorUUID"] 		= "";
 			metadata["DataFormat"] 			= app::message_type == app::is_sms ? "xml" : "email";
 			metadata["PBXHostName"] 		= app::hostname;
