@@ -25,6 +25,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
 #include <boost/regex.hpp>
+#include <boost/algorithm.hpp>
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operators etc.
@@ -286,23 +287,36 @@ void sms_content_decoder::data_end(mime::object* object)
 /* XML manipulation                                                   */
 /*********************************************************************/
 
+void XMLescape(std::string &data)
+{
+	using boost::algorithm::replace_all;
+	replace_all(data, "&",  "&amp;");
+	replace_all(data, "\"", "&quot;");
+	replace_all(data, "\'", "&apos;");
+	replace_all(data, "<",  "&lt;");
+	replace_all(data, ">",  "&gt;");
+}
+
 std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &metadata, const std::string &FromNumber,
 		const std::string &ToNumber, const std::string &Direction, const std::string &Content)
 {
+	std::string escaped(Content);
+	XMLescape(escaped);
+
 	pugi::xml_document doc;
 	doc.load_buffer("<SMS/>", 6);
 	pugi::xml_node smsnode = doc.child("SMS");
-	smsnode.append_child("UUID") 		= boost::lexical_cast<std::string>(uuid).c_str();
-	smsnode.append_child("OrgID") 		= metadata.at("OrgID").c_str();
-	smsnode.append_child("UserID") 		= metadata.at("UserIDs").c_str();
-	smsnode.append_child("HostName") 	= metadata.at("PBXHostName").c_str();
-	smsnode.append_child("StartEpoch") 	= metadata.at("CreateTime").c_str();
-	smsnode.append_child("FromNumber") 	= FromNumber.c_str();
-	smsnode.append_child("ToNumber") 	= ToNumber.c_str();
-	smsnode.append_child("Direction") 	= Direction.c_str();
-	pugi::xml_node textnode = smsnode.append_child("Text");
-	textnode.append_child(pugi::node_cdata);
-	textnode.set_value(Content.c_str());
+	pugi::xml_node node;
+	node = smsnode.append_child("UUID"); 		node.set_value(boost::lexical_cast<std::string>(uuid).c_str());
+	node = smsnode.append_child("OrgID");		node.set_value(metadata.at("OrgID").c_str());
+	node = smsnode.append_child("UserID"); 		node.set_value(metadata.at("UserIDs").c_str());
+	node = smsnode.append_child("HostName"); 	node.set_value(metadata.at("PBXHostName").c_str());
+	node = smsnode.append_child("StartEpoch"); 	node.set_value(metadata.at("CreateTime").c_str());
+	node = smsnode.append_child("FromNumber"); 	node.set_value(FromNumber.c_str());
+	node = smsnode.append_child("ToNumber"); 	node.set_value(ToNumber.c_str());
+	node = smsnode.append_child("Direction"); 	node.set_value(Direction.c_str());
+	node = smsnode.append_child("Text");		node.set_value(escaped.c_str());
+
 	std::ostringstream stream;
 	doc.save(stream);
 	return stream.str();
