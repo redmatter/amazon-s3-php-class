@@ -25,7 +25,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/ref.hpp>
 #include <boost/regex.hpp>
-#include <boost/algorithm.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operators etc.
