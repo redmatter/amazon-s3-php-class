@@ -249,7 +249,7 @@ struct file_format
 			return str[4];
 		case clear_pcap:
 			return str[5];
-		case clear_pcap:
+		case clear_email:
 			return str[6];
 
 		case compressed_binary:
