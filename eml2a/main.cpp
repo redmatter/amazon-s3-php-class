@@ -257,7 +257,6 @@ const std::string &sms_content_decoder::run(const std::string &message)
 		++p;
 	}
 	close();
-	content += "\nRaw [" + raw + "]";
 	return content;
 }
 
