@@ -29,7 +29,6 @@ const char* file_type::to_string(const file_type_t type)
 		"pcap",
 		"info",
 		"pcap-sip-only",
-		"mms",
 
 		"invalid-file-type"
 	};
@@ -64,8 +63,6 @@ file_type::file_type_t file_type::from_string(const std::string& str)
 		return file_type::info;
 	else if(str == "pcap-sip-only")
 		return file_type::pcap_sip_only;
-	else if(str == "mms")
-		return file_type::mms;
 
 	THROW_RML_EXCEPTION("from_string: invalid file_type:"<<str);
 }

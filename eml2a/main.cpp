@@ -61,7 +61,6 @@ namespace app
 	volatile bool quit = false;
 	typedef enum { is_sms, is_mms } message_type_t;
 	message_type_t message_type;
-	bool use_sms_policy_for_mms;
 }
 
 using boost::asio::ip::tcp;
@@ -297,8 +296,7 @@ void XMLescape(std::string &data)
 }
 
 std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &metadata, const std::string &FromNumber,
-		const std::string &ToNumber, const std::string &Direction, const std::string &Content)
-{
+		const std::string &ToNumber, const std::string &Direction, const std::string &Content){
 	std::string escaped(Content);
 	XMLescape(escaped);
 
@@ -573,7 +571,6 @@ void Configure(int argc, char* argv[])
 	optsDesc.add_options()
 		("archived_server_host", boost::program_options::value<std::string>()->default_value(std::string("archived.redmatter.com")), "archive daemon host")
 		("archived_server_port", boost::program_options::value<std::string>()->default_value(std::string("10100")), "archive daemon port number")
-		("use_sms_policy_for_mms", boost::program_options::value<std::string>()->default_value(std::string("false")), "if true, use SMS retention policy for MMS, instead of MMS retention policy")
 		;
 
 	rml::logger::describe_config(optsDesc);
@@ -610,8 +607,6 @@ void Configure(int argc, char* argv[])
 		LogError("Initialization Error - exception: "<<e.what());
 		exit(rml::utils::exit_codes::initialization_error);
 	}
-
-	app::use_sms_policy_for_mms = StringToBool(app::confMap["use_sms_policy_for_mms"].as<std::string>());
 }
 
 std::string GetFromHeader(const std::string &header, const boost::regex &number_from_header_regex)
@@ -787,20 +782,14 @@ int main(int argc, char* argv[]) try
 
 			// load the org's sms retention policy (we use sms retention policy for mms too)
 			app::policy::cached_finder_t policyCache(boost::bind(&app::policy::finder, coreapi, _1), "PolicyCache");
-			app::policy::pointer thepolicy = policyCache(std::make_pair(boost::lexical_cast<int>(OrgID), app::policy::id_type(
-				app::message_type == app::is_sms ?
-					app::policy::pseudo_id::sms :
-					app::use_sms_policy_for_mms ?
-						app::policy::pseudo_id::sms :
-						app::policy::pseudo_id::mms
-			)));
+			app::policy::pointer thepolicy = policyCache(std::make_pair(boost::lexical_cast<int>(OrgID), app::policy::id_type(app::policy::pseudo_id::sms)));
 			if (!thepolicy)
 				throw rml::exception("Error trying to get the policy from the core API");
 
 			stringmap metadata;
 			metadata["OrgID"] 				= OrgID;
 			metadata["UserIDs"] 			= UserID;
-			metadata["FileType"] 			= app::message_type == app::is_sms ? "sms" : "mms";
+			metadata["FileType"] 			= "sms";
 			metadata["RetentionPolicyID"] 	= boost::lexical_cast<std::string>(thepolicy->id);
 	//		metadata["MD5"] 				= MD5(item);
 			metadata["CreateTime"] 			= boost::lexical_cast<std::string>(timenow);

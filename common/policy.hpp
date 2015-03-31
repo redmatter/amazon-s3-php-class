@@ -139,7 +139,6 @@ struct policy
 			pcap = -4,
 			info = -5,
 			pcap_sip_only = -6,
-			mms = -7,
 
 			do_not_archive = -999
 		};
@@ -155,8 +154,7 @@ struct policy
 					/*buffered_recording*/ pseudo_id::buffered_recording,
 					/*pcap*/               pseudo_id::pcap,
 					/*info*/               pseudo_id::info,
-					/*pcap_sip_only*/      pseudo_id::pcap_sip_only,
-					/*mms*/                pseudo_id::mms
+					/*pcap_sip_only*/      pseudo_id::pcap_sip_only
 			};
 
 			if(f > archiving::file_type::unknown && f < archiving::file_type::n_file_types)
