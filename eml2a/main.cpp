@@ -491,9 +491,6 @@ void sendItemToArchive(const std::string &archivedHost, const std::string &archi
 		// send BYE\r\n\r\n and wait for OK\r\n - fixes PLAT-1417
 		boost::asio::write(s, boost::asio::buffer(std::string("BYE\r\n\r\n")));
 		boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-		// read until the archive daemon closes the connection
-		boost::system::error_code ec;
-		boost::asio::read_until (s, inbuf, boost::regex("\r\n"), ec);
 	}
 	catch (const boost::system::error_code& err)
 	{
