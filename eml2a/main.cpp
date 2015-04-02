@@ -32,6 +32,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <streambuf>
 
 #include <string.h>
 #include <time.h>
@@ -57,6 +58,7 @@
 namespace app 
 {
 	std::string hostname;
+	std::string filename;
 	boost::program_options::variables_map confMap;
 	volatile bool quit = false;
 	typedef enum { is_sms, is_mms } message_type_t;
@@ -555,6 +557,7 @@ void Configure(int argc, char* argv[])
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
 				("sms", "it's an sms")
 				("mms", "it's an mms")
+				("file", boost::program_options::value<std::string>(), "file to load - will be deleted on success")
 				("help-conf", "conf file help")
 				("help", "this help")
 				("version", "shows version information")
@@ -598,6 +601,8 @@ void Configure(int argc, char* argv[])
 		throw rml::exception("Neither mms nor sms specified, must have one or the other.");
 
 	app::hostname = cli_confMap["hostname"].as<std::string>();
+	if (cli_confMap.count("file") != 1)
+		app::filename = cli_confMap["file"].as<std::string>();
 
 	try {
 		rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);
@@ -701,7 +706,14 @@ int main(int argc, char* argv[]) try
 	rml::coreapi::response apiresponse;
 
 	// read contents of stdin
-	std::string message (static_cast<std::stringstream const&>(std::stringstream() << std::cin.rdbuf()).str());
+	std::string message;
+	if (app::filename.empty())
+		message = static_cast<std::stringstream const&>(std::stringstream() << std::cin.rdbuf()).str();
+	else
+	{
+		std::ifstream t(app::filename);
+		message = std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+	}
 
 	// process the email into headers and body
 	stringmapvec headers;
@@ -867,6 +879,11 @@ int main(int argc, char* argv[]) try
 	// if we are here there were no exceptions and we can delete
 	// the state setting in the ini file
 	delete_ini_state(MessageID);
+
+	// if we were given the filename on the command line, and we were successful,
+	// delete it.
+	if (!app::filename.empty())
+		unlink(app::filename.c_str());
 
 	LogMessage("Program terminated normally");
 	exit(rml::utils::exit_codes::normal);
