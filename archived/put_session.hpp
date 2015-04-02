@@ -318,11 +318,16 @@ private:
 
 		case states::accepting:
 		case states::closing:
-		case states::closed:
 		{
 			LogError(remote_ep_<<" Invalid state: states::accepting / states::closed / states::closing (state:"<<states::to_string(current_state_)<<')');
 			current_state_ = states::general_err;
 			run_statemachine(error);
+			break;
+		}
+
+		case states::closed:
+		{
+			LogMessage(remote_ep_<<" run_statemachine called in states::closed, continuing");
 			break;
 		}
 
