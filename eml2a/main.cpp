@@ -485,6 +485,9 @@ void sendItemToArchive(const std::string &archivedHost, const std::string &archi
 
 		// if we are here, we're good!
 		LogMessage(uuid << " sent to archive ok");
+
+		// send BYE - fixes PLAT-1417
+		boost::asio::write(s, boost::asio::buffer(std::string("BYE\r\n\r\n")));
 	}
 	catch (const boost::system::error_code& err)
 	{
