@@ -296,9 +296,11 @@ void XMLescape(std::string &data)
 }
 
 std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &metadata, const std::string &FromNumber,
-		const std::string &ToNumber, const std::string &Direction, const std::string &Content){
-	std::string escaped(Content);
-	XMLescape(escaped);
+		const std::string &ToNumber, const std::string &Direction, const std::string &Content)
+{
+	// don't bother escaping - pugixml does this already apparently PLAT-1314
+	//std::string escaped(Content);
+	//XMLescape(escaped);
 
 	pugi::xml_document doc;
 	doc.load_buffer("<SMS/>", 6);
@@ -311,7 +313,7 @@ std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &meta
 	smsnode.append_child("FromNumber").append_child(pugi::node_pcdata).set_value(FromNumber.c_str());
 	smsnode.append_child("ToNumber").append_child(pugi::node_pcdata).set_value(ToNumber.c_str());
 	smsnode.append_child("Direction").append_child(pugi::node_pcdata).set_value(Direction.c_str());
-	smsnode.append_child("Text").append_child(pugi::node_pcdata).set_value(escaped.c_str());
+	smsnode.append_child("Text").append_child(pugi::node_pcdata).set_value(Content.c_str());
 
 	std::ostringstream stream;
 	doc.save(stream);
