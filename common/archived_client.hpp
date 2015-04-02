@@ -749,7 +749,7 @@ private:
 		}
 
 		default:
-			LogError(local_port_<<' '<<"State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
+			LogMessage(local_port_<<' '<<"State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
 			/* no break */
 
 		case state::general_err:
