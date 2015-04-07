@@ -708,10 +708,14 @@ int main(int argc, char* argv[]) try
 	// read contents of stdin
 	std::string message;
 	if (app::filename.empty())
+	{
+		LogMessage ("Loading content from stdin");
 		message = static_cast<std::stringstream const&>(std::stringstream() << std::cin.rdbuf()).str();
+	}
 	else
 	{
-		std::ifstream t(app::filename);
+		LogMessage ("Loading content from " << app::filename);
+		std::ifstream t(app::filename.c_str());
 		message = std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 	}
 
@@ -883,7 +887,10 @@ int main(int argc, char* argv[]) try
 	// if we were given the filename on the command line, and we were successful,
 	// delete it.
 	if (!app::filename.empty())
+	{
+		LogMessage ("Deleting file " << app::filename);
 		unlink(app::filename.c_str());
+	}
 
 	LogMessage("Program terminated normally");
 	exit(rml::utils::exit_codes::normal);
