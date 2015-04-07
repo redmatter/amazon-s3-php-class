@@ -601,7 +601,7 @@ void Configure(int argc, char* argv[])
 		throw rml::exception("Neither mms nor sms specified, must have one or the other.");
 
 	app::hostname = cli_confMap["hostname"].as<std::string>();
-	if (cli_confMap.count("file") != 1)
+	if (cli_confMap.count("file") == 1)
 		app::filename = cli_confMap["file"].as<std::string>();
 
 	try {
@@ -716,7 +716,7 @@ int main(int argc, char* argv[]) try
 	{
 		LogMessage ("Loading content from " << app::filename);
 		std::ifstream t(app::filename.c_str());
-		message = std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+		message.assign((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 	}
 
 	// process the email into headers and body
