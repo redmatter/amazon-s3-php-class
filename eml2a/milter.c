@@ -101,7 +101,7 @@ sfsistat eml2a_envrcpt(ctx, argv)
 
 	if (type == unknown)
 	{
-		syslog(LOG_WARNING, "%s doesn't match any sms or mms addresses", mailaddr);
+		syslog(LOG_INFO, "%s doesn't match any sms or mms addresses", mailaddr);
 		// this tells postfix the email's ok and not to bother calling us again
 		return SMFIS_ACCEPT;
 	}
