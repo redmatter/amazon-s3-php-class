@@ -744,7 +744,7 @@ int main(int argc, char* argv[]) try
 		// note - this currently covers MT SMS only! We don't have a sample of an MO SMS
 		// SMS: the From header
 		// From: <4793859166@sms.netcom.no>
-		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
+		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("([0-9]+)@.*"));
 		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
 		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("[^0-9]*([0-9]+)"));
 
@@ -756,8 +756,8 @@ int main(int argc, char* argv[]) try
 		// MMS: the From and To headers contain our numbers, eg
 		// From: <4793224070@mms.netcom.no>
 		// To: <4799324091@mms.netcom.no>
-		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
-		ToNumber   = GetFromHeader(headers["To"].back(), boost::regex("[^<]*<([0-9]+)@.*"));
+		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("([0-9]+)@.*"));
+		ToNumber   = GetFromHeader(headers["To"].back(), boost::regex("([0-9]+)@.*"));
 	}
 
 	// process message twice: once for 'from', once for 'to'
