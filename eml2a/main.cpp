@@ -632,7 +632,8 @@ std::string GetFromHeader(const std::string &header, const boost::regex &number_
 		return std::string(what[1]);
 	}
 
-	THROW_RML_EXCEPTION("Unable to extract number from header: " << header);
+	LogMessage("Unable to extract number from header: " << header << ", returning empty string");
+	return std::string();
 }
 
 void ProcessEmailHeaders(std::string message, stringmapvec &headers)
@@ -730,8 +731,8 @@ int main(int argc, char* argv[]) try
 
 	// do MMS/SMS-specific things
 	std::string decoded_body;
-	std::string FromNumber;
-	std::string ToNumber;
+	std::string FromNumber, FromNumberFallback;
+	std::string ToNumber, ToNumberFallback;
 	std::string MessageID = headers["Message-ID"].back();
 
 	// get the current ini state value, if any, so we don't
@@ -748,6 +749,10 @@ int main(int argc, char* argv[]) try
 		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
 		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("[^0-9]*([0-9]+)"));
 
+		// what will be used if we can't extract numbers
+		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
+		ToNumberFallback   = ToNumber.empty() ? "unknown" : ToNumber;
+
 		sms_content_decoder sms_decoder;
 		decoded_body = sms_decoder.run(message);
 	}
@@ -758,6 +763,10 @@ int main(int argc, char* argv[]) try
 		// To: <4799324091@mms.netcom.no>
 		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("([0-9]+)@.*"));
 		ToNumber   = GetFromHeader(headers["To"].back(), boost::regex("([0-9]+)@.*"));
+
+		// what will be used if we can't extract numbers
+		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
+		ToNumberFallback   = ToNumber.empty() ? headers["To"].back().substr(0, 18) : ToNumber;
 	}
 
 	// process message twice: once for 'from', once for 'to'
@@ -776,6 +785,9 @@ int main(int argc, char* argv[]) try
 
 		if (state == from_number)
 		{
+			if (FromNumber.empty())
+				continue;
+
 			apicall = std::string("/newmobile/bynumber/") + FromNumber;
 			apiresponse = coreapi.get(apicall.c_str());
 			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, FromNumber))
@@ -786,6 +798,9 @@ int main(int argc, char* argv[]) try
 		}
 		else if (state == to_number)
 		{
+			if (ToNumber.empty())
+				continue;
+
 			apicall = std::string("/newmobile/bynumber/") + ToNumber;
 			apiresponse = coreapi.get(apicall.c_str());
 			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
@@ -829,7 +844,7 @@ int main(int argc, char* argv[]) try
 			// if it's an SMS make an XML doc for the SMS archive
 			if (app::message_type == app::is_sms)
 			{
-				smsxml = GenerateSMSXML(uuid, metadata, FromNumber, ToNumber, direction, decoded_body);
+				smsxml = GenerateSMSXML(uuid, metadata, FromNumberFallback, ToNumberFallback, direction, decoded_body);
 				LogDebug("SMS XML: " << smsxml);
 			}
 
@@ -855,8 +870,8 @@ int main(int argc, char* argv[]) try
 				% OrgID
 				% UserID
 				% timenow
-				% FromNumber
-				% ToNumber
+				% FromNumberFallback
+				% ToNumberFallback
 				% direction
 				% remove_redmatter(app::hostname)
 			);
