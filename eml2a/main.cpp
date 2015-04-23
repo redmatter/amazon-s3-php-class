@@ -624,7 +624,7 @@ std::string GetFromHeader(const std::string &header, const boost::regex &number_
 {
 	boost::cmatch what;
 
-	if (regex_match (header.c_str(), what, number_from_header_regex))
+	if (regex_search (header.c_str(), what, number_from_header_regex))
 	{
 		// what[0] contains the whole string
 		// what[1] contains the number
@@ -747,7 +747,7 @@ int main(int argc, char* argv[]) try
 		// From: <4793859166@sms.netcom.no>
 		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("([0-9]+)@.*"));
 		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
-		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("[^0-9]*([0-9]+)"));
+		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("^[^0-9]*([0-9]+)$"));
 
 		// what will be used if we can't extract numbers
 		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
@@ -768,6 +768,9 @@ int main(int argc, char* argv[]) try
 		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
 		ToNumberFallback   = ToNumber.empty() ? headers["To"].back().substr(0, 18) : ToNumber;
 	}
+
+	XMLescape(FromNumberFallback);
+	XMLescape(ToNumberFallback);
 
 	// process message twice: once for 'from', once for 'to'
 	typedef enum { from_number, to_number, done } state_t;
