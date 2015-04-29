@@ -62,7 +62,9 @@ namespace app
 	boost::program_options::variables_map confMap;
 	volatile bool quit = false;
 	typedef enum { is_sms, is_mms } message_type_t;
+	typedef enum { is_both, is_mo, is_mt } direction_t;
 	message_type_t message_type;
+	direction_t direction;
 }
 
 using boost::asio::ip::tcp;
@@ -557,6 +559,8 @@ void Configure(int argc, char* argv[])
 				("hostname", boost::program_options::value<std::string>(), "this hostname")
 				("sms", "it's an sms")
 				("mms", "it's an mms")
+				("mo", "it's an MO message [default is MO+MT]")
+				("mt", "it's an MT message [default is MO+MT]")
 				("file", boost::program_options::value<std::string>(), "file to load - will be deleted on success")
 				("help-conf", "conf file help")
 				("help", "this help")
@@ -599,6 +603,13 @@ void Configure(int argc, char* argv[])
 		app::message_type = app::is_mms;
 	else
 		throw rml::exception("Neither mms nor sms specified, must have one or the other.");
+
+	if (cli_confMap.count("mo") == 1)
+		app::direction = app::is_mo;
+	else if (cli_confMap.count("mt") == 1)
+		app::direction = app::is_mt;
+	else
+		app::direction = app::is_both;
 
 	app::hostname = cli_confMap["hostname"].as<std::string>();
 	if (cli_confMap.count("file") == 1)
@@ -788,6 +799,9 @@ int main(int argc, char* argv[]) try
 
 		if (state == from_number)
 		{
+			if (app::direction == app::is_mt)
+				continue;
+
 			if (FromNumber.empty())
 				continue;
 
@@ -801,6 +815,9 @@ int main(int argc, char* argv[]) try
 		}
 		else if (state == to_number)
 		{
+			if (app::direction == app::is_mo)
+				continue;
+
 			if (ToNumber.empty())
 				continue;
 

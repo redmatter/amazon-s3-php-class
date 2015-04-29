@@ -17,11 +17,14 @@
 # define FALSE  0
 #endif /* ! bool */
 
+typedef enum {both, mo, mt} direction_t;
+
 struct mlfiPriv
 {
 	char *eml2a_fname;
 	FILE *eml2a_fp;
 	bool is_mms;
+	direction_t direction;
 };
 
 struct list
@@ -42,6 +45,7 @@ char hostname[1024] = "";
 #define MLFIPRIV        ((struct mlfiPriv *) smfi_getpriv(ctx))
 
 typedef enum {delete, nodelete} delete_action;
+
 sfsistat eml2a_cleanup(SMFICTX *, sfsistat, delete_action);
 
 sfsistat eml2a_connect(ctx, hostname, hostaddr)
@@ -75,24 +79,54 @@ sfsistat eml2a_envrcpt(ctx, argv)
 	char *mailaddr = smfi_getsymval(ctx, "{rcpt_addr}");
 
 	struct list *thisitem = config;
+
 	enum { unknown, mms, sms } type = unknown;
+	direction_t direction = both;
+
 	while (thisitem)
 	{
-		if (!strcmp(thisitem->key, "sms"))
+		if (!strcasecmp(thisitem->value, mailaddr))
 		{
-			if (!strcasecmp(thisitem->value, mailaddr))
+			if (!strcmp(thisitem->key, "sms"))
 			{
 				syslog(LOG_INFO, "%s matches sms config item", mailaddr);
 				type = sms;
+				direction = both;
 				break;
 			}
-		}
-		else if (!strcmp(thisitem->key, "mms"))
-		{
-			if (!strcasecmp(thisitem->value, mailaddr))
+			else if (!strcmp(thisitem->key, "sms-mo"))
+			{
+				syslog(LOG_INFO, "%s matches sms-mo config item", mailaddr);
+				type = sms;
+				direction = mo;
+				break;
+			}
+			else if (!strcmp(thisitem->key, "sms-mt"))
+			{
+				syslog(LOG_INFO, "%s matches sms-mt config item", mailaddr);
+				type = sms;
+				direction = mt;
+				break;
+			}
+			else if (!strcmp(thisitem->key, "mms"))
 			{
 				syslog(LOG_INFO, "%s matches mms config item", mailaddr);
 				type = mms;
+				direction = both;
+				break;
+			}
+			else if (!strcmp(thisitem->key, "mms-mo"))
+			{
+				syslog(LOG_INFO, "%s matches mms-mo config item", mailaddr);
+				type = mms;
+				direction = mo;
+				break;
+			}
+			else if (!strcmp(thisitem->key, "mms-mt"))
+			{
+				syslog(LOG_INFO, "%s matches mms-mt config item", mailaddr);
+				type = mms;
+				direction = mt;
 				break;
 			}
 		}
@@ -143,6 +177,7 @@ sfsistat eml2a_envrcpt(ctx, argv)
 		}
 
 		priv->is_mms = (type == mms);
+		priv->direction = direction;
 	}
 
 	/* continue processing */
@@ -213,7 +248,12 @@ sfsistat eml2a_eom(ctx)
 
 	char command[2048];
 	int result;
-	sprintf(command, "%s --%s --hostname %s < %s", ARCHIVING_EXECUTABLE, priv->is_mms ? "mms" : "sms", hostname, priv->eml2a_fname);
+	sprintf(command, "%s --%s --hostname %s %s < %s",
+			ARCHIVING_EXECUTABLE,
+			priv->is_mms ? "mms" : "sms",
+			hostname,
+			priv->direction == both ? "" : (priv->direction == mo ? "--mo" : "--mt"),
+			priv->eml2a_fname);
 	syslog (LOG_INFO, "Running archiving command %s", command);
 
 	result = system (command);
