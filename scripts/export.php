@@ -53,6 +53,7 @@ class ArchivingExportApp extends BaseApp
 	private $big_dbc = null;
 	
 	private $hAPISearchDomain = null;
+	private $hAPILocName = null;
 
 	/**
 	 * run
@@ -64,12 +65,11 @@ class ArchivingExportApp extends BaseApp
 	public function run()
 	{
 		$hAPIHost = new HAPIHost();
-		$this->hAPISearchDomain = $hAPIHost->get("SearchDomain");		
+		$this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
+		$this->hAPILocName = $hAPIHost->get('LocName');
 		
-		$maxId = 0;
-
 		$config = $this->conf;
-
+/*
 		if (false === ($orgId = cli::get('--org', $config->get('extract.org_id', false))))
 			throw new Exception('OrgID not given');
 
@@ -78,7 +78,7 @@ class ArchivingExportApp extends BaseApp
 
 		if (false === ($outDir = cli::get('--out-dir', $config->get('extract.output_dir', false))))
 			throw new Exception('Output dir not given');
-			
+*/			
 		if (false === ($authCreds = cli::get('--auth-creds', $config->get('coreapi.authorization_creds', false))))
 			throw new Exception('CoreAPI Auth creds not given');
 /*
@@ -87,7 +87,7 @@ class ArchivingExportApp extends BaseApp
 
 		if (false === ($password = cli::get('--password', $config->get('extract.password', false))))
 			throw new Exception('Password not given');
-*/
+
 		$extractTypes = cli::get('--type', $config->get('extract.type', 'recording'));
 		$extractTypes = preg_split('/[;, ]+/', $extractTypes);
 		$extractTypes = array_map(
@@ -109,12 +109,12 @@ class ArchivingExportApp extends BaseApp
 
 		$startDate = cli::get('--start-date', $config->get('extract.start_date', null));
 		$endDate = cli::get('--end-date', $config->get('extract.end_date', null));
-
+*/
 		$authorization = null;
 		$coreapi = $config->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
 		API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
 		
-		LogMessage("authCreds[{$authCreds}]");
+		//LogMessage("authCreds[{$authCreds}]");
 		
 		API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
 		
@@ -131,68 +131,169 @@ class ArchivingExportApp extends BaseApp
 		// Get Core SQL connection
 		$this->core_dbc = MySQLiConnection::Get('coresql');
 		
-		$this->coreapi_dbc = MySQLiConnection::Get('coreapi_ro');
+		//$this->coreapi_dbc = MySQLiConnection::Get('coreapi_ro');
 
 		// Get Big SQL database connection
 		$this->big_dbc = MySQLiConnection::Get('bigsql');
-
+/*
 		$orgId = 2;
 		$userId = 2;
 		$exportId = 1;
 		$logsId = 123;
 		$zipPassword = 'letmein';
-
-		try
+*/		
+		$requests = $this->getPendingExportRequests();
+		foreach ($requests as $request)
 		{
-			$this->exportCallLogs($orgId, $userId, $exportId, $logsId, $zipPassword);
-		}
-		catch (Exception $e)
-		{
-			LogWarning($e);
+			$exportId = (int)$request['ExportID'];
+			$orgId = (int)$request['OrgID'];
+			$userId = (int)$request['UserID'];
+			$type = $request['Type'];
+			
+			$criteria = $request['Criteria'];
+				
+			try
+			{
+				$this->updateExportStatus($exportId, 'Processing');
+								
+				$xml = simplexml_load_string($criteria);
+				$passwordNodes = $xml->xpath("@Password");
+				$zipPassword = (string)$passwordNodes[0];
+				
+				$queueIdNodes = $xml->xpath("@QueueID");
+				$queueId = (int)(string)$queueIdNodes[0];
+				
+				$IDs = array();
+				$idNodes = $xml->xpath('UUIDs[1]/UUID/@Val');
+				foreach ($idNodes as $idNode)
+				{
+					$IDs[] = (string)$idNode;
+				}
+				
+				switch ($type)
+				{
+					case 'Call':
+						$this->exportCallLogs($orgId, $userId, $exportId, $queueId, $IDs, $zipPassword);
+						
+						LogMessage("Successfully exported call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}");
+						break;
+					
+					case 'SMS':
+						// TODO:
+						//$this->exportSMSLogs($orgId, $userId, $exportId, $queueId, $zipPassword);
+						//break;
+						
+					default:
+						throw new Exception("Unhandled export type '{$type}'");
+						break;
+				}
+								
+				$this->updateExportStatus($exportId, 'Complete');
+			}
+			catch (Exception $e)
+			{
+				LogWarning("Failed to export {$type} logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}, Exception: {$e}");
+				
+				$this->updateExportStatus($exportId, 'Failed');
+			}
 		}
 		exit(0);
 	}
-
-	private function exportCallLogs($orgId, $userId, $exportId, $logsId, $zipPassword)
+	
+	private function getPendingExportRequests()
 	{
-		$timeZone = $this->getUserTimeZone($userId);
+		$this->cleanupExportStatus();
 		
+		$locName = $this->core_dbc->escape_string($this->hAPILocName);
+		
+		$result = $this->core_dbc->query(
+			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `Criteria` ".
+			"FROM `Aux`.`LogsExportQ` ".
+			"WHERE Status='Pending' ". 
+			"AND `ClientLocation`='{$locName}' ORDER BY `Submitted` DESC, `ExportID` DESC LIMIT 100;"
+		)->fetch_all(MySQLiResult::AS_ASSOC);
+
+		return $result;	
+	}
+		
+	private function cleanupExportStatus()
+	{
+		$locName = $this->core_dbc->escape_string($this->hAPILocName);
+		
+		$this->core_dbc->query(
+			"UPDATE `Aux`.`LogsExportQ` ".
+			"SET `Status`='Pending', ".
+			"`Serviced`=NULL ". 
+			"WHERE `Status`='Processing' ".
+			"AND `ClientLocation`='{$locName}';"
+		);
+	}
+	
+	private function updateExportStatus($exportId, $status)
+	{
+		static $startTime; 
+		
+		switch ($status)
+		{
+			case 'Processing':				
+				$startTime = microtime(true/*asFloat*/);
+				$additionalFields = ", `Serviced`=NOW() ";
+				break;
+			case 'Complete':
+			case 'Failed':
+				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);				
+				$additionalFields = ", `DurationMS`={$elapsedMSecs} ";
+				break;				
+			default:
+				$additionalFields = '';
+				break;
+		}
+		
+		$status = $this->core_dbc->escape_string($status);
+		
+		$this->core_dbc->query(
+			"UPDATE `Aux`.`LogsExportQ` ".
+			"SET `Status`='{$status}' ". 
+			$additionalFields .
+			"WHERE `ExportID`={$exportId};"
+		);
+	}
+		
+	private function exportCallLogs($orgId, $userId, $exportId, $logsId, $IDs, $zipPassword)
+	{
+		LogMessage("Starting export of call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$logsId}");
+		
+		$timeZone = $this->getUserTimeZone($userId);
+
 		$searchStartTime = false;
 		$searchEndTime = false;
-		$logsData = array();
-		$this->getApiCallLogsData($orgId, $userId, $logsId, $searchStartTime, $searchEndTime, $logsData);
-				
-		$dtSearchStartLocal = new DateTime();
-		$dtSearchStartLocal->setTimezone($timeZone);
-		$dtSearchStartLocal->setTimestamp($searchStartTime);
-		$searchStartTime = $dtSearchStartLocal->format('Y-m-d@H.i.s');
-		
-		$dtSearchEndLocal = new DateTime();
-		$dtSearchEndLocal->setTimezone($timeZone);
-		$dtSearchEndLocal->setTimestamp($searchEndTime);
-		$searchEndTime = $dtSearchEndLocal->format('Y-m-d@H.i.s');		
-				
-		echo "logsData:\n".print_r($logsData);
-					
+		$callLogsData = array();
+		$this->getApiCallLogsData($orgId, $userId, $logsId, $searchStartTime, $searchEndTime, $callLogsData);
+
+		$searchStartTime = $this->formatTime($searchStartTime, $timeZone, 'Y-m-d@H.i.s');
+		$searchEndTime = $this->formatTime($searchEndTime, $timeZone, 'Y-m-d@H.i.s');
+
+		//echo "logsData:\n".print_r($logsData);
+
 		$encryptionKey = $this->getOrgEncryptionKey($orgId);
-				
-		$results = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $logsId);
-		
-		$num_results = count($results);
+
+		$dbRetResults = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $logsId);
+
+		$num_results = count($dbRetResults);
 		LogMessage("{$num_results} CallLogs returned");
-		
+
 		$baseDir = "/tmp/redmatter/archiving/export/{$exportId}";
-		
+
 		// ensure directory is removed first
 		LogDebug("basedir: {$baseDir}");
 		exec("rm -R {$baseDir}/");
-			
+
 		if (!$this->createDirectoryTree($baseDir))
 			throw Exception("Failed to create temp directory '{$baseDir}'");
-		
+
 		$csvFileName = "call-export-{$searchStartTime}-to-{$searchEndTime}";
 		$csvFilePath = "{$baseDir}/{$csvFileName}.csv";
-		
+
 		$csvFile = fopen($csvFilePath, 'w');
 		if ($csvFile === false)
 			throw Exception("Failed to open CSV file for writing '{$csvFile}'");
@@ -200,180 +301,13 @@ class ArchivingExportApp extends BaseApp
 		$csvHeaderLine = implode(',', $this->csvHeaderFields);
 		if (fwrite($csvFile, $csvHeaderLine."\r\n") === false)
 			throw Exception("Failed to write header to CSV file '{$csvFilePath}'");
-				
-		foreach ($results as $res) 
-		{
-			$resID = (int)$res['ResID'];
-			$logData = $logsData[$resID];
-			
-			$AUUID = $logData['AUUID'];
-			$BUUID = $logData['BUUID'];
-			$recorded = $logData['Recorded'];
-			$time = (int)$logData['Time'];
-			$policy = $logData['Policy'];
-			$from = $logData['From_User'];
-			$fromDev = $logData['From_Dev'];
-			$fromNumber = $logData['From_Number'];
-			$fromHangup = $logData['From_HangUp'];
-			$toUser = $logData['To_User'];
-			$toDev = $logData['To_Dev'];
-			$toNumberDialled = $logData['To_NumberDialled'];
-			$toNumber  = $logData['To_Number'];
-			$toHangup = $logData['To_HangUp'];
-			$timeHuntingSecs = $logData['Time_Hunting'];
-			$timeRingingSecs = $logData['Time_Ringing'];
-			$timeTalkingSecs = $logData['Time_Talking'];
-			$direction = $logData['Direction'];
-			$AFlags = (int)$logData['AFlags'];
-			$BFlags = (int)$logData['BFlags'];
-			//$fromPolArchID = (int)$logData['From_PolArchID'];
-			//$fromPnArchID = (int)$logData['From_PnArchID'];
-			//$toPolArchID = (int)$logData['To_PolArchID'];
-			//$toPnArchID = (int)$logData['To_PnArchID'];
-			$type = $logData['Type'];
-						
-			$dtStartLocal = new DateTime();
-			$dtStartLocal->setTimezone($timeZone);
-			$dtStartLocal->setTimestamp($time);			
-			$startTimeLocal = $dtStartLocal->format('Y-m-d H:i:s');
-						
-			$startTimeUTC = gmstrftime('%F %T', $time);
 
-			$dtEndLocal = new DateTime();
-			$dtEndLocal->setTimezone($timeZone);
-			$dtEndLocal->setTimestamp($time+$timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs);
-			$endTimeLocal = $dtEndLocal->format('Y-m-d H:i:s');
-			
-			$totalCallTimeSecs = $timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs;
-			$totalCallTime = strftime('%T', $totalCallTimeSecs);
-															
-			if ($timeHuntingSecs > 0)
-				$timeHunting = strftime('%T', $timeHuntingSecs);
-			else
-				$timeHunting = 'none';				
-			
-			if ($timeRingingSecs > 0)
-				$timeRinging = strftime('%T', $timeRingingSecs);
-			else
-				$timeRinging = 'none';
-			
-			$timeTalking = strftime('%T', $timeTalkingSecs);
-			
-			$direction = $this->callDirectionAsString($direction);
-			$fromHangup = $this->hangupCauseAsString($fromHangup);
-			$toHangup = $this->hangupCauseAsString($toHangup);
-			
-			if (($AFlags > 0 && $AFlags != 1024) || ($BFlags > 0 && $BFlags != 1024))
-				$flags='YES';
-			else
-				$flags='NO';
-							
-			$transfer 			= $this->isFlagSet(0, $AFlags, $BFlags);
-			$attTransfer 		= $this->isFlagSet(1, $AFlags, $BFlags);
-			$blindTransfer 		= $this->isFlagSet(2, $AFlags, $BFlags);
-			$cliWithheld 		= $this->isFlagSet(3, $AFlags, $BFlags);
-			$alert 				= $this->isFlagSet(4, $AFlags, $BFlags);
-			$callPickedUp 		= $this->isFlagSet(5, $AFlags, $BFlags);
-			$intercepted 		= $this->isFlagSet(6, $AFlags, $BFlags);
-			$callQueue 			= $this->isFlagSet(7, $AFlags, $BFlags);
-			$eavesdropAttached 	= $this->isFlagSet(8, $AFlags, $BFlags);
-			$eavesdrop 			= $this->isFlagSet(9, $AFlags, $BFlags);
-			$recorded 			= $this->isFlagSet(10, $AFlags, $BFlags);
-			$lateDivert 		= $this->isFlagSet(11, $AFlags, $BFlags);
-			$earlyDivert 		= $this->isFlagSet(12, $AFlags, $BFlags);
-			$voiceMail 			= $this->isFlagSet(13, $AFlags, $BFlags);
-			$diverted 			= $this->isFlagSet(14, $AFlags, $BFlags);
-			$listenIn 			= $this->isFlagSet(15, $AFlags, $BFlags);
-			$activeRecOK 		= $this->isFlagSet(16, $AFlags, $BFlags);
-			$activeRecFail 		= $this->isFlagSet(17, $AFlags, $BFlags);
-			$activeRecBufOK 	= $this->isFlagSet(18, $AFlags, $BFlags);
-			$activeRecBufFail 	= $this->isFlagSet(19, $AFlags, $BFlags);
-			$pcap 				= $this->isFlagSet(20, $AFlags, $BFlags);
-						
-			// don't think the following has ever worked in portal logs
-			$fromType = '';
-			$fromLabel = '';
-			$toType = '';
-			$toLabel = '';
-			
-			$options = '';
-			if ($recorded == 'YES')
-			{
-				$prefix = $dtStartLocal->format('Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-				$recordingRelPath = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix);
-				if (strlen($recordingRelPath) > 0)
-				{				
-					//$options = "=HYPERLINK(\"{$recordingRelPath}\", \"Click to listen\")";
-					$options = "=HYPERLINK('{$recordingRelPath}')";
-				}
-			}
-						
-			$csvEntryFields = array
-			(
-				$options,			// Options
-				$startTimeLocal,	// Date / Time
-				$startTimeUTC,		// UTC Date / Time
-				$endTimeLocal,		// End Date / Time
-				$totalCallTime,		// Total Call Time
-				$totalCallTimeSecs,	// Total Call Time (INT)
-				$from,				// From
-				$fromType,			// From Type
-				$fromLabel,			// From Label
-				$fromNumber,		// From (Number)
-				$fromDev,			// From (Device)
-				$toNumberDialled, 	// Dialled (Number)
-				$toUser, 			// Connected To
-				$toType, 			// To Type
-				$toLabel, 			// To Label
-				$toNumber, 			// Connected To (Number)
-				$toDev, 			// Connected To (Device)
-				$timeHunting,		// Time Hunting
-				$timeRinging,		// Time Ringing
-				$timeTalking,		// Time Talking
-				$timeHuntingSecs,	// Time Hunting (INT)
-				$timeRingingSecs,	// Time Ringing (INT)
-				$timeTalkingSecs,	// Time Talking (INT)
-				$direction,			// Direction
-				$fromHangup,		// From HangUp
-				$toHangup,			// To HangUp
-				$type, 				// Type
-				$flags,				// Flags
-				$policy,			// Policy
-				$AUUID,				// AUUID
-				$BUUID,				// BUUID
-				$transfer,			// Transfer
-				$attTransfer,		// Att Transfer
-				$blindTransfer,		// Blind Transfer
-				$cliWithheld, 		// CLI Withheld
-				$alert, 			// Alert
-				$callPickedUp,		// Call Picked Up
-				$intercepted,		// Intercepted
-				$callQueue,			// Call Queue
-				$eavesdropAttached,	// Eavesdrop Attached
-				$eavesdrop,			// Eavesdrop
-				$recorded,			// Recorded
-				$earlyDivert,		// Early Divert
-				$lateDivert,		// Late Divert
-				$voiceMail,			// Voice Mail
-				$diverted,			// Diverted
-				$listenIn,			// Listen In,
-				$activeRecOK, 		// Active Rec OK
-				$activeRecFail,		// Active Rec Fail
-				$activeRecBufOK, 	// Active Rec Buffered OK
-				$activeRecBufFail,	// Active Rec Buffered Fail		
-				$pcap				// PCAP
-			);
-			
-			foreach ($csvEntryFields as &$csvEntryField)
-			{
-				$csvEntryField = "\"{$csvEntryField}\"";
-			}			
-			$csvEntryLine = implode(',', $csvEntryFields);
-			
-			if (fwrite($csvFile, $csvEntryLine."\r\n") === false)
-				throw Exception("Failed to write entry line to CSV file '{$csvFilePath}'");
-									
-			LogDebug("Processing logs result ID {$resID} (Recorded: '{$recorded})...");
+		foreach ($dbRetResults as $dbRetResult)
+		{
+			$resID = (int)$dbRetResult['ResID'];
+			$callLogData = &$callLogsData[$resID];
+
+			$this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile);
 		}
 
 		fclose($csvFile);
@@ -383,7 +317,7 @@ class ArchivingExportApp extends BaseApp
 		chdir($baseDir);
 		
 		$cmd = "7za a {$csvFileName}.zip {$csvFileName}.csv callrecordings/*.wav";
-		LogVerbose("Zipping up export archive with command: {$cmd} -p*******");
+		LogVerbose("Zipping up export archive with command: {$cmd} -p********");
 		
 		$cmd .= " -p{$zipPassword}";
 		
@@ -400,7 +334,174 @@ class ArchivingExportApp extends BaseApp
 		
 		LogVerbose("Completed zipping up export archive!");
 	}
-	
+
+	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile)
+	{
+		$resID = (int)$res['ResID'];
+		//$logData = $logsData[$resID];
+		
+		$AUUID = $logData['AUUID'];
+		$BUUID = $logData['BUUID'];
+		$recorded = $logData['Recorded'];
+		$time = (int)$logData['Time'];
+		$policy = $logData['Policy'];
+		$from = $logData['From_User'];
+		$fromDev = $logData['From_Dev'];
+		$fromNumber = $logData['From_Number'];
+		$fromHangup = $logData['From_HangUp'];
+		$toUser = $logData['To_User'];
+		$toDev = $logData['To_Dev'];
+		$toNumberDialled = $logData['To_NumberDialled'];
+		$toNumber  = $logData['To_Number'];
+		$toHangup = $logData['To_HangUp'];
+		$timeHuntingSecs = $logData['Time_Hunting'];
+		$timeRingingSecs = $logData['Time_Ringing'];
+		$timeTalkingSecs = $logData['Time_Talking'];
+		$direction = $logData['Direction'];
+		$AFlags = (int)$logData['AFlags'];
+		$BFlags = (int)$logData['BFlags'];
+		//$fromPolArchID = (int)$logData['From_PolArchID'];
+		//$fromPnArchID = (int)$logData['From_PnArchID'];
+		//$toPolArchID = (int)$logData['To_PolArchID'];
+		//$toPnArchID = (int)$logData['To_PnArchID'];
+		$type = $logData['Type'];
+
+		$startTimeLocal = $this->formatTime($time, $timeZone, 'Y-m-d H:i:s');
+		$startTimeUTC = gmstrftime('%F %T', $time);
+		$endTimeLocal = $this->formatTime($time+$timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs, $timeZone, 'Y-m-d H:i:s');
+		
+		$totalCallTimeSecs = $timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs;
+		$totalCallTime = strftime('%T', $totalCallTimeSecs);
+		
+		if ($timeHuntingSecs > 0)
+			$timeHunting = strftime('%T', $timeHuntingSecs);
+		else
+			$timeHunting = 'none';
+		
+		if ($timeRingingSecs > 0)
+			$timeRinging = strftime('%T', $timeRingingSecs);
+		else
+			$timeRinging = 'none';
+		
+		$timeTalking = strftime('%T', $timeTalkingSecs);
+		
+		$direction = $this->callDirectionAsString($direction);
+		$fromHangup = $this->hangupCauseAsString($fromHangup);
+		$toHangup = $this->hangupCauseAsString($toHangup);
+		
+		if (($AFlags > 0 && $AFlags != 1024) || ($BFlags > 0 && $BFlags != 1024))
+			$flags='YES';
+		else
+			$flags='NO';
+						
+		$transfer 			= $this->isFlagSet(0, $AFlags, $BFlags);
+		$attTransfer 		= $this->isFlagSet(1, $AFlags, $BFlags);
+		$blindTransfer 		= $this->isFlagSet(2, $AFlags, $BFlags);
+		$cliWithheld 		= $this->isFlagSet(3, $AFlags, $BFlags);
+		$alert 				= $this->isFlagSet(4, $AFlags, $BFlags);
+		$callPickedUp 		= $this->isFlagSet(5, $AFlags, $BFlags);
+		$intercepted 		= $this->isFlagSet(6, $AFlags, $BFlags);
+		$callQueue 			= $this->isFlagSet(7, $AFlags, $BFlags);
+		$eavesdropAttached 	= $this->isFlagSet(8, $AFlags, $BFlags);
+		$eavesdrop 			= $this->isFlagSet(9, $AFlags, $BFlags);
+		$recorded 			= $this->isFlagSet(10, $AFlags, $BFlags);
+		$lateDivert 		= $this->isFlagSet(11, $AFlags, $BFlags);
+		$earlyDivert 		= $this->isFlagSet(12, $AFlags, $BFlags);
+		$voiceMail 			= $this->isFlagSet(13, $AFlags, $BFlags);
+		$diverted 			= $this->isFlagSet(14, $AFlags, $BFlags);
+		$listenIn 			= $this->isFlagSet(15, $AFlags, $BFlags);
+		$activeRecOK 		= $this->isFlagSet(16, $AFlags, $BFlags);
+		$activeRecFail 		= $this->isFlagSet(17, $AFlags, $BFlags);
+		$activeRecBufOK 	= $this->isFlagSet(18, $AFlags, $BFlags);
+		$activeRecBufFail 	= $this->isFlagSet(19, $AFlags, $BFlags);
+		$pcap 				= $this->isFlagSet(20, $AFlags, $BFlags);
+		
+		// don't think the following has ever worked in portal logs
+		$fromType = '';
+		$fromLabel = '';
+		$toType = '';
+		$toLabel = '';
+		
+		$options = '';
+		if ($recorded == 'YES')
+		{
+			$prefix = $this->formatTime($time, $timeZone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
+			$recordingRelPath = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix);
+			if (strlen($recordingRelPath) > 0)
+			{
+				//$options = "=HYPERLINK(\"{$recordingRelPath}\", \"Click to listen\")";
+				$options = "=HYPERLINK('{$recordingRelPath}')";
+			}
+		}
+		
+		$csvEntryFields = array
+		(
+			$options,			// Options
+			$startTimeLocal,	// Date / Time
+			$startTimeUTC,		// UTC Date / Time
+			$endTimeLocal,		// End Date / Time
+			$totalCallTime,		// Total Call Time
+			$totalCallTimeSecs,	// Total Call Time (INT)
+			$from,				// From
+			$fromType,			// From Type
+			$fromLabel,			// From Label
+			$fromNumber,		// From (Number)
+			$fromDev,			// From (Device)
+			$toNumberDialled, 	// Dialled (Number)
+			$toUser, 			// Connected To
+			$toType, 			// To Type
+			$toLabel, 			// To Label
+			$toNumber, 			// Connected To (Number)
+			$toDev, 			// Connected To (Device)
+			$timeHunting,		// Time Hunting
+			$timeRinging,		// Time Ringing
+			$timeTalking,		// Time Talking
+			$timeHuntingSecs,	// Time Hunting (INT)
+			$timeRingingSecs,	// Time Ringing (INT)
+			$timeTalkingSecs,	// Time Talking (INT)
+			$direction,			// Direction
+			$fromHangup,		// From HangUp
+			$toHangup,			// To HangUp
+			$type, 				// Type
+			$flags,				// Flags
+			$policy,			// Policy
+			$AUUID,				// AUUID
+			$BUUID,				// BUUID
+			$transfer,			// Transfer
+			$attTransfer,		// Att Transfer
+			$blindTransfer,		// Blind Transfer
+			$cliWithheld, 		// CLI Withheld
+			$alert, 			// Alert
+			$callPickedUp,		// Call Picked Up
+			$intercepted,		// Intercepted
+			$callQueue,			// Call Queue
+			$eavesdropAttached,	// Eavesdrop Attached
+			$eavesdrop,			// Eavesdrop
+			$recorded,			// Recorded
+			$earlyDivert,		// Early Divert
+			$lateDivert,		// Late Divert
+			$voiceMail,			// Voice Mail
+			$diverted,			// Diverted
+			$listenIn,			// Listen In,
+			$activeRecOK, 		// Active Rec OK
+			$activeRecFail,		// Active Rec Fail
+			$activeRecBufOK, 	// Active Rec Buffered OK
+			$activeRecBufFail,	// Active Rec Buffered Fail
+			$pcap				// PCAP
+		);
+		
+		foreach ($csvEntryFields as &$csvEntryField)
+		{
+			$csvEntryField = "\"{$csvEntryField}\"";
+		}
+		$csvEntryLine = implode(',', $csvEntryFields);
+		
+		if (fwrite($csvFile, $csvEntryLine."\r\n") === false)
+			throw Exception("Failed to write entry line to CSV file");
+		
+		LogDebug("Processing logs result ID {$resID} (Recorded: '{$recorded})...");
+	}
+
 	private function getUserTimeZone($userId)
 	{
 		$client = RestClient::createClient();
@@ -481,15 +582,15 @@ class ArchivingExportApp extends BaseApp
 		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/Devs[1]/D', $devs);
 		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/Numbers[1]/N', $numbers);
 		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/PolArchs[1]/P', $polArchs);
-				
+		
 		if (count($fields) == 0)
 			throw new Exception("Failed to fetch logs result for logs ID {$logsId}");
-			
+		
 		$this->getLogsData($logsResponseDom, $fields, $users, $devs, $policies, $logsData);	
 	}
 	
 	private function getOrgEncryptionKey($orgId)
-	{	
+	{
 		$result = $this->core_dbc->query(
 			"SELECT `EncryptionKey` FROM `Archiving`.`Provisioning` WHERE `OrgID`={$orgId} LIMIT 1"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
@@ -501,7 +602,7 @@ class ArchivingExportApp extends BaseApp
 	}
 
 	private function getCallLogsAndRetentionDbResults($orgId, $userId, $logsId)
-	{	
+	{
 		return $this->big_dbc->query(
 			"SELECT \n" .
 			"LOWER(HEX(l.`AUUID`)) AS `HexAUUID`, \n" .
@@ -521,8 +622,8 @@ class ArchivingExportApp extends BaseApp
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$orgId}` ra ON (l.`AUUID`=ra.`LegUUID`) \n" .
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$orgId}` rb ON (l.`BUUID`=rb.`LegUUID`)"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
-	}	
-	
+	}
+
 	private function getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix)
 	{
 		$resID = $logData['ResID'];
@@ -591,7 +692,7 @@ class ArchivingExportApp extends BaseApp
 
 		// GET record from S3
 		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
-							
+		
 		//LogDebug("============ getObject: bucket[{$bucket}] storage_key[{$storage_key}]");
 
 		$response = $s3->getObject($bucket, $storageKey);
@@ -652,7 +753,7 @@ class ArchivingExportApp extends BaseApp
 			$byteCount = fwrite($wavFile, $extractedContent);
 			if ($byteCount === false)
 				throw new Exception ("Failed to to write to WAV file: {$wavFilePath}");
-				
+			
 			LogMessage("Successfully wrote {$byteCount} bytes to {$wavFilePath}");
 		}
 		catch (Exception $e)
@@ -664,7 +765,7 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		fclose($wavFile);
-				
+		
 		return $wavFileRelPath;
 	}
 	
@@ -737,7 +838,7 @@ class ArchivingExportApp extends BaseApp
 					case 'To_DevID':
 						$value = (int)$value;
 						if ($value > 0)
-							$dataRow['To_Dev'] = $devs[$value];					
+							$dataRow['To_Dev'] = $devs[$value];
 						else
 							$dataRow['To_Dev'] = '';
 						break;
@@ -874,7 +975,7 @@ class ArchivingExportApp extends BaseApp
 			default: return $cause;
 		}
 	}
-	
+
 	private function callDirectionAsString($direction)
 	{
 		switch ($direction)
@@ -888,7 +989,7 @@ class ArchivingExportApp extends BaseApp
 			default:	return 'N/A';
 		}
 	}
-	
+
 	private function isFlagSet($flag, $AFlags, $BFlags)
 	{
 		if (($AFlags & (1 << $flag)) || ($BFlags & (1 << $flag)))
@@ -896,7 +997,15 @@ class ArchivingExportApp extends BaseApp
 		else
 			return '-';	
 	}
-	
+
+	private function formatTime($time, $timeZone, $format)
+	{
+		$dt = new DateTime();
+		$dt->setTimezone($timeZone);
+		$dt->setTimestamp($time);
+		return $dt->format($format);
+	}
+
 	private function createDirectoryTree($dirPath)
 	{
 		if (strlen($dirPath) == 0)
@@ -933,7 +1042,7 @@ class ArchivingExportApp extends BaseApp
 
 		return true;
 	}
-	
+
 	var $csvHeaderFields = array
 	(
 		'Play',
