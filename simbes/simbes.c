@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'd':
+				memset(&timestruct, 0, sizeof(timestruct));
 				if (sscanf(argv[arg+1], "%d-%d-%d %d:%d:%d",
 						&timestruct.tm_year,
 						&timestruct.tm_mon,
