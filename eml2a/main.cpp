@@ -833,7 +833,7 @@ int main(int argc, char* argv[]) try
 		// note: a different UUID for 'from' and 'to' users
 		boost::uuids::uuid uuid = boost::uuids::random_generator()();
 
-		if (current_ini_state > saved_ini_state)
+		if (current_ini_state >= saved_ini_state)
 		{
 			update_ini_state(MessageID, current_ini_state);
 
@@ -879,7 +879,7 @@ int main(int argc, char* argv[]) try
 
 		current_ini_state ++;
 
-		if (current_ini_state > saved_ini_state)
+		if (current_ini_state >= saved_ini_state)
 		{
 			update_ini_state(MessageID, current_ini_state);
 
