@@ -13,7 +13,7 @@ Version: %{version}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: boost >= 1.49.0-24737
+Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
@@ -21,9 +21,9 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
-BuildRequires: boost-devel >= 1.49.0-24737
+BuildRequires: boost-devel = 1.49.0
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 0.0.1-35005
+BuildRequires: RM-librml-devel < 1.0
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -35,7 +35,7 @@ BuildRequires: threadpool
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost >= 1.49.0-24737
+Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -47,7 +47,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
-Requires: boost >= 1.49.0-24737
+Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -59,7 +59,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 # Summary: Archiving CollectD
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
-# Requires: boost >= 1.49.0-24737
+# Requires: boost = 1.49.0
 # Requires: mysql++ >= 3.1.0-29693
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
@@ -70,7 +70,7 @@ Conflicts: RM-cdrmunch-cdrpostd
 %package convert
 Summary: Archiving Convert Utility
 Group: RedMatter/Archiving
-Requires: boost >= 1.49.0-24737
+Requires: boost = 1.49.0
 Requires: cryptopp
 
 %package common
