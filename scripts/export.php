@@ -135,13 +135,7 @@ class ArchivingExportApp extends BaseApp
 
 		// Get Big SQL database connection
 		$this->big_dbc = MySQLiConnection::Get('bigsql');
-/*
-		$orgId = 2;
-		$userId = 2;
-		$exportId = 1;
-		$logsId = 123;
-		$zipPassword = 'letmein';
-*/		
+		
 		$requests = $this->getPendingExportRequests();
 		foreach ($requests as $request)
 		{
@@ -155,7 +149,7 @@ class ArchivingExportApp extends BaseApp
 			try
 			{
 				$this->updateExportStatus($exportId, 'Processing');
-								
+				
 				$xml = simplexml_load_string($criteria);
 				$passwordNodes = $xml->xpath("@Password");
 				$zipPassword = (string)$passwordNodes[0];
@@ -173,22 +167,22 @@ class ArchivingExportApp extends BaseApp
 				switch ($type)
 				{
 					case 'Call':
-						$this->exportCallLogs($orgId, $userId, $exportId, $queueId, $IDs, $zipPassword);
+						$result = $this->exportCallLogs($orgId, $userId, $exportId, $queueId, $IDs, $zipPassword);
 						
-						LogMessage("Successfully exported call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}");
+						LogMessage("Successfully exported call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}, StorageKey: {$result->storageKey}");
 						break;
 					
 					case 'SMS':
 						// TODO:
-						//$this->exportSMSLogs($orgId, $userId, $exportId, $queueId, $zipPassword);
+						//$result = $this->exportSMSLogs($orgId, $userId, $exportId, $queueId, $zipPassword);
 						//break;
 						
 					default:
 						throw new Exception("Unhandled export type '{$type}'");
 						break;
 				}
-								
-				$this->updateExportStatus($exportId, 'Complete');
+				
+				$this->updateExportStatus($exportId, 'Complete', $result);
 			}
 			catch (Exception $e)
 			{
@@ -222,28 +216,38 @@ class ArchivingExportApp extends BaseApp
 		
 		$this->core_dbc->query(
 			"UPDATE `Aux`.`LogsExportQ` ".
-			"SET `Status`='Pending', ".
-			"`Serviced`=NULL ". 
+			"SET `Status`='Pending' ".
 			"WHERE `Status`='Processing' ".
 			"AND `ClientLocation`='{$locName}';"
 		);
 	}
 	
-	private function updateExportStatus($exportId, $status)
+	private function updateExportStatus($exportId, $status, $result=null)
 	{
 		static $startTime; 
+		$additionalFields = '';
 		
 		switch ($status)
 		{
-			case 'Processing':				
+			case 'Processing':
 				$startTime = microtime(true/*asFloat*/);
-				$additionalFields = ", `Serviced`=NOW() ";
+				$additionalFields = ", `LastServiceAttempt`=NOW() ";
 				break;
 			case 'Complete':
+				if (is_object($result))
+				{
+					if (isset($result->result) && (strlen($result->result) > 0))
+						$additionalFields .= ", `Result`='{$result->result}' ";					
+					if (isset($result->policyID))
+						$additionalFields .= ", `PolicyID`='{$result->policyID}' ";
+					if (isset($result->storageKey))
+						$additionalFields .= ", `ExportURI`='{$result->storageKey}' ";
+				}
+				//break;
 			case 'Failed':
-				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);				
-				$additionalFields = ", `DurationMS`={$elapsedMSecs} ";
-				break;				
+				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
+				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
+				break;
 			default:
 				$additionalFields = '';
 				break;
@@ -263,76 +267,103 @@ class ArchivingExportApp extends BaseApp
 	{
 		LogMessage("Starting export of call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$logsId}");
 		
-		$timeZone = $this->getUserTimeZone($userId);
-
-		$searchStartTime = false;
-		$searchEndTime = false;
-		$callLogsData = array();
-		$this->getApiCallLogsData($orgId, $userId, $logsId, $searchStartTime, $searchEndTime, $callLogsData);
-
-		$searchStartTime = $this->formatTime($searchStartTime, $timeZone, 'Y-m-d@H.i.s');
-		$searchEndTime = $this->formatTime($searchEndTime, $timeZone, 'Y-m-d@H.i.s');
-
-		//echo "logsData:\n".print_r($logsData);
-
-		$encryptionKey = $this->getOrgEncryptionKey($orgId);
-
-		$dbRetResults = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $logsId);
-
-		$num_results = count($dbRetResults);
-		LogMessage("{$num_results} CallLogs returned");
-
-		$baseDir = "/tmp/redmatter/archiving/export/{$exportId}";
-
-		// ensure directory is removed first
-		LogDebug("basedir: {$baseDir}");
-		exec("rm -R {$baseDir}/");
-
-		if (!$this->createDirectoryTree($baseDir))
-			throw Exception("Failed to create temp directory '{$baseDir}'");
-
-		$csvFileName = "call-export-{$searchStartTime}-to-{$searchEndTime}";
-		$csvFilePath = "{$baseDir}/{$csvFileName}.csv";
-
-		$csvFile = fopen($csvFilePath, 'w');
-		if ($csvFile === false)
-			throw Exception("Failed to open CSV file for writing '{$csvFile}'");
-
-		$csvHeaderLine = implode(',', $this->csvHeaderFields);
-		if (fwrite($csvFile, $csvHeaderLine."\r\n") === false)
-			throw Exception("Failed to write header to CSV file '{$csvFilePath}'");
-
-		foreach ($dbRetResults as $dbRetResult)
+		$baseDir = false;
+		$csvFile = false;
+		$zipStorageKey = false;
+		try
 		{
-			$resID = (int)$dbRetResult['ResID'];
-			$callLogData = &$callLogsData[$resID];
+			// Get info/settings for this user/org
+			
+			$encryptionKey = $this->getOrgEncryptionKey($orgId);
+			$defaultPolicyID = $this->getOrgDefaultRecordingPolicyID($orgId);
+			$timeZone = $this->getUserTimeZone($userId);
+					
+			// OK and now the actual call logs
 
-			$this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile);
+			$searchStartTime = false;
+			$searchEndTime = false;
+			$callLogsData = array();
+			$this->getApiCallLogsData($orgId, $userId, $logsId, $searchStartTime, $searchEndTime, $callLogsData);
+
+			$searchStartTime = $this->formatTime($searchStartTime, $timeZone, 'Y-m-d@H.i.s');
+			$searchEndTime = $this->formatTime($searchEndTime, $timeZone, 'Y-m-d@H.i.s');
+
+			//echo "logsData:\n".print_r($logsData);
+
+			$dbRetResults = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $logsId);
+
+			$num_results = count($dbRetResults);
+			LogMessage("{$num_results} CallLogs returned");
+
+			$baseDir = "/tmp/redmatter/archiving/export/{$exportId}";
+
+			// ensure directory is removed first
+			LogDebug("basedir: {$baseDir}");
+			exec("rm -R -f {$baseDir}/");
+
+			if (!$this->createDirectoryTree($baseDir))
+				throw new Exception("Failed to create temp directory '{$baseDir}'");
+
+			$csvFileName = "call-export-{$searchStartTime}-to-{$searchEndTime}";
+			$csvFilePath = "{$baseDir}/{$csvFileName}.csv";
+
+			$csvFile = fopen($csvFilePath, 'w');
+			if ($csvFile === false)
+				throw new Exception("Failed to open CSV file for writing '{$csvFile}'");
+
+			$csvHeaderLine = implode(',', $this->csvHeaderFields);
+			if (fwrite($csvFile, $csvHeaderLine."\r\n") === false)
+				throw new Exception("Failed to write header to CSV file '{$csvFilePath}'");
+
+			foreach ($dbRetResults as $dbRetResult)
+			{
+				$resID = (int)$dbRetResult['ResID'];
+				$callLogData = &$callLogsData[$resID];
+
+				$this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile);
+			}
+
+			fclose($csvFile);
+			$csvFile = false;
+			
+			$this->createZipArchive($baseDir, $csvFileName, "callrecordings/*.wav", $zipPassword);
+			
+			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
+			//$storageKey = "callexport/{$orgId}/{$userId}/{$exportId}";
+			
+			$exportUUID = UUID::v4();
+			$zipStorageKey = "export/{$orgId}/{$exportUUID}";
+			
+			$this->uploadZipArchive($orgId, $defaultPolicyID, $zipFilePath, $zipStorageKey);
 		}
-
-		fclose($csvFile);
-		
-		// right now zip everything up
-		
-		chdir($baseDir);
-		
-		$cmd = "7za a {$csvFileName}.zip {$csvFileName}.csv callrecordings/*.wav";
-		LogVerbose("Zipping up export archive with command: {$cmd} -p********");
-		
-		$cmd .= " -p{$zipPassword}";
-		
-		$output = array();
-		$return_var = 0;
-		$zipRes = exec($cmd, $output, $return_var);
-		
-		echo "zipResult:{$zipRes}\n";
-		foreach ($output as $line)
+		catch (Exception $e)
 		{
-			echo "output:{$line}\n";
+			// cleanup
+			
+			if ($csvFile !== false)
+			{
+				fclose($csvFile);
+			}
+									
+			if (strlen($baseDir) > 0)
+			{
+				exec("rm -R -f {$baseDir}/");
+			}
+				
+			throw $e;
 		}
-		echo "return_var:{$return_var}\n";
 		
-		LogVerbose("Completed zipping up export archive!");
+		if (strlen($baseDir) > 0)
+		{
+			exec("rm -R -f {$baseDir}/");
+		}
+		
+		$result = new stdClass();
+		$result->policyID = $defaultPolicyID;
+		$result->storageKey = $zipStorageKey;
+		$result->result = 'OK';
+		
+		return $result;
 	}
 
 	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile)
@@ -424,7 +455,7 @@ class ArchivingExportApp extends BaseApp
 		
 		$options = '';
 		if ($recorded == 'YES')
-		{
+		{			
 			$prefix = $this->formatTime($time, $timeZone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
 			$recordingRelPath = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix);
 			if (strlen($recordingRelPath) > 0)
@@ -497,7 +528,7 @@ class ArchivingExportApp extends BaseApp
 		$csvEntryLine = implode(',', $csvEntryFields);
 		
 		if (fwrite($csvFile, $csvEntryLine."\r\n") === false)
-			throw Exception("Failed to write entry line to CSV file");
+			throw new Exception("Failed to write entry line to CSV file");
 		
 		LogDebug("Processing logs result ID {$resID} (Recorded: '{$recorded})...");
 	}
@@ -601,6 +632,32 @@ class ArchivingExportApp extends BaseApp
 		return $result[0]['EncryptionKey'];	
 	}
 
+	private function getOrgDefaultRecordingPolicyID($orgId)
+	{
+		return $this->getOrgDefaultPolicyIDForType($orgId, 'recording');
+	}
+	
+	private function getOrgDefaultSMSPolicyID($orgId)
+	{
+		return $this->getOrgDefaultPolicyIDForType($orgId, 'sms');
+	}	
+	
+	private function getOrgDefaultPolicyIDForType($orgId, $type)
+	{
+		$result = $this->core_dbc->query(
+			"SELECT m.PolicyID ".
+			"FROM Archiving.DefaultPolicyMap m ".
+			"JOIN Archiving.PolicyTypes t ON m.PolicyTypesID=t.ID ". 
+			"WHERE m.OrgID={$orgId} ". 
+			"AND t.Name='{$type}' ".
+			"AND t.Internal='no';"
+		)->fetch_all(MySQLiResult::AS_ASSOC);
+
+		if (empty($result) || empty($result[0]) || empty($result[0]['PolicyID']))
+			throw new Exception("Could not get default {$type} policy ID for Org {$orgId}");
+		return (int)$result[0]['PolicyID'];	
+	}	
+	
 	private function getCallLogsAndRetentionDbResults($orgId, $userId, $logsId)
 	{
 		return $this->big_dbc->query(
@@ -666,6 +723,9 @@ class ArchivingExportApp extends BaseApp
 		if (!$uuid)
 			return false;
 		
+		//LogDebug("Loading archiving policy ID {$policyID}");
+		//$policy = new ArchivingPolicy($this->core_dbc, $orgId, $policyID, 0/*$policyVersion*/, true, null/*$currentUser*/);
+				
 		LogDebug("Processing result ID {$resID}: call is recorded retention entry UUID '{$uuid}'", null, 'D:ARCX');
 		/*
 		$uuid = substr($uuid, 0, 8) .
@@ -693,7 +753,7 @@ class ArchivingExportApp extends BaseApp
 		// GET record from S3
 		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
 		
-		//LogDebug("============ getObject: bucket[{$bucket}] storage_key[{$storage_key}]");
+		LogDebug("============ getObject: bucket[{$bucket}] storage_key[{$storageKey}]");
 
 		$response = $s3->getObject($bucket, $storageKey);
 		if (!isset($response->code) || $response->code !== 200)
@@ -744,7 +804,7 @@ class ArchivingExportApp extends BaseApp
 		try
 		{
 			if (!$this->createDirectoryTree($callrecordingsDir))
-				throw Exception("Failed to create temp directory '{$callrecordingsDir}'");
+				throw new Exception("Failed to create temp directory '{$callrecordingsDir}'");
 			
 			$wavFile = fopen($wavFilePath, 'w');
 			if ($wavFile === false)
@@ -859,17 +919,59 @@ class ArchivingExportApp extends BaseApp
 		}
 	}
 	
-	/**
-	* getEndpointDetails
-	* Singleton accessor for endpoints so they are only retrieved once per policy and policy version
-	*
-	* @param int $policy_id      Policy ID
-	* @param int $policy_version Policy Version
-	*
-	* @throws Exception
-	*
-	* @return ArchivingEndpoint
-	*/
+	private function createZipArchive($baseDir, $csvFileName, $mediaFileSpec, $zipPassword)
+	{	
+		chdir($baseDir);
+		
+		$cmd = "7za a {$csvFileName}.zip {$csvFileName}.csv {$mediaFileSpec}";
+		LogVerbose("Zipping up export archive with command: {$cmd} -p********");
+		
+		$cmd .= " -p{$zipPassword}";
+		
+		$output = array();
+		$return_var = 0;
+		$zipRes = exec($cmd, $output, $return_var);
+		
+		$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
+		if (!file_exists($zipFilePath))
+		{
+			LogVerbose("zip result: {$zipRes}");
+			LogVerbose("returned: {$return_var}");
+			foreach ($output as $line)
+			{
+				LogVerbose("zip output: {$line}");
+			}				
+			throw new Exception("Failed to create zip file '{$zipFilePath}'");
+		}
+		
+		LogDebug("zip result: {$zipRes}");
+		LogDebug("returned: {$return_var}");
+		foreach ($output as $line)
+		{
+			LogDebug("zip output: {$line}");
+		}
+					
+		LogVerbose("Zipped up export archive OK");	
+	}
+
+	private function uploadZipArchive($orgId, $defaultPolicyID, $zipFilePath, $storageKey)
+	{		
+		LogVerbose("Uploading export zip to S3...");
+				
+		// Get endpoint details
+		$policyVersion = 0; // 0=don't care about policy version
+		$s3 = $this->getS3Endpoint($orgId, $defaultPolicyID, $policyVersion);
+		$bucket = $this->getEndpointDetails($orgId, $defaultPolicyID, $policyVersion)->bucket;
+
+		//$storageKey = "callexport/{$orgId}/{$userId}/{$exportId}";	
+		
+		$headers = array();
+		if (!$s3->putObjectFile($zipFilePath, $bucket, $storageKey, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
+			throw new Exception("Failed to store file '{$zipFilePath}' in S3 bucket: {$bucket}, storageKey: {$storageKey}");
+					
+		LogVerbose("Uploaded export zip to S3 OK");	
+	}
+	
 	private function getEndpointDetails($orgId, $policy_id, $policy_version)
 	{
 		if (!isset($this->endpoint_details[$policy_id][$policy_version]))
@@ -888,16 +990,6 @@ class ArchivingExportApp extends BaseApp
 		return $this->endpoint_details[$policy_id][$policy_version];
 	}
 
-	/**
-	* getS3Endpoint
-	*
-	* @param int $policy_id      Policy ID
-	* @param int $policy_version Policy Version
-	*
-	* @throws Exception
-	*
-	* @return S3
-	*/
 	private function getS3Endpoint($orgId, $policy_id, $policy_version)
 	{
 		if (!isset($this->endpoints[$policy_id][$policy_version]))
@@ -1045,7 +1137,7 @@ class ArchivingExportApp extends BaseApp
 
 	var $csvHeaderFields = array
 	(
-		'Play',
+		'Options',
 		'Date / Time',
 		'UTC Date / Time',
 		'End Date / Time',
@@ -1102,8 +1194,6 @@ class ArchivingExportApp extends BaseApp
 
 try
 {
-	echo "blah\n";
-	
 	if (CLI::get('--help', false) !== false)
 		usage();
 
