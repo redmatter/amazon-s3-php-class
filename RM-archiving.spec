@@ -242,6 +242,7 @@ cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
+cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
 
 # Other scripts
 cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
@@ -524,6 +525,7 @@ fi
 %files qascripts
 %defattr(-,root,root)
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
+%attr(755,root,root) /usr/bin/send-test-eml.php
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
