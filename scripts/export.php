@@ -54,6 +54,8 @@ class ArchivingExportApp extends BaseApp
 	
 	private $hAPISearchDomain = null;
 	private $hAPILocName = null;
+	
+	private $passwordAESKey = null;
 
 	/**
 	 * run
@@ -68,6 +70,11 @@ class ArchivingExportApp extends BaseApp
 		$this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
 		$this->hAPILocName = $hAPIHost->get('LocName');
 		
+		if ($hAPIHost->InProduction())
+			$this->passwordAESKey = sha1($config->get('coreapi.logsexportq.aeskey', false));	
+		else
+			$this->passwordAESKey = sha1('UNSECURE');
+				
 		$config = $this->conf;
 /*
 		if (false === ($orgId = cli::get('--org', $config->get('extract.org_id', false))))
@@ -134,7 +141,8 @@ class ArchivingExportApp extends BaseApp
 		//$this->coreapi_dbc = MySQLiConnection::Get('coreapi_ro');
 
 		// Get Big SQL database connection
-		$this->big_dbc = MySQLiConnection::Get('bigsql');
+		//$this->big_dbc = MySQLiConnection::Get('bigsql');
+		$this->big_dbc = MySQLiConnection::Get('retention_ro');
 		
 		$requests = $this->getPendingExportRequests();
 		foreach ($requests as $request)
@@ -143,38 +151,32 @@ class ArchivingExportApp extends BaseApp
 			$orgId = (int)$request['OrgID'];
 			$userId = (int)$request['UserID'];
 			$type = $request['Type'];
+			$queryQID = $request['QueryQID'];
+			$resultIDs = array();
+			$resIDs = explode(',', $request['ResultIDs']);
+			foreach ($resIDs as $id)
+			{
+				$id = (int)$id;
+				if ($id > 0)
+					$resultIDs[$id] = $id;
+			}
+			$zipPassword = $request['Password'];
 			
-			$criteria = $request['Criteria'];
-				
 			try
 			{
 				$this->updateExportStatus($exportId, 'Processing');
 				
-				$xml = simplexml_load_string($criteria);
-				$passwordNodes = $xml->xpath("@Password");
-				$zipPassword = (string)$passwordNodes[0];
-				
-				$queueIdNodes = $xml->xpath("@QueueID");
-				$queueId = (int)(string)$queueIdNodes[0];
-				
-				$IDs = array();
-				$idNodes = $xml->xpath('UUIDs[1]/UUID/@Val');
-				foreach ($idNodes as $idNode)
-				{
-					$IDs[] = (string)$idNode;
-				}
-				
 				switch ($type)
 				{
 					case 'Call':
-						$result = $this->exportCallLogs($orgId, $userId, $exportId, $queueId, $IDs, $zipPassword);
+						$result = $this->exportCallLogs($exportId, $orgId, $userId, $queryQID, $resultIDs, $zipPassword);
 						
-						LogMessage("Successfully exported call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}, StorageKey: {$result->storageKey}");
+						LogMessage("Successfully exported call logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");
 						break;
 					
 					case 'SMS':
 						// TODO:
-						//$result = $this->exportSMSLogs($orgId, $userId, $exportId, $queueId, $zipPassword);
+						//$result = $this->exportSMSLogs($exportId, $orgId, $userId, $queryQID, $resultIDs, $zipPassword);
 						//break;
 						
 					default:
@@ -186,8 +188,7 @@ class ArchivingExportApp extends BaseApp
 			}
 			catch (Exception $e)
 			{
-				LogWarning("Failed to export {$type} logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$queueId}, Exception: {$e}");
-				
+				LogWarning("Failed to export {$type} logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}: Exception: {$e}");				
 				$this->updateExportStatus($exportId, 'Failed');
 			}
 		}
@@ -199,12 +200,12 @@ class ArchivingExportApp extends BaseApp
 		$this->cleanupExportStatus();
 		
 		$locName = $this->core_dbc->escape_string($this->hAPILocName);
-		
+				
 		$result = $this->core_dbc->query(
-			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `Criteria` ".
+			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '".$this->passwordAESKey."', `QueryQID`)) AS `Password` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
-			"AND `ClientLocation`='{$locName}' ORDER BY `Submitted` DESC, `ExportID` DESC LIMIT 100;"
+			"AND `ClientLocation`='{$locName}' ORDER BY `Submitted` ASC, `ExportID` ASC LIMIT 100;"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 
 		return $result;	
@@ -240,8 +241,8 @@ class ArchivingExportApp extends BaseApp
 						$additionalFields .= ", `Result`='{$result->result}' ";					
 					if (isset($result->policyID))
 						$additionalFields .= ", `PolicyID`='{$result->policyID}' ";
-					if (isset($result->storageKey))
-						$additionalFields .= ", `ExportURI`='{$result->storageKey}' ";
+					if (isset($result->exportURI))
+						$additionalFields .= ", `ExportURI`='{$result->exportURI}' ";
 				}
 				//break;
 			case 'Failed':
@@ -263,9 +264,11 @@ class ArchivingExportApp extends BaseApp
 		);
 	}
 		
-	private function exportCallLogs($orgId, $userId, $exportId, $logsId, $IDs, $zipPassword)
+	private function exportCallLogs($exportId, $orgId, $userId, $queryQID, $resultIDs, $zipPassword)
 	{
-		LogMessage("Starting export of call logs: OrgID: {$orgId}, UserID: {$userId}, ExportID: {$exportId}, LogsResultID: {$logsId}");
+		LogMessage("Starting export of call logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}");
+		
+		//throw new Exception("Testing");
 		
 		$baseDir = false;
 		$csvFile = false;
@@ -283,33 +286,29 @@ class ArchivingExportApp extends BaseApp
 			$searchStartTime = false;
 			$searchEndTime = false;
 			$callLogsData = array();
-			$this->getApiCallLogsData($orgId, $userId, $logsId, $searchStartTime, $searchEndTime, $callLogsData);
+			$this->getApiCallLogsData($orgId, $userId, $queryQID, $searchStartTime, $searchEndTime, $callLogsData);
 
 			$searchStartTime = $this->formatTime($searchStartTime, $timeZone, 'Y-m-d@H.i.s');
 			$searchEndTime = $this->formatTime($searchEndTime, $timeZone, 'Y-m-d@H.i.s');
 
 			//echo "logsData:\n".print_r($logsData);
 
-			$dbRetResults = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $logsId);
+			$dbRetResults = $this->getCallLogsAndRetentionDbResults($orgId, $userId, $queryQID);
 
-			$num_results = count($dbRetResults);
-			LogMessage("{$num_results} CallLogs returned");
+			LogMessage("Processing ".count($dbRetResults)." call log entries...");
 
 			$baseDir = "/tmp/redmatter/archiving/export/{$exportId}";
-
 			// ensure directory is removed first
-			LogDebug("basedir: {$baseDir}");
-			exec("rm -R -f {$baseDir}/");
-
+			$this->cleanDirectory($baseDir);
 			if (!$this->createDirectoryTree($baseDir))
 				throw new Exception("Failed to create temp directory '{$baseDir}'");
-
-			$csvFileName = "call-export-{$searchStartTime}-to-{$searchEndTime}";
+			$exportUUID = UUID::v4();
+			$csvFileName = "call-export-{$searchStartTime}-to-{$searchEndTime}-{$exportUUID}";
 			$csvFilePath = "{$baseDir}/{$csvFileName}.csv";
 
 			$csvFile = fopen($csvFilePath, 'w');
 			if ($csvFile === false)
-				throw new Exception("Failed to open CSV file for writing '{$csvFile}'");
+				throw new Exception("Failed to open CSV file for writing '{$csvFilePath}'");
 
 			$csvHeaderLine = implode(',', $this->csvHeaderFields);
 			if (fwrite($csvFile, $csvHeaderLine."\r\n") === false)
@@ -318,23 +317,23 @@ class ArchivingExportApp extends BaseApp
 			foreach ($dbRetResults as $dbRetResult)
 			{
 				$resID = (int)$dbRetResult['ResID'];
-				$callLogData = &$callLogsData[$resID];
-
-				$this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile);
+				if (empty($resultIDs) || isset($resultIDs[$resID]))
+				{	
+					$callLogData = &$callLogsData[$resID];
+					$this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile, $csvFileName);
+				}
 			}
 
 			fclose($csvFile);
 			$csvFile = false;
 			
-			$this->createZipArchive($baseDir, $csvFileName, "callrecordings/*.wav", $zipPassword);
+			$this->createZipArchive($baseDir, $csvFileName, "{$csvFileName}-recordings/*.wav", $zipPassword);
 			
 			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
-			//$storageKey = "callexport/{$orgId}/{$userId}/{$exportId}";
 			
-			$exportUUID = UUID::v4();
-			$zipStorageKey = "export/{$orgId}/{$exportUUID}";
+			$exportURI = "export/{$orgId}/{$exportUUID}";
 			
-			$this->uploadZipArchive($orgId, $defaultPolicyID, $zipFilePath, $zipStorageKey);
+			$this->uploadZipArchive($orgId, $defaultPolicyID, $zipFilePath, $exportURI);
 		}
 		catch (Exception $e)
 		{
@@ -355,18 +354,18 @@ class ArchivingExportApp extends BaseApp
 		
 		if (strlen($baseDir) > 0)
 		{
-			exec("rm -R -f {$baseDir}/");
+			//$this->cleanDirectory($baseDir);
 		}
 		
 		$result = new stdClass();
 		$result->policyID = $defaultPolicyID;
-		$result->storageKey = $zipStorageKey;
+		$result->exportURI = $exportURI;
 		$result->result = 'OK';
 		
 		return $result;
 	}
 
-	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile)
+	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile, $csvFileName)
 	{
 		$resID = (int)$res['ResID'];
 		//$logData = $logsData[$resID];
@@ -457,12 +456,16 @@ class ArchivingExportApp extends BaseApp
 		if ($recorded == 'YES')
 		{			
 			$prefix = $this->formatTime($time, $timeZone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$recordingRelPath = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix);
-			if (strlen($recordingRelPath) > 0)
+			$result = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName);
+			if (strlen($result) > 0)
 			{
 				//$options = "=HYPERLINK(\"{$recordingRelPath}\", \"Click to listen\")";
-				$options = "=HYPERLINK('{$recordingRelPath}')";
+				$options = "=HYPERLINK('{$result}')";
 			}
+			else if ($result === false)
+				$options = "No Access";
+			else
+				$options = "Not Available";
 		}
 		
 		$csvEntryFields = array
@@ -542,18 +545,18 @@ class ArchivingExportApp extends BaseApp
 		$client->setHeaders($headers);
 
 		$client->execute();
+		
 		$profilePesponse = trim($client->getResponse());
 		if (empty($profilePesponse))
-			throw new Exception("Failed to fetch user profile details for user ID {$userId}");
+			throw new Exception("Failed to fetch user profile details for user ID {$userId} (for determining timezone)");
 		
-		echo "profilePesponse:\n{$profilePesponse}\n";
+		//echo "profilePesponse:\n{$profilePesponse}\n";
 
 		$profileResponseDom = simplexml_load_string($profilePesponse);
-		if (!($profileResponseDom instanceof SimpleXMLElement)) {
+		if (!($profileResponseDom instanceof SimpleXMLElement)) 
 			throw new Exception("Failed to fetch user profile details for user ID {$userId}");
-		}
 		
-		$timeZone = '';
+		$timeZone = null;
 		$timeZoneValNode = $profileResponseDom->xpath('General[1]/DefTZ[1]/@Val');
 		if (!empty($timeZoneValNode)) 
 			$timeZone = (string)$timeZoneValNode[0];
@@ -566,12 +569,15 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		if (empty($timeZone))
+		{			
 			$timeZone = 'Europe/London';
+			LogMessage("Couldn't determine time zone for user ID {$userId} - defaulting to {$timeZone}");
+		}
 		
 		return new DateTimeZone($timeZone);
 	}
 
-	private function getApiCallLogsData($orgId, $userId, $logsId, &$searchStartTime, &$searchEndTime, &$logsData)
+	private function getApiCallLogsData($orgId, $userId, $queryQID, &$searchStartTime, &$searchEndTime, &$logsData)
 	{
 		$client = RestClient::createClient();
 		$client->setUrl('http://api.'.$this->hAPISearchDomain.'/newlogs/download');
@@ -579,22 +585,22 @@ class ArchivingExportApp extends BaseApp
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
 
-		$logsParamsXml = "<Parameters QID=\"{$logsId}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$userId}\"/>";
+		$logsParamsXml = "<Parameters QID=\"{$queryQID}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$userId}\"/>";
 		$client->setParameters($logsParamsXml);
 		
 		$client->execute();
 		
 		$logsResponse = trim($client->getResponse());
-		echo "logsResponse:\n{$logsResponse}\n";
+		//echo "logsResponse:\n{$logsResponse}\n";
 		
 		$logsResponseDom = simplexml_load_string($logsResponse);
 		if (!($logsResponseDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to fetch logs result for logs ID {$logsId}");
+			throw new Exception("Failed to fetch logs result for query QID {$queryQID}");
 		
 		$searchStartTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[1]/@Val');
 		$searchEndTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[2]/@Val');
 		if (empty($searchStartTimeNodes) || empty($searchEndTimeNodes))
-			throw new Exception("Failed to fetch logs search criteria for logs ID {$logsId}");
+			throw new Exception("Failed to fetch logs search criteria for query QID {$queryQID}");
 		$searchStartTime = (int)$searchStartTimeNodes[0];
 		$searchEndTime = (int)$searchEndTimeNodes[0];
 		
@@ -615,7 +621,7 @@ class ArchivingExportApp extends BaseApp
 		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/PolArchs[1]/P', $polArchs);
 		
 		if (count($fields) == 0)
-			throw new Exception("Failed to fetch logs result for logs ID {$logsId}");
+			throw new Exception("Failed to fetch logs result for logs query QID {$queryQID}");
 		
 		$this->getLogsData($logsResponseDom, $fields, $users, $devs, $policies, $logsData);	
 	}
@@ -654,11 +660,11 @@ class ArchivingExportApp extends BaseApp
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 
 		if (empty($result) || empty($result[0]) || empty($result[0]['PolicyID']))
-			throw new Exception("Could not get default {$type} policy ID for Org {$orgId}");
+			throw new Exception("Could not fetch default {$type} policy ID for Org {$orgId}");
 		return (int)$result[0]['PolicyID'];	
 	}	
 	
-	private function getCallLogsAndRetentionDbResults($orgId, $userId, $logsId)
+	private function getCallLogsAndRetentionDbResults($orgId, $userId, $queryQID)
 	{
 		return $this->big_dbc->query(
 			"SELECT \n" .
@@ -675,13 +681,13 @@ class ArchivingExportApp extends BaseApp
 			"rb.`PolicyVersion` AS `RetentionBLegPolicyVersion`, \n" . 
 			"rb.`State` AS `RetentionBLegState`, \n" . 
 			"rb.`Purged` AS `RetentionBLegPurged` \n" .
-			"FROM `Org_{$orgId}`.`Results_Logs_{$userId}_{$logsId}` l \n" .
+			"FROM `Org_{$orgId}`.`Results_Logs_{$userId}_{$queryQID}` l \n" .
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$orgId}` ra ON (l.`AUUID`=ra.`LegUUID`) \n" .
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$orgId}` rb ON (l.`BUUID`=rb.`LegUUID`)"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 
-	private function getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix)
+	private function getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName)
 	{
 		$resID = $logData['ResID'];
 		
@@ -721,12 +727,14 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		if (!$uuid)
-			return false;
+			return null;
 		
 		//LogDebug("Loading archiving policy ID {$policyID}");
 		//$policy = new ArchivingPolicy($this->core_dbc, $orgId, $policyID, 0/*$policyVersion*/, true, null/*$currentUser*/);
+		//if (ArchivingPolicy::Check()
+		//	return false;
 				
-		LogDebug("Processing result ID {$resID}: call is recorded retention entry UUID '{$uuid}'", null, 'D:ARCX');
+		//LogDebug("Processing result ID {$resID}: call is recorded retention entry UUID '{$uuid}'", null, 'D:ARCX');
 		/*
 		$uuid = substr($uuid, 0, 8) .
 			'-' . substr($uuid, 8, 4) .
@@ -785,10 +793,7 @@ class ArchivingExportApp extends BaseApp
 		{
 			LogVerbose("Processing {$storageKey}");
 			$extractedContent = ArchivingProcessFile::ProcessFileContent($response->body, $encryptionKey);
-			
-			//echo print_r($extracted_content);
-			
-			LogVerbose("Successfully processed {$storageKey}");
+			LogDebug("Successfully processed {$storageKey}");
 		}
 		catch (Exception $e)
 		{
@@ -796,8 +801,8 @@ class ArchivingExportApp extends BaseApp
 			return false;
 		}
 		
-		$callrecordingsDir = "{$baseDir}/callrecordings";
-		$wavFileRelPath = "callrecordings/{$prefix}-{$uuid}.wav";
+		$callrecordingsDir = "{$baseDir}/{$csvFileName}-recordings";
+		$wavFileRelPath = "{$csvFileName}-recordings/{$prefix}-{$uuid}.wav";
 		$wavFilePath = "{$baseDir}/{$wavFileRelPath}";
 		$wavFile = null;
 		
@@ -1135,9 +1140,18 @@ class ArchivingExportApp extends BaseApp
 		return true;
 	}
 
+	private function cleanDirectory($dir)
+	{
+		if (strpos($dir, '/tmp/') !== 0) {
+			LogWarning("Attempting to clean non-temp directory?");
+			return;
+		}		
+		exec("rm -R -f {$dir}/");	
+	}
+	
 	var $csvHeaderFields = array
 	(
-		'Options',
+		'Recording',
 		'Date / Time',
 		'UTC Date / Time',
 		'End Date / Time',
