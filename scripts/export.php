@@ -20,13 +20,10 @@ define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
-define('RM_CLI_APP', true);
-
-define('ARCHIVING_FILE_TYPE_UNKNOWN', 0);
-define('ARCHIVING_FILE_TYPE_CDR', 1);
-define('ARCHIVING_FILE_TYPE_RECORDING', 2);
+//define('RM_CLI_APP', true);
 
 require_once 'rmapp/class.BaseApp.php';
+require_once 'rmdaemonscripts/DaemonScripts.php';
 require_once 's3/S3.php';
 
 require_once 'restclient/RestClient.class.php';
@@ -44,7 +41,8 @@ require_once 'hPHP/hapi.php';
 */
 class ArchivingExportApp extends BaseApp
 {
-	//protected $org = null;
+	const CONFIG_PATH = '/etc/archiving/export.conf';
+	
 	private $api = null;
 	private $endpointDetails = array();
 	private $endpoints = array();
@@ -61,95 +59,75 @@ class ArchivingExportApp extends BaseApp
 	/**
 	 * run
 	 *
-	 * @tnhrows Exception
+	 * @throws Exception
 	 *
-	 * @return void
+	 * @return integer
 	 */
 	public function run()
 	{
 		$hAPIHost = new HAPIHost();
 		$this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
 		$this->hAPILocName = $hAPIHost->get('LocName');
+
+		$authCreds = $this->conf->get('coreapi.authorization_creds', false);
+		if (empty($authCreds))
+			throw new Exception('CoreAPI auth creds not configured');
 		
 		if ($hAPIHost->InProduction())
-			$this->passwordAESKey = sha1($this->conf->get('coreapi.logsexportq.aeskey', false));	
+			$this->passwordAESKey = $this->conf->get('coreapi.logsexportq.aeskey', false);	
 		else
-			$this->passwordAESKey = sha1('UNSECURE');
+			$this->passwordAESKey = 'UNSECURE';			
+		if (empty($this->passwordAESKey))
+			throw new Exception('LogExportQ AESKey not configured');
+		
+		$this->passwordAESKey = sha1($this->passwordAESKey);
 			
-		$this->zipFilesizeLimitMB = (int)$this->conf->get('export.zipfilesizelimitmb', 100);
+		$this->zipFilesizeLimitMB = (double)$this->conf->get('export.zipfilesizelimitmb', 100);
 				
-		$config = $this->conf;
-/*
-		if (false === ($orgId = cli::get('--org', $config->get('extract.org_id', false))))
-			throw new Exception('OrgID not given');
-
-		if (false === ($caseRef = cli::get('--case-ref', $config->get('extract.case_reference', false))))
-			throw new Exception('Case reference not given');
-
-		if (false === ($outDir = cli::get('--out-dir', $config->get('extract.output_dir', false))))
-			throw new Exception('Output dir not given');
-*/			
-		if (false === ($authCreds = cli::get('--auth-creds', $this->conf->get('coreapi.authorization_creds', false))))
-			throw new Exception('CoreAPI Auth creds not given');
-/*
-		if (false === ($username = cli::get('--user', $config->get('extract.username', false))))
-			throw new Exception('Username not given');
-
-		if (false === ($password = cli::get('--password', $config->get('extract.password', false))))
-			throw new Exception('Password not given');
-
-		$extractTypes = cli::get('--type', $config->get('extract.type', 'recording'));
-		$extractTypes = preg_split('/[;, ]+/', $extractTypes);
-		$extractTypes = array_map(
-			function($str)
-			{
-				$int = Archiving::GetFileType($str);
-				if ($int === Archiving::FILE_TYPE_UNKNOWN)
-					throw new Exception('Unknown file-type '.$str);
-
-				return $int;
-			},
-			$extractTypes
-		);
-
-		if (empty($extractTypes))
-			throw new Exception('No valid file-types specified');
-
-		$passcode = cli::get('--passcode', null);
-
-		$startDate = cli::get('--start-date', $config->get('extract.start_date', null));
-		$endDate = cli::get('--end-date', $config->get('extract.end_date', null));
-*/
-		$authorization = null;
 		$coreapi = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
-		API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
+		if (empty($coreapi))
+			throw new Exception('CoreAPI URL not configured');
 		
-		//LogMessage("authCreds[{$authCreds}]");
+		$authorizationSentry = null;
+		$requests = array();
+		try
+		{		
+			API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
+						
+			API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
+			
+			$this->api = array($coreapi, API::GetToken());
+			/** @noinspection PhpUnusedLocalVariableInspection */
+			$authorizationSentry = new ScopeSentry(
+				function()
+				{
+					//unset($this->api);
+					API::LogOut();
+				}
+			);
+			
+			// Get CoreAPI SQL connection
+			$this->coreDbc = MySQLiConnection::Get('coresql');
+			
+			// Get Big SQL database connection
+			$this->bigDbc = MySQLiConnection::Get('retention_ro');
+			
+			$requests = $this->getPendingExportRequests();
+		}	
+		catch (Exception $e)
+		{
+			LogWarning("Failed to run archiving exporter: Exception: {$e}");	
+			return 1;
+		}
 		
-		API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
-		
-		$this->api = array($coreapi, API::GetToken());
-		/** @noinspection PhpUnusedLocalVariableInspection */
-		$authorizationSentry = new ScopeSentry(
-			function()
-			{
-				//unset($this->api);
-				API::LogOut();
-			}
-		);
-		
-		// Get Core SQL connection
-		$this->coreDbc = MySQLiConnection::Get('coresql');
-		
-		//$this->coreapi_dbc = MySQLiConnection::Get('coreapi_ro');
-
-		// Get Big SQL database connection
-		//$this->big_dbc = MySQLiConnection::Get('bigsql');
-		$this->bigDbc = MySQLiConnection::Get('retention_ro');
-		
-		$requests = $this->getPendingExportRequests();
 		if (is_array($requests))
 		{
+			if (count($requests) == 0) 
+			{
+				LogDebug("No pending archiving export requests to service");	
+				return 0;
+			}
+			
 			foreach ($requests as $request)
 			{
 				$exportId = (int)$request['ExportID'];
@@ -198,7 +176,8 @@ class ArchivingExportApp extends BaseApp
 				}
 			}
 		}
-		exit(0);
+		
+		return 0;
 	}
 	
 	private function getPendingExportRequests()
@@ -274,8 +253,7 @@ class ArchivingExportApp extends BaseApp
 	{
 		LogMessage("Starting export of call logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}");
 		
-		//throw new Exception("Testing");
-		
+		$result = 'OK';		
 		$baseDir = false;
 		$csvFile = false;
 		$zipStorageKey = false;
@@ -330,6 +308,7 @@ class ArchivingExportApp extends BaseApp
 					if ($success == false)
 					{
 						// this will because we have reached zip file size limit
+						$result = 'OK (truncated)';
 						break;
 					}
 				}
@@ -340,13 +319,10 @@ class ArchivingExportApp extends BaseApp
 			
 			// finally add the csv file to the archive
 			$this->addToZipArchive($baseDir, "{$csvFileName}.zip", "{$csvFileName}.csv", $zipPassword);
-			
-			//$this->createZipArchive($baseDir, $csvFileName, "{$csvFileName}-recordings/*.wav", $zipPassword);
-			
-			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
-			
+
+			// Upload zip to S3						
+			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";		
 			$exportURI = "export/{$orgId}/{$exportUUID}";
-			
 			$this->uploadZipArchive($orgId, $policyID, $zipFilePath, $exportURI);
 		}
 		catch (Exception $e)
@@ -370,7 +346,7 @@ class ArchivingExportApp extends BaseApp
 		$result = new stdClass();
 		$result->policyID = $policyID;
 		$result->exportURI = $exportURI;
-		$result->result = 'OK';
+		$result->result = $result;
 		
 		return $result;
 	}
@@ -392,7 +368,6 @@ class ArchivingExportApp extends BaseApp
 			$recording = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName);
 			if (strlen($recording) > 0)
 			{
-				// TODO check if zip file too big
 				$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
 				if (file_exists($zipFilePath))
 					$zipFilesize = (int)filesize($zipFilePath);					
@@ -422,21 +397,16 @@ class ArchivingExportApp extends BaseApp
 				$recording = 'Not Available'; // i.e. hasn't been archived yet
 			}
 		}
-		
-		//$logData = $logsData[$resID];
-		
+				
 		$AUUID = $logData['AUUID'];
 		$BUUID = $logData['BUUID'];	
-		//$time = (int)$logData['Time'];
 		$policy = $logData['Policy'];
 		$from = $logData['From_User'];
 		$fromDev = $logData['From_Dev'];
-		//$fromNumber = $logData['From_Number'];
 		$fromHangup = $logData['From_HangUp'];
 		$toUser = $logData['To_User'];
 		$toDev = $logData['To_Dev'];
 		$toNumberDialled = $logData['To_NumberDialled'];
-		//$toNumber  = $logData['To_Number'];
 		$toHangup = $logData['To_HangUp'];
 		$timeHuntingSecs = $logData['Time_Hunting'];
 		$timeRingingSecs = $logData['Time_Ringing'];
@@ -984,42 +954,6 @@ class ArchivingExportApp extends BaseApp
 		
 		LogDebug("Added file {$relFileSpec} to export zip '{$zipFileName}' OK");
 	}	
-	/*
-	private function createZipArchive($baseDir, $csvFileName, $mediaFileSpec, $zipPassword)
-	{	
-		chdir($baseDir);
-		
-		$cmd = "7za a {$csvFileName}.zip {$csvFileName}.csv {$mediaFileSpec}";
-		LogVerbose("Zipping up export archive with command: {$cmd} -p********");
-		
-		$cmd .= " -p{$zipPassword}";
-		
-		$output = array();
-		$return_var = 0;
-		$zipRes = exec($cmd, $output, $return_var);
-		
-		$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
-		if (!file_exists($zipFilePath))
-		{
-			LogVerbose("zip result: {$zipRes}");
-			LogVerbose("returned: {$return_var}");
-			foreach ($output as $line)
-			{
-				LogVerbose("zip output: {$line}");
-			}				
-			throw new Exception("Failed to create zip file '{$zipFilePath}'");
-		}
-		
-		LogDebug("zip result: {$zipRes}");
-		LogDebug("returned: {$return_var}");
-		foreach ($output as $line)
-		{
-			LogDebug("zip output: {$line}");
-		}
-					
-		LogVerbose("Zipped up export archive OK");	
-	}
-	*/
 
 	private function uploadZipArchive($orgId, $policyID, $zipFilePath, $storageKey)
 	{		
@@ -1266,22 +1200,83 @@ class ArchivingExportApp extends BaseApp
 	);
 }
 
+/**
+ * Show usage help, optionally with error messag
+ *
+ * @param string $error error
+ *
+ * @return void
+ */
+function Usage($error = null)
+{
+	$self = basename(__FILE__, '.php');
+	if(!is_null($error))
+		$error = "\n\nERROR: $error\n\n";
+	else
+		$error = '';
+
+	echo <<<HELP
+
+Archiving Export$error
+(C) Red Matter Ltd. UK
+
+Usage: $self [--conf=/path/to/run.conf] [--no-daemon]
+
+HELP;
+}
+
+/*
+ * Terminate callback
+ *
+ * @param int $signo signal number
+ *
+ * @return void
+ */
+$terminateCallback = function($signo)
+{
+	LogVerbose("Received SIG:$signo - Terminating");
+	DaemonScripts::Terminate($signo);
+};
+
 try
 {
-	if (CLI::get('--help', false) !== false)
-		usage();
+	cli::init(null, array('auth-creds:', 'auth-hash:', 'conf:', 'help', 'no-daemon'));
 
-	$default_conf = getenv('PWD').'/archiving-export.conf';
-	echo "$default_conf\n";
-	
-	$config = CLI::get('--conf', $default_conf);
-	echo "config:".print_r($config)."\n";
-	if (!is_readable($config))
-		throw new Exception("No configuration given and no config found at {$config}; use --conf option to specify the config file");
+	if (true === cli::get('help', false))
+	{
+		Usage();
+		exit(0);
+	}
 
-	ArchivingExportApp::getInstance($config)->run();
+	$app = 	ArchivingExportApp::getInstance(cli::get('--conf', ArchivingExportApp::CONFIG_PATH));
+	$conf = $app->getConf();
+
+	if (false === cli::get('--no-daemon', false))
+	{
+		DaemonScripts::Initialise(
+			array(
+				'runasUid' => $conf->get('app.run_as_user', 'cdrmunch'),
+				'runasGid' => $conf->get('app.run_as_group', 'cdrmunch'),
+				'pidfilePath' => $conf->get('app.pid_file', '/var/run/archiving/rmarchexport.pid'),
+				'signalHandlers' => array(SIGTERM => $terminateCallback, SIGINT => $terminateCallback),
+				'sleepInterval' => array(5 /*seconds and*/, 0 /* micro second */),
+				'runnableFunction' => array($app, 'run')
+			)
+		);
+	}
+	else
+	{
+		// run once!!
+		exit($app->run());
+	}
+}
+catch (CLIUsageErrorException $e)
+{
+	Usage($e->getMessage());
+	exit(1);
 }
 catch (Exception $e)
 {
 	LogWarning($e);
+	exit(1);
 }

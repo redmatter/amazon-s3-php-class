@@ -85,6 +85,7 @@ Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-33483
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 Requires: RM-daemonscripts-php => 0.0.1-35099
+Requires: p7zip
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -234,6 +235,11 @@ cp scripts/purge-policy-fixer.conf %{buildroot}/etc/archiving/purge-policy-fixer
 cp scripts/rmarchpolfix.sh %{buildroot}/etc/rc.d/init.d/rmarchpolfix
 cp scripts/archiving-purge-policy-fixer-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 cp scripts/archiving-purge-policy-fixer-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-purge-policy-fixer
+cp scripts/export.php %{buildroot}/usr/bin/archiving-export
+cp scripts/export.conf %{buildroot}/etc/archiving/export.conf
+cp scripts/rmarchexport.sh %{buildroot}/etc/rc.d/init.d/rmarchexport
+cp scripts/archiving-export-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-export.conf
+cp scripts/archiving-export-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-export
 cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
 cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.conf
 
@@ -374,6 +380,11 @@ fi
 /sbin/chkconfig rmarchpolfix on
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
+	
+/sbin/chkconfig --add rmarchexport
+/sbin/chkconfig rmarchexport on
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."	
 
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
@@ -506,6 +517,7 @@ fi
 /usr/bin/archiving-sms-recovery
 /usr/bin/archiving-headerspatch
 /usr/bin/archiving-purge-policy-fixer
+/usr/bin/archiving-export
 /usr/share/archiving/archiving-checker.conf.sample
 /usr/share/archiving/archiving-extract.conf.sample
 /usr/share/archiving/archiving-sms-recovery.conf.sample
@@ -513,14 +525,18 @@ fi
 /etc/archiving/scripts-retention_ro.conf
 /etc/archiving/scripts-retention_rw.conf
 /etc/archiving/purge-policy-fixer.conf
+/etc/archiving/export.conf
 /etc/rsyslog.d/11-archiving-checker.conf
 /etc/rsyslog.d/11-archiving-extract.conf
 /etc/rsyslog.d/11-archiving-sms-recovery.conf
 /etc/rsyslog.d/11-archiving-headerspatch.conf
 /etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
+/etc/rsyslog.d/11-archiving-export.conf
 /etc/logrotate.d/archiving-headerspatch
 /etc/logrotate.d/archiving-purge-policy-fixer
+/etc/logrotate.d/archiving-export
 /etc/rc.d/init.d/rmarchpolfix
+/etc/rc.d/init.d/rmarchexport
 
 %files qascripts
 %defattr(-,root,root)
