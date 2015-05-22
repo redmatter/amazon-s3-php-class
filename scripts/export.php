@@ -14,7 +14,7 @@
 * @link     http://trac.redmatter.com/
 *
 */
-define('APP_NAME_', 'rm-archiving-export');
+define('APP_NAME_', 'rm-archexport');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
@@ -65,6 +65,8 @@ class ArchivingExportApp extends BaseApp
 	 */
 	public function run()
 	{
+		LogMessage("export archiver - run");
+		
 		$hAPIHost = new HAPIHost();
 		$this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
 		$this->hAPILocName = $hAPIHost->get('LocName');
@@ -76,14 +78,14 @@ class ArchivingExportApp extends BaseApp
 		if ($hAPIHost->InProduction())
 			$this->passwordAESKey = $this->conf->get('coreapi.logsexportq.aeskey', false);	
 		else
-			$this->passwordAESKey = 'UNSECURE';			
+			$this->passwordAESKey = 'UNSECURE';
 		if (empty($this->passwordAESKey))
 			throw new Exception('LogExportQ AESKey not configured');
 		
 		$this->passwordAESKey = sha1($this->passwordAESKey);
-			
+		
 		$this->zipFilesizeLimitMB = (double)$this->conf->get('export.zipfilesizelimitmb', 100);
-				
+		
 		$coreapi = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
 		if (empty($coreapi))
 			throw new Exception('CoreAPI URL not configured');
@@ -91,9 +93,9 @@ class ArchivingExportApp extends BaseApp
 		$authorizationSentry = null;
 		$requests = array();
 		try
-		{		
+		{
 			API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
-						
+			
 			API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
 			
 			$this->api = array($coreapi, API::GetToken());
@@ -124,7 +126,7 @@ class ArchivingExportApp extends BaseApp
 		{
 			if (count($requests) == 0) 
 			{
-				LogDebug("No pending archiving export requests to service");	
+				LogVerbose("No pending archiving export requests to service");	
 				return 0;
 			}
 			
@@ -223,7 +225,7 @@ class ArchivingExportApp extends BaseApp
 				if (is_object($result))
 				{
 					if (isset($result->result) && (strlen($result->result) > 0))
-						$additionalFields .= ", `Result`='{$result->result}' ";					
+						$additionalFields .= ", `Result`='{$result->result}' ";
 					if (isset($result->policyID))
 						$additionalFields .= ", `PolicyID`='{$result->policyID}' ";
 					if (isset($result->exportURI))
@@ -248,12 +250,12 @@ class ArchivingExportApp extends BaseApp
 			"WHERE `ExportID`={$exportId};"
 		);
 	}
-		
+	
 	private function exportCallLogs($exportId, $orgId, $userId, $queryQID, $resultIDs, $zipPassword)
 	{
-		LogMessage("Starting export of call logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}");
+		LogMessage("Starting call log export: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}");
 		
-		$result = 'OK';		
+		$result = 'OK';
 		$baseDir = false;
 		$csvFile = false;
 		$zipStorageKey = false;
@@ -281,9 +283,11 @@ class ArchivingExportApp extends BaseApp
 
 			LogMessage("Processing ".count($dbRetResults)." call log entries...");
 
-			$baseDir = "/tmp/redmatter/archiving/export/{$exportId}";
-			// ensure directory is removed first
+			$baseDir = "/tmp/rmarchexport";
 			$this->cleanDirectory($baseDir);
+			$baseDir = "{$baseDir}/{$exportId}";
+			
+			// ensure directory is removed first
 			if (!$this->createDirectoryTree($baseDir))
 				throw new Exception("Failed to create temp directory '{$baseDir}'");
 			$exportUUID = UUID::v4();
@@ -320,8 +324,8 @@ class ArchivingExportApp extends BaseApp
 			// finally add the csv file to the archive
 			$this->addToZipArchive($baseDir, "{$csvFileName}.zip", "{$csvFileName}.csv", $zipPassword);
 
-			// Upload zip to S3						
-			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";		
+			// Upload zip to S3
+			$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
 			$exportURI = "export/{$orgId}/{$exportUUID}";
 			$this->uploadZipArchive($orgId, $policyID, $zipFilePath, $exportURI);
 		}
@@ -331,50 +335,54 @@ class ArchivingExportApp extends BaseApp
 			
 			if ($csvFile !== false)
 				fclose($csvFile);
-												
+			
 			if (strlen($baseDir) > 0)
-				//$this->cleanDirectory($baseDir);
-				
+				$this->cleanDirectory($baseDir);
+			
 			throw $e;
 		}
 		
 		if (strlen($baseDir) > 0)
 		{
-			//$this->cleanDirectory($baseDir);
+			$this->cleanDirectory($baseDir);
 		}
 		
-		$result = new stdClass();
-		$result->policyID = $policyID;
-		$result->exportURI = $exportURI;
-		$result->result = $result;
+		$res = new stdClass();
+		$res->policyID = $policyID;
+		$res->exportURI = $exportURI;
+		$res->result = $result;
 		
-		return $result;
+		return $res;
 	}
 
 	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile, $csvFileName, $zipPassword)
-	{		
+	{
+		$AUUID = $logData['AUUID'];
+		$BUUID = $logData['BUUID'];			
 		$time = (int)$logData['Time'];
 		$fromNumber = $logData['From_Number'];
 		$toNumber  = $logData['To_Number'];
 		$recorded = $logData['Recorded'];
 		$resID = (int)$res['ResID'];
-				
-		LogDebug("Processing logs result ID {$resID} (Recorded: '{$recorded})...");
+		
+		LogVerbose("Processing logs result ID {$resID}, AUUID: {$AUUID}, Recorded: '{$recorded}'...");
 		
 		$recording = '';
 		if ($recorded == 'YES')
-		{			
+		{
 			$prefix = $this->formatTime($time, $timeZone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
 			$recording = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName);
 			if (strlen($recording) > 0)
 			{
+				LogVerbose("Fetched recording for result ID {$resID}: {$recording}");
+				
 				$zipFilePath = "{$baseDir}/{$csvFileName}.zip";
 				if (file_exists($zipFilePath))
-					$zipFilesize = (int)filesize($zipFilePath);					
+					$zipFilesize = (int)filesize($zipFilePath);
 				else
 					$zipFilesize = 0;
 				
-				$recordingFilesize = filesize("{$baseDir}/{$recording}");		
+				$recordingFilesize = filesize("{$baseDir}/{$recording}");
 				if (($recordingFilesize > 0) && (($zipFilesize+$recordingFilesize) >= ($this->zipFilesizeLimitMB * (1024.0*1024.0))))
 				{
 					LogWarning("ZIP archive would exceed {$this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
@@ -382,24 +390,22 @@ class ArchivingExportApp extends BaseApp
 				}
 				
 				$this->addToZipArchive($baseDir, "{$csvFileName}.zip", $recording, $zipPassword);
-								
-				//$options = "=HYPERLINK(\"{$recordingRelPath}\", \"Click to listen\")";
-				$recording = "=HYPERLINK('{$recording}')";
+				
+				//$recording = "=HYPERLINK(\"{$recording}\", \"Click to listen\")"; // haven't figured out how to get this working in a CSV file
+				$recording = "=HYPERLINK(\"{$recording}\")";
 			}
 			else if ($recording === false)
 			{
-				LogWarning("No authorisation to recording for result ID {$resID} - skipping recording file", null, 'U:ARCX');
-				$recording = 'Unauthorised'; // user doesn't have permission to access file
+				LogWarning("No authorisation to recording for result ID {$resID}, AUUID {$AUUID} - skipping recording file", null, 'U:ARCX');
+				$recording = '"Unauthorised"'; // user doesn't have permission to access file
 			}
 			else // if ($recording === null)
 			{
-				LogWarning("Recording for result ID {$resID} not available (hasn't been archived yet?)", null, 'U:ARCX');
-				$recording = 'Not Available'; // i.e. hasn't been archived yet
+				LogWarning("Recording for result ID {$resID}, AUUID {$AUUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
+				$recording = '"Not Available"'; // i.e. hasn't been archived yet
 			}
 		}
-				
-		$AUUID = $logData['AUUID'];
-		$BUUID = $logData['BUUID'];	
+		
 		$policy = $logData['Policy'];
 		$from = $logData['From_User'];
 		$fromDev = $logData['From_Dev'];
@@ -447,7 +453,7 @@ class ArchivingExportApp extends BaseApp
 			$flags='YES';
 		else
 			$flags='NO';
-						
+		
 		$transfer 			= $this->isFlagSet(0, $AFlags, $BFlags);
 		$attTransfer 		= $this->isFlagSet(1, $AFlags, $BFlags);
 		$blindTransfer 		= $this->isFlagSet(2, $AFlags, $BFlags);
@@ -475,7 +481,7 @@ class ArchivingExportApp extends BaseApp
 		$fromLabel = '';
 		$toType = '';
 		$toLabel = '';
-				
+		
 		$csvEntryFields = array
 		(
 			$recording,			// Recording
@@ -532,16 +538,18 @@ class ArchivingExportApp extends BaseApp
 			$pcap				// PCAP
 		);
 		
-		foreach ($csvEntryFields as &$csvEntryField)
+		foreach ($csvEntryFields as $index => &$csvEntryField)
 		{
-			$csvEntryField = "\"{$csvEntryField}\"";
+			if ($index != 0)
+				// don't quote recording field as HYPERLINK macro won't work
+				$csvEntryField = "\"{$csvEntryField}\"";
 		}
 		$csvEntryLine = implode(',', $csvEntryFields);
 		
 		if (fwrite($csvFile, $csvEntryLine."\r\n") === false)
 			throw new Exception("Failed to write entry line to CSV file");
 		
-		// OK	
+		// OK
 		return true;
 	}
 
@@ -578,7 +586,7 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		if (empty($timeZone))
-		{			
+		{
 			$timeZone = 'Europe/London';
 			LogMessage("Couldn't determine time zone for user ID {$userId} - defaulting to {$timeZone}");
 		}
@@ -612,10 +620,7 @@ class ArchivingExportApp extends BaseApp
 			throw new Exception("Failed to fetch logs search criteria for query QID {$queryQID}");
 		$searchStartTime = (int)$searchStartTimeNodes[0];
 		$searchEndTime = (int)$searchEndTimeNodes[0];
-		
-		LogDebug("searchStartTime: {$searchStartTime}");
-		LogDebug("searchEndTime: {$searchEndTime}");
-		
+				
 		$fields = array();
 		$policies = array();
 		$users = array();
@@ -671,7 +676,7 @@ class ArchivingExportApp extends BaseApp
 		if (empty($result) || empty($result[0]) || empty($result[0]['PolicyID']))
 			throw new Exception("Could not fetch default {$type} policy ID for Org {$orgId}");
 		return (int)$result[0]['PolicyID'];	
-	}	
+	}
 	
 	private function getCallLogsAndRetentionDbResults($orgId, $userId, $queryQID)
 	{
@@ -742,7 +747,7 @@ class ArchivingExportApp extends BaseApp
 		//$policy = new ArchivingPolicy($this->coreDbc, $orgId, $policyID, 0/*$policyVersion*/, true, null/*$currentUser*/);
 		//if (ArchivingPolicy::Check()
 		//	return false;
-				
+		
 		//LogDebug("Processing result ID {$resID}: call is recorded retention entry UUID '{$uuid}'", null, 'D:ARCX');
 		/*
 		$uuid = substr($uuid, 0, 8) .
@@ -750,7 +755,7 @@ class ArchivingExportApp extends BaseApp
 			'-' . substr($uuid, 12, 4) .
 			'-' . substr($uuid, 16, 4) .
 			'-' . substr($uuid, 20);*/
-/*					
+/*		
 		echo "========== ArchivingChecker::Check $uuid...\n";
 		
 		$obj = ArchivingChecker::Check(ARCHIVING_FILE_TYPE_RECORDING, 2, $uuid);
@@ -921,7 +926,7 @@ class ArchivingExportApp extends BaseApp
 	}
 	
 	private function addToZipArchive($baseDir, $zipFileName, $relFileSpec, $zipPassword)
-	{	
+	{
 		chdir($baseDir);
 		
 		$cmd = "7za a {$zipFileName} {$relFileSpec}";
@@ -941,7 +946,7 @@ class ArchivingExportApp extends BaseApp
 			foreach ($output as $line)
 			{
 				LogVerbose("zip output: {$line}");
-			}				
+			}
 			throw new Exception("Failed to create zip file '{$zipFilePath}'");
 		}
 		
@@ -953,10 +958,10 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		LogDebug("Added file {$relFileSpec} to export zip '{$zipFileName}' OK");
-	}	
+	}
 
 	private function uploadZipArchive($orgId, $policyID, $zipFilePath, $storageKey)
-	{		
+	{
 		$bucket = $this->getEndpointDetails($orgId, $policyID, 0/*policyVersion*/)->bucket;
 		$s3 = $this->getS3Endpoint($orgId, $policyID, 0/*policyVersion*/);		
 		
@@ -965,7 +970,7 @@ class ArchivingExportApp extends BaseApp
 		$headers = array();
 		if (!$s3->putObjectFile($zipFilePath, $bucket, $storageKey, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
 			throw new Exception("Failed to store file '{$zipFilePath}' in S3 bucket: {$bucket}, storageKey: {$storageKey}");
-					
+		
 		LogVerbose("Uploaded export zip to S3 OK");
 	}
 	
@@ -1120,7 +1125,7 @@ class ArchivingExportApp extends BaseApp
 			if (!is_dir($path))
 			{
 				$oldmask = umask(0);
-				$success = (bool)mkdir($path, 0755);
+				$success = (bool)mkdir($path, 0700);
 				umask($oldmask);
 				if (!$success)
 				{
@@ -1139,8 +1144,8 @@ class ArchivingExportApp extends BaseApp
 		if (strpos($dir, '/tmp/') !== 0) {
 			LogWarning("Attempting to clean non-temp directory?");
 			return;
-		}		
-		exec("rm -R -f {$dir}/");	
+		}
+		exec("rm -R -f {$dir}/");
 	}
 	
 	var $csvHeaderFields = array
@@ -1241,16 +1246,16 @@ $terminateCallback = function($signo)
 try
 {
 	cli::init(null, array('auth-creds:', 'auth-hash:', 'conf:', 'help', 'no-daemon'));
-
+	
 	if (true === cli::get('help', false))
 	{
 		Usage();
 		exit(0);
 	}
-
-	$app = 	ArchivingExportApp::getInstance(cli::get('--conf', ArchivingExportApp::CONFIG_PATH));
+	
+	$app = ArchivingExportApp::getInstance(cli::get('--conf', ArchivingExportApp::CONFIG_PATH));	
 	$conf = $app->getConf();
-
+	
 	if (false === cli::get('--no-daemon', false))
 	{
 		DaemonScripts::Initialise(
@@ -1259,7 +1264,7 @@ try
 				'runasGid' => $conf->get('app.run_as_group', 'cdrmunch'),
 				'pidfilePath' => $conf->get('app.pid_file', '/var/run/archiving/rmarchexport.pid'),
 				'signalHandlers' => array(SIGTERM => $terminateCallback, SIGINT => $terminateCallback),
-				'sleepInterval' => array(5 /*seconds and*/, 0 /* micro second */),
+				'sleepInterval' => array(3 /*seconds and*/, 0 /* micro second */),
 				'runnableFunction' => array($app, 'run')
 			)
 		);
