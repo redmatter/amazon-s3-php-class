@@ -25,10 +25,12 @@ $mms = $verbose = $help = false;
 $send = true;
 $count = 1;
 $domain = 'redmatter.com';
-$sms_size = 100;
+$sms_size = 0;
 $mms_size = '600x100';
 $mms_content_fname = null;
 $mms_content_type = null;
+$out_fname = null;
+$str = null;
 $a = 1;
 while ($a < $argc)
 {
@@ -48,8 +50,12 @@ while ($a < $argc)
 	}
 	else if (!strcmp($argv[$a], '-v'))				$verbose = true;
 	else if (!strcmp($argv[$a], '-nosend'))			$send = false;
-	else
+	else if (!strcmp($argv[$a], '-of'))				$out_fname = $argv[++$a];
+	else if (!strcmp($argv[$a], '-str'))			$str = $argv[++$a];
+	else {
+		echo "Unknown command line options '{$argv[$a]}'\n";
 		$help = true;
+	}
 	++$a;
 }
 if (!$smtp || !$from_number || !$to_number)
@@ -96,6 +102,7 @@ if ($verbose)
 	echo "  message type     " . ($mms ? 'mms' : 'sms') . "\n";
 	echo "  count            $count\n";
 	echo "  domain           '$domain'\n";
+	echo "  str              '$str'\n";
 	echo "  SMS size         $sms_size\n";
 	echo "  MMS size         $mms_size\n";
 	echo "  MMS content file '$mms_content_fname' '$mms_content_type'\n";
@@ -130,39 +137,73 @@ for ($a=0; $a<$count; ++$a)
 			"Subject: $app_name $to_number\r\n" .
 			"Date: " . date('r') . "\r\n" .
 			"Message-ID: <" . rand(1000000, 9999999) . '.' . rand(10000, 99999) . '.' . rand(10000000, 99999999) . ".$app_name>\r\n" .
-			"Content-Transfer-Encoding: base64\r\n" .
 			"MIME-Version: 1.0\r\n";
 	// String
-	$str = 'This is test ' . ($mms ? 'MMS' : 'SMS') . ' message ' . ($a + 1) . '/' . $count . ' from '. getHostByName(php_uname('n')) . ' created on ' . date('r');
+	$str2 = strlen($str) ? $str : 'This is test ' . ($mms ? 'MMS' : 'SMS') . ' message ' . ($a + 1) . '/' . $count . ' from '. getHostByName(php_uname('n')) . ' created on ' . date('r');
 
 	// If SMS
 	if (!$mms)
 	{
-		$eml .= "Content-Type: text/plain\r\n\r\n";
-		$str2 = $str . ' ';
-		$b = 0;
-		while(strlen($str2) < $sms_size)
-			$str2 .= $b++ % 10;
-		$eml .= base64_encode($str2);
+		$eml .= "Content-Type: text/plain\r\n" .
+				"Content-Transfer-Encoding: base64\r\n" .
+				"\r\n";
+		$str3 = $str2;
+		if ($sms_size && strlen($str3) < $sms_size)
+		{
+			$str3 .= ' ';
+			$b = 0;
+			while(strlen($str3) < $sms_size)
+				$str3 .= $b++ % 10;
+		}
+		$eml .= base64_encode($str3);
 	}
 	// Else MMS
 	else
 	{
-		// If content provided
+		// Determine filename
 		if ($mms_content)
 		{
 			$path_parts = pathinfo($mms_content_fname);
+			$fname = 'payload.' . $path_parts['extension'];
+			$content_type = $mms_content_type;
+		}
+		else {
+			$fname = 'payload.gif';
+			$content_type = 'image/gif';
+		}
+
+		// Multipart content
+		$boundary = '_boundary_' . rand(1000, 10000) . '_';
+		$eml .=	"Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n" .
+				"\r\n" .
+				"--$boundary\r\n" .
+				"Content-Type: text/html; charset=\"utf-8\"\r\n" .
+				"Content-Transfer-Encoding: base64\r\n" .
+				"\r\n" .
+				base64_encode('<html><body bgcolor="#CCCCCC"><pre><img src="cid:' . $fname . '" type="' . $content_type . '"></pre></body></html>') . "\r\n" .
+				"\r\n" .
+				"--$boundary\r\n";
+
+		// If content provided
+		if ($mms_content)
+		{
 			$eml .=	"Content-Type: $mms_content_type\r\n" .
-					"Content-Disposition: filename=payload." . $path_parts['extension'] . ";\r\n" .
-					"\r\n";
-			$eml .= base64_encode($mms_content);
+					"Content-Transfer-Encoding: base64\r\n" .
+					"Content-ID: <$fname>\r\n" .
+					"Content-Disposition: filename=$fname;\r\n" .
+					"\r\n" .
+					base64_encode($mms_content) . "\r\n" .
+					"\r\n" .
+					"--$boundary--\r\n";
 		}
 		// Else
 		else
 		{
 			// Construct .gif image with a noisy background (which is difficult for GIF to compress) and add some text
-			$eml .=	"Content-Type: image/gif\r\n" .
-					"Content-Disposition: filename=payload.gif;\r\n" .
+			$eml .=	"Content-Type: $content_type\r\n" .
+					"Content-Transfer-Encoding: base64\r\n" .
+					"Content-ID: <$fname>\r\n" .
+					"Content-Disposition: filename=$fname;\r\n" .
 					"\r\n";
 			if (!$tile_im)
 			{
@@ -184,35 +225,43 @@ for ($a=0; $a<$count; ++$a)
 			}
 			imagefilledrectangle($im, 0, 10, $xs, 30, 0xc0c0ff);
 			imagerectangle($im, 0, 10, $xs, 30, 0x00ff00);
-			imagestring($im, 2, 2, 13, $str, 0x0000ff);
+			imagestring($im, 2, 2, 13, $str2, 0x0000ff);
 			imagerectangle($im, 0, 0, $xs - 1, $ys - 1, 0xff0000);
 			// Output image to buffer
 			ob_start();
 			imagegif($im);
 			imagedestroy($im);
 			$data = ob_get_clean();
-			$eml .= base64_encode($data);
+			$eml .=	base64_encode($data) . "\r\n" .
+					"\r\n" .
+					"--$boundary--\r\n";
 			if (ob_get_length() > 0)
 				ob_end_clean();
 		}
 	}
-	// Create tmp file with eml data
-	if (($tmp_fname = tempnam('/tmp', $app_name . '-')) === false)
-		echo "Unable to obtain a temp filename\n";
-	else {
+	// Create file with eml data
+	$fname = $out_fname;
+	if (!strlen($fname))
+	{
+		if (($fname = tempnam('/tmp', $app_name . '-')) === false)
+			echo "Unable to obtain a temp filename\n";
+	}
+	if (strlen($fname))
+	{
 		if ($verbose)
-			echo "Creating file '$tmp_fname' which contains:\n  " . str_replace("\n", "\n  ", $eml) . "\n";
-		if (file_put_contents($tmp_fname, $eml) === false)
-			echo "Unable to create file '$tmp_fname'\n";
+			echo "Creating file '$fname' which contains:\n  " . str_replace("\n", "\n  ", $eml) . "\n";
+		if (file_put_contents($fname, $eml) === false)
+			echo "Unable to create file '$fname'\n";
 		else {
 			// Send eml file using curl
-			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "' . ($mms ? 'mms' : 'sms') . '@telia-capture.' . $domain . '" --upload-file ' . $tmp_fname . ' 2> /dev/null';
+			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "' . ($mms ? 'mms' : 'sms') . '@telia-capture.' . $domain . '" --upload-file ' . $fname . ' 2> /dev/null';
 			if ($verbose)
 				echo "Sending request using following cmd:\n  $cmd\n";
 			if ($send)
 				system($cmd);
-			// Done with tmp file
-			unlink($tmp_fname);
+			// If tmp file used, delete
+			if (!strlen($out_fname))
+				unlink($fname);
 		}
 	}
 }
