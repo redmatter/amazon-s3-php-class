@@ -110,7 +110,7 @@ class ArchivingExportApp extends BaseApp
 			$this->coreDbc = MySQLiConnection::Get('coresql');
 			
 			// Get Big SQL database connection
-			$this->bigDbc = MySQLiConnection::Get('retention_ro');
+			$this->bigDbc = MySQLiConnection::Get('retention_rw');
 			
 			$requests = $this->getPendingExportRequests();
 		}	
@@ -185,9 +185,9 @@ class ArchivingExportApp extends BaseApp
 	{
 		$this->cleanupExportStatus();
 		
-		$locName = $this->coreDbc->escape_string($this->hAPILocName);
+		$locName = $this->bigDbc->escape_string($this->hAPILocName);
 				
-		$result = $this->coreDbc->query(
+		$result = $this->bigDbc->query(
 			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, `ServiceFailedCount` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
@@ -199,9 +199,9 @@ class ArchivingExportApp extends BaseApp
 		
 	private function cleanupExportStatus()
 	{
-		$locName = $this->coreDbc->escape_string($this->hAPILocName);
+		$locName = $this->bigDbc->escape_string($this->hAPILocName);
 		
-		$this->coreDbc->query(
+		$this->bigDbc->query(
 			"UPDATE `Aux`.`LogsExportQ` ".
 			"SET `Status`='Pending' ".
 			"WHERE `Status`='Processing' ".
@@ -251,9 +251,9 @@ class ArchivingExportApp extends BaseApp
 				break;
 		}
 		
-		$status = $this->coreDbc->escape_string($status);
+		$status = $this->bigDbc->escape_string($status);
 		
-		$this->coreDbc->query(
+		$this->bigDbc->query(
 			"UPDATE `Aux`.`LogsExportQ` ".
 			"SET `Status`='{$status}' ". 
 			$additionalFields .
