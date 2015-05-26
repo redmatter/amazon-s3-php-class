@@ -19,7 +19,7 @@
 error_reporting(~E_WARNING);
 
 // Process cmd line args
-$app_name = str_replace('./', '', str_replace('.php', '', $argv[0]));
+$app_name = 'send-test-eml';
 $smtp = $from_number = $to_number = null;
 $mms = $verbose = $help = false;
 $send = true;
