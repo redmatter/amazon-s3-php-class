@@ -65,8 +65,6 @@ class ArchivingExportApp extends BaseApp
 	 */
 	public function run()
 	{
-		LogMessage("export archiver - run");
-		
 		$hAPIHost = new HAPIHost();
 		$this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
 		$this->hAPILocName = $hAPIHost->get('LocName');
@@ -139,6 +137,7 @@ class ArchivingExportApp extends BaseApp
 				$queryQID = $request['QueryQID'];
 				$resultIDs = array();
 				$resIDs = explode(',', $request['ResultIDs']);
+				$serviceFailedCount = (int)$request['ServiceFailedCount'];
 				foreach ($resIDs as $id)
 				{
 					$id = (int)$id;
@@ -174,7 +173,7 @@ class ArchivingExportApp extends BaseApp
 				catch (Exception $e)
 				{
 					LogWarning("Failed to export {$type} logs: ExportID: {$exportId}, OrgID: {$orgId}, UserID: {$userId}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');	
-					$this->updateExportStatus($exportId, 'Failed');
+					$this->updateExportStatus($exportId, 'Failed', $serviceFailedCount);
 				}
 			}
 		}
@@ -189,7 +188,7 @@ class ArchivingExportApp extends BaseApp
 		$locName = $this->coreDbc->escape_string($this->hAPILocName);
 				
 		$result = $this->coreDbc->query(
-			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password` ".
+			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, `ServiceFailedCount` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
 			"AND `ClientLocation`='{$locName}' ORDER BY `Submitted` ASC, `ExportID` ASC LIMIT 100;"
@@ -219,8 +218,9 @@ class ArchivingExportApp extends BaseApp
 		{
 			case 'Processing':
 				$startTime = microtime(true/*asFloat*/);
-				$additionalFields = ", `LastServiceAttempt`=NOW() ";
+				$additionalFields = ", `LastServiceAttempt`=NOW(), NextServiceAttempt=NULL ";
 				break;
+				
 			case 'Complete':
 				if (is_object($result))
 				{
@@ -231,11 +231,21 @@ class ArchivingExportApp extends BaseApp
 					if (isset($result->exportURI))
 						$additionalFields .= ", `ExportURI`='{$result->exportURI}' ";
 				}
-				//break;
+				
+				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
+				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
+				
+				$additionalFields .= ", `ServiceFailedCount`=NULL ";
+				break;
+				
 			case 'Failed':
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
 				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
+				
+				++$result;
+				$additionalFields .= ", `ServiceFailedCount`={$result} ";
 				break;
+				
 			default:
 				$additionalFields = '';
 				break;
@@ -308,7 +318,7 @@ class ArchivingExportApp extends BaseApp
 				if (empty($resultIDs) || isset($resultIDs[$resID]))
 				{	
 					$callLogData = &$callLogsData[$resID];
-					$success = $this->exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile, $csvFileName, $zipPassword);
+					$success = $this->exportCallLogEntry($orgId, $userId, $encryptionKey, $baseDir, $timeZone, $callLogData, $dbRetResult, $csvFile, $csvFileName, $zipPassword);
 					if ($success == false)
 					{
 						// this will because we have reached zip file size limit
@@ -355,7 +365,7 @@ class ArchivingExportApp extends BaseApp
 		return $res;
 	}
 
-	private function exportCallLogEntry($orgId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile, $csvFileName, $zipPassword)
+	private function exportCallLogEntry($orgId, $userId, $encryptionKey, $baseDir, $timeZone, $logData, $res, $csvFile, $csvFileName, $zipPassword)
 	{
 		$AUUID = $logData['AUUID'];
 		$BUUID = $logData['BUUID'];			
@@ -367,11 +377,11 @@ class ArchivingExportApp extends BaseApp
 		
 		LogVerbose("Processing logs result ID {$resID}, AUUID: {$AUUID}, Recorded: '{$recorded}'...");
 		
-		$recording = '';
+		$recording = '"None"';
 		if ($recorded == 'YES')
 		{
 			$prefix = $this->formatTime($time, $timeZone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$recording = $this->getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName);
+			$recording = $this->getCallRecording($orgId, $userId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName);
 			if (strlen($recording) > 0)
 			{
 				LogVerbose("Fetched recording for result ID {$resID}: {$recording}");
@@ -397,7 +407,7 @@ class ArchivingExportApp extends BaseApp
 			else if ($recording === false)
 			{
 				LogWarning("No authorisation to recording for result ID {$resID}, AUUID {$AUUID} - skipping recording file", null, 'U:ARCX');
-				$recording = '"Unauthorised"'; // user doesn't have permission to access file
+				$recording = '"Access Denied"'; // user doesn't have permission to access file
 			}
 			else // if ($recording === null)
 			{
@@ -565,13 +575,16 @@ class ArchivingExportApp extends BaseApp
 		
 		$profilePesponse = trim($client->getResponse());
 		if (empty($profilePesponse))
-			throw new Exception("Failed to fetch user profile details for user ID {$userId} (for determining timezone)");
+			throw new Exception("Failed to fetch user profile details for user ID {$userId}");
+			
+		if ($client->getResponseCode() != 200)	
+			throw new Exception("Failed to fetch user profile details for user ID {$userId}, response: {$profilePesponse}");
 		
 		//echo "profilePesponse:\n{$profilePesponse}\n";
 
 		$profileResponseDom = simplexml_load_string($profilePesponse);
 		if (!($profileResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch user profile details for user ID {$userId}");
+			throw new Exception("Failed to fetch user profile details for user ID {$userId}, response: {$profilePesponse}");
 		
 		$timeZone = null;
 		$timeZoneValNode = $profileResponseDom->xpath('General[1]/DefTZ[1]/@Val');
@@ -608,16 +621,22 @@ class ArchivingExportApp extends BaseApp
 		$client->execute();
 		
 		$logsResponse = trim($client->getResponse());
+		if (empty($logsResponse))	
+			throw new Exception("Failed to fetch logs result for query QID {$queryQID}");		
+		
 		//echo "logsResponse:\n{$logsResponse}\n";
 		
+		if (($client->getResponseCode() != 200) && ($client->getResponseCode() != 201))
+			throw new Exception("Failed to fetch logs result for query QID {$queryQID}, response: {$logsResponse}");
+				
 		$logsResponseDom = simplexml_load_string($logsResponse);
 		if (!($logsResponseDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to fetch logs result for query QID {$queryQID}");
+			throw new Exception("Failed to fetch logs result for query QID {$queryQID}, response: {$logsResponse}");
 		
 		$searchStartTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[1]/@Val');
 		$searchEndTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[2]/@Val');
 		if (empty($searchStartTimeNodes) || empty($searchEndTimeNodes))
-			throw new Exception("Failed to fetch logs search criteria for query QID {$queryQID}");
+			throw new Exception("Failed to fetch logs search criteria for query QID {$queryQID}, response: {$logsResponse}");
 		$searchStartTime = (int)$searchStartTimeNodes[0];
 		$searchEndTime = (int)$searchEndTimeNodes[0];
 				
@@ -686,11 +705,13 @@ class ArchivingExportApp extends BaseApp
 			"LOWER(HEX(l.`BUUID`)) AS `HexBUUID`, \n" .
 			"l.*, \n" .
 			"ra.`LegUUID` AS `RetentionALegUUID`, \n" .
+			"ra.`UserID` AS `RetentionALegUserID`, \n" .
 			"ra.`PolicyID` AS `RetentionALegPolicyID`, \n" .
 			"ra.`PolicyVersion` AS `RetentionALegPolicyVersion`, \n" . 
 			"ra.`State` AS `RetentionALegState`, \n" . 
 			"ra.`Purged` AS `RetentionALegPurged`, \n" . 
 			"rb.`LegUUID` AS `RetentionBLegUUID`, \n" .
+			"rb.`UserID` AS `RetentionBLegUserID`, \n" .
 			"rb.`PolicyID` AS `RetentionBLegPolicyID`, \n" .
 			"rb.`PolicyVersion` AS `RetentionBLegPolicyVersion`, \n" . 
 			"rb.`State` AS `RetentionBLegState`, \n" . 
@@ -701,13 +722,14 @@ class ArchivingExportApp extends BaseApp
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 
-	private function getCallRecording($orgId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName)
+	private function getCallRecording($orgId, $userId, $encryptionKey, $baseDir, $logData, $res, $prefix, $csvFileName)
 	{
 		$resID = $logData['ResID'];
 		
 		$uuid = false;
 		$policyVersion = false;
 		$policyID = false;
+		$ownerUserID = false;
 
 		if (!empty($res['RetentionALegUUID']))
 		{
@@ -715,7 +737,8 @@ class ArchivingExportApp extends BaseApp
 			{
 				$uuid = $logData['AUUID'];
 				$policyVersion = $res['RetentionALegPolicyVersion'];
-				$policyID = $res['RetentionALegPolicyID'];
+				$policyID = (int)$res['RetentionALegPolicyID'];
+				$ownerUserID = (int)$res['RetentionALegUserID'];
 			}
 			else
 			{
@@ -728,7 +751,8 @@ class ArchivingExportApp extends BaseApp
 			{
 				$uuid = $logData['BUUID'];
 				$policyVersion = $res['RetentionBLegPolicyVersion'];
-				$policyID = $res['RetentionBLegPolicyID'];
+				$policyID = (int)$res['RetentionBLegPolicyID'];
+				$ownerUserID = (int)$res['RetentionBLegUserID'];
 			}
 			else
 			{
@@ -741,30 +765,17 @@ class ArchivingExportApp extends BaseApp
 		}
 		
 		if (!$uuid)
+		{
+			// recording not available
 			return null;
+		}
+					
+		if (!$this->checkArchivingPolicyPermission($orgId, $userId, $policyID, $ownerUserID))
+		{ 
+			// No authorisation
+			return false;
+		}
 		
-		//LogDebug("Loading archiving policy ID {$policyID}");
-		//$policy = new ArchivingPolicy($this->coreDbc, $orgId, $policyID, 0/*$policyVersion*/, true, null/*$currentUser*/);
-		//if (ArchivingPolicy::Check()
-		//	return false;
-		
-		//LogDebug("Processing result ID {$resID}: call is recorded retention entry UUID '{$uuid}'", null, 'D:ARCX');
-		/*
-		$uuid = substr($uuid, 0, 8) .
-			'-' . substr($uuid, 8, 4) .
-			'-' . substr($uuid, 12, 4) .
-			'-' . substr($uuid, 16, 4) .
-			'-' . substr($uuid, 20);*/
-/*		
-		echo "========== ArchivingChecker::Check $uuid...\n";
-		
-		$obj = ArchivingChecker::Check(ARCHIVING_FILE_TYPE_RECORDING, 2, $uuid);
-		
-		echo "========== obj:".print_r($obj)."\n";
-		
-		echo "========== ArchivingChecker::Check $uuid DONE\n";
-*/
-
 		// Get endpoint details from API
 		$bucket = $this->getEndpointDetails($orgId, $policyID, $policyVersion)->bucket;		
 		$s3 = $this->getS3Endpoint($orgId, $policyID, $policyVersion);
@@ -834,6 +845,41 @@ class ArchivingExportApp extends BaseApp
 		
 		return $wavFileRelPath;
 	}
+	
+	private function checkArchivingPolicyPermission($orgID, $userID, $policyID, $ownerUserID)
+	{
+		//archiving/policypermissions/$org, $policyId, $userId, $action
+		
+		LogVerbose("Checking CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}");
+		
+		$client = RestClient::createClient();
+		$client->setUrl("http://api.{$this->hAPISearchDomain}/archiving/policypermissions/{$orgID}/{$policyID}/{$userID}/{$ownerUserID}/read");
+		$client->setMethod('GET');	
+		$headers = array("Authorization" => API::GetToken());
+		$client->setHeaders($headers);
+		
+		$client->execute();
+		
+		$permsResponse = trim($client->getResponse());
+		if (empty($permsResponse))
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
+		
+		if ($client->getResponseCode() != 200)
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+		
+		$permsResponseDom = simplexml_load_string($permsResponse);
+		if (!($permsResponseDom instanceof SimpleXMLElement))
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+			
+		$nodes = $permsResponseDom->xpath('@Allowed');
+		if (empty($nodes))
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+			
+		LogDebug("Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");	
+		
+		$allowed = (string)$nodes[0];
+		return ($allowed == 'YES');
+	}	
 	
 	private function getLogsIDMap($dom, $xpath, &$map)
 	{
