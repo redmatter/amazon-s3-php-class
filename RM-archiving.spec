@@ -93,6 +93,7 @@ Group: RedMatter/Archiving
 #Requires: RM-%{appname}-scripts >= %{version}-%{release}
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
+Requires: php-gd
 
 %package eml2a
 Summary: Tools to puush SMS and MMS email messages into archive
@@ -380,11 +381,11 @@ fi
 /sbin/chkconfig rmarchpolfix on
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
-	
+
 /sbin/chkconfig --add rmarchexport
 /sbin/chkconfig rmarchexport on
 /etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."	
+	echo "**WARNING** rsyslog not found; consider installing it."
 
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
