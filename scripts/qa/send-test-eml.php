@@ -203,7 +203,7 @@ for ($a=0; $a<$count; ++$a)
 			echo "Unable to create file '$tmp_fname'\n";
 		else {
 			// Send eml file using curl
-			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "sms@telia-capture.redmatter.com" --upload-file ' . $tmp_fname . ' 2> /dev/null';
+			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "' . ($mms ? 'mms' : 'sms') . '@telia-capture.redmatter.com" --upload-file ' . $tmp_fname . ' 2> /dev/null';
 			if ($verbose)
 				echo "Sending request using following cmd:\n  $cmd\n";
 			if ($send)
