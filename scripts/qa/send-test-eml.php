@@ -24,6 +24,7 @@ $smtp = $from_number = $to_number = null;
 $mms = $verbose = $help = false;
 $send = true;
 $count = 1;
+$domain = 'redmatter.com';
 $sms_size = 100;
 $mms_size = '600x100';
 $mms_content_fname = null;
@@ -37,6 +38,7 @@ while ($a < $argc)
 	else if (!strcmp($argv[$a], '-sms'))			$mms = false;
 	else if (!strcmp($argv[$a], '-mms'))			$mms = true;
 	else if (!strcmp($argv[$a], '-c'))				$count = (int)$argv[++$a];
+	else if (!strcmp($argv[$a], '-d'))				$domain = $argv[++$a];
 	else if (!strcmp($argv[$a], '-ss'))				$sms_size = (int)$argv[++$a];
 	else if (!strcmp($argv[$a], '-ms'))				$mms_size = $argv[++$a];
 	else if (!strcmp($argv[$a], '-mc'))
@@ -57,12 +59,12 @@ if ($help)
 	echo "$app_name.php (c) Redmatter 2015\n";
 	echo "Utility to send test eml files containing SMS or MMS to the eml2-milter process which then adds the entry to archiving\n";
 	echo "Use:\n";
-	echo "  $app_name.php -smtp smtp_server -from_number sender_number -to_number to_number [-sms [-ss size]|-mms [-ms XSizexYSize]|[-mc File ContentType]] [-c Count] [-v]\n";
+	echo "  $app_name.php -smtp smtp_server -from_number sender_number -to_number to_number [-sms [-ss size]|-mms [-ms XSizexYSize]|[-mc File ContentType]] [-d Domain] [-c Count] [-v]\n";
 	echo "E.g:\n";
 	echo "  To send one SMS which contains the default size of $sms_size characters\n";
 	echo "    $app_name.php -smtp londev07.redmatter.com -from_number 4792009479 -to_number 44792009478 -sms\n";
-	echo "  To send 10 SMS messages, each containing 200 characters\n";
-	echo "    $app_name.php -smtp londev07.redmatter.com -from_number 4792009479 -to_number 44792009478 -sms -ss 200 -c 10\n";
+	echo "  To send 10 SMS messages on QA, each containing 200 characters\n";
+	echo "    $app_name.php -smtp londev07.redmatter.com -from_number 4792009479 -to_number 44792009478 -sms -ss 200 -c 10 -d qa01.redmatter.com\n";
 	echo "  To send one MMS message where the image is the default size of $mms_size\n";
 	echo "    $app_name.php -smtp londev07.redmatter.com -from_number 4792009479 -to_number 44792009478 -mms -c 3 -v\n";
 	echo "  To send 5 MMS messages where the image size is 1000x800\n";
@@ -76,6 +78,7 @@ if ($help)
 	echo "  -sms                        Send a sms, the default\n";
 	echo "  -mms                        Send a mms\n";
 	echo "  -c Count                    Number of messages to send, default to 1\n";
+	echo "  -d Domain                   Domain to use, default is '$domain'\n";
 	echo "  -ss size                    Number of characters for SMS message, default is $sms_size\n";
 	echo "  -ms XSizexYSize             Image size for MMS messages, default is $mms_size\n";
 	echo "  -mc File ContentSize        MMS content file and content type if build in image not required\n";
@@ -92,6 +95,7 @@ if ($verbose)
 	echo "  to_number        '$to_number'\n";
 	echo "  message type     " . ($mms ? 'mms' : 'sms') . "\n";
 	echo "  count            $count\n";
+	echo "  domain           '$domain'\n";
 	echo "  SMS size         $sms_size\n";
 	echo "  MMS size         $mms_size\n";
 	echo "  MMS content file '$mms_content_fname' '$mms_content_type'\n";
@@ -120,8 +124,7 @@ if ($ys < $tile_ys)
 for ($a=0; $a<$count; ++$a)
 {
 	// Construct eml data
-	$domain = 'redmatter.com';
-	$from_mail = $app_name . '@redmatter.com';
+	$from_mail = $app_name . '@' . $domain;
 	$eml =	"From:<$from_number@$domain>\r\n" .
 			"To: <$to_number@$domain>\r\n" .
 			"Subject: $app_name $to_number\r\n" .
@@ -203,7 +206,7 @@ for ($a=0; $a<$count; ++$a)
 			echo "Unable to create file '$tmp_fname'\n";
 		else {
 			// Send eml file using curl
-			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "' . ($mms ? 'mms' : 'sms') . '@telia-capture.redmatter.com" --upload-file ' . $tmp_fname . ' 2> /dev/null';
+			$cmd = 'curl --url "smtp://' . $smtp . '" --mail-from "' . $from_mail . '" --mail-rcpt "' . ($mms ? 'mms' : 'sms') . '@telia-capture.' . $domain . '" --upload-file ' . $tmp_fname . ' 2> /dev/null';
 			if ($verbose)
 				echo "Sending request using following cmd:\n  $cmd\n";
 			if ($send)
