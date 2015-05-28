@@ -20,7 +20,7 @@ define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
-define('RM_CLI_APP', true);
+//define('RM_CLI_APP', true);
 
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
