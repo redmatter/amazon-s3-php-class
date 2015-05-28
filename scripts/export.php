@@ -20,7 +20,7 @@ define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
-//define('RM_CLI_APP', true);
+define('RM_CLI_APP', true);
 
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
@@ -53,6 +53,8 @@ abstract class ArchivingExport
 		
 	protected $endpointDetails = array();
 	protected $endpoints = array();
+	
+	const TEMP_DIR = '/tmp/rmarchexport';
 		
 	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword)
 	{
@@ -81,8 +83,8 @@ abstract class ArchivingExport
 		if ($this->csvFile !== false)
 			fclose($this->csvFile);
 		
-		if (strlen($this->baseDir) > 0)
-			$this->cleanDirectory($this->baseDir);
+		//if (is_dir(self::TEMP_DIR))
+		//	$this->cleanDirectory(self::TEMP_DIR);
 	}
 	
 	abstract public function type();
@@ -132,10 +134,9 @@ abstract class ArchivingExport
 
 		LogMessage("Processing ".count($dbRetResults)." ".$this->type()." log entries...");
 
-		$baseDir = "/tmp/rmarchexport";
-		$this->cleanDirectory($baseDir);
-		
-		$this->baseDir = "{$baseDir}/{$this->exportID}";
+		if (is_dir(self::TEMP_DIR))
+			$this->cleanDirectory(self::TEMP_DIR);	
+		$this->baseDir = self::TEMP_DIR."/{$this->exportID}";
 		
 		// ensure directory is removed first
 		if (!$this->createDirectoryTree($this->baseDir))
@@ -234,10 +235,12 @@ abstract class ArchivingExport
 		return new DateTimeZone($timezone);
 	}
 	
+	abstract protected function getApiLogsPath();
+	
 	protected function getApiLogsData(&$searchStartTime, &$searchEndTime, array &$logsData)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.'/newlogs/download');
+		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.$this->getApiLogsPath());
 		$client->setMethod('POST');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -251,7 +254,7 @@ abstract class ArchivingExport
 		if (empty($logsResponse))	
 			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");		
 		
-		//echo "logsResponse:\n{$logsResponse}\n";
+		echo "logsResponse:\n{$logsResponse}\n";
 		
 		if (($client->getResponseCode() != 200) && ($client->getResponseCode() != 201))
 			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
@@ -453,14 +456,6 @@ abstract class ArchivingExport
 		return $this->endpoints[$policyID][$policyVersion];
 	}
 
-	protected function isFlagSet($flag, $AFlags, $BFlags)
-	{
-		if (($AFlags & (1 << $flag)) || ($BFlags & (1 << $flag)))
-			return 'YES';
-		else
-			return '-';	
-	}
-
 	protected function formatTime($time, $timeZone, $format)
 	{
 		$dt = new DateTime();
@@ -528,6 +523,11 @@ class ArchivingCallExport extends ArchivingExport
 	public function type() { return 'call'; }
 	protected function archivingType() { return 'recording'; }
 	
+	protected function getApiLogsPath()
+	{
+		return '/newlogs/download';
+	}	
+	
 	protected function exportLogEntry(array &$logData, array &$res)
 	{
 		$AUUID = $logData['AUUID'];
@@ -544,7 +544,7 @@ class ArchivingCallExport extends ArchivingExport
 		if ($recorded == 'YES')
 		{
 			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$recording = $this->getCallRecording($logData, $res, $prefix);
+			$recording = $this->getArchivedRecording($logData, $res, $prefix);
 			if (strlen($recording) > 0)
 			{
 				LogVerbose("Fetched recording for result ID {$resID}: {$recording}");
@@ -846,7 +846,7 @@ class ArchivingCallExport extends ArchivingExport
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 	
-	private function getCallRecording(array $logData, array $res, $prefix)
+	private function getArchivedRecording(array $logData, array $res, $prefix)
 	{
 		$resID = $logData['ResID'];
 		
@@ -968,8 +968,16 @@ class ArchivingCallExport extends ArchivingExport
 		fclose($wavFile);
 		
 		return $wavFileRelPath;
-	}		
+	}
 	
+	private function isFlagSet($flag, $AFlags, $BFlags)
+	{
+		if (($AFlags & (1 << $flag)) || ($BFlags & (1 << $flag)))
+			return 'YES';
+		else
+			return '-';	
+	}
+			
 	private function hangupCauseAsString($cause)
 	{
 		switch ($cause)
@@ -1108,22 +1116,312 @@ class ArchivingSMSExport extends ArchivingExport
 		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
 	}
 	
-	public function type() { return 'sms'; }
+	public function type() { return 'sms-mms'; }
 	protected function archivingType() { return 'sms'; }
 	
+	protected function getApiLogsPath()
+	{
+		return '/smslogs/download';
+	}
+		
 	protected function exportLogEntry(array &$logData, array &$res)
 	{
-		// TODO
+		$UUID = $logData['UUID'];
+		$user = $logData['User'];
+		$time = (int)$logData['Time'];	
+		$fromNumber = $logData['From_Number'];
+		$toNumber  = $logData['To_Number'];
+		$direction = $logData['Direction'];
+		//$hostname = $logData['HostName']; // Not used
+		$resID = (int)$res['ResID'];
+		
+		LogVerbose("Processing logs result ID {$resID}, UUID: {$UUID}...");
+		
+		//$recording = '"None"';
+		//if ($recorded == 'YES')
+		{
+			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
+			$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
+			if (isset($archMsg->filepath))
+			{
+				LogVerbose("Fetched MMS for result ID {$resID}: {$media}");
+				
+				$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
+				if (file_exists($zipFilePath))
+					$zipFilesize = (int)filesize($zipFilePath);
+				else
+					$zipFilesize = 0;
+				
+				$mmsFilesize = filesize("{$this->baseDir}/{$archMsg->filepath}");
+				if (($mmsFilesize > 0) && (($zipFilesize+$mmsFilesize) >= ($this->app->zipFilesizeLimitMB * (1024.0*1024.0))))
+				{
+					LogWarning("ZIP archive would exceed {$app->this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
+					return false;
+				}
+				
+				$this->addToZipArchive($archMsg->filepath);
+				
+				//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
+				$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
+			}
+			else if (isset($archMsg->text))
+			{
+				LogVerbose("Fetched SMS for result ID {$resID}: {$media}");
+				
+				$text = str_replace("\"", "\"\"", $archMsg->text);
+				$message = "\"{$text}\"";
+			}
+			else if ($archMsg === false)
+			{
+				LogWarning("No authorisation to media for result ID {$resID}, UUID {$UUID} - skipping media file", null, 'U:ARCX');
+				$message = '"Access Denied"'; // user doesn't have permission to access file
+			}
+			else // if ($archMsg === null)
+			{
+				LogWarning("Media for result ID {$resID}, UUID {$UUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
+				$message = '"Not Available"'; // i.e. hasn't been archived yet
+			}
+		}
+				
+		$timeLocal = $this->formatTime($time, $this->timezone, 'Y-m-d H:i:s');
+		$timeUTC = gmstrftime('%F %T', $time);
+								
+		$csvEntryFields = array
+		(
+			$message,		// Message
+			$timeLocal,		// Date / Time
+			$timeUTC,		// UTC Date / Time
+			$user,			// User
+			$fromNumber,	// From (Number)
+			$toNumber, 		// To (Number)
+			$direction,		// Direction
+			$UUID,			// UUID
+		);
+		
+		foreach ($csvEntryFields as $index => &$csvEntryField)
+		{
+			if ($index != 0)
+				// don't quote media field as HYPERLINK macro won't work
+				$csvEntryField = "\"{$csvEntryField}\"";
+		}
+		$csvEntryLine = implode(',', $csvEntryFields);
+		
+		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
+			throw new Exception("Failed to write entry line to CSV file");
+		
+		return true;
 	}
+	
+	private function getArchivedMessage(array $logData, array $res, $prefix)
+	{
+		$resID = $logData['ResID'];
+		
+		$uuid = false;
+		$policyVersion = false;
+		$policyID = false;
+		$ownerUserID = false;
+
+		if (!empty($res['RetentionUUID']))
+		{
+			if ($res['RetentionState'] == 'Available' && $res['RetentionPurged'] == 'no') 
+			{
+				$uuid = $logData['UUID'];
+				$policyVersion = $res['RetentionPolicyVersion'];
+				$policyID = (int)$res['RetentionPolicyID'];
+				$ownerUserID = (int)$res['RetentionUserID'];
+			}
+			else
+			{
+				LogUWarning("Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' not available: State: {$res['RetentionState']}, Purged: {$res['RetentionPurged']}", null, 'U:ARCX');
+			}
+		}
+		else
+		{
+			LogWarning("Processing result ID {$resID}: no retention entry found for UUID '{$logData['UUID']}'", null, 'U:ARCX');
+		}
+		
+		if (!$uuid)
+		{
+			// media not available
+			return null;
+		}
+					
+		if (!$this->checkArchivingPolicyPermission($policyID, $ownerUserID))
+		{ 
+			// No authorisation
+			return false;
+		}
+		
+		// Get endpoint details from API
+		$bucket = $this->getEndpointDetails($policyID, $policyVersion)->bucket;		
+		$s3 = $this->getS3Endpoint($policyID, $policyVersion);
+
+		// Construct storage key from UUID
+		$storageKey = "sms/{$this->orgID}/{$uuid}";
+
+		// GET record from S3
+		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
+		
+		$response = $s3->getObject($bucket, $storageKey);
+		if (!isset($response->code) || $response->code !== 200)
+		{
+			$message = "There was a problem downloading {$storageKey} from S3";
+			if (isset($response->error))
+				$message .= ": {$response->error}";
+			throw new Exception($message);
+		}
+
+		if (!isset($response->headers) || !is_array($response->headers))
+			throw new Exception("{$storageKey} was successfully downloaded from S3 but had no headers; skipping");
+
+		if (empty($response->body))
+			throw new Exception("{$storageKey} GET was successful but no body was returned");
+
+		LogVerbose("Successfully downloaded {$storageKey} from S3 Bucket {$bucket}");
+		
+		try
+		{
+			LogVerbose("Processing downloaded file content of {$storageKey}");
+			$extractedContent = ArchivingProcessFile::ProcessFileContent($response->body, $this->encryptionKey);
+		}
+		catch (Exception $e)
+		{
+			throw new Exception("Failed to process downloaded file content of {$storageKey}: {$e}");
+		}
+		
+		$message = new stdClass();
+		
+		// seems crude, but this is exactly how the portal determines if message is SMS or MMS
+		if ((strpos($extractedContent, "<?xml") === 0) || (strpos($extractedContent, "<?xml") === 1)) 
+		{
+			// SMS message - extract text field from XML
+			
+			//LogDebug("SMS XML: {$extractedContent}");
+			
+			$smsDom = simplexml_load_string($extractedContent);
+			if (!($smsDom instanceof SimpleXMLElement)) 
+				throw new Exception("Failed to parse SMS XML details");
+			
+			$textNode = $smsDom->xpath('Text[1]');
+			if (empty($textNode)) 
+				throw new Exception("Failed to extract text from SMS XML details");
+			$text = (string)$textNode[0];			
+			
+			$message->text = html_entity_decode($text);//, ENT_COMPAT | ENT_HTML401, "UTF-8");
+		} 
+		else
+		{
+			// MMS message - write contents to .eml file
+			
+			$mmsDir = "{$this->baseDir}/{$this->csvFileName}-mms";
+			$mmsFileRelPath = "{$this->csvFileName}-mms/{$prefix}-{$uuid}.eml";
+			$mmsFilePath = "{$this->baseDir}/{$mmsFileRelPath}";
+			$mmsFile = null;
+			
+			try
+			{
+				if (!$this->createDirectoryTree($mmsDir))
+					throw new Exception("Failed to create temp directory '{$mmsDir}'");
+				
+				$mmsFile = fopen($mmsFilePath, 'w');
+				if ($mmsFile === false)
+					throw new Exception ("Failed to create MMS file for writing: {$mmsFilePath}");
+				
+				$byteCount = fwrite($mmsFile, $extractedContent);
+				if ($byteCount === false)
+					throw new Exception ("Failed to to write to MMS file: {$mmsFilePath}");
+				
+				LogMessage("Successfully wrote {$byteCount} bytes to {$mmsFilePath}");
+			}
+			catch (Exception $e)
+			{
+				LogError($e);
+				if ($mmsFile !== null)
+					fclose($mmsFile);
+				throw $e;
+			}
+			
+			fclose($mmsFile);
+			
+			$message->filepath = $mmsFileRelPath; 
+		}
+		return $message;
+	}	
 	
 	protected function processApiLogsData(SimpleXMLElement $logsResponseDom, array &$logsData)
 	{
-		// TODO
+		$fields = array();
+		$users = array();
+		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/Fields[1]/F', $fields);
+		$this->getLogsIDMap($logsResponseDom, 'Maps[1]/Users[1]/U', $users);
+		
+		if (count($fields) == 0)
+			throw new Exception("Failed to fetch logs result for logs query QID {$this->queryQID}");
+		
+		$this->getSMSLogsData($logsResponseDom, $fields, $users, $logsData);	
+	}
+	
+	private function getSMSLogsData(SimpleXMLElement $dom, array $fields, array $users, array &$data)
+	{
+		$data = array();
+		
+		$nodes = $dom->xpath('Data[1]/L');
+		if (!is_array($nodes))
+			return;
+		
+		foreach ($nodes as $node) 
+		{
+			// for each data row, decode column IDs into column names
+			$dataRow = array();
+			$resID = false;
+			for ($index=0; $index<count($fields); ++$index)
+			{
+				$id = 'F'.$index;
+				
+				$fieldName = $fields[$id];
+				
+				$valueNode = $node->xpath('@'.$id);
+				$value = (string)$valueNode[0];
+				
+				$dataRow[$fieldName] = $value;
+				
+				switch ($fieldName)
+				{
+					case 'ResID':
+						$resID = (int)$value;
+						break;
+					case 'UserID':
+						$value = (int)$value;
+						if ($value > 0)
+							$dataRow['User'] = $users[$value];
+						else
+							$dataRow['User'] = '';
+						break;
+					default:
+						break;
+				}
+			}
+			
+			if ($resID !== false)
+				$data[$resID] = $dataRow;
+		}
 	}
 	
 	protected function getLogsAndRetentionDbResults()
 	{
-		// TODO
+		return $this->app->bigDbc->query(
+			"SELECT \n" .
+			"LOWER(HEX(l.`UUID`)) AS `HexUUID`, \n" .
+			"l.*, \n" .
+			"r.`UUID` AS `RetentionUUID`, \n" .
+			"r.`UserID` AS `RetentionUserID`, \n" .
+			"r.`PolicyID` AS `RetentionPolicyID`, \n" .
+			"r.`PolicyVersion` AS `RetentionPolicyVersion`, \n" . 
+			"r.`State` AS `RetentionState`, \n" . 
+			"r.`Purged` AS `RetentionPurged` \n" . 
+			"FROM `Org_{$this->orgID}`.`Results_SMSLogs_{$this->userID}_{$this->queryQID}` l \n" .
+			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` r ON (l.`UUID`=r.`UUID`)"
+		)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 	
 	protected function getCsvHeaderFields()
@@ -1136,7 +1434,8 @@ class ArchivingSMSExport extends ArchivingExport
 			'User',
 			'From (Number)',
 			'To (Number)',
-			'Direction'		
+			'Direction',
+			'UUID',		
 		);
 	}	
 }
@@ -1319,7 +1618,7 @@ class ArchivingExportApp extends BaseApp
 				break;
 				
 			case 'Complete':
-				$additionalFields .= ", `EncPwd`=NULL ";
+				//$additionalFields .= ", `EncPwd`=NULL ";
 				if (is_object($result))
 				{
 					if (isset($result->result) && (strlen($result->result) > 0))
@@ -1337,7 +1636,7 @@ class ArchivingExportApp extends BaseApp
 				break;
 				
 			case 'Failed':
-				$additionalFields .= ", `EncPwd`=NULL ";
+				//$additionalFields .= ", `EncPwd`=NULL ";
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
 				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
 				
