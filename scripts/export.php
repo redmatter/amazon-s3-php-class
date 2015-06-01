@@ -83,8 +83,8 @@ abstract class ArchivingExport
 		if ($this->csvFile !== false)
 			fclose($this->csvFile);
 		
-		//if (is_dir(self::TEMP_DIR))
-		//	$this->cleanDirectory(self::TEMP_DIR);
+		if (is_dir(self::TEMP_DIR))
+			$this->cleanDirectory(self::TEMP_DIR);
 	}
 	
 	abstract public function type();
@@ -254,7 +254,7 @@ abstract class ArchivingExport
 		if (empty($logsResponse))	
 			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");		
 		
-		echo "logsResponse:\n{$logsResponse}\n";
+		//echo "logsResponse:\n{$logsResponse}\n";
 		
 		if (($client->getResponseCode() != 200) && ($client->getResponseCode() != 201))
 			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
@@ -1137,50 +1137,46 @@ class ArchivingSMSExport extends ArchivingExport
 		
 		LogVerbose("Processing logs result ID {$resID}, UUID: {$UUID}...");
 		
-		//$recording = '"None"';
-		//if ($recorded == 'YES')
+		$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
+		$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
+		if (isset($archMsg->filepath))
 		{
-			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
-			if (isset($archMsg->filepath))
+			LogVerbose("Fetched MMS for result ID {$resID}: {$media}");
+			
+			$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
+			if (file_exists($zipFilePath))
+				$zipFilesize = (int)filesize($zipFilePath);
+			else
+				$zipFilesize = 0;
+			
+			$mmsFilesize = filesize("{$this->baseDir}/{$archMsg->filepath}");
+			if (($mmsFilesize > 0) && (($zipFilesize+$mmsFilesize) >= ($this->app->zipFilesizeLimitMB * (1024.0*1024.0))))
 			{
-				LogVerbose("Fetched MMS for result ID {$resID}: {$media}");
-				
-				$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
-				if (file_exists($zipFilePath))
-					$zipFilesize = (int)filesize($zipFilePath);
-				else
-					$zipFilesize = 0;
-				
-				$mmsFilesize = filesize("{$this->baseDir}/{$archMsg->filepath}");
-				if (($mmsFilesize > 0) && (($zipFilesize+$mmsFilesize) >= ($this->app->zipFilesizeLimitMB * (1024.0*1024.0))))
-				{
-					LogWarning("ZIP archive would exceed {$app->this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
-					return false;
-				}
-				
-				$this->addToZipArchive($archMsg->filepath);
-				
-				//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
-				$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
+				LogWarning("ZIP archive would exceed {$app->this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
+				return false;
 			}
-			else if (isset($archMsg->text))
-			{
-				LogVerbose("Fetched SMS for result ID {$resID}: {$media}");
-				
-				$text = str_replace("\"", "\"\"", $archMsg->text);
-				$message = "\"{$text}\"";
-			}
-			else if ($archMsg === false)
-			{
-				LogWarning("No authorisation to media for result ID {$resID}, UUID {$UUID} - skipping media file", null, 'U:ARCX');
-				$message = '"Access Denied"'; // user doesn't have permission to access file
-			}
-			else // if ($archMsg === null)
-			{
-				LogWarning("Media for result ID {$resID}, UUID {$UUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
-				$message = '"Not Available"'; // i.e. hasn't been archived yet
-			}
+			
+			$this->addToZipArchive($archMsg->filepath);
+			
+			//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
+			$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
+		}
+		else if (isset($archMsg->text))
+		{
+			LogVerbose("Fetched SMS for result ID {$resID}: {$media}");
+			
+			$text = str_replace("\"", "\"\"", $archMsg->text);
+			$message = "\"{$text}\"";
+		}
+		else if ($archMsg === false)
+		{
+			LogWarning("No authorisation to media for result ID {$resID}, UUID {$UUID} - skipping media file", null, 'U:ARCX');
+			$message = '"Access Denied"'; // user doesn't have permission to access file
+		}
+		else // if ($archMsg === null)
+		{
+			LogWarning("Media for result ID {$resID}, UUID {$UUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
+			$message = '"Not Available"'; // i.e. hasn't been archived yet
 		}
 				
 		$timeLocal = $this->formatTime($time, $this->timezone, 'Y-m-d H:i:s');
@@ -1307,7 +1303,7 @@ class ArchivingSMSExport extends ArchivingExport
 				throw new Exception("Failed to extract text from SMS XML details");
 			$text = (string)$textNode[0];			
 			
-			$message->text = html_entity_decode($text);//, ENT_COMPAT | ENT_HTML401, "UTF-8");
+			$message->text = html_entity_decode($text, ENT_COMPAT, 'UTF-8');
 		} 
 		else
 		{
@@ -1481,7 +1477,7 @@ class ArchivingExportApp extends BaseApp
 		
 		$this->passwordAESKey = sha1($this->passwordAESKey);
 		
-		$this->zipFilesizeLimitMB = (double)$this->conf->get('export.zipfilesizelimitmb', 100);
+		$this->zipFilesizeLimitMB = (double)$this->conf->get('export.zipfilesizelimitmb', 500);
 		
 		$coreapi = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
 		if (empty($coreapi))
@@ -1618,7 +1614,7 @@ class ArchivingExportApp extends BaseApp
 				break;
 				
 			case 'Complete':
-				//$additionalFields .= ", `EncPwd`=NULL ";
+				$additionalFields .= ", `EncPwd`=NULL ";
 				if (is_object($result))
 				{
 					if (isset($result->result) && (strlen($result->result) > 0))
@@ -1636,7 +1632,7 @@ class ArchivingExportApp extends BaseApp
 				break;
 				
 			case 'Failed':
-				//$additionalFields .= ", `EncPwd`=NULL ";
+				$additionalFields .= ", `EncPwd`=NULL ";
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
 				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
 				
