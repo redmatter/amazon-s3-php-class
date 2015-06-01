@@ -1529,7 +1529,7 @@ class ArchivingExportApp extends BaseApp
 				$orgID = (int)$request['OrgID'];
 				$userID = (int)$request['UserID'];
 				$type = $request['Type'];
-				$queryQID = $request['QueryQID'];
+				$queryQID = (int)$request['QueryQID'];
 				$resultIDs = array();
 				$resIDs = explode(',', $request['ResultIDs']);
 				$serviceFailedCount = (int)$request['ServiceFailedCount'];
@@ -1543,14 +1543,8 @@ class ArchivingExportApp extends BaseApp
 				
 				try
 				{
-					switch ($type)
-					{
-						case 'Call':							
-						case 'SMS':
-							break; // OK
-						default:
-							throw new Exception("Unhandled export type '{$type}'");
-					}
+					if ($type != 'Call' && $type !='SMS')
+						throw new Exception("Unhandled export type '{$type}'");
 					
 					$this->updateExportStatus($exportID, 'Processing');
 					
@@ -1564,8 +1558,11 @@ class ArchivingExportApp extends BaseApp
 				}
 				catch (Exception $e)
 				{
-					LogWarning("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');	
-					$this->updateExportStatus($exportID, 'Failed', $serviceFailedCount);
+					$status = $this->updateExportStatus($exportID, 'Failed', $serviceFailedCount);
+					if ($status == 'Failed')
+						LogWarning("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
+					else
+						LogMessage("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
 				}
 			}
 		}
@@ -1583,7 +1580,9 @@ class ArchivingExportApp extends BaseApp
 			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, `ServiceFailedCount` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
-			"AND `ClientLocation`='{$locName}' ORDER BY `Submitted` ASC, `ExportID` ASC LIMIT 100;"
+			"AND `ClientLocation`='{$locName}' ".
+			"AND (`NextServiceAttempt` IS NULL OR CURRENT_TIMESTAMP >= `NextServiceAttempt`) ".
+			"ORDER BY `Submitted` ASC, `ExportID` ASC LIMIT 100;"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 
 		return $result;	
@@ -1610,34 +1609,70 @@ class ArchivingExportApp extends BaseApp
 		{
 			case 'Processing':
 				$startTime = microtime(true/*asFloat*/);
-				$additionalFields = ", `LastServiceAttempt`=NOW(), NextServiceAttempt=NULL ";
+				$additionalFields = ", `LastServiceAttempt`=CURRENT_TIMESTAMP, `NextServiceAttempt`=NULL";
 				break;
 				
 			case 'Complete':
-				$additionalFields .= ", `EncPwd`=NULL ";
+				$additionalFields .= ", `EncPwd`=NULL";
 				if (is_object($result))
 				{
 					if (isset($result->result) && (strlen($result->result) > 0))
-						$additionalFields .= ", `Result`='{$result->result}' ";
+					{
+						$result->result = $this->bigDbc->escape_string($result->result);
+						$additionalFields .= ", `Result`='{$result->result}'";
+					}
 					if (isset($result->policyID))
-						$additionalFields .= ", `PolicyID`='{$result->policyID}' ";
+					{
+						$additionalFields .= ", `PolicyID`='{$result->policyID}'";
+					}	
 					if (isset($result->exportURI))
-						$additionalFields .= ", `ExportURI`='{$result->exportURI}' ";
+					{
+						$result->exportURI = $this->bigDbc->escape_string($result->exportURI);
+						$additionalFields .= ", `ExportURI`='{$result->exportURI}'";
+					}
 				}
 				
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
-				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
+				$additionalFields .= ", `DurationMS`={$elapsedMSecs}";
 				
-				$additionalFields .= ", `ServiceFailedCount`=NULL ";
+				$additionalFields .= ", `ServiceFailedCount`=NULL";
 				break;
 				
 			case 'Failed':
-				$additionalFields .= ", `EncPwd`=NULL ";
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
-				$additionalFields .= ", `DurationMS`={$elapsedMSecs} ";
+				$additionalFields .= ", `DurationMS`={$elapsedMSecs}";
 				
 				++$result;
-				$additionalFields .= ", `ServiceFailedCount`={$result} ";
+				$additionalFields .= ", `ServiceFailedCount`={$result}";
+				
+				$retrySeconds = false;
+				switch ($result) 
+				{
+					case 1:
+						$retrySeconds = 60;
+						break;
+					
+					case 2:
+						$retrySeconds = 300;
+						break;
+					
+					default:
+						// no more retries
+						break;
+				}
+				
+				if ($retrySeconds)
+				{
+					// set status back to 'Pending' and try again in a bit
+					$status = 'Pending';
+					$additionalFields .= ", `NextServiceAttempt`=DATE_ADD(CURRENT_TIMESTAMP, INTERVAL {$retrySeconds} SECOND)";	
+				}
+				else
+				{
+					// set status to 'Failed' - no more retries
+					$additionalFields .= ", `EncPwd`=NULL";
+				}
+							
 				break;
 				
 			default:
@@ -1645,14 +1680,16 @@ class ArchivingExportApp extends BaseApp
 				break;
 		}
 		
-		$status = $this->bigDbc->escape_string($status);
+		$escStatus = $this->bigDbc->escape_string($status);
 		
 		$this->bigDbc->query(
 			"UPDATE `Aux`.`LogsExportQ` ".
-			"SET `Status`='{$status}' ". 
+			"SET `Status`='{$escStatus}'".
 			$additionalFields .
-			"WHERE `ExportID`={$exportID};"
+			" WHERE `ExportID`={$exportID};"
 		);
+		
+		return $status;
 	}	
 }
 
