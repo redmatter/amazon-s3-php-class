@@ -25,7 +25,7 @@ define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
 require_once 's3/S3.php';
-
+require_once 'archiving/class.ArchivingProcessFile.php';
 require_once 'restclient/RestClient.class.php';
 require_once 'hPHP/hapi.php';
 
@@ -83,7 +83,8 @@ abstract class ArchivingExport
 		if ($this->csvFile !== false)
 			fclose($this->csvFile);
 		
-		if (is_dir(self::TEMP_DIR))
+		// $this->queryQID==-1 denotes a manual command line export
+		if (($this->queryQID != -1) && is_dir(self::TEMP_DIR))
 			$this->cleanDirectory(self::TEMP_DIR);
 	}
 	
@@ -107,11 +108,9 @@ abstract class ArchivingExport
 		$this->endpointDetails = array();
 		$this->endpoints = array();
 					
-		LogMessage("Starting ".$this->type()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}");
-		LogMessage("Password: {$this->zipPassword}");
-		
-		$result = 'OK';
-		
+		LogMessage("Starting ".$this->type()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}, ResultIDCount: ".count($this->resultIDs));
+		LogDebug("Password: {$this->zipPassword}");
+				
 		// Get info/settings for this user/org
 		
 		$this->encryptionKey = $this->getOrgEncryptionKey($this->orgID);
@@ -131,6 +130,8 @@ abstract class ArchivingExport
 		//echo "logsData:\n".print_r($logsData);
 
 		$dbRetResults = $this->getLogsAndRetentionDbResults();
+		if (empty($dbRetResults))
+			throw new Exception("Failed to fetch retention database results for query QID {$this->queryQID}");
 
 		LogMessage("Processing ".count($dbRetResults)." ".$this->type()." log entries...");
 
@@ -154,20 +155,39 @@ abstract class ArchivingExport
 		if (fwrite($this->csvFile, $csvHeaderLine."\r\n") === false)
 			throw new Exception("Failed to write header to CSV file '{$this->csvFilePath}'");
 
+		$result = false;
+		
+		if (!empty($this->resultIDs))
+			$totalCount = count($this->resultIDs); 
+		else
+			$totalCount = count($callLogsData); 
+
+		$exportedCount = 0;
 		foreach ($dbRetResults as $dbRetResult)
 		{
 			$resID = (int)$dbRetResult['ResID'];
-			if (empty($resultIDs) || isset($resultIDs[$resID]))
+			if (empty($this->resultIDs) || isset($this->resultIDs[$resID]))
 			{	
 				$callLogData = &$callLogsData[$resID];
 				$success = $this->exportLogEntry($callLogData, $dbRetResult);
 				if ($success == false)
 				{
-					// this will because we have reached zip file size limit
-					$result = 'OK (truncated)';
+					// this will because we have reached zip file size limit	
+					if ($exportedCount == 0)
+						throw new Exception("Failed to generate export for query QID {$this->queryQID} - first exported entry exceeded zip file size limit");					
+					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";
 					break;
 				}
+				++$exportedCount;
 			}
+		}
+		
+		if (!$result)
+		{
+			if ($exportedCount == 1)
+				$result = "OK (1 entry exported)";
+			else
+				$result = "OK ({$exportedCount} entries exported)";
 		}
 
 		fclose($this->csvFile);
@@ -270,7 +290,9 @@ abstract class ArchivingExport
 		$searchStartTime = (int)$searchStartTimeNodes[0];
 		$searchEndTime = (int)$searchEndTimeNodes[0];
 		
-		$this->processApiLogsData($logsResponseDom, $logsData);
+		$this->processApiLogsData($logsResponseDom, $logsData);	
+		if (empty($logsData))
+			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");
 	}
 	
 	abstract protected function processApiLogsData(SimpleXMLElement $logsResponseDom, array &$logsData);
@@ -1141,7 +1163,7 @@ class ArchivingSMSExport extends ArchivingExport
 		$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
 		if (isset($archMsg->filepath))
 		{
-			LogVerbose("Fetched MMS for result ID {$resID}: {$media}");
+			LogVerbose("Fetched MMS for result ID {$resID}: {$archMsg->filepath}");
 			
 			$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
 			if (file_exists($zipFilePath))
@@ -1163,7 +1185,7 @@ class ArchivingSMSExport extends ArchivingExport
 		}
 		else if (isset($archMsg->text))
 		{
-			LogVerbose("Fetched SMS for result ID {$resID}: {$media}");
+			LogDebug("Fetched SMS for result ID {$resID}");
 			
 			$text = str_replace("\"", "\"\"", $archMsg->text);
 			$message = "\"{$text}\"";
@@ -1486,13 +1508,32 @@ class ArchivingExportApp extends BaseApp
 		$authorizationSentry = null;
 		$requests = array();
 		try
-		{
+		{			
+			// Get Big SQL database connection
+			$this->bigDbc = MySQLiConnection::Get('retention_rw');
+			
+			// can be run from command line to export a specific call/SMS logs result set
+			$queryQID = cli::get('--queryqid', false);
+			
+			if ($queryQID == 0) 
+			{			
+				$requests = $this->getPendingExportRequests();
+				if (empty($requests)) 
+				{
+					LogVerbose("No pending archiving export requests to service");	
+					return 0;
+				}
+			}
+			
 			API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
 			
 			API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
 			
+			LogDebug("Got auth CoreAPI token: ".API::GetToken());
+			
 			$this->api = array($coreapi, API::GetToken());
 			/** @noinspection PhpUnusedLocalVariableInspection */
+
 			$authorizationSentry = new ScopeSentry(
 				function()
 				{
@@ -1502,27 +1543,52 @@ class ArchivingExportApp extends BaseApp
 			);
 			
 			// Get CoreAPI SQL connection
-			$this->coreDbc = MySQLiConnection::Get('coresql');
-			
-			// Get Big SQL database connection
-			$this->bigDbc = MySQLiConnection::Get('retention_rw');
-			
-			$requests = $this->getPendingExportRequests();
-		}	
+			$this->coreDbc = MySQLiConnection::Get('coresql');	
+		}
 		catch (Exception $e)
 		{
 			LogWarning("Failed to run archiving exporter: Exception: {$e}");	
 			return 1;
 		}
 		
-		if (is_array($requests))
-		{
-			if (count($requests) == 0) 
-			{
-				LogVerbose("No pending archiving export requests to service");	
-				return 0;
-			}
+		if ($queryQID > 0)
+		{	
+			// command line export of specific call/SMS logs result set
+			$orgID = cli::get('--orgid', 0);
+			if ($orgID == 0)
+				throw new Exception('No org ID specified');
+								
+			$userID = cli::get('--userid', 0);
+			if ($userID == 0)
+				throw new Exception('No user ID specified');
+				
+			$type = cli::get('--type', '');
+			if (empty($type))
+				throw new Exception('No type specified');				
 			
+			$resultIDs = array();
+			$resIDs = explode(',', cli::get('--resultids', ''));
+			foreach ($resIDs as $id)
+			{
+				$id = (int)$id;
+				if ($id > 0)
+					$resultIDs[$id] = $id;
+			}
+							
+			$zipPassword = cli::get('--password', 'letmein');
+			$exportID = cli::get('--exportid', -1);
+											
+			$className = "Archiving{$type}Export";
+			$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
+			$result = $export->generate();
+			
+			LogVerbose("Generated export OK with URI '{$result->exportURI}'");
+			
+			if ($exportID > 0)
+				updateExportStatus($exportID, 'Complete', $result);	
+		}
+		else
+		{													
 			foreach ($requests as $request)
 			{
 				$exportID = (int)$request['ExportID'];
@@ -1549,10 +1615,10 @@ class ArchivingExportApp extends BaseApp
 					$this->updateExportStatus($exportID, 'Processing');
 					
 					$className = "Archiving{$type}Export";
-					$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);					
+					$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
 					$result = $export->generate();
 							
-					LogMessage("Successfully exported ".$export->type()." logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");					
+					LogMessage("Successfully exported ".$export->type()." logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");		
 					
 					$this->updateExportStatus($exportID, 'Complete', $result);
 				}
@@ -1733,7 +1799,7 @@ $terminateCallback = function($signo)
 
 try
 {
-	cli::init(null, array('auth-creds:', 'auth-hash:', 'conf:', 'help', 'no-daemon'));
+	cli::init(null, array('auth-creds:', 'auth-hash:', 'conf:', 'help', 'no-daemon', 'queryqid:', 'orgid:', 'userid:', 'type:', 'resultids:', 'password:', 'exportid:'));
 	
 	if (true === cli::get('help', false))
 	{
