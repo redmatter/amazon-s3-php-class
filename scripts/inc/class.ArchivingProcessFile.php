@@ -101,7 +101,7 @@ class ArchivingProcessFile
 				'CArchiveDVersionPatch/'.
 				'CFormatVersionMajor/'.
 				'CFormatVersionMinor/'.
-				'A8InitialisationVector';
+				'a8InitialisationVector';
 
 			$header_components = unpack($unpack_format, substr($content, $fp, 13));
 			$fp += 13;
