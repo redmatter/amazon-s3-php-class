@@ -38,6 +38,7 @@ abstract class ArchivingExport
 	protected $queryQID = null;
 	protected $resultIDs = null;
 	protected $zipPassword = null;
+	protected $reason = null;
 	
 	protected $encryptionKey = null;
 	protected $policyID = null;
@@ -55,8 +56,9 @@ abstract class ArchivingExport
 	protected $endpoints = array();
 	
 	const TEMP_DIR = '/tmp/rmarchexport';
+	const TEMP_CLI_DIR = '/tmp/rmarchexport-cli';
 		
-	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword)
+	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword, $reason)
 	{
 		$this->app = $app;
 		$this->exportID = (int)$exportID;
@@ -65,6 +67,7 @@ abstract class ArchivingExport
 		$this->queryQID = (int)$queryQID;
 		$this->resultIDs = $resultIDs;
 		$this->zipPassword = (string)$zipPassword;
+		$this->reason = (string)$reason;
 		
 		if ($this->exportID == 0)
 			throw new Exception("No Export ID specified");
@@ -83,8 +86,7 @@ abstract class ArchivingExport
 		if ($this->csvFile !== false)
 			fclose($this->csvFile);
 		
-		// $this->queryQID==-1 denotes a manual command line export
-		if (($this->queryQID != -1) && is_dir(self::TEMP_DIR))
+		if (!$this->app->cliMode && is_dir(self::TEMP_DIR))
 			$this->cleanDirectory(self::TEMP_DIR);
 	}
 	
@@ -108,7 +110,7 @@ abstract class ArchivingExport
 		$this->endpointDetails = array();
 		$this->endpoints = array();
 					
-		LogMessage("Starting ".$this->type()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}, ResultIDCount: ".count($this->resultIDs));
+		LogMessage("Starting ".$this->type()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}, ResultIDCount: ".count($this->resultIDs) . ", Reason: {$this->reason}");
 		LogDebug("Password: {$this->zipPassword}");
 				
 		// Get info/settings for this user/org
@@ -117,7 +119,7 @@ abstract class ArchivingExport
 		$this->policyID = $this->getOrgDefaultPolicyID($this->orgID);
 		$this->timezone = $this->getUserTimeZone($this->userID);
 				
-		// OK and now the actual call logs
+		// OK and now the actual API call logs
 
 		$searchStartTime = false;
 		$searchEndTime = false;
@@ -128,26 +130,33 @@ abstract class ArchivingExport
 		$searchEndTime = $this->formatTime($searchEndTime, $this->timezone, 'Y-m-d@H.i.s');
 
 		//echo "logsData:\n".print_r($logsData);
+		
+		// Get archive retention details from big DB
 
 		$dbRetResults = $this->getLogsAndRetentionDbResults();
 		if (empty($dbRetResults))
 			throw new Exception("Failed to fetch retention database results for query QID {$this->queryQID}");
 
 		LogMessage("Processing ".count($dbRetResults)." ".$this->type()." log entries...");
-
-		if (is_dir(self::TEMP_DIR))
-			$this->cleanDirectory(self::TEMP_DIR);	
-		$this->baseDir = self::TEMP_DIR."/{$this->exportID}";
 		
-		// ensure directory is removed first
+		// set up/clean temporary directory where we will stick CSV, WAV, MMS (.eml) and zip files
+		
+		$tempDir = $this->app->cliMode ? self::TEMP_CLI_DIR : self::TEMP_DIR;
+		if (is_dir($tempDir))
+			$this->cleanDirectory($tempDir);	
+		$this->baseDir = "{$tempDir}/{$this->exportID}";		
+		// ensure tmp directory for this export ID is removed first
 		if (!$this->createDirectoryTree($this->baseDir))
 			throw new Exception("Failed to create temp directory '{$this->baseDir}'");
+			
+		// format up file names and create export CSV file with column header names
+			
 		$exportUUID = UUID::v4();
 		$this->csvFileName = $this->type()."-export-{$searchStartTime}-to-{$searchEndTime}-{$exportUUID}";
 		$this->csvFilePath = "{$this->baseDir}/{$this->csvFileName}.csv";
 		$this->zipFileName = "{$this->csvFileName}.zip";
 
-		$this->csvFile = fopen($this->csvFilePath, 'w');
+		$this->csvFile = fopen($this->csvFilePath, 'wb');
 		if ($this->csvFile === false)
 			throw new Exception("Failed to open CSV file for writing '{$this->csvFilePath}'");
 
@@ -160,7 +169,9 @@ abstract class ArchivingExport
 		if (!empty($this->resultIDs))
 			$totalCount = count($this->resultIDs); 
 		else
-			$totalCount = count($callLogsData); 
+			$totalCount = count($callLogsData);
+			
+		// righto off we go! for each log entry...
 
 		$exportedCount = 0;
 		foreach ($dbRetResults as $dbRetResult)
@@ -172,9 +183,11 @@ abstract class ArchivingExport
 				$success = $this->exportLogEntry($callLogData, $dbRetResult);
 				if ($success == false)
 				{
-					// this will because we have reached zip file size limit	
+					// returns false only when we have reached zip file size limit	
+					
 					if ($exportedCount == 0)
 						throw new Exception("Failed to generate export for query QID {$this->queryQID} - first exported entry exceeded zip file size limit");					
+						
 					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";
 					break;
 				}
@@ -193,14 +206,15 @@ abstract class ArchivingExport
 		fclose($this->csvFile);
 		$this->csvFile = false;
 		
-		// finally add the csv file to the archive
-		$this->addToZipArchive("{$this->csvFileName}.csv");
-
-		// Upload zip to S3
 		$zipFilePath = "{$this->baseDir}/{$this->zipFileName}";
+	
+		// add the CSV file to the zip
+		$this->addToZipArchive("{$this->csvFileName}.csv");
+	
+		// upload the final zip to S3
 		$exportURI = "export/{$this->orgID}/{$exportUUID}";
 		$this->uploadZipArchive($zipFilePath, $exportURI);
-		
+	
 		$res = new stdClass();
 		$res->policyID = $this->policyID;
 		$res->exportURI = $exportURI;
@@ -373,8 +387,95 @@ abstract class ArchivingExport
 		// cache result
 		$this->policyPermissions[$policyID][$ownerUserID] = $allowed;	
 		return $allowed;
-	}	
+	}
 	
+	protected function getS3ObjectContent($policyID, $policyVersion, $storageKey, &$content)
+	{
+		// Get endpoint details from API
+		$bucket = $this->getEndpointDetails($policyID, $policyVersion)->bucket;		
+		$s3 = $this->getS3Endpoint($policyID, $policyVersion);
+		
+		// First check if size not too big
+		
+		LogVerbose("Getting object info {$storageKey} from S3 Bucket {$bucket}");
+		
+		$infoResponse = $s3->getObjectInfo($bucket, $storageKey);
+		if (empty($infoResponse) || empty($infoResponse['x-amz-meta-clear-size']) || empty($infoResponse['size']))
+			throw new Exception("Failed to fetch {$storageKey} S3 object info");
+	
+		foreach ($infoResponse as $h => $v)
+		{
+			LogDebug("header: '{$h}' = '{$v}'");
+		}			
+			
+		$filesize = (double)$infoResponse['x-amz-meta-clear-size'];
+		LogVerbose("Uncompressed object size (x-amz-meta-clear-size): {$filesize}");
+		
+		if ($filesize > ($this->app->maxFileSizeMB * (1024.0*1024.0)))
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip)
+			return 'File too big';		
+		
+		$amzCompressedFilesize = (double)$infoResponse['size'];
+		LogVerbose("S3 compressed object size: {$amzCompressedFilesize}");
+		
+		// p7zip compression gives a file size that is about 15% bigger than the S3 compressed size
+		$p7zipCompressedFilesize = $amzCompressedFilesize * 1.15;		
+		if ($p7zipCompressedFilesize > ($this->app->maxZipFileSizeMB * (1024.0*1024.0)))
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip)
+			return 'File too big';
+		
+		// check zip file not too big	
+		$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
+		if (file_exists($zipFilePath))
+		{
+			// OK REALLY REALLY important to call clearstatcache() first other was filesize() may return an earlier file size!:
+			// 'On Linux based systems, data fetched by filesize() is "statcached".
+			// Try calling clearstatcache(); before the filesize call.'
+			// http://stackoverflow.com/questions/3747982/php-filesize-reporting-old-size			
+			clearstatcache();
+			
+			$zipFilesize = filesize($zipFilePath);
+			
+			if (($zipFilesize > 0) && ($p7zipCompressedFilesize > 0) && (($zipFilesize+$p7zipCompressedFilesize) > ($this->app->maxZipFileSizeMB * (1024.0*1024.0))))
+			{
+				// this would make zip file too big - return false to stop exporting any more entries
+				return false;
+			}
+		}	
+		
+		// size OK - download object from S3
+		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
+		
+		$response = $s3->getObject($bucket, $storageKey);
+		if (!isset($response->code) || $response->code !== 200)
+		{
+			$message = "There was a problem downloading {$storageKey} from S3";
+			if (isset($response->error))
+				$message .= ": {$response->error}";
+			throw new Exception($message);
+		}
+
+		if (!isset($response->headers) || !is_array($response->headers))
+			throw new Exception("{$storageKey} was successfully downloaded from S3 but had no headers; skipping");
+
+		if (empty($response->body))
+			throw new Exception("{$storageKey} GET was successful but no body was returned");
+
+		LogVerbose("Successfully downloaded {$storageKey} from S3 Bucket {$bucket}");
+		
+		try
+		{
+			LogVerbose("Processing downloaded file content of {$storageKey}, size ".strlen($response->body) ." bytes");
+			$content = ArchivingProcessFile::ProcessFileContent($response->body, $this->encryptionKey);
+		}
+		catch (Exception $e)
+		{
+			throw new Exception("Failed to process downloaded file content of {$storageKey}: {$e}");
+		}
+		
+		return true;
+	}
+		
 	protected function getLogsIDMap(SimpleXMLElement $dom, $xpath, array &$map)
 	{
 		$nodes = $dom->xpath($xpath);
@@ -394,10 +495,12 @@ abstract class ArchivingExport
 	protected function addToZipArchive($relFileSpec)
 	{
 		chdir($this->baseDir);
-		
+				
 		$cmd = "7za a {$this->zipFileName} {$relFileSpec}";
 		
-		LogVerbose("Adding file {$relFileSpec} to export zip '{$this->zipFileName}' with command: {$cmd} -p********");
+		clearstatcache();
+		
+		LogVerbose("Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$this->zipFileName}' with command: {$cmd} -p********");
 		
 		$cmd .= " -p{$this->zipPassword}";
 		
@@ -424,23 +527,29 @@ abstract class ArchivingExport
 			LogDebug("zip output: {$line}");
 		}
 		
-		LogDebug("Added file {$relFileSpec} to export zip '{$this->zipFileName}' OK");
+		LogDebug("Added file {$relFileSpec} to export zip '{$this->zipFileName}' (".filesize($zipFilePath)." bytes) OK");		
 	}
-
+	
 	protected function uploadZipArchive($zipFilePath, $storageKey)
 	{
 		$bucket = $this->getEndpointDetails($this->policyID, 0/*policyVersion*/)->bucket;
 		$s3 = $this->getS3Endpoint($this->policyID, 0/*policyVersion*/);		
 		
-		LogVerbose("Uploading export zip {$storageKey} to bucket {$bucket} in S3...");
+		// OK REALLY REALLY important to call clearstatcache() first as filesize() is called internally by S3::putObjectFile() and:
+		// 'On Linux based systems, data fetched by filesize() is "statcached".
+		// Try calling clearstatcache(); before the filesize call.'
+		// http://stackoverflow.com/questions/3747982/php-filesize-reporting-old-size
+		clearstatcache();
 		
+		LogVerbose("Uploading export zip {$storageKey} (".filesize($zipFilePath)." bytes) to bucket {$bucket} in S3...");
+			
 		$headers = array();
-		if (!$s3->putObjectFile($zipFilePath, $bucket, $storageKey, S3::ACL_PRIVATE, $headers, 'binary/octet-stream'))
+		if (!$s3->putObjectFile($zipFilePath, $bucket, $storageKey))
 			throw new Exception("Failed to store file '{$zipFilePath}' in S3 bucket: {$bucket}, storageKey: {$storageKey}");
 		
 		LogVerbose("Uploaded export zip to S3 OK");
-	}
-	
+	}	
+		
 	protected function getEndpointDetails($policyID, $policyVersion)
 	{
 		if (!isset($this->endpointDetails[$policyID][$policyVersion]))
@@ -537,9 +646,9 @@ abstract class ArchivingExport
 
 class ArchivingCallExport extends ArchivingExport
 {
-	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword)
+	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword, $reason)
 	{
-		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
+		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 	}
 	
 	public function type() { return 'call'; }
@@ -563,41 +672,36 @@ class ArchivingCallExport extends ArchivingExport
 		LogVerbose("Processing logs result ID {$resID}, AUUID: {$AUUID}, Recorded: '{$recorded}'...");
 		
 		$recording = '"None"';
+		$recordingTime = '';
+		$recordingSize = '';
 		if ($recorded == 'YES')
 		{
 			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$recording = $this->getArchivedRecording($logData, $res, $prefix);
-			if (strlen($recording) > 0)
+			$archRecording = $this->getArchivedRecording($logData, $res, $prefix);
+			if (is_object($archRecording))
 			{
-				LogVerbose("Fetched recording for result ID {$resID}: {$recording}");
+				LogVerbose("Fetched recording for result ID {$resID}: {$archRecording->filepath}");
+								
+				$this->addToZipArchive($archRecording->filepath);
 				
-				$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
-				if (file_exists($zipFilePath))
-					$zipFilesize = (int)filesize($zipFilePath);
-				else
-					$zipFilesize = 0;
-				
-				$recordingFilesize = filesize("{$this->baseDir}/{$recording}");
-				if (($recordingFilesize > 0) && (($zipFilesize+$recordingFilesize) >= ($this->app->zipFilesizeLimitMB * (1024.0*1024.0))))
-				{
-					LogWarning("ZIP archive would exceed {$app->this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
-					return false;
-				}
-				
-				$this->addToZipArchive($recording);
-				
-				//$recording = "=HYPERLINK(\"{$recording}\", \"Click to listen\")"; // haven't figured out how to get this working in a CSV file
-				$recording = "=HYPERLINK(\"{$recording}\")";
+				//$recording = "=HYPERLINK(\"{$recording->filepath}\", \"Click to listen\")"; // haven't figured out how to get this working in a CSV file
+				$recording = "=HYPERLINK(\"{$archRecording->filepath}\")";
+				$recordingSize = $archRecording->filesize;
+				$recordingSecs = (int)((double)$recordingSize / 16384.0); // 16-bit WAV
+ 				$recordingTime = strftime('%T', $recordingSecs);
 			}
-			else if ($recording === false)
+			else if ($archRecording === false)
 			{
-				LogWarning("No authorisation to recording for result ID {$resID}, AUUID {$AUUID} - skipping recording file", null, 'U:ARCX');
-				$recording = '"Access Denied"'; // user doesn't have permission to access file
+				LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
+				return false;
 			}
-			else // if ($recording === null)
+			else 
 			{
-				LogWarning("Recording for result ID {$resID}, AUUID {$AUUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
-				$recording = '"Not Available"'; // i.e. hasn't been archived yet
+				if (!is_string($archRecording))
+					$archRecording = 'Not Available';
+		
+				LogWarning("No recording for result ID {$resID}, AUUID {$AUUID}, reason '{$archRecording}' - skipping recording file", null, 'U:ARCX');
+				$recording = "\"{$archRecording}\"";
 			}
 		}
 		
@@ -680,6 +784,8 @@ class ArchivingCallExport extends ArchivingExport
 		$csvEntryFields = array
 		(
 			$recording,			// Recording
+			$recordingTime,		// Recording Time
+			$recordingSize,		// Recording Size (Bytes)			
 			$startTimeLocal,	// Date / Time
 			$startTimeUTC,		// UTC Date / Time
 			$endTimeLocal,		// End Date / Time
@@ -876,29 +982,46 @@ class ArchivingCallExport extends ArchivingExport
 		$policyVersion = false;
 		$policyID = false;
 		$ownerUserID = false;
+		$purged = false;
 
 		if (!empty($res['RetentionALegUUID']))
 		{
-			if ($res['RetentionALegState'] == 'Available' && $res['RetentionALegPurged'] == 'no') 
+			if ($res['RetentionALegState'] == 'Available')
 			{
-				$uuid = $logData['AUUID'];
-				$policyVersion = $res['RetentionALegPolicyVersion'];
-				$policyID = (int)$res['RetentionALegPolicyID'];
-				$ownerUserID = (int)$res['RetentionALegUserID'];
+				$purged = !($res['RetentionALegPurged'] == 'no');	
+				if (!$purged) 
+				{
+					$uuid = $logData['AUUID'];
+					$policyVersion = (int)$res['RetentionALegPolicyVersion'];
+					$policyID = (int)$res['RetentionALegPolicyID'];
+					$ownerUserID = (int)$res['RetentionALegUserID'];
+				}
+				else
+				{
+					LogWarning("Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' has been purged", null, 'U:ARCX');
+				}
 			}
 			else
 			{
-				LogUWarning("Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' not available: State: {$res['RetentionALegState']}, Purged: {$res['RetentionALegPurged']}", null, 'U:ARCX');
+				LogWarning("Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' not available: State: {$res['RetentionALegState']}, Purged: {$res['RetentionALegPurged']}", null, 'U:ARCX');
 			}
 		}
 		else if (!empty($res['RetentionBLegUUID'])) 
 		{
-			if ($res['RetentionBLegState'] == 'Available' && $res['RetentionBLegPurged'] == 'no') 
+			if ($res['RetentionBLegState'] == 'Available')
 			{
-				$uuid = $logData['BUUID'];
-				$policyVersion = $res['RetentionBLegPolicyVersion'];
-				$policyID = (int)$res['RetentionBLegPolicyID'];
-				$ownerUserID = (int)$res['RetentionBLegUserID'];
+				$purged = !($res['RetentionBLegPurged'] == 'no');
+				if (!$purged) 
+				{
+					$uuid = $logData['BUUID'];
+					$policyVersion = (int)$res['RetentionBLegPolicyVersion'];
+					$policyID = (int)$res['RetentionBLegPolicyID'];
+					$ownerUserID = (int)$res['RetentionBLegUserID'];
+				}
+				else
+				{
+					LogWarning("Processing result ID {$resID}: call is recorded but retention entry for BLeg UUID '{$logData['BUUID']}' has been purged", null, 'U:ARCX');
+				}				
 			}
 			else
 			{
@@ -910,54 +1033,22 @@ class ArchivingCallExport extends ArchivingExport
 			LogWarning("Processing result ID {$resID}: call is recorded but no retention entry found for ALeg UUID '{$logData['AUUID']}' or BLeg UUID '{$logData['BUUID']}'", null, 'U:ARCX');
 		}
 		
+		if ($purged)
+			return 'Purged';
+		
 		if (!$uuid)
-		{
-			// recording not available
-			return null;
-		}
+			return 'Not Available';
 					
 		if (!$this->checkArchivingPolicyPermission($policyID, $ownerUserID))
-		{ 
-			// No authorisation
-			return false;
-		}
-		
-		// Get endpoint details from API
-		$bucket = $this->getEndpointDetails($policyID, $policyVersion)->bucket;		
-		$s3 = $this->getS3Endpoint($policyID, $policyVersion);
-
+			return 'Access Denied';
+			
 		// Construct storage key from UUID
 		$storageKey = "recording/{$this->orgID}/{$uuid}";
 
-		// GET record from S3
-		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
-		
-		$response = $s3->getObject($bucket, $storageKey);
-		if (!isset($response->code) || $response->code !== 200)
-		{
-			$message = "There was a problem downloading {$storageKey} from S3";
-			if (isset($response->error))
-				$message .= ": {$response->error}";
-			throw new Exception($message);
-		}
-
-		if (!isset($response->headers) || !is_array($response->headers))
-			throw new Exception("{$storageKey} was successfully downloaded from S3 but had no headers; skipping");
-
-		if (empty($response->body))
-			throw new Exception("{$storageKey} GET was successful but no body was returned");
-
-		LogVerbose("Successfully downloaded {$storageKey} from S3 Bucket {$bucket}");
-		
-		try
-		{
-			LogVerbose("Processing downloaded file content of {$storageKey}");
-			$extractedContent = ArchivingProcessFile::ProcessFileContent($response->body, $this->encryptionKey);
-		}
-		catch (Exception $e)
-		{
-			throw new Exception("Failed to process downloaded file content of {$storageKey}: {$e}");
-		}
+		$content = null;
+		$result = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
+		if ($result !== true)
+			return $result;
 		
 		$callrecordingsDir = "{$this->baseDir}/{$this->csvFileName}-recordings";
 		$wavFileRelPath = "{$this->csvFileName}-recordings/{$prefix}-{$uuid}.wav";
@@ -969,15 +1060,15 @@ class ArchivingCallExport extends ArchivingExport
 			if (!$this->createDirectoryTree($callrecordingsDir))
 				throw new Exception("Failed to create temp directory '{$callrecordingsDir}'");
 			
-			$wavFile = fopen($wavFilePath, 'w');
+			$wavFile = fopen($wavFilePath, 'wb');
 			if ($wavFile === false)
 				throw new Exception ("Failed to create WAV file for writing: {$wavFilePath}");
 			
-			$byteCount = fwrite($wavFile, $extractedContent);
-			if ($byteCount === false)
-				throw new Exception ("Failed to to write to WAV file: {$wavFilePath}");
+			$wavFileSize = fwrite($wavFile, $content);
+			if ($wavFileSize === false)
+				throw new Exception ("Failed to to write to WAV file: {$wavFileSize}");
 			
-			LogMessage("Successfully wrote {$byteCount} bytes to {$wavFilePath}");
+			LogMessage("Successfully wrote {$wavFileSize} bytes to {$wavFilePath}");
 		}
 		catch (Exception $e)
 		{
@@ -989,7 +1080,10 @@ class ArchivingCallExport extends ArchivingExport
 		
 		fclose($wavFile);
 		
-		return $wavFileRelPath;
+		$recording = new stdClass();
+		$recording->filepath = $wavFileRelPath;
+		$recording->filesize = $wavFileSize;	
+		return $recording;
 	}
 	
 	private function isFlagSet($flag, $AFlags, $BFlags)
@@ -1076,6 +1170,8 @@ class ArchivingCallExport extends ArchivingExport
 		return array
 		(
 			'Recording',
+			'Recording Time',
+			'Recording Size (Bytes)',
 			'Date / Time',
 			'UTC Date / Time',
 			'End Date / Time',
@@ -1133,9 +1229,9 @@ class ArchivingCallExport extends ArchivingExport
 
 class ArchivingSMSExport extends ArchivingExport
 {
-	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword)
+	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword, $reason)
 	{
-		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
+		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 	}
 	
 	public function type() { return 'sms-mms'; }
@@ -1157,31 +1253,21 @@ class ArchivingSMSExport extends ArchivingExport
 		//$hostname = $logData['HostName']; // Not used
 		$resID = (int)$res['ResID'];
 		
-		LogVerbose("Processing logs result ID {$resID}, UUID: {$UUID}...");
+		LogVerbose("Processing SMS/MMS logs result ID {$resID}, UUID: {$UUID}...");
+		
+		$messageSize = '';
 		
 		$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
 		$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
 		if (isset($archMsg->filepath))
 		{
-			LogVerbose("Fetched MMS for result ID {$resID}: {$archMsg->filepath}");
-			
-			$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
-			if (file_exists($zipFilePath))
-				$zipFilesize = (int)filesize($zipFilePath);
-			else
-				$zipFilesize = 0;
-			
-			$mmsFilesize = filesize("{$this->baseDir}/{$archMsg->filepath}");
-			if (($mmsFilesize > 0) && (($zipFilesize+$mmsFilesize) >= ($this->app->zipFilesizeLimitMB * (1024.0*1024.0))))
-			{
-				LogWarning("ZIP archive would exceed {$app->this->zipFilesizeLimitMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
-				return false;
-			}
-			
+			LogVerbose("Fetched MMS for result ID {$resID}: {$archMsg->filepath}");		
+						
 			$this->addToZipArchive($archMsg->filepath);
 			
 			//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
 			$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
+			$messageSize = $archMsg->filesize;
 		}
 		else if (isset($archMsg->text))
 		{
@@ -1189,24 +1275,29 @@ class ArchivingSMSExport extends ArchivingExport
 			
 			$text = str_replace("\"", "\"\"", $archMsg->text);
 			$message = "\"{$text}\"";
+			$messageSize = strlen($archMsg->text);
 		}
 		else if ($archMsg === false)
 		{
-			LogWarning("No authorisation to media for result ID {$resID}, UUID {$UUID} - skipping media file", null, 'U:ARCX');
-			$message = '"Access Denied"'; // user doesn't have permission to access file
+			LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
+			return false;	
 		}
-		else // if ($archMsg === null)
+		else
 		{
-			LogWarning("Media for result ID {$resID}, UUID {$UUID} not available (hasn't been archived yet?)", null, 'U:ARCX');
-			$message = '"Not Available"'; // i.e. hasn't been archived yet
+			if (!is_string($archMsg))
+				$archMsg = 'Not Available';
+	
+			LogWarning("No message for result ID {$resID}, AUUID {$AUUID}, reason '{$archMsg}' - skipping message", null, 'U:ARCX');
+			$message = "\"{$archMsg}\"";		
 		}
-				
+						
 		$timeLocal = $this->formatTime($time, $this->timezone, 'Y-m-d H:i:s');
 		$timeUTC = gmstrftime('%F %T', $time);
 								
 		$csvEntryFields = array
 		(
 			$message,		// Message
+			$messageSize,	// Message Size
 			$timeLocal,		// Date / Time
 			$timeUTC,		// UTC Date / Time
 			$user,			// User
@@ -1219,7 +1310,7 @@ class ArchivingSMSExport extends ArchivingExport
 		foreach ($csvEntryFields as $index => &$csvEntryField)
 		{
 			if ($index != 0)
-				// don't quote media field as HYPERLINK macro won't work
+				// don't quote message field as HYPERLINK macro won't work
 				$csvEntryField = "\"{$csvEntryField}\"";
 		}
 		$csvEntryLine = implode(',', $csvEntryFields);
@@ -1238,19 +1329,28 @@ class ArchivingSMSExport extends ArchivingExport
 		$policyVersion = false;
 		$policyID = false;
 		$ownerUserID = false;
+		$purged = false;
 
 		if (!empty($res['RetentionUUID']))
 		{
-			if ($res['RetentionState'] == 'Available' && $res['RetentionPurged'] == 'no') 
+			if ($res['RetentionState'] == 'Available') 
 			{
-				$uuid = $logData['UUID'];
-				$policyVersion = $res['RetentionPolicyVersion'];
-				$policyID = (int)$res['RetentionPolicyID'];
-				$ownerUserID = (int)$res['RetentionUserID'];
+				$purged = !($res['RetentionPurged'] == 'no');
+				if (!$purged) 
+				{
+					$uuid = $logData['UUID'];
+					$policyVersion = (int)$res['RetentionPolicyVersion'];
+					$policyID = (int)$res['RetentionPolicyID'];
+					$ownerUserID = (int)$res['RetentionUserID'];
+				}
+				else
+				{
+					LogWarning("Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' is purged", null, 'U:ARCX');
+				}
 			}
 			else
 			{
-				LogUWarning("Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' not available: State: {$res['RetentionState']}, Purged: {$res['RetentionPurged']}", null, 'U:ARCX');
+				LogWarning("Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' not available: State: {$res['RetentionState']}, Purged: {$res['RetentionPurged']}", null, 'U:ARCX');
 			}
 		}
 		else
@@ -1258,65 +1358,36 @@ class ArchivingSMSExport extends ArchivingExport
 			LogWarning("Processing result ID {$resID}: no retention entry found for UUID '{$logData['UUID']}'", null, 'U:ARCX');
 		}
 		
+		if ($purged)
+			return 'Purged';
+		
 		if (!$uuid)
-		{
-			// media not available
-			return null;
-		}
+			return 'Not Available';
 					
 		if (!$this->checkArchivingPolicyPermission($policyID, $ownerUserID))
-		{ 
-			// No authorisation
-			return false;
-		}
-		
-		// Get endpoint details from API
-		$bucket = $this->getEndpointDetails($policyID, $policyVersion)->bucket;		
-		$s3 = $this->getS3Endpoint($policyID, $policyVersion);
+			return 'Access Denied';
 
 		// Construct storage key from UUID
 		$storageKey = "sms/{$this->orgID}/{$uuid}";
-
-		// GET record from S3
-		LogVerbose("Downloading {$storageKey} from S3 Bucket {$bucket}");
-		
-		$response = $s3->getObject($bucket, $storageKey);
-		if (!isset($response->code) || $response->code !== 200)
-		{
-			$message = "There was a problem downloading {$storageKey} from S3";
-			if (isset($response->error))
-				$message .= ": {$response->error}";
-			throw new Exception($message);
-		}
-
-		if (!isset($response->headers) || !is_array($response->headers))
-			throw new Exception("{$storageKey} was successfully downloaded from S3 but had no headers; skipping");
-
-		if (empty($response->body))
-			throw new Exception("{$storageKey} GET was successful but no body was returned");
-
-		LogVerbose("Successfully downloaded {$storageKey} from S3 Bucket {$bucket}");
-		
-		try
-		{
-			LogVerbose("Processing downloaded file content of {$storageKey}");
-			$extractedContent = ArchivingProcessFile::ProcessFileContent($response->body, $this->encryptionKey);
-		}
-		catch (Exception $e)
-		{
-			throw new Exception("Failed to process downloaded file content of {$storageKey}: {$e}");
-		}
+			
+		// a big MMS probably already contains compressed media (mp4 etc), so we don't expect to get further compression 
+		// - hence specifying expected p7zip compression ratio of 1.0 (i.e. no compression)
+		$content = null;
+		$result = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
+		if ($result !== true)
+			return $result;			
 		
 		$message = new stdClass();
 		
 		// seems crude, but this is exactly how the portal determines if message is SMS or MMS
-		if ((strpos($extractedContent, "<?xml") === 0) || (strpos($extractedContent, "<?xml") === 1)) 
+		$xmlPos = strpos($content, "<?xml");
+		if (($xmlPos === 0) || ($xmlPos === 1)) 
 		{
 			// SMS message - extract text field from XML
 			
-			//LogDebug("SMS XML: {$extractedContent}");
+			//LogDebug("SMS XML: {$content}");
 			
-			$smsDom = simplexml_load_string($extractedContent);
+			$smsDom = simplexml_load_string($content);
 			if (!($smsDom instanceof SimpleXMLElement)) 
 				throw new Exception("Failed to parse SMS XML details");
 			
@@ -1341,15 +1412,15 @@ class ArchivingSMSExport extends ArchivingExport
 				if (!$this->createDirectoryTree($mmsDir))
 					throw new Exception("Failed to create temp directory '{$mmsDir}'");
 				
-				$mmsFile = fopen($mmsFilePath, 'w');
+				$mmsFile = fopen($mmsFilePath, 'wb');
 				if ($mmsFile === false)
 					throw new Exception ("Failed to create MMS file for writing: {$mmsFilePath}");
 				
-				$byteCount = fwrite($mmsFile, $extractedContent);
-				if ($byteCount === false)
+				$mmsFileSize = fwrite($mmsFile, $content);
+				if ($mmsFileSize === false)
 					throw new Exception ("Failed to to write to MMS file: {$mmsFilePath}");
 				
-				LogMessage("Successfully wrote {$byteCount} bytes to {$mmsFilePath}");
+				LogMessage("Successfully wrote {$mmsFileSize} bytes to {$mmsFilePath}");
 			}
 			catch (Exception $e)
 			{
@@ -1361,7 +1432,8 @@ class ArchivingSMSExport extends ArchivingExport
 			
 			fclose($mmsFile);
 			
-			$message->filepath = $mmsFileRelPath; 
+			$message->filepath = $mmsFileRelPath;
+			$message->filesize = $mmsFileSize; 
 		}
 		return $message;
 	}	
@@ -1447,6 +1519,7 @@ class ArchivingSMSExport extends ArchivingExport
 		return array
 		(
 			'Message',
+			'Message Size (Bytes)',
 			'Date / Time',
 			'UTC Date / Time',
 			'User',
@@ -1471,7 +1544,13 @@ class ArchivingExportApp extends BaseApp
 	private $hAPILocName = null;
 	
 	private $passwordAESKey = null;
-	public $zipFilesizeLimitMB = null;
+	
+	public $maxZipFileSizeMB = null;
+	public $maxZipFileCount = null;
+	
+	public $cliMode = false;
+	
+	public $maxRetries = 2;
 
 	/**
 	 * run
@@ -1499,11 +1578,16 @@ class ArchivingExportApp extends BaseApp
 		
 		$this->passwordAESKey = sha1($this->passwordAESKey);
 		
-		$this->zipFilesizeLimitMB = (double)$this->conf->get('export.zipfilesizelimitmb', 500);
+		$this->maxFileSizeMB = (double)$this->conf->get('export.maxfilesizemb', 3000.0);
+		$this->maxZipFileSizeMB = (double)$this->conf->get('export.maxzipfilesizemb', 500.0);
+		$this->maxZipFileCount = (int)$this->conf->get('export.maxzipfilecount', 20);
+		$this->maxRetries = (int)$this->conf->get('export.maxretries', 2);
 		
 		$coreapi = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
 		if (empty($coreapi))
 			throw new Exception('CoreAPI URL not configured');
+			
+		$this->cliMode = cli::get('--no-daemon', false);
 		
 		$authorizationSentry = null;
 		$requests = array();
@@ -1512,9 +1596,13 @@ class ArchivingExportApp extends BaseApp
 			// Get Big SQL database connection
 			$this->bigDbc = MySQLiConnection::Get('retention_rw');
 			
-			// can be run from command line to export a specific call/SMS logs result set
-			$queryQID = cli::get('--queryqid', false);
-			
+			$queryQID = 0;
+			if ($this->cliMode)
+			{
+				// can be run from command line to export a specific call/SMS logs result set
+				$queryQID = cli::get('--queryqid', false);
+			}
+				
 			if ($queryQID == 0) 
 			{			
 				$requests = $this->getPendingExportRequests();
@@ -1587,8 +1675,8 @@ class ArchivingExportApp extends BaseApp
 			if ($exportID > 0)
 				updateExportStatus($exportID, 'Complete', $result);	
 		}
-		else
-		{													
+		else // daemon mode - we have a pending request(s)
+		{					
 			foreach ($requests as $request)
 			{
 				$exportID = (int)$request['ExportID'];
@@ -1598,6 +1686,8 @@ class ArchivingExportApp extends BaseApp
 				$queryQID = (int)$request['QueryQID'];
 				$resultIDs = array();
 				$resIDs = explode(',', $request['ResultIDs']);
+				$reason = $request['ReasonForAccess'];
+				
 				$serviceFailedCount = (int)$request['ServiceFailedCount'];
 				foreach ($resIDs as $id)
 				{
@@ -1615,7 +1705,7 @@ class ArchivingExportApp extends BaseApp
 					$this->updateExportStatus($exportID, 'Processing');
 					
 					$className = "Archiving{$type}Export";
-					$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
+					$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 					$result = $export->generate();
 							
 					LogMessage("Successfully exported ".$export->type()." logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");		
@@ -1643,7 +1733,16 @@ class ArchivingExportApp extends BaseApp
 		$locName = $this->bigDbc->escape_string($this->hAPILocName);
 				
 		$result = $this->bigDbc->query(
-			"SELECT `ExportID`, `Submitted`, `OrgID`, `UserID`, `Type`, `QueryQID`, `ResultIDs`, aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, `ServiceFailedCount` ".
+			"SELECT `ExportID`, ".
+			"`Submitted`, ".
+			"`OrgID`, ".
+			"`UserID`, ".
+			"`Type`, ".
+			"`QueryQID`, ".
+			"`ResultIDs`, ".
+			"aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, ".
+			"`ReasonForAccess`, ".
+			"`ServiceFailedCount` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
 			"AND `ClientLocation`='{$locName}' ".
@@ -1715,16 +1814,15 @@ class ArchivingExportApp extends BaseApp
 				switch ($result) 
 				{
 					case 1:
-						$retrySeconds = 60;
+						if ($this->maxRetries >= $result)
+							$retrySeconds = 60;
 						break;
 					
-					case 2:
-						$retrySeconds = 300;
-						break;
-					
+					case 2:			
 					default:
-						// no more retries
-						break;
+						if ($this->maxRetries >= $result)
+							$retrySeconds = 300;
+						break;					
 				}
 				
 				if ($retrySeconds)
@@ -1760,7 +1858,7 @@ class ArchivingExportApp extends BaseApp
 }
 
 /**
- * Show usage help, optionally with error messag
+ * Show usage help, optionally with error message
  *
  * @param string $error error
  *
@@ -1810,6 +1908,12 @@ try
 	$app = ArchivingExportApp::getInstance(cli::get('--conf', ArchivingExportApp::CONFIG_PATH));	
 	$conf = $app->getConf();
 	
+	// Biggest zip file size we allow is 500Mb by default, but a media file uncompressed could be much bigger than this - we allow up to 3G by default 
+	// (and so in copying buffers during decryption we might have up 2X3G sitting in buffers)
+	// Note 8G limit is tuned for production cdr boxes so we don't steal more than half the physical memory (16G) 
+	$memoryLimit = $conf->get('app.memory_limit', '8G');
+	ini_set('memory_limit', $memoryLimit);
+		
 	if (false === cli::get('--no-daemon', false))
 	{
 		DaemonScripts::Initialise(
@@ -1818,7 +1922,7 @@ try
 				'runasGid' => $conf->get('app.run_as_group', 'cdrmunch'),
 				'pidfilePath' => $conf->get('app.pid_file', '/var/run/archiving/rmarchexport.pid'),
 				'signalHandlers' => array(SIGTERM => $terminateCallback, SIGINT => $terminateCallback),
-				'sleepInterval' => array(3 /*seconds and*/, 0 /* micro second */),
+				'sleepInterval' => array(1 /*seconds and*/, 0 /* micro second */),
 				'runnableFunction' => array($app, 'run')
 			)
 		);
