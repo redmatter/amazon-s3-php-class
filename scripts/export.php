@@ -905,36 +905,31 @@ class ArchivingCallExport extends ArchivingExport
 						$resID = (int)$value;
 						break;
 					case 'From_UserID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($users[$value]))
 							$dataRow['From_User'] = $users[$value];
 						else
 							$dataRow['From_User'] = '';
 						break;
 					case 'To_UserID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($users[$value]))
 							$dataRow['To_User'] = $users[$value];
 						else
 							$dataRow['To_User'] = '';
 						break;
 					case 'From_DevID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($devs[$value]))
 							$dataRow['From_Dev'] = $devs[$value];
 						else
 							$dataRow['From_Dev'] = '';
 						break;
 					case 'To_DevID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($devs[$value]))
 							$dataRow['To_Dev'] = $devs[$value];
 						else
 							$dataRow['To_Dev'] = '';
 						break;
 					case 'PolicyID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($policies[$value]))
 							$dataRow['Policy'] = $policies[$value];
 						else
 							$dataRow['Policy'] = '';
@@ -1481,8 +1476,7 @@ class ArchivingSMSExport extends ArchivingExport
 						$resID = (int)$value;
 						break;
 					case 'UserID':
-						$value = (int)$value;
-						if ($value > 0)
+						if (((int)$value > 0) && isset($users[$value]))
 							$dataRow['User'] = $users[$value];
 						else
 							$dataRow['User'] = '';
@@ -1665,15 +1659,36 @@ class ArchivingExportApp extends BaseApp
 							
 			$zipPassword = cli::get('--password', 'letmein');
 			$exportID = cli::get('--exportid', -1);
-											
-			$className = "Archiving{$type}Export";
-			$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
-			$result = $export->generate();
 			
-			LogVerbose("Generated export OK with URI '{$result->exportURI}'");
-			
-			if ($exportID > 0)
-				updateExportStatus($exportID, 'Complete', $result);	
+			try
+			{
+				if ($type != 'Call' && $type !='SMS')
+					throw new Exception("Unhandled export type '{$type}'");			
+					
+				if ($exportID > 0)
+					$this->updateExportStatus($exportID, 'Processing');
+															
+				$className = "Archiving{$type}Export";
+				$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword);
+				$result = $export->generate();
+				
+				LogVerbose("Generated export OK with URI '{$result->exportURI}'");
+				
+				if ($exportID > 0)
+					updateExportStatus($exportID, 'Complete', $result);	
+			}
+			catch (Exception $e)
+			{
+				if ($exportID > 0) 
+					$status = $this->updateExportStatus($exportID, 'Failed', $serviceFailedCount);
+				else
+					$status = 'Failed';
+				
+				if ($status == 'Failed')
+					LogWarning("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
+				else
+					LogMessage("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
+			}						
 		}
 		else // daemon mode - we have a pending request(s)
 		{					
