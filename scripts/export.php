@@ -29,6 +29,14 @@ require_once 'archiving/class.ArchivingProcessFile.php';
 require_once 'restclient/RestClient.class.php';
 require_once 'hPHP/hapi.php';
 
+class TruncateExportException extends Exception
+{
+	public function __construct()
+	{
+		parent::__construct();
+	}
+}
+
 abstract class ArchivingExport
 {
 	protected $app = null;
@@ -174,27 +182,35 @@ abstract class ArchivingExport
 		// righto off we go! for each log entry...
 
 		$exportedCount = 0;
+		$fullyExportedCount = 0;
 		foreach ($dbRetResults as $dbRetResult)
 		{
 			$resID = (int)$dbRetResult['ResID'];
 			if (empty($this->resultIDs) || isset($this->resultIDs[$resID]))
 			{	
 				$callLogData = &$callLogsData[$resID];
-				$success = $this->exportLogEntry($callLogData, $dbRetResult);
-				if ($success == false)
+				try
 				{
-					// returns false only when we have reached zip file size limit	
+					// returns false if media was too big to download or would put export zip file size over size limit 
+					if ($this->exportLogEntry($callLogData, $dbRetResult))
+						++$fullyExportedCount;
+				}
+				catch (TruncateExportException $ex)
+				{
+					// Zip file size limit would be exceeded - truncate export before this entry
+					LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
 					
-					if ($exportedCount == 0)
-						throw new Exception("Failed to generate export for query QID {$this->queryQID} - first exported entry exceeded zip file size limit");					
-						
-					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";
+					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";					
 					break;
 				}
-				++$exportedCount;
+				++$exportedCount;	
 			}
 		}
 		
+		// if we haven't managed to fully export any entries (due to media being too big), then set the overall export job status to failed	
+		if (($totalCount > 0) && ($fullyExportedCount == 0))
+			throw new Exception("Failed to generate export for query QID {$this->queryQID} - all entries are too big");
+				
 		if (!$result)
 		{
 			if ($exportedCount == 1)
@@ -412,8 +428,8 @@ abstract class ArchivingExport
 		LogVerbose("Uncompressed object size (x-amz-meta-clear-size): {$filesize}");
 		
 		if ($filesize > ($this->app->maxFileSizeMB * (1024.0*1024.0)))
-			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip)
-			return 'File too big';		
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
+			return $filesize;	
 		
 		$amzCompressedFilesize = (double)$infoResponse['size'];
 		LogVerbose("S3 compressed object size: {$amzCompressedFilesize}");
@@ -421,8 +437,8 @@ abstract class ArchivingExport
 		// p7zip compression gives a file size that is about 15% bigger than the S3 compressed size
 		$p7zipCompressedFilesize = $amzCompressedFilesize * 1.15;		
 		if ($p7zipCompressedFilesize > ($this->app->maxZipFileSizeMB * (1024.0*1024.0)))
-			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip)
-			return 'File too big';
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
+			return $filesize;
 		
 		// check zip file not too big	
 		$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
@@ -438,8 +454,8 @@ abstract class ArchivingExport
 			
 			if (($zipFilesize > 0) && ($p7zipCompressedFilesize > 0) && (($zipFilesize+$p7zipCompressedFilesize) > ($this->app->maxZipFileSizeMB * (1024.0*1024.0))))
 			{
-				// this would make zip file too big - return false to stop exporting any more entries
-				return false;
+				// this would make zip file too big - truncate export before this entry
+				throw new TruncateExportException();
 			}
 		}	
 		
@@ -473,7 +489,7 @@ abstract class ArchivingExport
 			throw new Exception("Failed to process downloaded file content of {$storageKey}: {$e}");
 		}
 		
-		return true;
+		return $filesize;
 	}
 		
 	protected function getLogsIDMap(SimpleXMLElement $dom, $xpath, array &$map)
@@ -671,37 +687,47 @@ class ArchivingCallExport extends ArchivingExport
 		
 		LogVerbose("Processing logs result ID {$resID}, AUUID: {$AUUID}, Recorded: '{$recorded}'...");
 		
+		$success = true;
+		
 		$recording = '"None"';
 		$recordingTime = '';
 		$recordingSize = '';
 		if ($recorded == 'YES')
 		{
 			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
-			$archRecording = $this->getArchivedRecording($logData, $res, $prefix);
-			if (is_object($archRecording))
+			$archRec = $this->getArchivedRecording($logData, $res, $prefix);
+			if (is_object($archRec))
 			{
-				LogVerbose("Fetched recording for result ID {$resID}: {$archRecording->filepath}");
+				LogVerbose("Fetched recording for result ID {$resID}: {$archRec->filepath}");
 								
-				$this->addToZipArchive($archRecording->filepath);
+				$this->addToZipArchive($archRec->filepath);
 				
 				//$recording = "=HYPERLINK(\"{$recording->filepath}\", \"Click to listen\")"; // haven't figured out how to get this working in a CSV file
-				$recording = "=HYPERLINK(\"{$archRecording->filepath}\")";
-				$recordingSize = $archRecording->filesize;
+				$recording = "=HYPERLINK(\"{$archRec->filepath}\")";
+				$recordingSize = $archRec->filesize;
 				$recordingSecs = (int)((double)$recordingSize / 16384.0); // 16-bit WAV
  				$recordingTime = strftime('%T', $recordingSecs);
 			}
-			else if ($archRecording === false)
+			else if (is_double($archRec))
 			{
-				LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
-				return false;
+				LogMessage("Recording result ID {$resID} (AUUID '{$AUUID}') was too big to export: {$archRec} bytes - skipping recording");
+				
+ 				// export of this specific entry was unsuccessful due to the size of the recording
+ 				// (however we still 'may' be able to export other entries in zip if recording size OK or no recordings)			
+				$recording = "\"File too big\"";
+				$recordingSize = $archRec; // could be bigger than int max? leave as double
+				$recordingSecs = (int)($recordingSize / 16384.0); // 16-bit WAV
+ 				$recordingTime = strftime('%T', $recordingSecs);
+ 				
+ 				$success = false;
 			}
-			else 
+			else // not archived yet or already purged
 			{
-				if (!is_string($archRecording))
-					$archRecording = 'Not Available';
+				if (!is_string($archRec) || empty($archRec))
+					$archRec = 'Not Available';
 		
-				LogWarning("No recording for result ID {$resID}, AUUID {$AUUID}, reason '{$archRecording}' - skipping recording file", null, 'U:ARCX');
-				$recording = "\"{$archRecording}\"";
+				LogWarning("No recording for result ID {$resID}, AUUID {$AUUID}, reason '{$archRec}' - skipping recording", null, 'U:ARCX');
+				$recording = "\"{$archRec}\"";
 			}
 		}
 		
@@ -850,8 +876,7 @@ class ArchivingCallExport extends ArchivingExport
 		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
 			throw new Exception("Failed to write entry line to CSV file");
 		
-		// OK
-		return true;
+		return $success;
 	}
 	
 	protected function processApiLogsData(SimpleXMLElement $logsResponseDom, array &$logsData)
@@ -1041,9 +1066,10 @@ class ArchivingCallExport extends ArchivingExport
 		$storageKey = "recording/{$this->orgID}/{$uuid}";
 
 		$content = null;
-		$result = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
-		if ($result !== true)
-			return $result;
+		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
+		if (($contentSize > 0) && empty($content))
+			// recording too big
+			return $contentSize;
 		
 		$callrecordingsDir = "{$this->baseDir}/{$this->csvFileName}-recordings";
 		$wavFileRelPath = "{$this->csvFileName}-recordings/{$prefix}-{$uuid}.wav";
@@ -1250,6 +1276,8 @@ class ArchivingSMSExport extends ArchivingExport
 		
 		LogVerbose("Processing SMS/MMS logs result ID {$resID}, UUID: {$UUID}...");
 		
+		$success = true;
+		
 		$messageSize = '';
 		
 		$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
@@ -1272,17 +1300,23 @@ class ArchivingSMSExport extends ArchivingExport
 			$message = "\"{$text}\"";
 			$messageSize = strlen($archMsg->text);
 		}
-		else if ($archMsg === false)
+		else if (is_double($archMsg))
 		{
-			LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
-			return false;	
-		}
+			LogMessage("SMS/MMS result ID {$resID} (UUID '{$UUID}') was too big to export: {$archMsg} bytes - skipping message");
+			
+			// export of this specific entry was unsuccessful due to the size of the media
+			// (however we still 'may' be able to export other entries in zip if media size OK or no media)			
+			$message = "\"File too big\"";
+			$messageSize = $archMsg; // could be bigger than int max? leave as double
+			
+			$success = false;
+		}		
 		else
 		{
-			if (!is_string($archMsg))
+			if (!is_string($archMsg) || empty($archMsg))
 				$archMsg = 'Not Available';
 	
-			LogWarning("No message for result ID {$resID}, AUUID {$AUUID}, reason '{$archMsg}' - skipping message", null, 'U:ARCX');
+			LogWarning("No SMS/MMS message for result ID {$resID}, AUUID {$AUUID}, reason '{$archMsg}' - skipping message", null, 'U:ARCX');
 			$message = "\"{$archMsg}\"";		
 		}
 						
@@ -1313,7 +1347,7 @@ class ArchivingSMSExport extends ArchivingExport
 		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
 			throw new Exception("Failed to write entry line to CSV file");
 		
-		return true;
+		return $success;
 	}
 	
 	private function getArchivedMessage(array $logData, array $res, $prefix)
@@ -1368,9 +1402,10 @@ class ArchivingSMSExport extends ArchivingExport
 		// a big MMS probably already contains compressed media (mp4 etc), so we don't expect to get further compression 
 		// - hence specifying expected p7zip compression ratio of 1.0 (i.e. no compression)
 		$content = null;
-		$result = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
-		if ($result !== true)
-			return $result;			
+		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
+		if (($contentSize > 0) && empty($content))
+			// recording too big
+			return $contentSize;						
 		
 		$message = new stdClass();
 		
@@ -1746,7 +1781,7 @@ class ArchivingExportApp extends BaseApp
 		$this->cleanupExportStatus();
 		
 		$locName = $this->bigDbc->escape_string($this->hAPILocName);
-				
+						
 		$result = $this->bigDbc->query(
 			"SELECT `ExportID`, ".
 			"`Submitted`, ".
