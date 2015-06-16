@@ -1790,13 +1790,13 @@ class ArchivingExportApp extends BaseApp
 			"`Type`, ".
 			"`QueryQID`, ".
 			"`ResultIDs`, ".
-			"aes_decrypt(`EncPwd`, concat(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, ".
+			"AES_DECRYPT(`EncPwd`, CONCAT(`ExportID`, `OrgID`, '{$this->passwordAESKey}', `QueryQID`)) AS `Password`, ".
 			"`ReasonForAccess`, ".
 			"`ServiceFailedCount` ".
 			"FROM `Aux`.`LogsExportQ` ".
 			"WHERE Status='Pending' ". 
 			"AND `ClientLocation`='{$locName}' ".
-			"AND (`NextServiceAttempt` IS NULL OR CURRENT_TIMESTAMP >= `NextServiceAttempt`) ".
+			"AND (`NextServiceAttempt` IS NULL OR UTC_TIMESTAMP() >= `NextServiceAttempt`) ".
 			"ORDER BY `Submitted` ASC, `ExportID` ASC LIMIT 100;"
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 
@@ -1824,7 +1824,7 @@ class ArchivingExportApp extends BaseApp
 		{
 			case 'Processing':
 				$startTime = microtime(true/*asFloat*/);
-				$additionalFields = ", `LastServiceAttempt`=CURRENT_TIMESTAMP, `NextServiceAttempt`=NULL";
+				$additionalFields = ", `LastServiceAttempt`=UTC_TIMESTAMP(), `NextServiceAttempt`=NULL";
 				break;
 				
 			case 'Complete':
@@ -1864,13 +1864,15 @@ class ArchivingExportApp extends BaseApp
 				switch ($result) 
 				{
 					case 1:
-						if ($this->maxRetries >= $result)
+						// first retry in 60 seconds
+						if ($result <= $this->maxRetries)
 							$retrySeconds = 60;
 						break;
 					
 					case 2:			
 					default:
-						if ($this->maxRetries >= $result)
+						// second retry in 5 minutes
+						if ($result <= $this->maxRetries)
 							$retrySeconds = 300;
 						break;					
 				}
@@ -1879,7 +1881,7 @@ class ArchivingExportApp extends BaseApp
 				{
 					// set status back to 'Pending' and try again in a bit
 					$status = 'Pending';
-					$additionalFields .= ", `NextServiceAttempt`=DATE_ADD(CURRENT_TIMESTAMP, INTERVAL {$retrySeconds} SECOND)";	
+					$additionalFields .= ", `NextServiceAttempt`=DATE_ADD(UTC_TIMESTAMP(), INTERVAL {$retrySeconds} SECOND)";	
 				}
 				else
 				{
