@@ -28,7 +28,17 @@ require_once 's3/S3.php';
 require_once 'archiving/class.ArchivingProcessFile.php';
 require_once 'restclient/RestClient.class.php';
 require_once 'hPHP/hapi.php';
+require_once 'eventlog/class.EventLog.php';
+require_once 'rmbranding/Brand.php';
 
+function formatTime($time, $timeZone, $format)
+{
+	$dt = new DateTime();
+	$dt->setTimezone($timeZone);
+	$dt->setTimestamp($time);
+	return $dt->format($format);
+}
+	
 class TruncateExportException extends Exception
 {
 	public function __construct()
@@ -49,10 +59,13 @@ abstract class ArchivingExport
 	protected $reason = null;
 	
 	protected $encryptionKey = null;
+	protected $branding = null;
 	protected $policyID = null;
-	protected $timezone = null;
+	protected $userDetails = null;
+	protected $userTimezone = null;
 	
 	protected $policyPermissions = array();
+	protected $policyNotificationList = array();
 	
 	protected $baseDir = null;
 	protected $csvFileName = null;
@@ -62,6 +75,9 @@ abstract class ArchivingExport
 		
 	protected $endpointDetails = array();
 	protected $endpoints = array();
+	
+	protected $exportedPolicyIDs = array();
+	protected $exportedMediaUUIDs = array();
 	
 	const TEMP_DIR = '/tmp/rmarchexport';
 	const TEMP_CLI_DIR = '/tmp/rmarchexport-cli';
@@ -98,16 +114,21 @@ abstract class ArchivingExport
 			$this->cleanDirectory(self::TEMP_DIR);
 	}
 	
-	abstract public function type();
+	abstract public function displayType();
+	public function type() { return str_replace('/', '-', strtolower($this->displayType())); }
+	
 	abstract protected function archivingType();
 	
 	public function generate()
 	{
 		$this->encryptionKey = null;
+		$this->branding = null;
 		$this->policyID = null;
-		$this->timezone = null;
+		$this->userDetails = null;
+		$this->userTimezone = null;
 		
 		$this->policyPermissions = array();
+		$this->policyNotificationList = array();
 	
 		$this->baseDir = null;
 		$this->csvFileName = null;
@@ -117,15 +138,21 @@ abstract class ArchivingExport
 		
 		$this->endpointDetails = array();
 		$this->endpoints = array();
+		
+		$this->exportedPolicyIDs = array();
+		$this->exportedMediaUUIDs = array();
 					
-		LogMessage("Starting ".$this->type()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}, ResultIDCount: ".count($this->resultIDs) . ", Reason: {$this->reason}");
+		LogMessage("Starting ".$this->displayType()." log export: ExportID: {$this->exportID}, OrgID: {$this->orgID}, UserID: {$this->userID}, QueryQID: {$this->queryQID}, ResultIDCount: ".count($this->resultIDs) . ", Reason: {$this->reason}");
 		LogDebug("Password: {$this->zipPassword}");
 				
 		// Get info/settings for this user/org
 		
 		$this->encryptionKey = $this->getOrgEncryptionKey($this->orgID);
+		$this->branding = $this->getOrgBranding($this->orgID);
+				
 		$this->policyID = $this->getOrgDefaultPolicyID($this->orgID);
-		$this->timezone = $this->getUserTimeZone($this->userID);
+		$this->userDetails = $this->getUserDetails($this->userID);
+		$this->userTimezone = $this->getUserTimeZone($this->userID);
 				
 		// OK and now the actual API call logs
 
@@ -134,8 +161,8 @@ abstract class ArchivingExport
 		$callLogsData = array();
 		$this->getApiLogsData($searchStartTime, $searchEndTime, $callLogsData);
 
-		$searchStartTime = $this->formatTime($searchStartTime, $this->timezone, 'Y-m-d@H.i.s');
-		$searchEndTime = $this->formatTime($searchEndTime, $this->timezone, 'Y-m-d@H.i.s');
+		$searchStartTime = formatTime($searchStartTime, $this->userTimezone, 'Y-m-d@H.i.s');
+		$searchEndTime = formatTime($searchEndTime, $this->userTimezone, 'Y-m-d@H.i.s');
 
 		//echo "logsData:\n".print_r($logsData);
 		
@@ -145,7 +172,7 @@ abstract class ArchivingExport
 		if (empty($dbRetResults))
 			throw new Exception("Failed to fetch retention database results for query QID {$this->queryQID}");
 
-		LogMessage("Processing ".count($dbRetResults)." ".$this->type()." log entries...");
+		LogMessage("Processing ".count($dbRetResults)." ".$this->displayType()." log entries...");
 		
 		// set up/clean temporary directory where we will stick CSV, WAV, MMS (.eml) and zip files
 		
@@ -159,8 +186,7 @@ abstract class ArchivingExport
 			
 		// format up file names and create export CSV file with column header names
 			
-		$exportUUID = UUID::v4();
-		$this->csvFileName = $this->type()."-export-{$searchStartTime}-to-{$searchEndTime}-{$exportUUID}";
+		$this->csvFileName = "org-{$this->orgID}-{$this->type()}-export-{$this->exportID}-from-{$searchStartTime}-to-{$searchEndTime}";
 		$this->csvFilePath = "{$this->baseDir}/{$this->csvFileName}.csv";
 		$this->zipFileName = "{$this->csvFileName}.zip";
 
@@ -189,11 +215,19 @@ abstract class ArchivingExport
 			if (empty($this->resultIDs) || isset($this->resultIDs[$resID]))
 			{	
 				$callLogData = &$callLogsData[$resID];
+								
 				try
 				{
 					// returns false if media was too big to download or would put export zip file size over size limit 
 					if ($this->exportLogEntry($callLogData, $dbRetResult))
 						++$fullyExportedCount;
+					++$exportedCount;
+					
+					if ($this->exportID > 0)
+					{
+						$progress = "... {$exportedCount} of {$totalCount}";	
+						$this->app->updateExportStatus($this->exportID, 'Progress', $progress);
+					}
 				}
 				catch (TruncateExportException $ex)
 				{
@@ -228,13 +262,20 @@ abstract class ArchivingExport
 		$this->addToZipArchive("{$this->csvFileName}.csv");
 	
 		// upload the final zip to S3
-		$exportURI = "export/{$this->orgID}/{$exportUUID}";
-		$this->uploadZipArchive($zipFilePath, $exportURI);
+		$storageKey = "export/{$this->orgID}/{$this->exportID}/1";
+		$this->uploadZipArchive($zipFilePath, $storageKey);
 	
+		// Having a UUID in the export URL is just to provide a bit of obfuscation 
+		// and to give the appearance that export download URLs are as secure/unguessable as recording/SMS/MMS download URLs
+		$exportUUID = trim(exec('/usr/bin/uuidgen -t'));
+		
+		$exportURI = "export/{$this->orgID}/{$exportUUID}";
 		$res = new stdClass();
 		$res->policyID = $this->policyID;
 		$res->exportURI = $exportURI;
 		$res->result = $result;
+		
+		$this->writeEventLogSuccess($exportURI);
 		
 		return $res;
 	}
@@ -251,18 +292,18 @@ abstract class ArchivingExport
 
 		$client->execute();
 		
-		$profilePesponse = trim($client->getResponse());
-		if (empty($profilePesponse))
+		$profileResponse = trim($client->getResponse());
+		if (empty($profileResponse))
 			throw new Exception("Failed to fetch user profile details for user ID {$userID}");
 			
 		if ($client->getResponseCode() != 200)	
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profilePesponse}");
+			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profileResponse}");
 		
-		//echo "profilePesponse:\n{$profilePesponse}\n";
+		//echo "profilePesponse:\n{$profileResponse}\n";
 
-		$profileResponseDom = simplexml_load_string($profilePesponse);
+		$profileResponseDom = simplexml_load_string($profileResponse);
 		if (!($profileResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profilePesponse}");
+			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profileResponse}");
 		
 		$timezone = null;
 		$timezoneValNode = $profileResponseDom->xpath('General[1]/DefTZ[1]/@Val');
@@ -284,7 +325,46 @@ abstract class ArchivingExport
 		
 		return new DateTimeZone($timezone);
 	}
-	
+
+	protected function getUserDetails($userID)
+	{
+		$client = RestClient::createClient();
+		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.'/users/'.$userID);
+		$client->setMethod('GET');
+		$headers = array("Authorization" => API::GetToken());
+		$client->setHeaders($headers);
+
+		$client->execute();
+		
+		$usersResponse = trim($client->getResponse());
+		if (empty($usersResponse))
+			throw new Exception("Failed to fetch details for user ID {$userID}");
+			
+		if ($client->getResponseCode() != 200)	
+			throw new Exception("Failed to fetch details for user ID {$userID}, response: {$usersResponse}");
+		
+		//echo "usersResponse:\n{$usersResponse}\n";
+		
+		$usersResponseDom = simplexml_load_string($usersResponse);
+		if (!($usersResponseDom instanceof SimpleXMLElement)) 
+			throw new Exception("Failed to fetch details for user ID {$userID}, response: {$usersResponse}");
+		
+		$details = new stdClass();	
+		$fields = array('UserName', 'FirstName', 'MiddleNames', 'LastName');
+		foreach ($fields as $field)
+		{			
+			$fieldNode = $usersResponseDom->xpath('User[1]/@'.$field);
+			if (empty($fieldNode)) 
+				throw new Exception("Failed to extract field '{$field}' from details for user ID {$userID}, response: {$usersResponse}");
+			$value = (string)$fieldNode[0];
+			
+			$field = strtolower($field);
+			$details->{$field} = $value;
+		}
+				
+		return $details;
+	}
+		
 	abstract protected function getApiLogsPath();
 	
 	protected function getApiLogsData(&$searchStartTime, &$searchEndTime, array &$logsData)
@@ -339,6 +419,44 @@ abstract class ArchivingExport
 		return $result[0]['EncryptionKey'];	
 	}
 	
+	protected function getOrgBranding($orgID)
+	{
+		$client = RestClient::createClient();
+		$client->setUrl("http://api.{$this->app->hAPISearchDomain}/branding/{$this->orgID}");
+		$client->setMethod('GET');	
+		$headers = array("Authorization" => API::GetToken());
+		$client->setHeaders($headers);
+		
+		$client->execute();
+		
+		$brandingResponse = trim($client->getResponse());
+		
+		//echo "brandingResponse:\n{$brandingResponse}\n";
+		
+		if (empty($brandingResponse))
+			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}");
+		
+		if ($client->getResponseCode() != 200)
+			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+		
+		$brandingDom = simplexml_load_string($brandingResponse);
+		if (!($brandingDom instanceof SimpleXMLElement))
+			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+			
+		$nodes = $brandingDom->xpath('@Identifier');
+		if (empty($nodes))
+			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+								
+		$identifier = (string)$nodes[0];
+		if (empty($identifier))
+			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+		
+		$branding = Brand::ByIdentifier($identifier);
+		if (!is_object($branding))
+			throw new Exception("Failed to find branding settings for '{$identifier}' for org ID {$this->orgID}, response: {$brandingResponse}");
+		return $branding;
+	}	
+	
 	protected function getOrgDefaultPolicyID($orgID)
 	{
 		$result = $this->app->coreDbc->query(
@@ -370,7 +488,7 @@ abstract class ArchivingExport
 			$allowed = $this->policyPermissions[$policyID][$ownerUserID];
 			LogDebug("Using previously cached permission result: ".($allowed?'true':'false'));
 			return $allowed;
-		}	
+		}
 				
 		$client = RestClient::createClient();
 		$client->setUrl("http://api.{$this->app->hAPISearchDomain}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
@@ -381,27 +499,44 @@ abstract class ArchivingExport
 		$client->execute();
 		
 		$permsResponse = trim($client->getResponse());
+		
+		//echo "permissionsResponse:\n{$permsResponse}\n";
+		
 		if (empty($permsResponse))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 		
 		if ($client->getResponseCode() != 200)
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
 		
-		$permsResponseDom = simplexml_load_string($permsResponse);
-		if (!($permsResponseDom instanceof SimpleXMLElement))
+		$permsDom = simplexml_load_string($permsResponse);
+		if (!($permsDom instanceof SimpleXMLElement))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
 			
-		$nodes = $permsResponseDom->xpath('@Allowed');
+		$nodes = $permsDom->xpath('@Allowed');
 		if (empty($nodes))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
-			
+						
 		LogDebug("Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");	
 		
 		$allowed = (string)$nodes[0];
 		$allowed = ($allowed == 'YES');
-		
-		// cache result
-		$this->policyPermissions[$policyID][$ownerUserID] = $allowed;	
+
+		// stash away notification settings for subsequent custodian Email/SMS notifications
+		if (!isset($this->policyNotificationList[$policyID]))
+		{
+			$this->policyNotificationList[$policyID] = array();
+			foreach (array('Email', 'SMS') as $type)
+			{
+				$userIDs = array();				
+				$userIDNodes = $permsDom->xpath("NotificationList[1]/{$type}[1]/User/@ID");
+				foreach ($userIDNodes as $userIDNode)
+					$userIDs[] = (int)$userIDNode[0];
+				$this->policyNotificationList[$policyID][$type] = $userIDs;
+			}
+		}
+							
+		// cache 'allowed' result
+		$this->policyPermissions[$policyID][$ownerUserID] = $allowed;
 		return $allowed;
 	}
 	
@@ -413,16 +548,14 @@ abstract class ArchivingExport
 		
 		// First check if size not too big
 		
-		LogVerbose("Getting object info {$storageKey} from S3 Bucket {$bucket}");
+		LogVerbose("Getting S3 object info {$storageKey} from S3 Bucket {$bucket}");
 		
 		$infoResponse = $s3->getObjectInfo($bucket, $storageKey);
 		if (empty($infoResponse) || empty($infoResponse['x-amz-meta-clear-size']) || empty($infoResponse['size']))
 			throw new Exception("Failed to fetch {$storageKey} S3 object info");
 	
 		foreach ($infoResponse as $h => $v)
-		{
 			LogDebug("header: '{$h}' = '{$v}'");
-		}			
 			
 		$filesize = (double)$infoResponse['x-amz-meta-clear-size'];
 		LogVerbose("Uncompressed object size (x-amz-meta-clear-size): {$filesize}");
@@ -453,10 +586,8 @@ abstract class ArchivingExport
 			$zipFilesize = filesize($zipFilePath);
 			
 			if (($zipFilesize > 0) && ($p7zipCompressedFilesize > 0) && (($zipFilesize+$p7zipCompressedFilesize) > ($this->app->maxZipFileSizeMB * (1024.0*1024.0))))
-			{
 				// this would make zip file too big - truncate export before this entry
 				throw new TruncateExportException();
-			}
 		}	
 		
 		// size OK - download object from S3
@@ -552,9 +683,11 @@ abstract class ArchivingExport
 		$s3 = $this->getS3Endpoint($this->policyID, 0/*policyVersion*/);		
 		
 		// OK REALLY REALLY important to call clearstatcache() first as filesize() is called internally by S3::putObjectFile() and:
+		// 
 		// 'On Linux based systems, data fetched by filesize() is "statcached".
 		// Try calling clearstatcache(); before the filesize call.'
 		// http://stackoverflow.com/questions/3747982/php-filesize-reporting-old-size
+		// 
 		clearstatcache();
 		
 		LogVerbose("Uploading export zip {$storageKey} (".filesize($zipFilePath)." bytes) to bucket {$bucket} in S3...");
@@ -602,14 +735,195 @@ abstract class ArchivingExport
 
 		return $this->endpoints[$policyID][$policyVersion];
 	}
-
-	protected function formatTime($time, $timeZone, $format)
+	
+	private function getBrandingSetting($key, $defaultValue)
 	{
-		$dt = new DateTime();
-		$dt->setTimezone($timeZone);
-		$dt->setTimestamp($time);
-		return $dt->format($format);
+		if (!isset($this->branding))
+			throw new Exception("No branding settings");
+		
+		if (isset($this->branding->{$key}))
+		{
+			$value = (string)($this->branding->{$key});
+			if (!empty($value))
+				return $value;
+		}
+
+		return $defaultValue;
 	}
+	
+	protected function addAuditDetails($archEntry, $timeUTC)
+ 	{			
+		if (!isset($this->exportedPolicyIDs[$archEntry->policyID]))
+		{
+			$this->exportedPolicyIDs[$archEntry->policyID] = $archEntry->policyID;
+		}
+		else
+		{
+			$exportCount = $this->exportedPolicyIDs[$archEntry->policyID];
+			$this->exportedPolicyIDs[$archEntry->policyID] = ++$exportCount;
+		}		
+		
+		$this->exportedMediaUUIDs[$archEntry->uuid] = $timeUTC;	
+	}
+			
+	private function writeEventLogSuccess($exportURI)
+	{
+		$notify = array();		
+		$notify[] = array(
+			'Type' => 'Email',
+			'Subject' => "{$this->displayType()} Logs Bulk Download ID {$this->exportID} is complete",
+			'Heading' => "{$this->displayType()} Logs Bulk Download ID {$this->exportID} is complete",
+			'To' => array($this->userID),
+			'From' => array(
+				$this->getBrandingSetting('Common/NameSimplified', 'Natterbox').' Archive',
+				$this->getBrandingSetting('Emailer/FromEmailAddress', 'noreply@natterbox.com')),
+			'Text' => "Your {$this->displayType()} Logs Bulk Download can be accessed <a href=\"".$this->getBrandingSetting('URL/FileService', 'https://fileservice.natterbox.com')."/{$exportURI}\">here</a>.\r\n"
+		);
+		
+		if (!empty($this->exportedPolicyIDs) && !empty($this->policyNotificationList))
+		{
+			// we have exported recordings/SMS/MMSs from one or more policy IDs and there are custodians configured for one or more of these policies
+			
+			// build de-duplicated list of userIDs to notify by Email/SMS
+			$typeUserIDs = array();
+			foreach (array('Email', 'SMS') as $type)
+			{
+				$typeUserIDs[$type] = array();
+				foreach ($this->exportedPolicyIDs as $policyID => $exportedCount)
+				{	
+					if (isset($this->policyNotificationList[$policyID][$type]))
+					{
+						$userIDs = $this->policyNotificationList[$policyID][$type];
+						foreach ($userIDs as $userID)
+						{
+							if (!isset($typeUserIDs[$type][$userID]))
+								$typeUserIDs[$type][$userID] = $userID;
+						}
+					}
+				}
+			}
+			
+			// this is a bit crap that the time in the email body is always BST,
+			// but this is also exactly what we do when a recording/SMS/MMS is accessed and we send custodian email notifications
+			// (so I'm just being consistently crap here!)
+			$bstz = new DateTimeZone('Europe/London');
+			//$timeOfExport = formatTime(time(), $bstz, '%e %B %Y %r');
+			$timeOfExport = formatTime(time(), $bstz, 'j F Y h:i:s A');
+
+			$name = 'Unknown User';
+			if (isset($this->userDetails) && !empty($this->userDetails->firstname))
+			{
+				$name = $this->userDetails->firstname;
+				if (!empty($this->userDetails->middlenames))
+					$name .= " {$this->userDetails->middlenames}";
+				if (!empty($this->userDetails->lastname))
+					$name .= " {$this->userDetails->lastname}";
+			}
+						
+			$fileTypeVerbose = ($this->archivingType()=='recording'?'call recording':'SMS/MMS');
+			$exportedCount = count($this->exportedMediaUUIDs);
+			
+			$brief = "{$name} exported {$exportedCount} {$fileTypeVerbose} ".($exportedCount==1?'file':'files')." for Bulk Download ID {$this->exportID} on the {$timeOfExport}.";
+			
+			if (!empty($typeUserIDs['Email']))
+			{
+				$notify[] = array(
+					'Type' => 'Email',
+					'Subject' => 'Archive Export Custodian Alert',
+					'Heading' => 'Archive Export Custodian Alert',
+					'To' => $typeUserIDs['Email'],
+					'From' => array(
+						$this->getBrandingSetting('Common/NameSimplified', 'Natterbox').' Archive',
+						$this->getBrandingSetting('Emailer/FromEmailAddress', 'noreply@natterbox.com')),
+					'Text' => "You are receiving this email because you are a registered Data Custodian for archived {$fileTypeVerbose}s.
+
+{$brief}".
+(isset($this->reason)? "
+The stated reason for the export was:
+\"{$this->reason}\"":'')
+				);
+			}
+		
+			if (!empty($typeUserIDs['SMS']))
+			{
+				$notify[] = array(
+					'Type' => 'SMS',
+					'To' => $typeUserIDs['SMS'],
+					'From' => substr(
+						preg_replace(
+							'/[^-a-zA-Z0-9 +]+/', '',
+							$this->getBrandingSetting('Common/NameSimplified', 'Natterbox')
+						), 0, 11
+					),
+					'Text' => $brief.(isset($this->reason)? " Stated reason was: {$this->reason}.": '')
+				);
+			}
+		}
+						
+		$message = "{$this->displayType()} Logs Bulk Download request ID {$this->exportID} was successfully processed; Reason for access: \"{$this->reason}\"";
+		
+		// ExtraData field in EventLogs.EventLog table is 65536 long so we might have to spread details of exportedMediaUUIDs across multiple event log entries.
+		// Lets say log no more than 500 UUIDs (& call/SMS time) in each log entry
+		
+		$exportedMediaUUIDs = $this->exportedMediaUUIDs;		
+		$firstTimeIn = true;		
+		do
+		{
+			$batchExportedMediaUUIDs = array_slice($exportedMediaUUIDs, 0, 500, true/*preserveKeys*/); 
+			$exportedMediaUUIDs = array_slice($exportedMediaUUIDs, 500, null, true/*preserveKeys*/);
+			
+			$extraData = array(
+				'ExportID' => $this->exportID,
+				'ExportedMedia' => $batchExportedMediaUUIDs
+			);
+			if ($firstTimeIn)
+				$extraData['Notify'] = $notify;
+							
+			EventLog::Message(
+				$this->orgID,
+				'Archiving',
+				"Archiving:{$this->displayType()}:Export:Complete",
+				$message,
+				$this->userID,
+				null,
+				$extraData
+			);
+			
+			if ($firstTimeIn)
+				$message = "(continued) {$message}";
+			$firstTimeIn = false;
+		}	
+		while (count($exportedMediaUUIDs) > 0);		
+	}
+	
+	public function writeEventLogFailed()
+	{
+		$notify = array();		
+		$notify[] = array(
+			'Type' => 'Email',
+			'Subject' => "{$this->displayType()} Logs Bulk Download ID {$this->exportID} processing failed",
+			'Heading' => "{$this->displayType()} Logs Bulk Download ID {$this->exportID} processing failed",
+			'To' => array($this->userID),
+			'From' => array(
+				$this->getBrandingSetting('Common/NameSimplified', 'Natterbox').' Archive',
+				$this->getBrandingSetting('Emailer/FromEmailAddress', 'noreply@natterbox.com')),
+			'Text' => "The system was unable to process this {$this->displayType()} Logs Bulk Download request. Please try a different logs search range or contact your administrator.\r\n"
+		);
+								
+		$message = "{$this->displayType()} Logs Bulk Download request ID {$this->exportID} processing failed";									
+		EventLog::Error(
+			$this->orgID,
+			'Archiving',
+			"Archiving:{$this->displayType()}:Export:Failed",
+			$message,
+			$this->userID,
+			null,
+			array(
+				'ExportID' => $this->exportID,
+				'Notify' => $notify,
+			)
+		);
+	}	
 
 	protected function createDirectoryTree($dirPath)
 	{
@@ -667,7 +981,7 @@ class ArchivingCallExport extends ArchivingExport
 		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 	}
 	
-	public function type() { return 'call'; }
+	public function displayType() { return 'Call'; }
 	protected function archivingType() { return 'recording'; }
 	
 	protected function getApiLogsPath()
@@ -684,7 +998,8 @@ class ArchivingCallExport extends ArchivingExport
 		$toNumber  = $logData['To_Number'];
 		$recorded = $logData['Recorded'];
 		$resID = (int)$res['ResID'];
-		
+		$startTimeUTC = gmstrftime('%F %T', $time);
+			
 		LogVerbose("Processing logs result ID {$resID}, AUUID: {$AUUID}, Recorded: '{$recorded}'...");
 		
 		$success = true;
@@ -694,7 +1009,7 @@ class ArchivingCallExport extends ArchivingExport
 		$recordingSize = '';
 		if ($recorded == 'YES')
 		{
-			$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
+			$prefix = formatTime($time, $this->userTimezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
 			$archRec = $this->getArchivedRecording($logData, $res, $prefix);
 			if (is_object($archRec))
 			{
@@ -707,6 +1022,8 @@ class ArchivingCallExport extends ArchivingExport
 				$recordingSize = $archRec->filesize;
 				$recordingSecs = (int)((double)$recordingSize / 16384.0); // 16-bit WAV
  				$recordingTime = strftime('%T', $recordingSecs);
+ 				
+ 				$this->addAuditDetails($archRec, $startTimeUTC); 				
 			}
 			else if (is_double($archRec))
 			{
@@ -751,9 +1068,8 @@ class ArchivingCallExport extends ArchivingExport
 		//$toPnArchID = (int)$logData['To_PnArchID'];
 		$type = $logData['Type'];
 
-		$startTimeLocal = $this->formatTime($time, $this->timezone, 'Y-m-d H:i:s');
-		$startTimeUTC = gmstrftime('%F %T', $time);
-		$endTimeLocal = $this->formatTime($time+$timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs, $this->timezone, 'Y-m-d H:i:s');
+		$startTimeLocal = formatTime($time, $this->userTimezone, 'Y-m-d H:i:s');
+		$endTimeLocal = formatTime($time+$timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs, $this->userTimezone, 'Y-m-d H:i:s');
 		
 		$totalCallTimeSecs = $timeHuntingSecs+$timeRingingSecs+$timeTalkingSecs;
 		$totalCallTime = strftime('%T', $totalCallTimeSecs);
@@ -1103,7 +1419,10 @@ class ArchivingCallExport extends ArchivingExport
 		
 		$recording = new stdClass();
 		$recording->filepath = $wavFileRelPath;
-		$recording->filesize = $wavFileSize;	
+		$recording->filesize = $wavFileSize;
+		$recording->uuid = $uuid;
+		$recording->policyID = $policyID;
+		
 		return $recording;
 	}
 	
@@ -1255,7 +1574,7 @@ class ArchivingSMSExport extends ArchivingExport
 		parent::__construct($app, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 	}
 	
-	public function type() { return 'sms-mms'; }
+	public function displayType() { return 'SMS/MMS'; }
 	protected function archivingType() { return 'sms'; }
 	
 	protected function getApiLogsPath()
@@ -1274,13 +1593,15 @@ class ArchivingSMSExport extends ArchivingExport
 		//$hostname = $logData['HostName']; // Not used
 		$resID = (int)$res['ResID'];
 		
+		$timeUTC = gmstrftime('%F %T', $time);
+
 		LogVerbose("Processing SMS/MMS logs result ID {$resID}, UUID: {$UUID}...");
 		
 		$success = true;
 		
 		$messageSize = '';
 		
-		$prefix = $this->formatTime($time, $this->timezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
+		$prefix = formatTime($time, $this->userTimezone, 'Y-m-d@H.i.s') . "-from-{$fromNumber}-to-{$toNumber}";
 		$archMsg = $this->getArchivedMessage($logData, $res, $prefix);
 		if (isset($archMsg->filepath))
 		{
@@ -1291,6 +1612,8 @@ class ArchivingSMSExport extends ArchivingExport
 			//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
 			$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
 			$messageSize = $archMsg->filesize;
+			
+			$this->addAuditDetails($archMsg, $timeUTC);
 		}
 		else if (isset($archMsg->text))
 		{
@@ -1299,6 +1622,8 @@ class ArchivingSMSExport extends ArchivingExport
 			$text = str_replace("\"", "\"\"", $archMsg->text);
 			$message = "\"{$text}\"";
 			$messageSize = strlen($archMsg->text);
+
+			$this->addAuditDetails($archMsg, $timeUTC);
 		}
 		else if (is_double($archMsg))
 		{
@@ -1320,8 +1645,7 @@ class ArchivingSMSExport extends ArchivingExport
 			$message = "\"{$archMsg}\"";		
 		}
 						
-		$timeLocal = $this->formatTime($time, $this->timezone, 'Y-m-d H:i:s');
-		$timeUTC = gmstrftime('%F %T', $time);
+		$timeLocal = formatTime($time, $this->userTimezone, 'Y-m-d H:i:s');
 								
 		$csvEntryFields = array
 		(
@@ -1408,7 +1732,9 @@ class ArchivingSMSExport extends ArchivingExport
 			return $contentSize;						
 		
 		$message = new stdClass();
-		
+		$message->uuid = $uuid;
+		$message->policyID = $policyID;
+
 		// seems crude, but this is exactly how the portal determines if message is SMS or MMS
 		$xmlPos = strpos($content, "<?xml");
 		if (($xmlPos === 0) || ($xmlPos === 1)) 
@@ -1650,6 +1976,9 @@ class ArchivingExportApp extends BaseApp
 			
 			$this->api = array($coreapi, API::GetToken());
 			/** @noinspection PhpUnusedLocalVariableInspection */
+			
+			EventLog::Configure($coreapi);
+			EventLog::SetAuthorization(API::GetToken());
 
 			$authorizationSentry = new ScopeSentry(
 				function()
@@ -1681,7 +2010,8 @@ class ArchivingExportApp extends BaseApp
 				
 			$type = cli::get('--type', '');
 			if (empty($type))
-				throw new Exception('No type specified');				
+				throw new Exception('No type specified');
+			$displayType = ($type == 'SMS' ? 'SMS/MMS' : $type);	
 			
 			$resultIDs = array();
 			$resIDs = explode(',', cli::get('--resultids', ''));
@@ -1695,6 +2025,7 @@ class ArchivingExportApp extends BaseApp
 			$zipPassword = cli::get('--password', 'letmein');
 			$exportID = cli::get('--exportid', -1);
 			
+			$export = null;
 			try
 			{
 				if ($type != 'Call' && $type !='SMS')
@@ -1708,22 +2039,31 @@ class ArchivingExportApp extends BaseApp
 				$result = $export->generate();
 				
 				LogVerbose("Generated export OK with URI '{$result->exportURI}'");
-				
+								
 				if ($exportID > 0)
-					updateExportStatus($exportID, 'Complete', $result);	
+				{
+					$this->updateExportStatus($exportID, 'Complete', $result);	
+				}		
 			}
 			catch (Exception $e)
 			{
 				if ($exportID > 0) 
-					$status = $this->updateExportStatus($exportID, 'Failed', $serviceFailedCount);
+					$status = $this->updateExportStatus($exportID, 'Failed', 1/*$serviceFailedCount*/);
 				else
 					$status = 'Failed';
 				
 				if ($status == 'Failed')
-					LogWarning("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
-				else
-					LogMessage("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
-			}						
+				{
+					LogWarning("Failed to export {$displayType} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
+					if (is_object($export))
+						$export->writeEventLogFailed();
+				}
+				else // we will retry in a bit
+				{
+					LogMessage("Failed to export {$displayType} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
+				}
+			}
+			unset($export);
 		}
 		else // daemon mode - we have a pending request(s)
 		{					
@@ -1733,6 +2073,7 @@ class ArchivingExportApp extends BaseApp
 				$orgID = (int)$request['OrgID'];
 				$userID = (int)$request['UserID'];
 				$type = $request['Type'];
+				$displayType = ($type == 'SMS' ? 'SMS/MMS' : $type);
 				$queryQID = (int)$request['QueryQID'];
 				$resultIDs = array();
 				$resIDs = explode(',', $request['ResultIDs']);
@@ -1742,11 +2083,13 @@ class ArchivingExportApp extends BaseApp
 				foreach ($resIDs as $id)
 				{
 					$id = (int)$id;
-					if ($id > 0)
+					// there is a weird bug in portal which means it sometimes sets duplicate result IDs - de-duplicate here
+					if (($id > 0) && !isset($resultIDs[$id]))
 						$resultIDs[$id] = $id;
 				}
 				$zipPassword = $request['Password'];
 				
+				$export = null;
 				try
 				{
 					if ($type != 'Call' && $type !='SMS')
@@ -1758,18 +2101,25 @@ class ArchivingExportApp extends BaseApp
 					$export = new $className($this, $exportID, $orgID, $userID, $queryQID, $resultIDs, $zipPassword, $reason);
 					$result = $export->generate();
 							
-					LogMessage("Successfully exported ".$export->type()." logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");		
-					
+					LogMessage("Successfully exported {$displayType} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: ExportURI: {$result->exportURI}");
+										
 					$this->updateExportStatus($exportID, 'Complete', $result);
 				}
 				catch (Exception $e)
 				{
 					$status = $this->updateExportStatus($exportID, 'Failed', $serviceFailedCount);
 					if ($status == 'Failed')
-						LogWarning("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
-					else
-						LogMessage("Failed to export {$type} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
+					{
+						LogWarning("Failed to export {$displayType} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID}: Exception: {$e}", null, 'U:ARCX');
+						if (is_object($export))
+							$export->writeEventLogFailed();
+					}
+					else // we will retry in a bit
+					{
+						LogMessage("Failed to export {$displayType} logs: ExportID: {$exportID}, OrgID: {$orgID}, UserID: {$userID}, QueryQID: {$queryQID} - retrying again in a bit... (Exception: {$e})");
+					}
 				}
+				unset($export);
 			}
 		}
 		
@@ -1809,13 +2159,14 @@ class ArchivingExportApp extends BaseApp
 		
 		$this->bigDbc->query(
 			"UPDATE `Aux`.`LogsExportQ` ".
-			"SET `Status`='Pending' ".
+			"SET `Status`='Pending', ".
+			"`Result`='' ".
 			"WHERE `Status`='Processing' ".
 			"AND `ClientLocation`='{$locName}';"
 		);
 	}
 	
-	private function updateExportStatus($exportID, $status, $result=null)
+	public function updateExportStatus($exportID, $status, $result=null)
 	{
 		static $startTime; 
 		$additionalFields = '';
@@ -1825,6 +2176,12 @@ class ArchivingExportApp extends BaseApp
 			case 'Processing':
 				$startTime = microtime(true/*asFloat*/);
 				$additionalFields = ", `LastServiceAttempt`=UTC_TIMESTAMP(), `NextServiceAttempt`=NULL";
+				break;
+				
+			case 'Progress':
+				$result = $this->bigDbc->escape_string($result);
+				$additionalFields .= ", `Result`='{$result}'";
+				$status = 'Processing';
 				break;
 				
 			case 'Complete':
@@ -1855,7 +2212,7 @@ class ArchivingExportApp extends BaseApp
 				
 			case 'Failed':
 				$elapsedMSecs = (int)((microtime(true/*asFloat*/) - $startTime) * 1000.0);
-				$additionalFields .= ", `DurationMS`={$elapsedMSecs}";
+				$additionalFields .= ", `Result`='', `DurationMS`={$elapsedMSecs}";
 				
 				++$result;
 				$additionalFields .= ", `ServiceFailedCount`={$result}";
@@ -1906,7 +2263,7 @@ class ArchivingExportApp extends BaseApp
 		);
 		
 		return $status;
-	}	
+	}
 }
 
 /**
