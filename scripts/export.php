@@ -220,7 +220,9 @@ abstract class ArchivingExport
 				{
 					// returns false if media was too big to download or would put export zip file size over size limit 
 					if ($this->exportLogEntry($callLogData, $dbRetResult))
+					{
 						++$fullyExportedCount;
+					}
 					++$exportedCount;
 					
 					if ($this->exportID > 0)
@@ -237,7 +239,6 @@ abstract class ArchivingExport
 					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";					
 					break;
 				}
-				++$exportedCount;	
 			}
 		}
 		
@@ -2352,4 +2353,3 @@ catch (Exception $e)
 	LogWarning($e);
 	exit(1);
 }
-
