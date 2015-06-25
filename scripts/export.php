@@ -767,7 +767,7 @@ abstract class ArchivingExport
 		$this->exportedMediaUUIDs[$archEntry->uuid] = $timeUTC;	
 	}
 			
-	private function writeEventLogSuccess($exportURI)
+	protected function writeEventLogSuccess($exportURI)
 	{
 		$notify = array();		
 		$notify[] = array(
@@ -778,7 +778,8 @@ abstract class ArchivingExport
 			'From' => array(
 				$this->getBrandingSetting('Common/NameSimplified', 'Natterbox').' Archive',
 				$this->getBrandingSetting('Emailer/FromEmailAddress', 'noreply@natterbox.com')),
-			'Text' => "Your {$this->displayType()} Logs Bulk Download can be accessed <a href=\"".$this->getBrandingSetting('URL/FileService', 'https://fileservice.natterbox.com')."/{$exportURI}\">here</a>.\r\n"
+			'Text' => "Your {$this->displayType()} Logs Bulk Download can be accessed <a href=\"".$this->getBrandingSetting('URL/FileService', 'https://fileservice.natterbox.com')."/{$exportURI}\">here</a>.\r\n\r\n".
+				"Please note that this download link will only be accessible for 7 days.\r\n"
 		);
 		
 		if (!empty($this->exportedPolicyIDs) && !empty($this->policyNotificationList))
@@ -1288,11 +1289,10 @@ class ArchivingCallExport extends ArchivingExport
 	
 	protected function getLogsAndRetentionDbResults()
 	{
-		return $this->app->bigDbc->query(
-			"SELECT \n" .
+		$sql= "SELECT \n" .
 			"LOWER(HEX(l.`AUUID`)) AS `HexAUUID`, \n" .
 			"LOWER(HEX(l.`BUUID`)) AS `HexBUUID`, \n" .
-			"l.*, \n" .
+			"l.`ResID`, \n" .
 			"ra.`LegUUID` AS `RetentionALegUUID`, \n" .
 			"ra.`UserID` AS `RetentionALegUserID`, \n" .
 			"ra.`PolicyID` AS `RetentionALegPolicyID`, \n" .
@@ -1307,8 +1307,10 @@ class ArchivingCallExport extends ArchivingExport
 			"rb.`Purged` AS `RetentionBLegPurged` \n" .
 			"FROM `Org_{$this->orgID}`.`Results_Logs_{$this->userID}_{$this->queryQID}` l \n" .
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` ra ON (l.`AUUID`=ra.`LegUUID`) \n" .
-			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` rb ON (l.`BUUID`=rb.`LegUUID`)"
-		)->fetch_all(MySQLiResult::AS_ASSOC);
+			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` rb ON (l.`BUUID`=rb.`LegUUID`) \n" .
+			"WHERE (ra.Type=".Archiving::FILE_TYPE_INT_RECORDING." OR ra.Type IS NULL OR rb.Type=".Archiving::FILE_TYPE_INT_RECORDING." OR rb.Type IS NULL);";
+								
+		return $this->app->bigDbc->query($sql)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 	
 	private function getArchivedRecording(array $logData, array $res, $prefix)
@@ -1855,10 +1857,9 @@ class ArchivingSMSExport extends ArchivingExport
 	
 	protected function getLogsAndRetentionDbResults()
 	{
-		return $this->app->bigDbc->query(
-			"SELECT \n" .
+		$sql = "SELECT \n" .
 			"LOWER(HEX(l.`UUID`)) AS `HexUUID`, \n" .
-			"l.*, \n" .
+			"l.`ResID`, \n" .
 			"r.`UUID` AS `RetentionUUID`, \n" .
 			"r.`UserID` AS `RetentionUserID`, \n" .
 			"r.`PolicyID` AS `RetentionPolicyID`, \n" .
@@ -1866,8 +1867,10 @@ class ArchivingSMSExport extends ArchivingExport
 			"r.`State` AS `RetentionState`, \n" . 
 			"r.`Purged` AS `RetentionPurged` \n" . 
 			"FROM `Org_{$this->orgID}`.`Results_SMSLogs_{$this->userID}_{$this->queryQID}` l \n" .
-			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` r ON (l.`UUID`=r.`UUID`)"
-		)->fetch_all(MySQLiResult::AS_ASSOC);
+			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` r ON (l.`UUID`=r.`UUID`) \n" .
+			"WHERE (r.Type=".Archiving::FILE_TYPE_INT_SMS." OR r.Type IS NULL);";
+					
+		return $this->app->bigDbc->query($sql)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 	
 	protected function getCsvHeaderFields()
