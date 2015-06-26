@@ -234,7 +234,7 @@ abstract class ArchivingExport
 				catch (TruncateExportException $ex)
 				{
 					// Zip file size limit would be exceeded - truncate export before this entry
-					LogWarning("Zip archive would exceed {$app->this->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
+					LogWarning("Zip archive would exceed {$this->app->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
 					
 					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";					
 					break;
