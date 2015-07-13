@@ -204,8 +204,9 @@ abstract class ArchivingExport
 		$this->csvFile = fopen($this->csvFilePath, 'wb');
 		if ($this->csvFile === false)
 			throw new Exception("Failed to open CSV file for writing '{$this->csvFilePath}'");
-
-		$csvHeaderLine = implode(',', $this->getCsvHeaderFields());
+		
+		$csvHeaderLine = "\xEF\xBB\xBF"; // UTF-8 BOM
+		$csvHeaderLine .= implode(',', $this->getCsvHeaderFields());
 		if (fwrite($this->csvFile, $csvHeaderLine."\r\n") === false)
 			throw new Exception("Failed to write header to CSV file '{$this->csvFilePath}'");
 
@@ -1185,68 +1186,61 @@ class ArchivingCallExport extends ArchivingExport
 		
 		$csvEntryFields = array
 		(
-			$recording,			// Recording
-			$recordingTime,		// Recording Time
-			$recordingSize,		// Recording Size (Bytes)			
-			$startTimeLocal,	// Date / Time
-			$startTimeUTC,		// UTC Date / Time
-			$endTimeLocal,		// End Date / Time
-			$totalCallTime,		// Total Call Time
-			$totalCallTimeSecs,	// Total Call Time (INT)
-			$from,				// From
-			$fromType,			// From Type
-			$fromLabel,			// From Label
-			$fromNumber,		// From (Number)
-			$fromDev,			// From (Device)
-			$toNumberDialled, 	// Dialled (Number)
-			$toUser, 			// Connected To
-			$toType, 			// To Type
-			$toLabel, 			// To Label
-			$toNumber, 			// Connected To (Number)
-			$toDev, 			// Connected To (Device)
-			$timeHunting,		// Time Hunting
-			$timeRinging,		// Time Ringing
-			$timeTalking,		// Time Talking
-			$timeHuntingSecs,	// Time Hunting (INT)
-			$timeRingingSecs,	// Time Ringing (INT)
-			$timeTalkingSecs,	// Time Talking (INT)
-			$direction,			// Direction
-			$fromHangup,		// From HangUp
-			$toHangup,			// To HangUp
-			$type, 				// Type
-			$flags,				// Flags
-			$policy,			// Policy
-			$AUUID,				// AUUID
-			$BUUID,				// BUUID
-			$transfer,			// Transfer
-			$attTransfer,		// Att Transfer
-			$blindTransfer,		// Blind Transfer
-			$cliWithheld, 		// CLI Withheld
-			$alert, 			// Alert
-			$callPickedUp,		// Call Picked Up
-			$intercepted,		// Intercepted
-			$callQueue,			// Call Queue
-			$eavesdropAttached,	// Eavesdrop Attached
-			$eavesdrop,			// Eavesdrop
-			$recorded,			// Recorded
-			$earlyDivert,		// Early Divert
-			$lateDivert,		// Late Divert
-			$voiceMail,			// Voice Mail
-			$diverted,			// Diverted
-			$listenIn,			// Listen In,
-			$activeRecOK, 		// Active Rec OK
-			$activeRecFail,		// Active Rec Fail
-			$activeRecBufOK, 	// Active Rec Buffered OK
-			$activeRecBufFail,	// Active Rec Buffered Fail
-			$pcap				// PCAP
+			$recording,					// Recording
+			"\"{$recordingTime}\"",		// Recording Time
+			"=\"{$recordingSize}\"",	// Recording Size (Bytes)	- leading '=' prevents Excel from displaying as float/double		
+			"=\"{$startTimeLocal}\"",	// Date / Time				- leading '=' prevents Excel from displaying date/time in locale format		
+			"=\"{$startTimeUTC}\"",		// UTC Date / Time			- leading '=' prevents Excel from displaying date/time in locale format		
+			"=\"{$endTimeLocal}\"",		// End Date / Time			- leading '=' prevents Excel from displaying date/time in locale format		
+			"\"{$totalCallTime}\"",		// Total Call Time
+			"\"{$totalCallTimeSecs}\"",	// Total Call Time (INT)
+			"\"{$from}\"",				// From
+			"\"{$fromType}\"",			// From Type
+			"\"{$fromLabel}\"",			// From Label
+			"=\"{$fromNumber}\"",		// From (Number)			- leading '=' prevents Excel from displaying as float/double
+			"\"{$fromDev}\"",			// From (Device)
+			"=\"{$toNumberDialled}\"", 	// Dialled (Number)			- leading '=' prevents Excel from displaying as float/double
+			"\"{$toUser}\"", 			// Connected To
+			"\"{$toType}\"", 			// To Type
+			"\"{$toLabel}\"", 			// To Label
+			"=\"{$toNumber}\"",			// Connected To (Number)	- leading '=' prevents Excel from displaying as float/double
+			"\"{$toDev}\"", 			// Connected To (Device)
+			"\"{$timeHunting}\"",		// Time Hunting
+			"\"{$timeRinging}\"",		// Time Ringing
+			"\"{$timeTalking}\"",		// Time Talking
+			"\"{$timeHuntingSecs}\"",	// Time Hunting (INT)
+			"\"{$timeRingingSecs}\"",	// Time Ringing (INT)
+			"\"{$timeTalkingSecs}\"",	// Time Talking (INT)
+			"\"{$direction}\"",			// Direction
+			"\"{$fromHangup}\"",		// From HangUp
+			"\"{$toHangup}\"",			// To HangUp
+			"\"{$type}\"", 				// Type
+			"\"{$flags}\"",				// Flags
+			"\"{$policy}\"",			// Policy
+			"\"{$AUUID}\"",				// AUUID
+			"\"{$BUUID}\"",				// BUUID
+			"\"{$transfer}\"",			// Transfer
+			"\"{$attTransfer}\"",		// Att Transfer
+			"\"{$blindTransfer}\"",		// Blind Transfer
+			"\"{$cliWithheld}\"", 		// CLI Withheld
+			"\"{$alert}\"", 			// Alert
+			"\"{$callPickedUp}\"",		// Call Picked Up
+			"\"{$intercepted}\"",		// Intercepted
+			"\"{$callQueue}\"",			// Call Queue
+			"\"{$eavesdropAttached}\"",	// Eavesdrop Attached
+			"\"{$eavesdrop}\"",			// Eavesdrop
+			"\"{$recorded}\"",			// Recorded
+			"\"{$earlyDivert}\"",		// Early Divert
+			"\"{$lateDivert}\"",		// Late Divert
+			"\"{$voiceMail}\"",			// Voice Mail
+			"\"{$diverted}\"",			// Diverted
+			"\"{$listenIn}\"",			// Listen In,
+			"\"{$activeRecOK}\"", 		// Active Rec OK
+			"\"{$activeRecFail}\"",		// Active Rec Fail
+			"\"{$activeRecBufOK}\"", 	// Active Rec Buffered OK
+			"\"{$activeRecBufFail}\"",	// Active Rec Buffered Fail
+			"\"{$pcap}\""				// PCAP
 		);
-		
-		foreach ($csvEntryFields as $index => &$csvEntryField)
-		{
-			if ($index != 0)
-				// don't quote recording field as HYPERLINK macro won't work
-				$csvEntryField = "\"{$csvEntryField}\"";
-		}
 		$csvEntryLine = implode(',', $csvEntryFields);
 		
 		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
@@ -1710,23 +1704,16 @@ class ArchivingSMSExport extends ArchivingExport
 								
 		$csvEntryFields = array
 		(
-			$message,		// Message
-			$messageSize,	// Message Size
-			$timeLocal,		// Date / Time
-			$timeUTC,		// UTC Date / Time
-			$user,			// User
-			$fromNumber,	// From (Number)
-			$toNumber, 		// To (Number)
-			$direction,		// Direction
-			$UUID,			// UUID
+			$message,				// Message
+			"=\"{$messageSize}\"",	// Message Size		- leading '=' prevents Excel from displaying as float/double
+			"=\"{$timeLocal}\"",	// Date / Time		- leading '=' prevents Excel from displaying date/time in locale format		
+			"=\"{$timeUTC}\"",		// UTC Date / Time	- leading '=' prevents Excel from displaying date/time in locale format		
+			"\"{$user}\"",			// User
+			"=\"{$fromNumber}\"",	// From (Number) 	- leading '=' prevents Excel from displaying as float/double
+			"=\"{$toNumber}\"", 	// To (Number)	 	- leading '=' prevents Excel from displaying as float/double
+			"\"{$direction}\"",		// Direction
+			"\"{$UUID}\"",			// UUID
 		);
-		
-		foreach ($csvEntryFields as $index => &$csvEntryField)
-		{
-			if ($index != 0)
-				// don't quote message field as HYPERLINK macro won't work
-				$csvEntryField = "\"{$csvEntryField}\"";
-		}
 		$csvEntryLine = implode(',', $csvEntryFields);
 		
 		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
