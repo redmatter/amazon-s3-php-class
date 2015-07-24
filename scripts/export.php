@@ -56,15 +56,305 @@ class TruncateExportException extends Exception
 	}
 }
 
+class ArchivingExportZip
+{
+	public function __construct(ArchivingExport $export, $searchStartTime, $searchEndTime)
+	{
+		$this->export = $export;
+		$this->searchStartTime = $searchStartTime;
+		$this->searchEndTime = $searchEndTime;
+		
+		$tempDir = $this->export->app->cliMode ? self::TEMP_CLI_DIR : self::TEMP_DIR;
+		$this->baseDir = "{$tempDir}/{$this->export->exportID}";
+		
+		if (is_dir($this->baseDir))
+			cleanDirectory($this->baseDir);
+				
+		// ensure tmp directory for this export ID is removed first
+		//if (!$this->createDirectoryTree($this->baseDir))
+		//	throw new Exception("Failed to create temp directory '{$this->baseDir}'");
+						
+		$this->start();
+	}
+	
+	public function __destruct()
+	{
+		if (($this->csvFile !== false) && ($this->csvFile !== null))
+			fclose($this->csvFile);
+					
+		if ($this->baseDir && is_dir($this->baseDir))
+			cleanDirectory($this->baseDir);
+	}
+	
+	private function start()
+	{
+		$this->count++;
+		
+		// ensure tmp directory for this export ID is removed first
+		if (!$this->createDirectoryTree("{$this->baseDir}/{$this->count}"))
+			throw new Exception("Failed to create temp directory '{$this->baseDir}/{$this->count}'");
+			
+		$this->fileNameBase = "org-{$this->export->orgID}_{$this->export->type()}-export-{$this->export->exportID}_from-{$this->searchStartTime}_to-{$this->searchEndTime}";		
+		$part = sprintf('%02d', $this->count);		
+		$this->fileName = "{$this->fileNameBase}_{$part}";
+		$csvFilePath = "{$this->baseDir}/{$this->count}/{$this->fileName}.csv";
+
+		$this->csvFile = fopen($csvFilePath, 'wb');
+		if ($this->csvFile === false)
+			throw new Exception("Failed to open CSV file for writing '{$csvFilePath}'");
+			
+		$csvHeaderLine = "\xEF\xBB\xBF"; // UTF-8 BOM
+		$csvHeaderLine .= implode(',', $this->export->getCsvHeaderFields());
+		if (fwrite($this->csvFile, $csvHeaderLine."\r\n") === false)
+			throw new Exception("Failed to write header to CSV file '{$csvFilePath}'");
+	}
+	
+	public function writeCSVEntryFields(array $fields)
+	{	
+		$line = implode(',', $fields);	
+		if (fwrite($this->csvFile, $line."\r\n") === false)
+			throw new Exception("Failed to write entry line to CSV file");
+	}
+	
+	public function canAddMediaFile($filesize, $s3CompressedFilesize)
+	{
+		if ($filesize > ($this->export->app->maxFileSizeMB * (1024.0*1024.0)))
+		{
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
+			LogDebug("media file size {$filesize} would exceed maximum ".($this->export->app->maxFileSizeMB * (1024.0*1024.0)));
+			return false;	
+		}
+				
+		// p7zip compression gives a file size that is about 15% bigger than the S3 compressed size
+		$p7zipCompressedFilesize = $s3CompressedFilesize * 1.15;
+		
+		// OK if the compressed media file size is bigger than our max zip file size, we can't add 		
+		if ($p7zipCompressedFilesize > ($this->export->app->maxZipFileSizeMB * (1024.0*1024.0)))
+		{
+			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
+			LogDebug("media file compressed size {$p7zipCompressedFilesize} would exceed maximum ".($this->export->app->maxZipFileSizeMB * (1024.0*1024.0)));
+			return false;
+		}
+						
+		$zipFilePath = "{$this->baseDir}/{$this->count}/{$this->fileName}.zip";
+		if (file_exists($zipFilePath))
+		{
+			// OK REALLY REALLY important to call clearstatcache() first other was filesize() may return an earlier file size!:
+			// 'On Linux based systems, data fetched by filesize() is "statcached".
+			// Try calling clearstatcache(); before the filesize call.'
+			// http://stackoverflow.com/questions/3747982/php-filesize-reporting-old-size			
+			clearstatcache();
+			
+			$zipFilesize = filesize($zipFilePath);
+			
+			if (($zipFilesize > 0) && ($p7zipCompressedFilesize > 0) && (($zipFilesize+$p7zipCompressedFilesize) > ($this->export->app->maxZipFileSizeMB * (1024.0*1024.0))))
+			{
+				// adding media file to current zip would exceed zip file size maximum
+				
+				if ($this->count >= $this->export->app->maxZipFileCount)
+					// ... we are also at max zip file count so truncate export job before this entry
+					throw new TruncateExportException();
+				
+				// ... finish current zip archive and start a new one
+				LogVerbose("{$this->context()}Current zip archive full - starting new zip archive number ".($this->count+1)."");
+				$this->end();					
+				$this->start();
+			}
+		}
+		
+		return true;
+	}
+	
+	public function addMediaFileContent($dirSuffix, $fileName, $content)
+	{
+		$fileRelPath = $this->writeMediaFileContent($dirSuffix, $fileName, $content);
+		$this->addFile($fileRelPath);
+		return $fileRelPath;
+	}			
+	
+	private function writeMediaFileContent($dirSuffix, $fileName, $content)
+	{
+		$mediaDir = "{$this->baseDir}/{$this->count}/{$this->fileName}_{$dirSuffix}";
+		$fileRelPath = "{$this->fileName}_{$dirSuffix}/{$fileName}";
+		$filePath = "{$this->baseDir}/{$this->count}/{$fileRelPath}";
+		$file = null;
+		
+		try
+		{
+			if (!$this->createDirectoryTree($mediaDir))
+				throw new Exception("Failed to create temp directory '{$mediaDir}'");
+			
+			$file = fopen($filePath, 'wb');
+			if ($file === false)
+				throw new Exception ("Failed to create WAV file for writing: {$filePath}");
+			
+			$fileSize = fwrite($file, $content);
+			if ($fileSize === false)
+				throw new Exception ("Failed to to write to WAV file: {$fileSize}");
+			
+			LogMessage("{$this->context()}Successfully wrote {$fileSize} bytes to {$filePath}");
+		}
+		catch (Exception $e)
+		{
+			LogError("{$this->context()}{$e}");
+			if (($file !== null) && ($file !== false))
+				fclose($file);
+			throw $e;
+		}
+		
+		fclose($file);
+		
+		return $fileRelPath;
+	}
+		
+	public function end()
+	{
+		if (($this->csvFile !== false) && ($this->csvFile !== null))
+			fclose($this->csvFile);
+		$this->csvFile = null;
+		
+		if ($this->fileName != null)
+		{
+			$this->addFile("{$this->fileName}.csv");
+			$this->fileName = null;
+		}
+	}
+	
+	public function upload()
+	{
+		$this->end();
+		
+		for ($index=1; $index<=$this->count; ++$index) 
+		{
+			$part = sprintf('%02d', $index);
+			$filename = "{$this->fileNameBase}_{$part}.zip";
+			$zipFilePath = "{$this->baseDir}/{$index}/{$filename}";
+			
+			if ($this->count == 1)
+				$progress = "Finalizing zip ...";
+			else	
+				$progress = "Finalizing {$index} of {$this->count} zips ...";	
+			$this->export->app->updateExportStatus($this->export->exportID, 'Progress', $progress);			
+			
+			$storageKey = "export/{$this->export->orgID}/{$this->export->exportID}/{$index}";
+			$this->export->uploadZipArchive($zipFilePath, $storageKey);
+			
+			$this->export->app->addExportDownload($this->export->exportID, $index, $filename);
+		}
+	}
+
+	public function count()
+	{
+		return $this->count;
+	}
+					
+	private function addFile($relFileSpec)
+	{
+		chdir("{$this->baseDir}/{$this->count}");
+		
+		$zipFileName = "{$this->fileName}.zip";
+				
+		$cmd = "7za a {$zipFileName} {$relFileSpec}";
+		
+		clearstatcache();
+		
+		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$zipFileName}' with command: {$cmd} -p********");
+		
+		$cmd .= " -p{$this->export->zipPassword}";
+		
+		$output = array();
+		$return_var = 0;
+		$zipRes = exec($cmd, $output, $return_var);
+		
+		$zipFilePath = "{$this->baseDir}/{$this->count}/{$zipFileName}";
+		if (!file_exists($zipFilePath))
+		{
+			LogVerbose("{$this->context()}zip result: {$zipRes}");
+			LogVerbose("{$this->context()}returned: {$return_var}");
+			foreach ($output as $line)
+			{
+				LogVerbose("{$this->context()}zip output: {$line}");
+			}
+			throw new Exception("Failed to create zip file '{$zipFilePath}'");
+		}
+		
+		LogDebug("{$this->context()}zip result: {$zipRes}");
+		LogDebug("{$this->context()}returned: {$return_var}");
+		foreach ($output as $line)
+		{
+			LogDebug("{$this->context()}zip output: {$line}");
+		}
+		
+		LogDebug("{$this->context()}Added file {$relFileSpec} to export zip '{$zipFileName}' (".filesize($zipFilePath)." bytes) OK");		
+	}	
+	
+	private function createDirectoryTree($dirPath)
+	{
+		if (strlen($dirPath) == 0)
+		{
+			return false;
+		}
+		
+		$path = '';
+		
+		if ($dirPath[0] == '/')
+		{
+			$path = '/';
+			$dirPath = substr($dirPath, 1);
+		}
+		
+		$dirs = explode('/', $dirPath);
+		foreach ($dirs as $dir)
+		{
+			$path .= $dir;
+			
+			if (!is_dir($path))
+			{
+				$oldmask = umask(0);
+				$success = (bool)mkdir($path, 0700);
+				umask($oldmask);
+				if (!$success)
+				{
+					return false;
+				}
+			}
+
+			$path .= '/';
+		}
+
+		return true;
+	}	
+	
+	private function context()
+	{
+		return $this->export->context();
+	}
+		
+	private $export = null;
+	private $searchStartTime = null;
+	private $searchEndTime = null;
+	
+	private $baseDir = null;
+	
+	private $count = 0;
+	
+	private $fileNameBase = null;
+	private $fileName = null;
+	private $csvFile = null;
+	
+	const TEMP_DIR = '/tmp/rmarchexport';
+	const TEMP_CLI_DIR = '/tmp/rmarchexport-cli';	
+}
+
 abstract class ArchivingExport
 {
-	protected $app = null;
-	protected $exportID = null;
-	protected $orgID = null;
+	public $app = null;
+	public $exportID = null;
+	public $orgID = null;
 	protected $userID = null;
 	protected $queryQID = null;
 	protected $resultIDs = null;
-	protected $zipPassword = null;
+	public $zipPassword = null;
 	protected $reason = null;
 	
 	protected $encryptionKey = null;
@@ -76,21 +366,14 @@ abstract class ArchivingExport
 	protected $policyPermissions = array();
 	protected $policyNotificationList = array();
 	
-	protected $baseDir = null;
-	protected $csvFileName = null;
-	protected $csvFilePath = null;
-	protected $csvFile = false;
-	protected $zipFileName = null;
+	protected $zip = null;
 		
 	protected $endpointDetails = array();
 	protected $endpoints = array();
 	
 	protected $exportedPolicyIDs = array();
 	protected $exportedMediaUUIDs = array();
-	
-	const TEMP_DIR = '/tmp/rmarchexport';
-	const TEMP_CLI_DIR = '/tmp/rmarchexport-cli';
-		
+			
 	public function __construct(ArchivingExportApp $app, $exportID, $orgID, $userID, $queryQID, array $resultIDs, $zipPassword, $reason)
 	{
 		$this->app = $app;
@@ -116,11 +399,6 @@ abstract class ArchivingExport
 		
 	public function __destruct()
 	{
-		if ($this->csvFile !== false)
-			fclose($this->csvFile);
-			
-		if ($this->baseDir && is_dir($this->baseDir))
-			cleanDirectory($this->baseDir);
 	}
 	
 	abstract public function displayType();
@@ -139,12 +417,6 @@ abstract class ArchivingExport
 		$this->policyPermissions = array();
 		$this->policyNotificationList = array();
 	
-		$this->baseDir = null;
-		$this->csvFileName = null;
-		$this->csvFilePath = null;
-		$this->csvFile = false;
-		$this->zipFileName = null;
-		
 		$this->endpointDetails = array();
 		$this->endpoints = array();
 		
@@ -185,30 +457,7 @@ abstract class ArchivingExport
 		
 		// set up/clean temporary directory where we will stick CSV, WAV, MMS (.eml) and zip files
 		
-		$tempDir = $this->app->cliMode ? self::TEMP_CLI_DIR : self::TEMP_DIR;
-		$this->baseDir = "{$tempDir}/{$this->exportID}";
-		
-		if (is_dir($this->baseDir))
-			cleanDirectory($this->baseDir);
-				
-		// ensure tmp directory for this export ID is removed first
-		if (!$this->createDirectoryTree($this->baseDir))
-			throw new Exception("Failed to create temp directory '{$this->baseDir}'");
-			
-		// format up file names and create export CSV file with column header names
-			
-		$this->csvFileName = "org-{$this->orgID}_{$this->type()}-export-{$this->exportID}_from-{$searchStartTime}_to-{$searchEndTime}";
-		$this->csvFilePath = "{$this->baseDir}/{$this->csvFileName}.csv";
-		$this->zipFileName = "{$this->csvFileName}.zip";
-
-		$this->csvFile = fopen($this->csvFilePath, 'wb');
-		if ($this->csvFile === false)
-			throw new Exception("Failed to open CSV file for writing '{$this->csvFilePath}'");
-		
-		$csvHeaderLine = "\xEF\xBB\xBF"; // UTF-8 BOM
-		$csvHeaderLine .= implode(',', $this->getCsvHeaderFields());
-		if (fwrite($this->csvFile, $csvHeaderLine."\r\n") === false)
-			throw new Exception("Failed to write header to CSV file '{$this->csvFilePath}'");
+		$this->zip = new ArchivingExportZip($this, $searchStartTime, $searchEndTime);
 
 		$result = false;
 		
@@ -221,6 +470,7 @@ abstract class ArchivingExport
 
 		$exportedCount = 0;
 		$fullyExportedCount = 0;
+		$lastExportedCallLogData = null;
 		foreach ($dbRetResults as $dbRetResult)
 		{
 			$resID = (int)$dbRetResult['ResID'];
@@ -236,10 +486,11 @@ abstract class ArchivingExport
 						++$fullyExportedCount;
 					}
 					++$exportedCount;
+					$lastExportedCallLogData = $callLogData;
 					
 					if ($this->exportID > 0)
 					{
-						$progress = "{$exportedCount} of {$totalCount} ...";	
+						$progress = "{$exportedCount} of {$totalCount} entries ...";	
 						$this->app->updateExportStatus($this->exportID, 'Progress', $progress);
 					}
 				}
@@ -248,7 +499,7 @@ abstract class ArchivingExport
 					// Zip file size limit would be exceeded - truncate export before this entry
 					LogWarning("{$this->context()}Zip archive would exceed {$this->app->maxZipFileSizeMB} MB file size limit - truncating export zip before result ID {$resID}", null, 'U:ARCX');
 					
-					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";					
+					$result = "OK but truncated ({$exportedCount} of {$totalCount} entries exported)";
 					break;
 				}
 			}
@@ -265,18 +516,8 @@ abstract class ArchivingExport
 			else
 				$result = "OK ({$exportedCount} entries exported)";
 		}
-
-		fclose($this->csvFile);
-		$this->csvFile = false;
 		
-		$zipFilePath = "{$this->baseDir}/{$this->zipFileName}";
-	
-		// add the CSV file to the zip
-		$this->addToZipArchive("{$this->csvFileName}.csv");
-	
-		// upload the final zip to S3
-		$storageKey = "export/{$this->orgID}/{$this->exportID}/1";
-		$this->uploadZipArchive($zipFilePath, $storageKey);
+		$this->zip->upload();
 	
 		// Having a UUID in the export URL is just to provide a bit of obfuscation 
 		// and to give the appearance that export download URLs are as secure/unguessable as recording/SMS/MMS download URLs
@@ -288,7 +529,7 @@ abstract class ArchivingExport
 		$res->exportURI = $exportURI;
 		$res->result = $result;
 		
-		$this->writeEventLogSuccess($exportURI);
+		$this->writeEventLogSuccess($exportURI, $lastExportedCallLogData, $exportedCount, $totalCount);
 		
 		return $res;
 	}
@@ -571,37 +812,13 @@ abstract class ArchivingExport
 			LogDebug("{$this->context()}header: '{$h}' = '{$v}'");
 			
 		$filesize = (double)$infoResponse['x-amz-meta-clear-size'];
-		LogVerbose("{$this->context()}Uncompressed object size (x-amz-meta-clear-size): {$filesize}");
+		$s3CompressedFilesize = (double)$infoResponse['size'];
 		
-		if ($filesize > ($this->app->maxFileSizeMB * (1024.0*1024.0)))
-			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
-			return $filesize;	
+		LogVerbose("{$this->context()}Uncompressed object size (x-amz-meta-clear-size): {$filesize}, S3 compressed object size: {$s3CompressedFilesize}");
 		
-		$amzCompressedFilesize = (double)$infoResponse['size'];
-		LogVerbose("{$this->context()}S3 compressed object size: {$amzCompressedFilesize}");
-		
-		// p7zip compression gives a file size that is about 15% bigger than the S3 compressed size
-		$p7zipCompressedFilesize = $amzCompressedFilesize * 1.15;		
-		if ($p7zipCompressedFilesize > ($this->app->maxZipFileSizeMB * (1024.0*1024.0)))
-			// skip this exporting this entry, but keep going (as subsequent log entry media may still fit in the export zip
+		if (!$this->zip->canAddMediaFile($filesize, $s3CompressedFilesize))
+			// skip this exporting this entry, but keep going (as file media of subsequent entries may still fit into the export zip
 			return $filesize;
-		
-		// check zip file not too big	
-		$zipFilePath = "{$this->baseDir}/{$this->csvFileName}.zip";
-		if (file_exists($zipFilePath))
-		{
-			// OK REALLY REALLY important to call clearstatcache() first other was filesize() may return an earlier file size!:
-			// 'On Linux based systems, data fetched by filesize() is "statcached".
-			// Try calling clearstatcache(); before the filesize call.'
-			// http://stackoverflow.com/questions/3747982/php-filesize-reporting-old-size			
-			clearstatcache();
-			
-			$zipFilesize = filesize($zipFilePath);
-			
-			if (($zipFilesize > 0) && ($p7zipCompressedFilesize > 0) && (($zipFilesize+$p7zipCompressedFilesize) > ($this->app->maxZipFileSizeMB * (1024.0*1024.0))))
-				// this would make zip file too big - truncate export before this entry
-				throw new TruncateExportException();
-		}	
 		
 		// size OK - download object from S3
 		LogVerbose("{$this->context()}Downloading {$storageKey} from S3 Bucket {$bucket}");
@@ -652,45 +869,7 @@ abstract class ArchivingExport
 		}
 	}
 	
-	protected function addToZipArchive($relFileSpec)
-	{
-		chdir($this->baseDir);
-				
-		$cmd = "7za a {$this->zipFileName} {$relFileSpec}";
-		
-		clearstatcache();
-		
-		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$this->zipFileName}' with command: {$cmd} -p********");
-		
-		$cmd .= " -p{$this->zipPassword}";
-		
-		$output = array();
-		$return_var = 0;
-		$zipRes = exec($cmd, $output, $return_var);
-		
-		$zipFilePath = "{$this->baseDir}/{$this->zipFileName}";
-		if (!file_exists($zipFilePath))
-		{
-			LogVerbose("{$this->context()}zip result: {$zipRes}");
-			LogVerbose("{$this->context()}returned: {$return_var}");
-			foreach ($output as $line)
-			{
-				LogVerbose("{$this->context()}zip output: {$line}");
-			}
-			throw new Exception("Failed to create zip file '{$zipFilePath}'");
-		}
-		
-		LogDebug("{$this->context()}zip result: {$zipRes}");
-		LogDebug("{$this->context()}returned: {$return_var}");
-		foreach ($output as $line)
-		{
-			LogDebug("{$this->context()}zip output: {$line}");
-		}
-		
-		LogDebug("{$this->context()}Added file {$relFileSpec} to export zip '{$this->zipFileName}' (".filesize($zipFilePath)." bytes) OK");		
-	}
-	
-	protected function uploadZipArchive($zipFilePath, $storageKey)
+	public function uploadZipArchive($zipFilePath, $storageKey)
 	{
 		$bucket = $this->getEndpointDetails($this->policyID, 0/*policyVersion*/)->bucket;
 		$s3 = $this->getS3Endpoint($this->policyID, 0/*policyVersion*/);		
@@ -779,8 +958,43 @@ abstract class ArchivingExport
 		$this->exportedMediaUUIDs[$archEntry->uuid] = $timeUTC;	
 	}
 			
-	protected function writeEventLogSuccess($exportURI)
+	protected function writeEventLogSuccess($exportURI, $lastExportedLogData, $exportedCount, $totalCount)
 	{
+		$fileservice = $this->getBrandingSetting('URL/FileService', 'https://fileservice.natterbox.com');
+		
+		if ($exportedCount == 1)
+			$exported = "1 exported entry";
+		else
+			$exported = "{$exportedCount} exported entries";
+		
+		if ($this->zip->count() > 1)
+		{
+			$completedMsg = "Your {$this->displayType()} Logs Bulk Download can be accessed here ({$exported}):";
+			$completedMsg .= "<ul>";
+			for ($index=1; $index<=$this->zip->count(); ++$index)
+				$completedMsg .= "<li><a href=\"{$fileservice}/{$exportURI}/{$index}\">part {$index}</a></li>";
+			$completedMsg .= "</ul>";
+			$completedMsg .= "These download links will only be accessible for 7 days.<br/>";
+		}
+		else
+		{
+			$completedMsg = "Your {$this->displayType()} Logs Bulk Download can be accessed <a href=\"{$fileservice}/{$exportURI}/1\">here</a> ({$exported}).<br/>";
+			$completedMsg .= "<br/>This download link will only be accessible for 7 days.<br/>";
+		}
+		
+		if ($exportedCount < $totalCount)
+		{				
+			$completedMsg .= "<br/>Note this bulk download was truncated after {$exportedCount} of {$totalCount} total entries due to size limits.<br/>";	
+			if (is_array($lastExportedLogData))
+			{
+				$time = (int)$lastExportedLogData['Time'];
+				$fromNumber = $lastExportedLogData['From_Number'];
+				$toNumber  = $lastExportedLogData['To_Number'];
+				$startTimeLocal = formatTime($time, $this->userTimezone, 'Y-m-d H:i:s');				
+				$completedMsg .= "Truncated after entry: Date/Time {$startTimeLocal}, From {$fromNumber}, To {$toNumber}.<br/>";
+			}
+		}
+								
 		$notify = array();		
 		$notify[] = array(
 			'Type' => 'Email',
@@ -790,8 +1004,7 @@ abstract class ArchivingExport
 			'From' => array(
 				$this->getBrandingSetting('Common/NameSimplified', 'Natterbox').' Archive',
 				$this->getBrandingSetting('Emailer/FromEmailAddress', 'noreply@natterbox.com')),
-			'Text' => "Your {$this->displayType()} Logs Bulk Download can be accessed <a href=\"".$this->getBrandingSetting('URL/FileService', 'https://fileservice.natterbox.com')."/{$exportURI}\">here</a>.\r\n\r\n".
-				"Please note that this download link will only be accessible for 7 days.\r\n"
+			'Text' => $completedMsg
 		);
 		
 		if (!empty($this->exportedPolicyIDs) && !empty($this->policyNotificationList))
@@ -989,45 +1202,8 @@ The stated reason for the export was:
 			)
 		);
 	}	
-
-	protected function createDirectoryTree($dirPath)
-	{
-		if (strlen($dirPath) == 0)
-		{
-			return false;
-		}
-		
-		$path = '';
-		
-		if ($dirPath[0] == '/')
-		{
-			$path = '/';
-			$dirPath = substr($dirPath, 1);
-		}
-		
-		$dirs = explode('/', $dirPath);
-		foreach ($dirs as $dir)
-		{
-			$path .= $dir;
-			
-			if (!is_dir($path))
-			{
-				$oldmask = umask(0);
-				$success = (bool)mkdir($path, 0700);
-				umask($oldmask);
-				if (!$success)
-				{
-					return false;
-				}
-			}
-
-			$path .= '/';
-		}
-
-		return true;
-	}
 	
-	abstract protected function getCsvHeaderFields();
+	abstract public function getCsvHeaderFields();
 	
 	public function context()
 	{
@@ -1076,9 +1252,6 @@ class ArchivingCallExport extends ArchivingExport
 			{
 				LogVerbose("{$this->context()}Fetched recording for result ID {$resID}: {$archRec->filepath}");
 								
-				$this->addToZipArchive($archRec->filepath);
-				
-				//$recording = "=HYPERLINK(\"{$recording->filepath}\", \"Click to listen\")"; // haven't figured out how to get this working in a CSV file
 				$recording = "=HYPERLINK(\"{$archRec->filepath}\")";
 				$recordingSize = $archRec->filesize;
 				$recordingSecs = (int)((double)$recordingSize / 16384.0); // 16-bit WAV
@@ -1241,11 +1414,7 @@ class ArchivingCallExport extends ArchivingExport
 			"\"{$activeRecBufFail}\"",	// Active Rec Buffered Fail
 			"\"{$pcap}\""				// PCAP
 		);
-		$csvEntryLine = implode(',', $csvEntryFields);
-		
-		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
-			throw new Exception("Failed to write entry line to CSV file");
-		
+		$this->zip->writeCSVEntryFields($csvEntryFields);	
 		return $success;
 	}
 	
@@ -1441,40 +1610,12 @@ class ArchivingCallExport extends ArchivingExport
 		if (($contentSize > 0) && empty($content))
 			// recording too big
 			return $contentSize;
-		
-		$callrecordingsDir = "{$this->baseDir}/{$this->csvFileName}_recordings";
-		$wavFileRelPath = "{$this->csvFileName}_recordings/{$prefix}_{$uuid}.wav";
-		$wavFilePath = "{$this->baseDir}/{$wavFileRelPath}";
-		$wavFile = null;
-		
-		try
-		{
-			if (!$this->createDirectoryTree($callrecordingsDir))
-				throw new Exception("Failed to create temp directory '{$callrecordingsDir}'");
 			
-			$wavFile = fopen($wavFilePath, 'wb');
-			if ($wavFile === false)
-				throw new Exception ("Failed to create WAV file for writing: {$wavFilePath}");
-			
-			$wavFileSize = fwrite($wavFile, $content);
-			if ($wavFileSize === false)
-				throw new Exception ("Failed to to write to WAV file: {$wavFileSize}");
-			
-			LogMessage("{$this->context()}Successfully wrote {$wavFileSize} bytes to {$wavFilePath}");
-		}
-		catch (Exception $e)
-		{
-			LogError("{$this->context()}{$e}");
-			if ($wavFile !== null)
-				fclose($wavFile);
-			throw $e;
-		}
-		
-		fclose($wavFile);
-		
+		$wavFileRelPath = $this->zip->addMediaFileContent('recordings', "{$prefix}_{$uuid}.wav", $content);	
+					
 		$recording = new stdClass();
 		$recording->filepath = $wavFileRelPath;
-		$recording->filesize = $wavFileSize;
+		$recording->filesize = $contentSize;
 		$recording->uuid = $uuid;
 		$recording->policyID = $policyID;
 		
@@ -1560,7 +1701,7 @@ class ArchivingCallExport extends ArchivingExport
 		}
 	}	
 		
-	protected function getCsvHeaderFields()
+	public function getCsvHeaderFields()
 	{
 		return array
 		(
@@ -1662,9 +1803,6 @@ class ArchivingSMSExport extends ArchivingExport
 		{
 			LogVerbose("{$this->context()}Fetched MMS for result ID {$resID}: {$archMsg->filepath}");		
 						
-			$this->addToZipArchive($archMsg->filepath);
-			
-			//$message = "=HYPERLINK(\"{$archMsg->filepath}\", \"Click to view\")"; // haven't figured out how to get this working in a CSV file
 			$message = "=HYPERLINK(\"{$archMsg->filepath}\")";
 			$messageSize = $archMsg->filesize;
 			
@@ -1714,10 +1852,7 @@ class ArchivingSMSExport extends ArchivingExport
 			"\"{$direction}\"",		// Direction
 			"\"{$UUID}\"",			// UUID
 		);
-		$csvEntryLine = implode(',', $csvEntryFields);
-		
-		if (fwrite($this->csvFile, $csvEntryLine."\r\n") === false)
-			throw new Exception("Failed to write entry line to CSV file");
+		$this->zip->writeCSVEntryFields($csvEntryFields);
 		
 		return $success;
 	}
@@ -1804,40 +1939,11 @@ class ArchivingSMSExport extends ArchivingExport
 		} 
 		else
 		{
-			// MMS message - write contents to .eml file
-			
-			$mmsDir = "{$this->baseDir}/{$this->csvFileName}_mms";
-			$mmsFileRelPath = "{$this->csvFileName}_mms/{$prefix}_{$uuid}.eml";
-			$mmsFilePath = "{$this->baseDir}/{$mmsFileRelPath}";
-			$mmsFile = null;
-			
-			try
-			{
-				if (!$this->createDirectoryTree($mmsDir))
-					throw new Exception("Failed to create temp directory '{$mmsDir}'");
-				
-				$mmsFile = fopen($mmsFilePath, 'wb');
-				if ($mmsFile === false)
-					throw new Exception ("Failed to create MMS file for writing: {$mmsFilePath}");
-				
-				$mmsFileSize = fwrite($mmsFile, $content);
-				if ($mmsFileSize === false)
-					throw new Exception ("Failed to to write to MMS file: {$mmsFilePath}");
-				
-				LogMessage("{$this->context()}Successfully wrote {$mmsFileSize} bytes to {$mmsFilePath}");
-			}
-			catch (Exception $e)
-			{
-				LogError("{$this->context()}{$e}");
-				if ($mmsFile !== null)
-					fclose($mmsFile);
-				throw $e;
-			}
-			
-			fclose($mmsFile);
-			
+			// assume this is a MMS message - write contents to .eml file
+			$mmsFileRelPath = $this->zip->addMediaFileContent('mms', "{$prefix}_{$uuid}.eml", $content);
+
 			$message->filepath = $mmsFileRelPath;
-			$message->filesize = $mmsFileSize; 
+			$message->filesize = $contentSize; 
 		}
 		return $message;
 	}	
@@ -1918,7 +2024,7 @@ class ArchivingSMSExport extends ArchivingExport
 		return $this->app->bigDbc->query($sql)->fetch_all(MySQLiResult::AS_ASSOC);
 	}
 	
-	protected function getCsvHeaderFields()
+	public function getCsvHeaderFields()
 	{
 		return array
 		(
@@ -1943,6 +2049,8 @@ class ArchivingExportApp extends BaseApp
 
 	public $coreDbc = null;
 	public $bigDbc = null;
+	
+	public $startup = true;
 	
 	public $hAPISearchDomain = null;
 	private $hAPILocName = null;
@@ -1992,7 +2100,7 @@ class ArchivingExportApp extends BaseApp
 		
 		$this->maxFileSizeMB = (double)$this->conf->get('export.maxfilesizemb', 3000.0);
 		$this->maxZipFileSizeMB = (double)$this->conf->get('export.maxzipfilesizemb', 500.0);
-		$this->maxZipFileCount = (int)$this->conf->get('export.maxzipfilecount', 20);
+		$this->maxZipFileCount = (int)$this->conf->get('export.maxzipfilecount', 10);
 		$this->maxRetries = (int)$this->conf->get('export.maxretries', 2);
 		
 		$coreapi = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
@@ -2017,14 +2125,24 @@ class ArchivingExportApp extends BaseApp
 				
 				$requests = $this->getExportRequest($exportID);
 			}			
-			else if ($this->cliMode)
+			else 
 			{
-				$requests = $this->getPendingExportRequests();
+				if ($this->startup)
+				{
+					// first time in cleanup any requests in spawning/processing state
+					$this->startup = false;
+					$this->startupCleanupExportStatus();
+				}
+				
+				if ($this->cliMode)
+				{
+					$requests = $this->getPendingExportRequests();
+				}
+				else // daemon worker monitor
+				{
+					$requests = $this->getPendingExportRequestIDs();
+				}		
 			}
-			else // daemon worker monitor
-			{
-				$requests = $this->getPendingExportRequestIDs();
-			}		
 			
 			if (empty($requests)) 
 			{
@@ -2257,6 +2375,27 @@ class ArchivingExportApp extends BaseApp
 			LogDebug("{$this->context()}No export request(s) found stuck in Spawning/Processing state");
 	}
 	
+	private function startupCleanupExportStatus()
+	{
+		$locName = $this->bigDbc->escape_string($this->hAPILocName);
+		
+		// any jobs which have been in 'Spawning' state for more than 30 seconds
+		// or in 'Processing' state for more than 8 hours, set status back to 'Pending'
+		
+		$result = $this->bigDbc->query(
+			"UPDATE `Aux`.`LogsExportQ` SET ".
+			"`Status`='Pending', ".
+			"`Result`='' ".
+			"WHERE (`Status`='Spawning' OR `Status`='Processing') ".
+			"AND `ClientLocation`='{$locName}';"
+		);
+		
+		if ($this->bigDbc->affected_rows > 0)
+			LogWarning("{$this->context()}Cleaned up {$this->bigDbc->affected_rows} export request(s) found in Spawning/Processing state at startup", null, 'U:ARCX');
+		else
+			LogDebug("{$this->context()}No export request(s) found in Spawning/Processing state at startup");
+	}	
+	
 	public function updateExportStatus($exportID, $status, $result=null)
 	{
 		static $startTime; 
@@ -2359,12 +2498,25 @@ class ArchivingExportApp extends BaseApp
 			$additionalFields .
 			" WHERE `ExportID`={$exportID};";
 			
-		LogDebug("{$this->context()}Updating status for {$exportID} to '{$status}'. SQL:\n{$sql}");
+		LogDebug("{$this->context()}Updating status for export ID {$exportID} to '{$status}'. SQL:\n{$sql}");
 		
 		$this->bigDbc->query($sql);
 		
 		return $status;
 	}
+	
+	public function addExportDownload($exportID, $index, $filename)
+	{
+		$filename = $this->bigDbc->escape_string($filename);
+		
+		$sql = "INSERT INTO `Aux`.`LogsExportDownloads`(`ExportID`,`Index`,`Filename`) ".
+			"VALUES({$exportID}, {$index}, '{$filename}') ".
+			"ON DUPLICATE KEY UPDATE `Filename`='{$filename}';";
+			
+		LogDebug("{$this->context()}Adding export download for export ID {$exportID}, index: {$index}, filename: '{$filename}':\n{$sql}");
+		
+		$this->bigDbc->query($sql);		
+	}	
 	
 	public function context()
 	{
@@ -2443,7 +2595,7 @@ try
 	if ((false === cli::get('--no-daemon', false)) && (false === cli::get('--worker', false)))
 	{
 		// daemon monitor
-		cleanDirectory(ArchivingExport::TEMP_DIR);
+		cleanDirectory(ArchivingExportZip::TEMP_DIR);
 		
 		DaemonScripts::Initialise(
 			array(
@@ -2461,7 +2613,7 @@ try
 		if ((true === cli::get('--no-daemon', false)) && (false === cli::get('--worker', false)))
 		{
 			// cli mode
-			cleanDirectory(ArchivingExport::TEMP_CLI_DIR);
+			cleanDirectory(ArchivingExportZip::TEMP_CLI_DIR);
 		}
 		
 		// run once!!
