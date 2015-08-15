@@ -42,6 +42,23 @@ namespace app
 		return buff;
 	}
 
+	std::string encode_xml_entities(const std::string &data)
+	{
+		std::string buffer;
+		buffer.reserve(data.size());
+		for(size_t pos = 0; pos != data.size(); ++pos) {
+			switch(data[pos]) {
+				case '&':  buffer.append("&amp;");	   break;
+				case '\"': buffer.append("&quot;");	  break;
+				case '\'': buffer.append("&apos;");	  break;
+				case '<':  buffer.append("&lt;");		break;
+				case '>':  buffer.append("&gt;");		break;
+				default:   buffer.append(&data[pos], 1); break;
+			}
+		}
+		return buffer;
+	}
+
 	class sms_inspector: public boost::noncopyable
 	{
 		archiving::archivable_channel_t& in_channel;
@@ -350,8 +367,8 @@ namespace app
 							% rmOrgID
 							% rmUserID
 							% start_epoch
-							% (FromNumber.empty() ? "0" : FromNumber)
-							% (ToNumber.empty() ? "0" : ToNumber)
+							% (FromNumber.empty() ? "0" : encode_xml_entities(FromNumber))
+							% (ToNumber.empty() ? "0" : encode_xml_entities(ToNumber))
 							% Direction
 							% app::remove_redmatter(hostname)
 						);
