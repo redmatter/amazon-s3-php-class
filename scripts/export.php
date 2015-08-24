@@ -2122,7 +2122,7 @@ class ArchivingExportApp extends BaseApp
 		
 	private $s3endpoints = null;
 	
-	public $backdays = 7;
+	public $backminutes = 0;
 	
 	public $maxPurgeRetries = 10;
 	public $maxPurgeItems = 10;
@@ -2165,7 +2165,12 @@ class ArchivingExportApp extends BaseApp
 		$this->maxPurgeRetries = (int)$this->conf->get('export.maxpurgeretries', 10);
 		$this->maxPurgeItems = (int)$this->conf->get('export.maxpurgeitems', 10);
 		
-		$this->backdays = (int)$this->conf->get('export.backdays', 7);
+		// normally specified as days, but can specify as minutes for QA testing purposes
+		$this->backminutes = (int)$this->conf->get('export.backminutes', 0);
+		if ($this->backminutes == 0)
+		{
+			$this->backminutes = ((int)$this->conf->get('export.backdays', 7)) * 24 * 60;
+		}	
 		
 		$this->coreApiUrl = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
 		if (empty($this->coreApiUrl))
@@ -2747,7 +2752,7 @@ class ArchivingExportApp extends BaseApp
 				"SET `Status`='PendingPurge' ".
 				"WHERE `ClientLocation`='{$locName}' ".
 				"AND (`Status`='Complete' OR `Status`='Failed') ".
-				"AND `Submitted` < SUBDATE(UTC_TIMESTAMP(), INTERVAL {$this->backdays} DAY);";	
+				"AND `Submitted` < SUBDATE(UTC_TIMESTAMP(), INTERVAL {$this->backminutes} MINUTE);";	
 					
 		LogDebug($sql);
 		
