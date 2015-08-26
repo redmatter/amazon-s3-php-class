@@ -94,10 +94,16 @@ class ArchivingExportZip
 		if (!$this->createDirectoryTree("{$this->baseDir}/{$this->count}"))
 			throw new Exception("Failed to create temp directory '{$this->baseDir}/{$this->count}'");
 		
-		$this->fileNameBase = "org-{$this->export->orgID}_{$this->export->type()}-export-{$this->export->exportID}_from-{$this->searchStartTime}_to-{$this->searchEndTime}";		
+		// PLAT-4141
+		// Remove search time range from zip filename and WAV recordings subdirectory to shorten paths,
+		// so user less likely to hit crappy Windows 260 character max path limit :-(
+		//$this->fileNameBase = "org-{$this->export->orgID}_{$this->export->type()}-export-{$this->export->exportID}_from-{$this->searchStartTime}_to-{$this->searchEndTime}";		
+		$this->fileNameBase = "org-{$this->export->orgID}_{$this->export->type()}-export-{$this->export->exportID}";
+				
 		$part = sprintf('%02d', $this->count);
-		$this->fileName = "{$this->fileNameBase}_{$part}";
-		$csvFilePath = "{$this->baseDir}/{$this->count}/{$this->fileName}.csv";
+		$this->zipFileName = "{$this->fileNameBase}_{$part}.zip";
+		$this->csvFileName = "{$this->fileNameBase}_from-{$this->searchStartTime}_to-{$this->searchEndTime}_{$part}.csv";
+		$csvFilePath = "{$this->baseDir}/{$this->count}/{$this->csvFileName}";
 
 		$this->csvFile = fopen($csvFilePath, 'wb');
 		if ($this->csvFile === false)
@@ -136,7 +142,7 @@ class ArchivingExportZip
 			return false;
 		}
 		
-		$zipFilePath = "{$this->baseDir}/{$this->count}/{$this->fileName}.zip";
+		$zipFilePath = "{$this->baseDir}/{$this->count}/{$this->zipFileName}";
 		if (file_exists($zipFilePath))
 		{
 			// OK REALLY REALLY important to call clearstatcache() first other was filesize() may return an earlier file size!:
@@ -174,8 +180,11 @@ class ArchivingExportZip
 	
 	private function writeMediaFileContent($dirSuffix, $fileName, $content)
 	{
-		$mediaDir = "{$this->baseDir}/{$this->count}/{$this->fileName}_{$dirSuffix}";
-		$fileRelPath = "{$this->fileName}_{$dirSuffix}/{$fileName}";
+		$part = sprintf('%02d', $this->count);	
+		$subDir = "{$this->fileNameBase}_{$dirSuffix}_{$part}";
+		
+		$mediaDir = "{$this->baseDir}/{$this->count}/{$subDir}";
+		$fileRelPath = "{$subDir}/{$fileName}";		
 		$filePath = "{$this->baseDir}/{$this->count}/{$fileRelPath}";
 		$file = null;
 		
@@ -213,10 +222,10 @@ class ArchivingExportZip
 			fclose($this->csvFile);
 		$this->csvFile = null;
 		
-		if ($this->fileName != null)
+		if ($this->csvFileName != null)
 		{
-			$this->addFile("{$this->fileName}.csv");
-			$this->fileName = null;
+			$this->addFile($this->csvFileName);
+			$this->csvFileName = null;
 		}
 	}
 	
@@ -251,14 +260,12 @@ class ArchivingExportZip
 	private function addFile($relFileSpec)
 	{
 		chdir("{$this->baseDir}/{$this->count}");
-		
-		$zipFileName = "{$this->fileName}.zip";
-		
-		$cmd = "7za a {$zipFileName} {$relFileSpec}";
+				
+		$cmd = "7za a {$this->zipFileName} {$relFileSpec}";
 		
 		clearstatcache();
 		
-		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$zipFileName}' with command: {$cmd} -p********");
+		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$this->zipFileName}' with command: {$cmd} -p********");
 		
 		$cmd .= " -p{$this->export->zipPassword}";
 		
@@ -266,7 +273,7 @@ class ArchivingExportZip
 		$return_var = 0;
 		$zipRes = exec($cmd, $output, $return_var);
 		
-		$zipFilePath = "{$this->baseDir}/{$this->count}/{$zipFileName}";
+		$zipFilePath = "{$this->baseDir}/{$this->count}/{$this->zipFileName}";
 		if (!file_exists($zipFilePath))
 		{
 			LogVerbose("{$this->context()}zip result: {$zipRes}");
@@ -285,7 +292,7 @@ class ArchivingExportZip
 			LogDebug("{$this->context()}zip output: {$line}");
 		}
 		
-		LogDebug("{$this->context()}Added file {$relFileSpec} to export zip '{$zipFileName}' (".filesize($zipFilePath)." bytes) OK");		
+		LogDebug("{$this->context()}Added file {$relFileSpec} to export zip '{$this->zipFileName}' (".filesize($zipFilePath)." bytes) OK");		
 	}	
 	
 	private function createDirectoryTree($dirPath)
@@ -339,7 +346,8 @@ class ArchivingExportZip
 	private $count = 0;
 	
 	private $fileNameBase = null;
-	private $fileName = null;
+	private $zipFileName = null;
+	private $csvFileName = null;
 	private $csvFile = null;
 	
 	const TEMP_DIR = '/tmp/rmarchexport';
