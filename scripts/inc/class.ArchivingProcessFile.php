@@ -115,7 +115,22 @@ class ArchivingProcessFile
 				"ArchiveD version {$archived_version_major}.{$archived_version_minor}.{$archived_version_patch}, ".
 				"Format version {$format_version_major}.{$format_version_minor}"
 			);
-
+			
+			$iv = $header_components['InitialisationVector'];
+			
+			// PLAT-4214 PLAT-4172
+			// unpack has a bug where it wrongly trims off any trailing NUL bytes from unpacked data 
+			// (even though we specify a format of a8 for the iv - NUL-padded string 8 bytes long)
+			// See https://bugs.php.net/bug.php?id=61038
+			//
+			// This bug was fixed in PHP v5.5 but workaround for this (older) version of PHP is to just re-append the NULs again 
+			$pad = 8 - strlen($iv);
+			if ($pad > 0) 
+			{
+				for ($i=0; $i<$pad; ++$i)
+					$iv .= "\0";
+			}
+			
 			// Jump past the padding.
 			$fp += 21;
 
@@ -124,7 +139,7 @@ class ArchivingProcessFile
 				$encryption_key,
 				substr($content, $fp),
 				MCRYPT_MODE_CBC,
-				$header_components['InitialisationVector']
+				$iv
 			);
 
 			$fp = 0;
