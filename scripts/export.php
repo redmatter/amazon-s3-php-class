@@ -518,11 +518,13 @@ abstract class ArchivingExport
 		$searchStartTime = formatTime($searchStartTime, $this->userTimezone, 'Y-m-d@H.i.s');
 		$searchEndTime = formatTime($searchEndTime, $this->userTimezone, 'Y-m-d@H.i.s');
 
-		//echo "logsData:\n".print_r($logsData);
+		//echo "callLogsData:\n".print_r($callLogsData);
 		
 		// Get archive retention details from big DB
 
 		$dbRetResults = $this->getLogsAndRetentionDbResults();
+		
+		//echo "dbRetResults:\n".print_r($dbRetResults);
 
 		LogMessage("{$this->context()}Processing ".count($callLogsData)." ".$this->displayType()." log entries...");
 		
@@ -802,7 +804,7 @@ abstract class ArchivingExport
 	
 	abstract protected function getLogsAndRetentionDbResults();
 	
-	protected function checkArchivingPolicyPermission($policyID, $ownerUserID)
+	protected function getArchivingPolicyPermission($policyID, $ownerUserID)
 	{
 		LogVerbose("{$this->context()}Checking CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 		
@@ -812,9 +814,9 @@ abstract class ArchivingExport
 		}
 		else if (isset($this->policyPermissions[$policyID][$ownerUserID]))
 		{
-			$allowed = $this->policyPermissions[$policyID][$ownerUserID];
-			LogDebug("{$this->context()}Using previously cached permission result: ".($allowed?'true':'false'));
-			return $allowed;
+			$perm = $this->policyPermissions[$policyID][$ownerUserID];
+			LogDebug("{$this->context()}Using previously cached permission result: ".($perm->allowed?'true':'false'));
+			return $perm;
 		}
 		
 		$client = RestClient::createClient();
@@ -842,11 +844,20 @@ abstract class ArchivingExport
 		$nodes = $permsDom->xpath('@Allowed');
 		if (empty($nodes))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
-		
-		LogDebug("{$this->context()}Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");	
-		
 		$allowed = (string)$nodes[0];
 		$allowed = ($allowed == 'YES');
+						
+		$nodes = $permsDom->xpath('@RetentionMax');
+		if (empty($nodes))
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+		$retentionMax = (int)$nodes[0];
+		
+		$nodes = $permsDom->xpath('@RetentionMaxUnit');
+		if (empty($nodes))
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+		$retentionMaxUnit = (string)$nodes[0];	
+		
+		LogDebug("{$this->context()}Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");	
 
 		// stash away notification settings for subsequent custodian Email/SMS notifications
 		if (!isset($this->policyNotificationList[$policyID]))
@@ -862,10 +873,37 @@ abstract class ArchivingExport
 			}
 		}
 		
-		// cache 'allowed' result
-		$this->policyPermissions[$policyID][$ownerUserID] = $allowed;
-		return $allowed;
+		$perm = new stdClass();
+		$perm->allowed = $allowed;
+		$perm->retentionMax = $retentionMax;
+		$perm->retentionMaxUnit = $retentionMaxUnit;
+		
+		// cache result
+		$this->policyPermissions[$policyID][$ownerUserID] = $perm;
+		
+		return $perm;
 	}
+	
+	protected function checkRetentionMaxTime($perm, $creationDate)	
+	{
+		$datetime = new DateTime('@'.$creationDate, new DateTimeZone('UTC'));
+		// TODO we may need to use the Org's home timezone to make more accurate calculations; otherwise DST (kinda) introduces error!
+		// 2014-10-01 10:10:10 + 1 month = 2014-11-01 09:10:10
+		// $datetime->setTimezone(new DateTimeZone('Europe/London'));
+		$offsetDatetime = $datetime->add(
+			DateInterval::createFromDateString(
+				sprintf('%d %s', $perm->retentionMax, $perm->retentionMaxUnit)
+			)
+		);
+		if (false === $offsetDatetime)
+			throw new Exception("Failed to calculate time-offset");
+			
+		$off = $offsetDatetime->getTimestamp();	
+			
+		LogDebug("{$this->context()}creationDate[$creationDate], retentionMax[{$perm->retentionMax}], retentionMaxUnit[{$perm->retentionMaxUnit}], offsetDatetime[$off], now[".time()."]");
+
+		return $offsetDatetime->getTimestamp() >= time();
+	}	
 	
 	protected function getS3ObjectContent($policyID, $policyVersion, $storageKey, &$content)
 	{
@@ -1313,7 +1351,7 @@ class ArchivingCallExport extends ArchivingExport
 				if (!is_string($archRec) || empty($archRec))
 					$archRec = 'Not Available';
 		
-				LogWarning("{$this->context()}No recording for result ID {$resID}, AUUID {$AUUID}, reason '{$archRec}' - skipping recording", null, 'U:ARCX');
+				LogVerbose("{$this->context()}No recording for result ID {$resID}, AUUID {$AUUID}, reason '{$archRec}' - skipping recording");
 				$recording = "\"{$archRec}\"";
 			}
 		}
@@ -1554,12 +1592,14 @@ class ArchivingCallExport extends ArchivingExport
 			"ra.`UserID` AS `RetentionALegUserID`, \n" .
 			"ra.`PolicyID` AS `RetentionALegPolicyID`, \n" .
 			"ra.`PolicyVersion` AS `RetentionALegPolicyVersion`, \n" . 
+			"UNIX_TIMESTAMP(ra.`CreationDate`)+ra.`MidnightOffsetSeconds` AS `RetentionALegCreationDate`, \n" .
 			"ra.`State` AS `RetentionALegState`, \n" . 
 			"ra.`Purged` AS `RetentionALegPurged`, \n" . 
 			"rb.`LegUUID` AS `RetentionBLegUUID`, \n" .
 			"rb.`UserID` AS `RetentionBLegUserID`, \n" .
 			"rb.`PolicyID` AS `RetentionBLegPolicyID`, \n" .
 			"rb.`PolicyVersion` AS `RetentionBLegPolicyVersion`, \n" . 
+			"UNIX_TIMESTAMP(rb.`CreationDate`)+rb.`MidnightOffsetSeconds` AS `RetentionBLegCreationDate`, \n" .
 			"rb.`State` AS `RetentionBLegState`, \n" . 
 			"rb.`Purged` AS `RetentionBLegPurged` \n" .
 			"FROM `Org_{$this->orgID}`.`Results_Logs_{$this->userID}_{$this->queryQID}` l \n" .
@@ -1587,49 +1627,51 @@ class ArchivingCallExport extends ArchivingExport
 		$policyID = false;
 		$ownerUserID = false;
 		$purged = false;
+		$creationDate = false;
+		
+		//echo "logData:\n".print_r($logData);
+		//echo "res:\n".print_r($res);
 
 		if (!empty($res['RetentionALegUUID']))
 		{
+			$uuid = $logData['AUUID'];
+			$policyVersion = (int)$res['RetentionALegPolicyVersion'];
+			$policyID = (int)$res['RetentionALegPolicyID'];
+			$ownerUserID = (int)$res['RetentionALegUserID'];
+			$creationDate = (int)$res['RetentionALegCreationDate'];
+			
 			if ($res['RetentionALegState'] == 'Available')
 			{
 				$purged = !($res['RetentionALegPurged'] == 'no');	
-				if (!$purged) 
+				if ($purged) 
 				{
-					$uuid = $logData['AUUID'];
-					$policyVersion = (int)$res['RetentionALegPolicyVersion'];
-					$policyID = (int)$res['RetentionALegPolicyID'];
-					$ownerUserID = (int)$res['RetentionALegUserID'];
-				}
-				else
-				{
-					LogWarning("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' has been purged", null, 'U:ARCX');
+					LogVerbose("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' has been purged");
 				}
 			}
 			else
 			{
-				LogWarning("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' not available: State: {$res['RetentionALegState']}, Purged: {$res['RetentionALegPurged']}", null, 'U:ARCX');
+				LogVerbose("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for ALeg UUID '{$logData['AUUID']}' not available: State: {$res['RetentionALegState']}, Purged: {$res['RetentionALegPurged']}");
 			}
 		}
 		else if (!empty($res['RetentionBLegUUID'])) 
 		{
+			$uuid = $logData['BUUID'];
+			$policyVersion = (int)$res['RetentionBLegPolicyVersion'];
+			$policyID = (int)$res['RetentionBLegPolicyID'];
+			$ownerUserID = (int)$res['RetentionBLegUserID'];
+			$creationDate = (int)$res['RetentionBLegCreationDate'];
+			
 			if ($res['RetentionBLegState'] == 'Available')
 			{
 				$purged = !($res['RetentionBLegPurged'] == 'no');
-				if (!$purged) 
+				if ($purged)
 				{
-					$uuid = $logData['BUUID'];
-					$policyVersion = (int)$res['RetentionBLegPolicyVersion'];
-					$policyID = (int)$res['RetentionBLegPolicyID'];
-					$ownerUserID = (int)$res['RetentionBLegUserID'];
-				}
-				else
-				{
-					LogWarning("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for BLeg UUID '{$logData['BUUID']}' has been purged", null, 'U:ARCX');
+					LogVerbose("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for BLeg UUID '{$logData['BUUID']}' has been purged");
 				}
 			}
 			else
 			{
-				LogWarning("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for BLeg UUID '{$logData['BUUID']}' not available: State: {$res['RetentionBLegState']}, Purged: {$res['RetentionBLegPurged']}", null, 'U:ARCX');
+				LogVerbose("{$this->context()}Processing result ID {$resID}: call is recorded but retention entry for BLeg UUID '{$logData['BUUID']}' not available: State: {$res['RetentionBLegState']}, Purged: {$res['RetentionBLegPurged']}");
 			}
 		}
 		else
@@ -1637,15 +1679,17 @@ class ArchivingCallExport extends ArchivingExport
 			LogWarning("{$this->context()}Processing result ID {$resID}: call is recorded but no retention entry found for ALeg UUID '{$logData['AUUID']}' or BLeg UUID '{$logData['BUUID']}'", null, 'U:ARCX');
 		}
 		
-		if ($purged)
-			return 'Purged';
-		
-		if (!$uuid)
+		if (!$uuid || $policyID == 0 || $creationDate == 0) 
+			// shouldn't happen
 			return 'Not Available';
 		
-		if (!$this->checkArchivingPolicyPermission($policyID, $ownerUserID))
+		$perm = $this->getArchivingPolicyPermission($policyID, $ownerUserID);
+		if (!isset($perm) || !isset($perm->allowed) || !$perm->allowed)
 			return 'Access Denied';
 		
+		if ($purged || !$this->checkRetentionMaxTime($perm, $creationDate))
+			return 'Purged';
+						
 		// Construct storage key from UUID
 		$storageKey = "recording/{$this->orgID}/{$uuid}";
 
@@ -1883,7 +1927,7 @@ class ArchivingSMSExport extends ArchivingExport
 			if (!is_string($archMsg) || empty($archMsg))
 				$archMsg = 'Not Available';
 	
-			LogWarning("{$this->context()}No SMS/MMS message for result ID {$resID}, AUUID {$AUUID}, reason '{$archMsg}' - skipping message", null, 'U:ARCX');
+			LogVerbose("{$this->context()}No SMS/MMS message for result ID {$resID}, UUID {$UUID}, reason '{$archMsg}' - skipping message");
 			$message = "\"{$archMsg}\"";
 		}
 		
@@ -1915,27 +1959,27 @@ class ArchivingSMSExport extends ArchivingExport
 		$policyID = false;
 		$ownerUserID = false;
 		$purged = false;
+		$creationDate = false;
 
 		if (!empty($res['RetentionUUID']))
 		{
+			$uuid = $logData['UUID'];
+			$policyVersion = (int)$res['RetentionPolicyVersion'];
+			$policyID = (int)$res['RetentionPolicyID'];
+			$ownerUserID = (int)$res['RetentionUserID'];
+			$creationDate = (int)$res['RetentionCreationDate'];
+			
 			if ($res['RetentionState'] == 'Available') 
 			{
 				$purged = !($res['RetentionPurged'] == 'no');
-				if (!$purged) 
+				if ($purged) 
 				{
-					$uuid = $logData['UUID'];
-					$policyVersion = (int)$res['RetentionPolicyVersion'];
-					$policyID = (int)$res['RetentionPolicyID'];
-					$ownerUserID = (int)$res['RetentionUserID'];
-				}
-				else
-				{
-					LogWarning("{$this->context()}Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' is purged", null, 'U:ARCX');
+					LogVerbose("{$this->context()}Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' is purged");
 				}
 			}
 			else
 			{
-				LogWarning("{$this->context()}Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' not available: State: {$res['RetentionState']}, Purged: {$res['RetentionPurged']}", null, 'U:ARCX');
+				LogVerbose("{$this->context()}Processing result ID {$resID}: retention entry for UUID '{$logData['UUID']}' not available: State: {$res['RetentionState']}, Purged: {$res['RetentionPurged']}");
 			}
 		}
 		else
@@ -1943,15 +1987,17 @@ class ArchivingSMSExport extends ArchivingExport
 			LogWarning("{$this->context()}Processing result ID {$resID}: no retention entry found for UUID '{$logData['UUID']}'", null, 'U:ARCX');
 		}
 		
-		if ($purged)
-			return 'Purged';
-		
-		if (!$uuid)
+		if (!$uuid || $policyID == 0 || $creationDate == 0) 
+			// shouldn't happen
 			return 'Not Available';
 		
-		if (!$this->checkArchivingPolicyPermission($policyID, $ownerUserID))
+		$perm = $this->getArchivingPolicyPermission($policyID, $ownerUserID);
+		if (!isset($perm) || !isset($perm->allowed) || !$perm->allowed)
 			return 'Access Denied';
-
+				
+		if ($purged || !$this->checkRetentionMaxTime($perm, $creationDate))
+			return 'Purged';
+		
 		// Construct storage key from UUID
 		$storageKey = "sms/{$this->orgID}/{$uuid}";
 		
@@ -2063,12 +2109,12 @@ class ArchivingSMSExport extends ArchivingExport
 			"r.`UUID` AS `RetentionUUID`, \n" .
 			"r.`UserID` AS `RetentionUserID`, \n" .
 			"r.`PolicyID` AS `RetentionPolicyID`, \n" .
-			"r.`PolicyVersion` AS `RetentionPolicyVersion`, \n" . 
+			"r.`PolicyVersion` AS `RetentionPolicyVersion`, \n" .
+			"UNIX_TIMESTAMP(r.`CreationDate`)+r.`MidnightOffsetSeconds` AS `RetentionCreationDate`, \n" .
 			"r.`State` AS `RetentionState`, \n" . 
 			"r.`Purged` AS `RetentionPurged` \n" . 
 			"FROM `Org_{$this->orgID}`.`Results_SMSLogs_{$this->userID}_{$this->queryQID}` l \n" .
 			"LEFT JOIN `ArchivingRetention`.`Retention_{$this->orgID}` r ON (l.`UUID`=r.`UUID`) \n" .
-			//"WHERE (r.Type=".Archiving::FILE_TYPE_INT_SMS." OR r.Type IS NULL);";
 			"WHERE (r.Type=".Archiving::FILE_TYPE_INT_SMS.");";
 				
 		$dbResults = $this->app->bigDbc->query($sql)->fetch_all(MySQLiResult::AS_ASSOC);
@@ -2193,6 +2239,7 @@ class ArchivingExportApp extends BaseApp
 		{
 			// Get Big SQL database connection
 			$this->bigDbc = MySQLiConnection::Get('retention_rw');
+			$this->bigDbc->query("SET time_zone = '+00:00'"); 
 			
 			if ($this->worker)
 			{
