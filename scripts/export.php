@@ -897,11 +897,7 @@ abstract class ArchivingExport
 		);
 		if (false === $offsetDatetime)
 			throw new Exception("Failed to calculate time-offset");
-			
-		$off = $offsetDatetime->getTimestamp();	
-			
-		LogDebug("{$this->context()}creationDate[$creationDate], retentionMax[{$perm->retentionMax}], retentionMaxUnit[{$perm->retentionMaxUnit}], offsetDatetime[$off], now[".time()."]");
-
+		
 		return $offsetDatetime->getTimestamp() >= time();
 	}	
 	
