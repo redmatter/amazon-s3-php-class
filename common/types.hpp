@@ -50,6 +50,8 @@ struct file_type
 		pcap,
 		info,
 		pcap_sip_only,
+		_export, /* breaking the convention with underscore at the start as 'export' is a keyword.
+					this is here just for reservation of the enum which is used in API / Sapien for archive export */
 
 		n_file_types
 	};
