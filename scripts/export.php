@@ -265,13 +265,13 @@ class ArchivingExportZip
 		
 		clearstatcache();
 		
-		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$this->zipFileName}' with command: {$cmd} -p********");
+		LogVerbose("{$this->context()}Adding file {$relFileSpec} (".filesize($relFileSpec)." bytes) to export zip '{$this->zipFileName}' with command: ".escapeshellcmd($cmd)." -p********");
 		
 		$cmd .= " -p{$this->export->zipPassword}";
 		
 		$output = array();
 		$return_var = 0;
-		$zipRes = exec($cmd, $output, $return_var);
+		$zipRes = exec(escapeshellcmd($cmd), $output, $return_var);
 		
 		$zipFilePath = "{$this->baseDir}/{$this->count}/{$this->zipFileName}";
 		if (!file_exists($zipFilePath))
