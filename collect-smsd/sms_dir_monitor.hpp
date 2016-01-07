@@ -75,9 +75,14 @@ namespace archiving
 				std::string uuid(file_path,
 						file_path.length() - (36/*uuid*/+ 4/*.sms*/+ 4/*.xml*/),
 						36);
+				std::string type(file_path,
+						file_path.length() - (3/*[sm]ms*/+ 4/*.xml*/),
+						3);
+
+				// whether it's treated as an SMS or an MMS depends on the format (xml/email)
 				pc_produce(channel_, archivable::pointer(
 						new archivable(uuid, "", 0, file_path,
-								archiving::file_type::sms, "xml", pbx_hostname_)));
+								archiving::file_type::sms, type == "sms" ? "xml" : "email", pbx_hostname_)));
 				
 				return true;
 			}
