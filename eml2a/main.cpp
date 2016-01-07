@@ -12,8 +12,6 @@
 #include <rml/coreapi.hpp>
 #include <rml/hapi.hpp>
 
-#include <cryptopp/md5.h>
-
 #include "../common/types.hpp"
 #include "../common/logstack.h"
 #include "../common/policy.hpp"
@@ -29,6 +27,8 @@
 #include <boost/uuid/uuid.hpp>            // uuid class
 #include <boost/uuid/uuid_generators.hpp> // generators
 #include <boost/uuid/uuid_io.hpp>         // streaming operators etc.
+#include <boost/asio/ip/host_name.hpp>    // get host name
+#include <boost/date_time.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -81,9 +81,7 @@ typedef std::map<std::string, stringvec> stringmapvec;
 
 #define STATE_NONE 0
 #define STATE_FROM_ARCHIVE 1
-#define STATE_FROM_INDEX 2
-#define STATE_TO_ARCHIVE 3
-#define STATE_TO_INDEX 4
+#define STATE_TO_ARCHIVE 2
 #define STATE_DB_NAME "/var/lib/eml2a/eml2astate.db"
 
 int load_ini_state(std::string MessageID)
@@ -285,6 +283,40 @@ void sms_content_decoder::data_end(mime::object* object)
 	LogDebug("SMS content: " << content);
 }
 
+bool DecodeAPIXAuthResponse (rml::coreapi::response &apiresponse, std::string &Token)
+{
+	if (apiresponse.first != 200)
+	{
+		THROW_RML_EXCEPTION ("Error from /x/auth " << apiresponse.first << ": " << apiresponse.second);
+	}
+
+	pugi::xml_document doc;
+	pugi::xml_parse_result result = doc.load_buffer(apiresponse.second.c_str(), apiresponse.second.length());
+	if (!result)
+	{
+		THROW_RML_EXCEPTION ("XML error parsing data from the API: " << result.description() << ": " << apiresponse.second);
+	}
+	else
+	{
+		pugi::xml_node auth_node = doc.child("Auth");
+		if (!auth_node)
+		{
+			THROW_RML_EXCEPTION ("API returned strange XML without Auth tag: " << apiresponse.second);
+		}
+		else
+		{
+			Token = auth_node.attribute("Token").value();
+			if (Token.empty())
+			{
+				THROW_RML_EXCEPTION ("API returned auth item with null Token: " << apiresponse.second);
+			}
+			LogMessage ("API got Token " << Token);
+			return true;
+		}
+	}
+	return false;
+}
+
 /*********************************************************************/
 /* XML manipulation                                                   */
 /*********************************************************************/
@@ -297,247 +329,6 @@ void XMLescape(std::string &data)
 	replace_all(data, "\'", "&apos;");
 	replace_all(data, "<",  "&lt;");
 	replace_all(data, ">",  "&gt;");
-}
-
-std::string GenerateSMSXML(const boost::uuids::uuid &uuid, const stringmap &metadata, const std::string &FromNumber,
-		const std::string &ToNumber, const std::string &Direction, const std::string &Content)
-{
-	// don't bother escaping - pugixml does this already apparently PLAT-1314
-	//std::string escaped(Content);
-	//XMLescape(escaped);
-
-	pugi::xml_document doc;
-	doc.load_buffer("<SMS/>", 6);
-	pugi::xml_node smsnode = doc.child("SMS");
-	smsnode.append_child("UUID").append_child(pugi::node_pcdata).set_value(boost::lexical_cast<std::string>(uuid).c_str());
-	smsnode.append_child("OrgID").append_child(pugi::node_pcdata).set_value(metadata.at("OrgID").c_str());
-	smsnode.append_child("UserID").append_child(pugi::node_pcdata).set_value(metadata.at("UserIDs").c_str());
-	smsnode.append_child("HostName").append_child(pugi::node_pcdata).set_value(metadata.at("PBXHostName").c_str());
-	smsnode.append_child("StartEpoch").append_child(pugi::node_pcdata).set_value(metadata.at("CreateTime").c_str());
-	smsnode.append_child("FromNumber").append_child(pugi::node_pcdata).set_value(FromNumber.c_str());
-	smsnode.append_child("ToNumber").append_child(pugi::node_pcdata).set_value(ToNumber.c_str());
-	smsnode.append_child("Direction").append_child(pugi::node_pcdata).set_value(Direction.c_str());
-	smsnode.append_child("Text").append_child(pugi::node_pcdata).set_value(Content.c_str());
-
-	std::ostringstream stream;
-	doc.save(stream);
-	return stream.str();
-}
-
-bool DecodeAPIResponse (rml::coreapi::response &apiresponse, std::string &OrgID, std::string &UserID, const std::string &Number)
-{
-	if (apiresponse.first < 200 || apiresponse.first >= 300)
-	{
-		THROW_RML_EXCEPTION ("Error from API " << apiresponse.first << ": " << apiresponse.second);
-	}
-
-	pugi::xml_document doc;
-	pugi::xml_parse_result result = doc.load_buffer(apiresponse.second.c_str(), apiresponse.second.length());
-	if (!result)
-	{
-		THROW_RML_EXCEPTION ("XML error parsing data from the API: " << result.description() << ": " << apiresponse.second);
-	}
-	else
-	{
-		pugi::xml_node SIMs_node = doc.child("SIMs");
-		if (!SIMs_node)
-		{
-			THROW_RML_EXCEPTION ("API returned strange XML without SIMs tag: " << apiresponse.second);
-		}
-		else
-		{
-			pugi::xml_node SIM_node = SIMs_node.first_child();
-			if (SIM_node)
-			{
-				OrgID = SIM_node.attribute("OrgID").value();
-				UserID = SIM_node.attribute("UserID").value();
-				if (OrgID.empty())
-				{
-					THROW_RML_EXCEPTION ("API returned SIM item with null OrgID: " << apiresponse.second);
-				}
-				LogMessage ("API got UserID " << UserID << ", OrgID " << OrgID << " for number " << Number);
-				return true;
-			}
-			else
-			{
-				// else: no user with this number
-				LogMessage ("API found no results for number " << Number);
-			}
-		}
-	}
-	return false;
-}
-
-/*********************************************************************/
-/* Send to archive                                                   */
-/*********************************************************************/
-
-std::string remove_hyphens(const std::string &str)
-{
-	std::string buff(str);
-	size_t hy;
-	while ((hy = buff.find("-")) != std::string::npos)
-		buff.erase(hy, 1);
-	return buff;
-}
-
-std::string remove_redmatter(const std::string &str)
-{
-	std::string buff(str);
-	size_t rm;
-	if ((rm = buff.find(".redmatter.com")) != std::string::npos)
-		buff.erase(rm);
-	return buff;
-}
-
-void sendItemToArchive(const std::string &archivedHost, const std::string &archivedPort, stringmap &metadata, const std::string &uuid, const std::string &item)
-{
-	try
-	{
-		boost::asio::io_service io_service;
-		tcp::socket s(io_service);
-		boost::asio::streambuf inbuf;
-		size_t reply_length;
-		
-		// lookup the archived hostname
-		tcp::resolver resolver(io_service);
-		tcp::resolver::query query(tcp::v4(), archivedHost.c_str(), archivedPort.c_str());
-		tcp::resolver::iterator iterator = resolver.resolve(query);
-
-		// connect to archived
-		boost::asio::connect(s, iterator);
-		
-		// wait for archiveD signon: ArchiveD v0.1.2 protocol 1.0\r\n
-		reply_length = boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-
-		// check protocol and so on look good
-		std::istream is1(&inbuf);
-		std::string ArchiveD, version_number, protocol, protocol_version_number;
-		char v, lf;
-		if(!((std::getline(is1, ArchiveD, ' ') &&
-			is1.get(v) &&
-			std::getline(is1, version_number, ' ') &&
-			std::getline(is1, protocol, ' ') &&
-			std::getline(is1, protocol_version_number, '\r') &&
-			is1.get(lf)) &&
-			ArchiveD == "ArchiveD" && protocol == "protocol")) 
-			throw rml::exception("malformed archived signon");
-		else if(protocol_version_number != "1.0")
-			throw rml::exception("archived protocol mismatch");
-		else if(version_number != version_number_only_string)
-			LogWarning("Warning: Server differs in version from client: " << version_number << ":" << version_number_only_string);
-		
-		// Send eml2a signon string: OK CollectD va.b.c protocol 1.0\r\n
-		std::string signon = std::string("OK CollectD v")+version_number_only_string+" protocol 1.0\r\n";
-		boost::asio::write(s, boost::asio::buffer(signon));
-
-		// wait for archiveD OK response: OK\r\n
-		reply_length = boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-
-		// check we got OK
-		std::string OkOrErr;
-		std::istream is2(&inbuf);
-		std::getline(is2, OkOrErr, ' ');
-		if (OkOrErr != "OK\r\n")
-			throw rml::exception("archived returned ERR to signon");
-
-		// generate the PUT command
-		std::ostringstream PUTstr;
-		PUTstr << "PUT " << metadata["FileType"] << " " << metadata["OrgID"] << " " << uuid << " " << item.length() << "\r\n";
-		stringmap::iterator i;
-		for(i = metadata.begin(); i != metadata.end(); ++i)
-			PUTstr << i->first << ": " << i->second << "\r\n";
-		PUTstr << "\r\n";
-		LogDebug(PUTstr.str());
-		boost::asio::write(s, boost::asio::buffer(PUTstr.str()));
-		
-		// wait for archiveD response to PUT: OK PUT <Type> <OrgID> <UUID>\r\n
-		reply_length = boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-
-		// check the response looks good
-		std::istream is3(&inbuf);
-		std::string rOK, rVerb, rType, rOrgID, rUUID;
-		char rLF;
-		if(!((std::getline(is3, rOK, ' ') &&
-			std::getline(is3, rVerb, ' ') &&
-			std::getline(is3, rType, ' ') &&
-			std::getline(is3, rOrgID, ' ') &&
-			std::getline(is3, rUUID, '\r') &&
-			is3.get(rLF)) &&
-			rOK == "OK" && rVerb == "PUT" && rType == metadata["FileType"] && rOrgID == metadata["OrgID"] && uuid == rUUID)) 
-		{
-			THROW_RML_EXCEPTION("archived failed the put command: " << rOK << " " << rVerb << " " << rType << " " << rOrgID << " " << rUUID);
-		}
-
-		// send the data followed by ctrl-z
-		boost::asio::write(s, boost::asio::buffer(item));
-		boost::asio::write(s, boost::asio::buffer(std::string("\x1a")));
-
-		// wait for archiveD response to file: OK RECV <Type> <OrgID> <UUID>\r\n
-		reply_length = boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-
-		// check the response looks good
-		std::istream is4(&inbuf);
-		std::string fOK, fVerb, fType, fOrgID, fUUID;
-		if(!((std::getline(is4, fOK, ' ') &&
-			std::getline(is4, fVerb, ' ') &&
-			std::getline(is4, fType, ' ') &&
-			std::getline(is4, fOrgID, ' ') &&
-			std::getline(is4, fUUID, '\r')) &&
-			fOK == "OK" && fVerb == "RECV" && fType == metadata["FileType"] && fOrgID == metadata["OrgID"] && uuid == fUUID))
-		{
-			THROW_RML_EXCEPTION("archived failed receiving the file: " << fOK << " " << fVerb << " " << fType << " " << fOrgID << " " << fUUID);
-		}
-
-		// if we are here, we're good!
-		LogMessage(uuid << " sent to archive ok");
-
-		// send BYE\r\n\r\n and wait for OK\r\n - fixes PLAT-1417
-		boost::asio::write(s, boost::asio::buffer(std::string("BYE\r\n\r\n")));
-		boost::asio::read_until (s, inbuf, boost::regex("\r\n"));
-	}
-	catch (const boost::system::error_code& err)
-	{
-		THROW_RML_EXCEPTION("Boost library exception while sending item to archive: "<<err);
-	}	
-	catch (const std::exception& e)
-	{
-		THROW_RML_EXCEPTION("Exception while sending item to archive: "<<e.what());
-	}
-}
-
-std::string MD5(const std::string &data)
-{
-	CryptoPP::Weak1::MD5 hash;
-	byte digest[ CryptoPP::Weak1::MD5::DIGESTSIZE ];
-	 
-	hash.CalculateDigest (digest, (byte*) data.c_str(), data.length());
-	
-	CryptoPP::HexEncoder encoder;
-	std::string output;
-	encoder.Attach (new CryptoPP::StringSink (output));
-	encoder.Put (digest, sizeof(digest));
-	encoder.MessageEnd ();
-	
-	return output;
-}
-
-bool StringToBool(const std::string &str)
-{
-	if (boost::iequals(str, "true"))
-		return true;
-	else if (boost::iequals(str, "1"))
-		return true;
-	else if (boost::iequals(str, "yes"))
-		return true;
-	else if (boost::iequals(str, "false"))
-		return false;
-	else if (boost::iequals(str, "0"))
-		return false;
-	else if (boost::iequals(str, "no"))
-		return false;
-
-	THROW_RML_EXCEPTION("Unable to interpret string as bool (true/false/1/0/yes/no): " << str);
 }
 
 void Configure(int argc, char* argv[])
@@ -584,6 +375,7 @@ void Configure(int argc, char* argv[])
 	optsDesc.add_options()
 		("archived_server_host", boost::program_options::value<std::string>()->default_value(std::string("archived.redmatter.com")), "archive daemon host")
 		("archived_server_port", boost::program_options::value<std::string>()->default_value(std::string("10100")), "archive daemon port number")
+		("content_size_limit", boost::program_options::value<size_t>()->default_value(4*1024*1024), "maximum allowed content length")
 		;
 
 	rml::logger::describe_config(optsDesc);
@@ -709,13 +501,16 @@ int main(int argc, char* argv[]) try
 {
 	Configure(argc, argv);
 
-	// get the current time
-	time_t timenow = time(NULL);
+	std::string agent = boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]);
 
 	// set up connection to coreapi
 	boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
-	rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
+	rml::coreapi coreapi(/*app::confMap*/app::confMap["coreapi.url"].as<std::string>(), agent, p_io_service);
 	rml::coreapi::response apiresponse;
+
+	rml::coreapi::headers apiheaders;
+	apiheaders.insert(std::make_pair("Host", boost::asio::ip::host_name().c_str()));
+	apiheaders.insert(std::make_pair("User-Agent", agent.c_str()));
 
 	// read contents of stdin
 	std::string message;
@@ -760,7 +555,7 @@ int main(int argc, char* argv[]) try
 		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
 		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("^[^0-9]*([0-9]+)$"));
 
-		// what will be used if we can't extract numbers
+		// what will be used if we can't extract numbersf
 		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
 		ToNumberFallback   = ToNumber.empty() ? "unknown" : ToNumber;
 
@@ -783,6 +578,101 @@ int main(int argc, char* argv[]) try
 	XMLescape(FromNumberFallback);
 	XMLescape(ToNumberFallback);
 
+	// get the content, depending on type, and look for ]]> sequences. These is the XML
+	// CDATA end tag, and if it occurs in the body, it needs to be split by a 'real' XML
+	// start/end tag
+	// http://stackoverflow.com/questions/223652/is-there-a-way-to-escape-a-cdata-end-token-in-xml
+
+	std::string msgdata = app::message_type == app::is_sms ? decoded_body : message;
+	boost::replace_all(msgdata, "]]>", "]]]]><![CDATA[>");
+
+	if (msgdata.length() > app::confMap["content_size_limit"].as<size_t>())
+		THROW_RML_EXCEPTION ("Message data length exceeds limit");
+
+	// get Date header value in UTC
+
+	time_t since_epoch = 0;
+	std::string since_epoch_str;
+
+	// Thu, 5 Feb 2015 08:24:15 +0000 ... Wed, 22 Apr 2015 13:42:08 +0200,
+	boost::regex DateHdrRegex("([A-Z][a-z]{2}, [0-9]{1,2} [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}) ([+-]{0,1}[0-9]{4})");
+
+	boost::cmatch what;
+	std::string DateHdrString = headers["Date"].back();
+	if (!DateHdrString.empty() && regex_search (DateHdrString.c_str(), what, DateHdrRegex))
+	{
+		// what[0] contains the whole string
+		// what[1] contains the date/time without time zone
+		// what[2] contains the time zone offset
+
+		std::locale date_loc(std::locale::classic(), new boost::local_time::local_time_input_facet("%a, %d %b %Y %H:%M:%S"));
+		boost::local_time::time_zone_ptr tz_utc(new boost::local_time::posix_time_zone("UTC"));
+		boost::local_time::local_date_time DateTimeNow = boost::local_time::local_sec_clock::local_time(tz_utc);
+
+		boost::local_time::local_date_time DateHdrTime = DateTimeNow;
+		std::string date_str = std::string(what[1]);
+
+		// insert a leading zero in the day of the month, if necessary
+
+		// this fires if we need to insert a 0 before the day of the month
+		boost::regex DateStrRegex("[A-Z][a-z]{2}, ([1-9]) [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}");
+		boost::cmatch what2;
+		if (regex_search (date_str.c_str(), what2, DateStrRegex))
+		{
+			date_str.insert(5, "0", 1);
+			LogVerbose ("Inserted 0: " << what[1] << " -> " << date_str);
+		}
+
+		try
+		{
+			std::istringstream DateStringStream(date_str);
+			DateStringStream.exceptions(std::ios_base::failbit);
+			DateStringStream.imbue(date_loc);
+			DateStringStream >> DateHdrTime;
+
+			// only do the time zone conversion if there was no exception mapping to UTC
+
+			unsigned long tz_mins, tz_len = what[2].length();
+			std::string tz_str = std::string(what[2]);
+			const char *tz_cstr = tz_str.c_str();
+			tz_mins  = (tz_cstr[tz_len-1]-'0') + (tz_cstr[tz_len-2]-'0')*10 + (tz_cstr[tz_len-3]-'0')*60 + (tz_cstr[tz_len-4]-'0')*600;
+			if (tz_mins != 0)
+			{
+				if (tz_cstr[0] == '-')
+					DateHdrTime += boost::posix_time::minutes(tz_mins);
+				else
+					DateHdrTime -= boost::posix_time::minutes(tz_mins);
+			}
+
+			LogDebug ("Mapped " << DateHdrString << " to UTC time " << DateHdrTime);
+
+			boost::posix_time::ptime utc = DateHdrTime.utc_time();
+			boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+			boost::posix_time::time_duration::sec_type diff = (utc - epoch).total_seconds();
+			since_epoch = diff;
+
+			LogVerbose ("Mapped " << DateHdrString << " to epoch time " << since_epoch << ", " << asctime(gmtime(&since_epoch)));
+		}
+		catch(const std::exception &e)
+		{
+			LogWarning ("Error mapping Date hdr string to UTC: " << e.what() << ". Using current time.");
+			time(&since_epoch);
+		}
+	}
+	else
+		time(&since_epoch);
+
+	since_epoch_str = boost::lexical_cast<std::string>(since_epoch);
+
+	// auth onto core API using xauth
+	std::string Token;
+	rml::coreapi::headers xauthheaders;
+	xauthheaders.insert(std::make_pair("Authorization", ("Basic "+app::confMap["coreapi.auth_creds"].as<std::string>()).c_str()));
+	xauthheaders.insert(std::make_pair("Content-Type", "application/xml"));
+	apiresponse = coreapi.get("/x/auth", false, xauthheaders);
+	DecodeAPIXAuthResponse (apiresponse, Token);
+	apiheaders.insert(std::make_pair("Authorization", Token.c_str()));
+
 	// process message twice: once for 'from', once for 'to'
 	typedef enum { from_number, to_number, done } state_t;
 	state_t state;
@@ -791,122 +681,91 @@ int main(int argc, char* argv[]) try
 
 	for (state = from_number; state != done; state = static_cast<state_t>(static_cast<int>(state)+1))
 	{
-		std::string direction;
-		std::string apicall;
-		std::string UserID, OrgID;
-
-		// look up numbers in API
-
-		if (state == from_number)
-		{
-			if (app::direction == app::is_mt)
-				continue;
-
-			if (FromNumber.empty())
-				continue;
-
-			apicall = std::string("/newmobile/bynumber/") + FromNumber;
-			apiresponse = coreapi.get(apicall.c_str());
-			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, FromNumber))
-				continue;
-			FromUserNotFound = false;
-			direction = "Outbound";
-			current_ini_state = STATE_FROM_ARCHIVE;
-		}
-		else if (state == to_number)
-		{
-			if (app::direction == app::is_mo)
-				continue;
-
-			if (ToNumber.empty())
-				continue;
-
-			apicall = std::string("/newmobile/bynumber/") + ToNumber;
-			apiresponse = coreapi.get(apicall.c_str());
-			if (!DecodeAPIResponse (apiresponse, OrgID, UserID, ToNumber))
-				continue;
-			ToUserNotFound = false;
-			direction = "Inbound";
-			current_ini_state = STATE_TO_ARCHIVE;
-		}
-
-		// note: a different UUID for 'from' and 'to' users
-		boost::uuids::uuid uuid = boost::uuids::random_generator()();
-
 		if (current_ini_state >= saved_ini_state)
 		{
 			update_ini_state(MessageID, current_ini_state);
 
-			// load the org's sms retention policy (we use sms retention policy for mms too)
-			app::policy::cached_finder_t policyCache(boost::bind(&app::policy::finder, coreapi, _1), "PolicyCache");
-			app::policy::pointer thepolicy = policyCache(std::make_pair(boost::lexical_cast<int>(OrgID), app::policy::id_type(app::policy::pseudo_id::sms)));
-			if (!thepolicy)
-				throw rml::exception("Error trying to get the policy from the core API");
+			std::string apicall;
 
-			stringmap metadata;
-			metadata["OrgID"] 				= OrgID;
-			metadata["UserIDs"] 			= UserID;
-			metadata["FileType"] 			= "sms";
-			metadata["RetentionPolicyID"] 	= boost::lexical_cast<std::string>(thepolicy->id);
-	//		metadata["MD5"] 				= MD5(item);
-			metadata["CreateTime"] 			= boost::lexical_cast<std::string>(timenow);
-			metadata["LegUUID"] 			= boost::lexical_cast<std::string>(uuid);
-	//		metadata["OriginatorUUID"] 		= "";
-			metadata["DataFormat"] 			= app::message_type == app::is_sms ? "xml" : "email";
-			metadata["PBXHostName"] 		= app::hostname;
-	//		metadata["AddToCDRMunchCache"] 	= "";
+			// look up numbers in API
 
-			std::string host = app::confMap["archived_server_host"].as<std::string>();
-			std::string port = app::confMap["archived_server_port"].as<std::string>();
-
-			std::string smsxml;
-
-			// if it's an SMS make an XML doc for the SMS archive
-			if (app::message_type == app::is_sms)
+			if (state == from_number)
 			{
-				smsxml = GenerateSMSXML(uuid, metadata, FromNumberFallback, ToNumberFallback, direction, decoded_body);
-				LogDebug("SMS XML: " << smsxml);
+				if (app::direction == app::is_mt)
+					continue;
+
+				if (FromNumber.empty())
+					continue;
+
+				pugi::xml_document doc;
+				doc.load_buffer("<Data/>", 7);
+				pugi::xml_node datanode = doc.child("Data");
+				datanode.append_attribute("TYPE") 		= (app::message_type == app::is_sms) ? "SMS" : "MMS";
+				datanode.append_attribute("DIRECTION") 	= "MO";
+				datanode.append_attribute("MNO") 		= "Netcom";
+				datanode.append_attribute("MSISDN") 	= FromNumber.c_str();
+				datanode.append_attribute("CDPA") 		= ToNumberFallback.c_str();
+				datanode.append_attribute("EPOCH") 		= since_epoch_str.c_str();
+
+				datanode.append_child(pugi::node_cdata).set_value(msgdata.c_str());
+
+				std::ostringstream stream;
+				doc.save(stream);
+
+				apiresponse = coreapi.post("/x/mno/smsrequest", stream.str(), "application/xml", false, apiheaders);
+
+				if (apiresponse.first == 404)
+				{
+					LogMessage (FromNumber << " not found: " << apiresponse.first << ": " << apiresponse.second);
+					continue;
+				}
+				else if (apiresponse.first < 200 || apiresponse.first >= 300)
+				{
+					THROW_RML_EXCEPTION ("Error from API " << apiresponse.first << ": " << apiresponse.second);
+				}
+
+				FromUserNotFound = false;
+				current_ini_state = STATE_FROM_ARCHIVE;
 			}
-
-			std::string &item = app::message_type == app::is_sms ? smsxml : message;
-
-			metadata["MD5"] = MD5(item);
-
-			sendItemToArchive(host, port, metadata, boost::lexical_cast<std::string>(uuid), item);
-		}
-		else
-			LogMessage("Not sending to archive, already done");
-
-		current_ini_state ++;
-
-		if (current_ini_state >= saved_ini_state)
-		{
-			update_ini_state(MessageID, current_ini_state);
-
-			// add to the index
-			std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Messages>\n";
-			xml += boost::str (boost::format ("<SMS UUID=\"%1%\" OrgID=\"%2%\" UserID=\"%3%\" Time=\"%4%\" From_Number=\"%5%\" To_Number=\"%6%\" Direction=\"%7%\" HostName=\"%8%\"/>\n")
-				% remove_hyphens(boost::lexical_cast<std::string>(uuid))
-				% OrgID
-				% UserID
-				% timenow
-				% FromNumberFallback
-				% ToNumberFallback
-				% direction
-				% remove_redmatter(app::hostname)
-			);
-			xml += "</Messages>";
-
-			apiresponse = coreapi.post("/smslogs/push", xml);
-			if (apiresponse.first < 200 || apiresponse.first >= 300)
+			else if (state == to_number)
 			{
-				THROW_RML_EXCEPTION ("Error adding SMS " << uuid << " to index: " << apiresponse.first << ", " << apiresponse.second);
+				if (app::direction == app::is_mo)
+					continue;
+
+				if (ToNumber.empty())
+					continue;
+
+				pugi::xml_document doc;
+				doc.load_buffer("<Data/>", 7);
+				pugi::xml_node datanode = doc.child("Data");
+				datanode.append_attribute("TYPE") 		= (app::message_type == app::is_sms) ? "SMS" : "MMS";
+				datanode.append_attribute("DIRECTION") 	= "MT";
+				datanode.append_attribute("MNO") 		= "Netcom";
+				datanode.append_attribute("MSISDN") 	= FromNumberFallback.c_str();
+				datanode.append_attribute("CDPA") 		= ToNumber.c_str();
+				datanode.append_attribute("EPOCH") 		= since_epoch_str.c_str();
+
+				datanode.append_child(pugi::node_cdata).set_value(msgdata.c_str());
+
+				std::ostringstream stream;
+				doc.save(stream);
+
+				apiresponse = coreapi.post("/x/mno/smsrequest", stream.str(), "application/xml", false, apiheaders);
+
+				if (apiresponse.first == 404)
+				{
+					LogMessage (ToNumber << " not found: " << apiresponse.first << ": " << apiresponse.second);
+					continue;
+				}
+				else if (apiresponse.first < 200 || apiresponse.first >= 300)
+				{
+					THROW_RML_EXCEPTION ("Error from API " << apiresponse.first << ": " << apiresponse.second);
+				}
+
+				ToUserNotFound = false;
+				current_ini_state = STATE_TO_ARCHIVE;
 			}
-			else
-				LogMessage (uuid << " added to index ok");
 		}
-		else
-			LogMessage("Not sending to index, already done");
 	}
 
 	// throw an exception if no valid users
