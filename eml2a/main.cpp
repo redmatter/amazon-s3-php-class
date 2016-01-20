@@ -504,12 +504,16 @@ int main(int argc, char* argv[]) try
 	std::string agent = boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]);
 
 	// set up connection to coreapi
+
+	std::string coreapi_url = app::confMap["coreapi.url"].as<std::string>();
+	std::string coreapi_host = coreapi_url.substr(coreapi_url.find_last_of('/') + 1);
+
 	boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
-	rml::coreapi coreapi(/*app::confMap*/app::confMap["coreapi.url"].as<std::string>(), agent, p_io_service);
+	rml::coreapi coreapi(coreapi_url, agent, p_io_service);
 	rml::coreapi::response apiresponse;
 
 	rml::coreapi::headers apiheaders;
-	apiheaders.insert(std::make_pair("Host", boost::asio::ip::host_name().c_str()));
+	apiheaders.insert(std::make_pair("Host", coreapi_host.c_str()));
 	apiheaders.insert(std::make_pair("User-Agent", agent.c_str()));
 
 	// read contents of stdin
