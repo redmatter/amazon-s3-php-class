@@ -82,7 +82,7 @@ Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.1-35101
 Requires: RM-php-eventlog
-Requires: php-s3 >= 0.4.0-33483
+Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 Requires: RM-daemonscripts-php => 0.0.1-35099
 Requires: p7zip

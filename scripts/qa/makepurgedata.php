@@ -324,10 +324,21 @@ class MakePurgeDataApp extends BaseApp
 			$policyLatestVersion = ArchivingPolicy::Get(array($coreapi, $authorization), $org, $policyID, 0);
 
 		$endpoint = ArchivingEndpoint::Get(array($coreapi, $authorization), $org, $policy->storageEndpointID, true);
-		if ($endpoint->type != 's3')
-			throw new Exception('Storage Endpoint is not on Amazon S3');
-
-		$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+		switch ($endpoint->type)
+		{
+			case 's3':
+				$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+				break;
+			case 's3-emulation':
+				if (1 !== preg_match('/^([^\/]+)(.*)$/', $endpoint->baseURI, $matches)) {
+					throw new Exception("Malformed BaseURI '{$endpoint->baseURI}' in storage endpoint");
+				}
+				$s3 = new S3($endpoint->accessKey, $endpoint->secretKey, false, S3::BUCKET_URI_STYLE_PATH, $matches[1], $matches[2]);
+				break;
+			default:
+				throw new Exception("Storage Endpoint Type '{$endpoint->type}' not supported");
+				break;
+		}
 
 		$isLegacyMode = CLI::get('--legacy-headers', $config->get('dataset.legacy_headers', 'false') != 'false');
 		$makeErrors = CLI::get('--introduce-errors', $config->get('dataset.introduce_errors', 'false') != 'false');
@@ -426,6 +437,7 @@ try
 	if (true === CLI::get('--help'))
 	{
 		$prog = basename(__FILE__, '.php');
+        // @SkipIndentPreCommitCheckStart
 		echo <<<USAGE
 Test data generator for QA
 $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileType1[,FileType2] >
@@ -469,7 +481,7 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
     The script will terminate after showing the requested information.
 
     --help
-	    This help message
+        This help message
 
     --list-filetypes
         To see the list of file-types that you can use.
@@ -479,6 +491,7 @@ $prog [--legacy-headers] --auth-hash=< Hash > --org=< OrgID > --filetype=< FileT
 
 
 USAGE;
+        // @SkipIndentPreCommitCheckEnd
 		exit(0);
 	}
 
