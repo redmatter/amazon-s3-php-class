@@ -249,6 +249,10 @@ cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
+cp scripts/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
+cp scripts/qa/verifypurge.conf %{buildroot}/usr/share/archiving/archiving-verifypurge.conf.sample
+cp scripts/qa/archiving-verifypurge-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-verifypurge.conf
+cp scripts/qa/archiving-verifypurge-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-verifypurge
 cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
 
 # Other scripts
