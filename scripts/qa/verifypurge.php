@@ -133,16 +133,16 @@ class VerifyPurgeApp extends BaseApp
     }
 
     /**
-     * Get the current state of an input row item
+     * Get the current state of an object in archive
      *
-     * @param array $row row
+     * @param string $identifier archive object identifier type/orgId/uuid
      *
      * @return array
      * @throws Exception
      */
-    private function _getCurrentState(array $row)
+    private function _getCurrentState($identifier)
     {
-        $identifier = array_combine(array('Type', 'OrgID', 'UUID'), explode('/', $row['Identifier']));
+        $identifier = array_combine(array('Type', 'OrgID', 'UUID'), explode('/', $identifier));
 
         $type = Archiving::GetFileType($identifier['Type']);
         $uuid_hex = str_replace('-', '', $identifier['UUID']);
@@ -173,7 +173,7 @@ class VerifyPurgeApp extends BaseApp
                 break;
         }
 
-        $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $row['Identifier'], false) ? 'Available' : 'Purged';
+        $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier, false) ? 'Available' : 'Purged';
 
         return array($retentionStateFound, $storageStateFound);
     }
@@ -230,7 +230,7 @@ class VerifyPurgeApp extends BaseApp
 
                 $row = array_combine($this->_fields, $line);
 
-                list($row['RetentionStateFound'], $row['StorageStateFound']) = $this->_getCurrentState($row);
+                list($row['RetentionStateFound'], $row['StorageStateFound']) = $this->_getCurrentState($row['Identifier']);
 
                 $ok = $row['RetentionStateFound'] == $row['RetentionStateExpected']
                     && $row['StorageStateFound'] == $row['StorageStateExpected'];
@@ -269,7 +269,7 @@ class VerifyPurgeApp extends BaseApp
     {
         $config = $this->getConf();
 
-        $authCreds = cli::get('--auth-creds', $config->get('api.authorization_creds', false));
+        $authCreds = CLI::Get('--auth-creds', $config->get('api.authorization_creds', false));
         if (!$authCreds)
         {
             throw new Exception('No authorization creds or hash specified');
