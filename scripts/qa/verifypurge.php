@@ -202,12 +202,7 @@ class VerifyPurgeApp extends BaseApp
                 throw new Exception("$path - Not readable");
             }
 
-            $fp = fopen($path, 'r');
-            if (false === $fp)
-            {
-                throw new Exception("$path - Unable to open");
-            }
-
+            $fp = null;
             $sentry = new ScopeSentry(
                 function () use (&$fp)
                 {
@@ -218,6 +213,12 @@ class VerifyPurgeApp extends BaseApp
                     }
                 }
             );
+
+            $fp = fopen($path, 'r');
+            if (false === $fp)
+            {
+                throw new Exception("$path - Unable to open");
+            }
 
             while ($line = fgetcsv($fp))
             {
