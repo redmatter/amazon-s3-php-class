@@ -262,8 +262,6 @@ class VerifyPurgeApp extends BaseApp
                     $failCount++;
                 }
             }
-
-            fclose($fp);
         }
 
         return $failCount;
