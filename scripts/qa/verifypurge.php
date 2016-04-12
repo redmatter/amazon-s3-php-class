@@ -142,6 +142,7 @@ class VerifyPurgeApp extends BaseApp
      */
     private function _getCurrentState($identifier)
     {
+        $identifier_str = $identifier;
         $identifier = array_combine(array('Type', 'OrgID', 'UUID'), explode('/', $identifier));
 
         $type = Archiving::GetFileType($identifier['Type']);
@@ -153,6 +154,10 @@ class VerifyPurgeApp extends BaseApp
             "WHERE `Type`={$type} AND `UUID`=0x{$uuid_hex} " .
             "LIMIT 1"
         )->fetch_all(MySQLiResult::AS_ASSOC);
+        if (empty($res))
+        {
+            throw new Exception("$identifier_str not found in Retention database");
+        }
         list($retentionStateFound, $endpointId) = array_values(reset($res));
 
         $endpoint = ArchivingEndpoint::Get($this->_apiAuth, $identifier['OrgID'], $endpointId, true);
@@ -173,7 +178,7 @@ class VerifyPurgeApp extends BaseApp
                 break;
         }
 
-        $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier, false) ? 'Available' : 'Purged';
+        $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier_str, false) ? 'Available' : 'Purged';
 
         return array($retentionStateFound, $storageStateFound);
     }
@@ -195,6 +200,7 @@ class VerifyPurgeApp extends BaseApp
 
         // split and trim file names / paths
         $csvFiles = array_map('trim', preg_split('/, */', $csvFiles));
+        $fp = null;
         foreach ($csvFiles as $path)
         {
             if (!is_readable($path))
@@ -202,7 +208,6 @@ class VerifyPurgeApp extends BaseApp
                 throw new Exception("$path - Not readable");
             }
 
-            $fp = null;
             $sentry = new ScopeSentry(
                 function () use (&$fp)
                 {
