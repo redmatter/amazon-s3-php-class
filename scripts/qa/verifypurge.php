@@ -34,6 +34,8 @@ require_once 'rmapp/class.BaseApp.php';
  */
 class VerifyPurgeApp extends BaseApp
 {
+    const CONF_SAMPLE = '/usr/share/archiving/archiving-verifypurge.conf.sample';
+
     /**
      * API Url and token
      *
@@ -197,13 +199,13 @@ class VerifyPurgeApp extends BaseApp
         {
             if (!is_readable($path))
             {
-                throw new Exception("(should-be-purged-csv) : $path - Not readable");
+                throw new Exception("$path - Not readable");
             }
 
             $fp = fopen($path, 'r');
             if (false === $fp)
             {
-                throw new Exception("(should-be-purged-csv) : $path - Unable to open");
+                throw new Exception("$path - Unable to open");
             }
 
             while ($line = fgetcsv($fp))
@@ -241,7 +243,7 @@ class VerifyPurgeApp extends BaseApp
                     if ($failFast)
                     {
                         throw new Exception(
-                            implode('/', $identifier)." found " .
+                            "{$row['Identifier']} found " .
                             "Retention:'{$row['RetentionStateFound']}' Storage:'{$row['StorageStateFound']}'"
                         );
 
@@ -280,13 +282,13 @@ class VerifyPurgeApp extends BaseApp
         $failFast = CLI::Get('--fail-fast', false);
         $failCount = 0;
 
-        $shouldBe = CLI::get('--should-be-purged-csv', false);
+        $shouldBe = CLI::Get('--should-be-purged-csv', false);
         if (false !== $shouldBe)
         {
             $failCount += $this->_checkCsvFiles($shouldBe, 'Purged', $failFast);
         }
 
-        $shouldNotBe = CLI::get('--should-not-be-purged-csv', false);
+        $shouldNotBe = CLI::Get('--should-not-be-purged-csv', false);
         if (false !== $shouldNotBe)
         {
             $failCount += $this->_checkCsvFiles($shouldNotBe, 'Available', $failFast);
@@ -301,7 +303,7 @@ class VerifyPurgeApp extends BaseApp
 
 try
 {
-    if (true === CLI::get('--help'))
+    if (true === CLI::Get('--help'))
     {
         $prog = basename(__FILE__, '.php');
         // @SkipIndentPreCommitCheckStart
@@ -346,7 +348,7 @@ USAGE;
 
     $default_conf = getenv('PWD').'/verifypurge.conf';
 
-    if (false === CLI::get('--conf', false) && !is_readable($default_conf))
+    if (false === CLI::Get('--conf', false) && !is_readable($default_conf))
     {
         throw new Exception(
             "No configuration given and no config found at $default_conf; " .
@@ -355,7 +357,7 @@ USAGE;
         );
     }
 
-    if (false === CLI::get('--should-be-purged-csv', false) && false === CLI::get('--should-not-be-purged-csv', false))
+    if (false === CLI::Get('--should-be-purged-csv', false) && false === CLI::Get('--should-not-be-purged-csv', false))
     {
         throw new Exception(
             "No CSV given for verification; you must specify one of --should-be-purged-csv or " .
@@ -363,7 +365,7 @@ USAGE;
         );
     }
 
-    $app = VerifyPurgeApp::getInstance(CLI::get('--conf', $default_conf));
+    $app = VerifyPurgeApp::getInstance(CLI::Get('--conf', $default_conf));
     $app->run();
 
     exit(0);
