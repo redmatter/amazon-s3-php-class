@@ -550,6 +550,10 @@ fi
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
+/usr/bin/archiving-verifypurge
+/usr/share/archiving/archiving-verifypurge.conf.sample
+/etc/rsyslog.d/11-archiving-verifypurge.conf
+/etc/logrotate.d/archiving-verifypurge
 
 %files eml2a
 %defattr(-,root,root)
