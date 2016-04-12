@@ -208,6 +208,17 @@ class VerifyPurgeApp extends BaseApp
                 throw new Exception("$path - Unable to open");
             }
 
+            $sentry = new ScopeSentry(
+                function () use (&$fp)
+                {
+                    if ($fp)
+                    {
+                        fclose($fp);
+                        unset($fp);
+                    }
+                }
+            );
+
             while ($line = fgetcsv($fp))
             {
                 // skip the heading line
