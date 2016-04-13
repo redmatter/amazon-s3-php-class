@@ -81,11 +81,8 @@ typedef std::basic_string<char, ci_char_traits> ci_string;
 }
 
 extern "C" {
-S3Status get_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
-S3Status delete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
-S3Status multidelete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 S3Status head_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
-S3Status put_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 void get_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 void head_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 void delete_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
@@ -135,11 +132,8 @@ class backend : public basic_backend< backend >
     const boost::program_options::variables_map& confMap_;
     std::vector< boost::shared_ptr< boost::mutex > > openssl_mutexes_;
 
-    friend ::S3Status ::get_response_properties_cb_(const ::S3ResponseProperties *, void *);
-    friend ::S3Status ::delete_response_properties_cb_(const ::S3ResponseProperties *, void *);
-    friend ::S3Status ::multidelete_response_properties_cb_(const ::S3ResponseProperties *, void *);
+    friend ::S3Status ::response_properties_cb_(const ::S3ResponseProperties *, void *);
     friend ::S3Status ::head_response_properties_cb_(const ::S3ResponseProperties *, void *);
-    friend ::S3Status ::put_response_properties_cb_(const ::S3ResponseProperties *, void *);
 
     friend void ::get_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
     friend void ::head_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
@@ -276,11 +270,6 @@ protected:
             }
         }
     };
-
-    static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
-    {
-        return S3StatusOK;
-    }
 
     static S3Status head_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
     {
@@ -471,7 +460,7 @@ public:
 
         S3GetObjectHandler get_handler;
         get_handler.responseHandler.completeCallback = &get_response_complete_cb_;
-        get_handler.responseHandler.propertiesCallback = &get_response_properties_cb_;
+        get_handler.responseHandler.propertiesCallback = &response_properties_cb_;
         get_handler.getObjectDataCallback = &get_object_data_cb_;
 
         get_callback_data data(ofs);
@@ -614,7 +603,7 @@ public:
 
         S3PutObjectHandler put_handler;
         put_handler.responseHandler.completeCallback = &put_response_complete_cb_;
-        put_handler.responseHandler.propertiesCallback = &put_response_properties_cb_;
+        put_handler.responseHandler.propertiesCallback = &response_properties_cb_;
         put_handler.putObjectDataCallback = &put_object_data_cb_;
 
         int retry = 2;
@@ -706,7 +695,7 @@ public:
 
         S3ResponseHandler delete_handler;
         delete_handler.completeCallback = &delete_response_complete_cb_;
-        delete_handler.propertiesCallback = &delete_response_properties_cb_;
+        delete_handler.propertiesCallback = &response_properties_cb_;
 
         S3Status status;
 
@@ -754,7 +743,7 @@ public:
 
             S3ResponseHandler multidel_handler;
             multidel_handler.completeCallback = &multidelete_response_complete_cb_;
-            multidel_handler.propertiesCallback = &multidelete_response_properties_cb_;
+            multidel_handler.propertiesCallback = &response_properties_cb_;
 
             Iter i = begin;
             while(i != end) {
@@ -886,55 +875,9 @@ int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData)
     return ret;
 }
 
-S3Status get_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+S3Status response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
 {
-    S3Status ret = S3StatusErrorUnknown;
-
-    try {
-        ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
-    }
-    catch(const std::exception& e) {
-        LogError(e.what());
-    }
-    catch(...) {
-        LogError("Unexpected exception");
-    }
-
-    return ret;
-}
-
-S3Status delete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
-{
-    S3Status ret = S3StatusErrorUnknown;
-
-    try {
-        ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
-    }
-    catch(const std::exception& e) {
-        LogError(e.what());
-    }
-    catch(...) {
-        LogError("Unexpected exception");
-    }
-
-    return ret;
-}
-
-S3Status multidelete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
-{
-    S3Status ret = S3StatusErrorUnknown;
-
-    try {
-        ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
-    }
-    catch(const std::exception& e) {
-        LogError(e.what());
-    }
-    catch(...) {
-        LogError("Unexpected exception");
-    }
-
-    return ret;
+    return S3StatusOK;
 }
 
 S3Status head_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
@@ -943,23 +886,6 @@ S3Status head_response_properties_cb_(const S3ResponseProperties *properties, vo
 
     try {
         ret = app::storage::s3::backend::head_response_properties_cb(properties, callbackData);
-    }
-    catch(const std::exception& e) {
-        LogError(e.what());
-    }
-    catch(...) {
-        LogError("Unexpected exception");
-    }
-
-    return ret;
-}
-
-S3Status put_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
-{
-    S3Status ret = S3StatusErrorUnknown;
-
-    try {
-        ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
     }
     catch(const std::exception& e) {
         LogError(e.what());
