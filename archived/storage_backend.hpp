@@ -39,6 +39,8 @@
 //#include <strings.h>
 #include <string.h>
 
+// @SkipIndentPreCommitCheckStart
+
 namespace {
 
 struct ci_char_traits: public std::char_traits<char> {
@@ -82,11 +84,13 @@ typedef std::basic_string<char, ci_char_traits> ci_string;
 
 extern "C" {
 S3Status get_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
+S3Status delete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 S3Status multidelete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 S3Status head_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 S3Status put_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData);
 void get_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 void head_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
+void delete_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 void multidelete_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 void put_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData);
 int put_object_data_cb_(int bufferSize, char *buffer, void *callbackData);
@@ -119,7 +123,6 @@ public:
 	virtual void put(operation_data::pointer) = 0;
 	virtual void get(operation_data::pointer) = 0;
 	virtual void stat(operation_data::pointer, string_map_t&) = 0;
-	virtual void remove(operation_data::pointer) = 0;
 };
 
 // specialisation
@@ -135,12 +138,14 @@ class backend : public basic_backend< backend >
 	std::vector< boost::shared_ptr< boost::mutex > > openssl_mutexes_;
 
 	friend ::S3Status ::get_response_properties_cb_(const ::S3ResponseProperties *, void *);
+	friend ::S3Status ::delete_response_properties_cb_(const ::S3ResponseProperties *, void *);
 	friend ::S3Status ::multidelete_response_properties_cb_(const ::S3ResponseProperties *, void *);
 	friend ::S3Status ::head_response_properties_cb_(const ::S3ResponseProperties *, void *);
 	friend ::S3Status ::put_response_properties_cb_(const ::S3ResponseProperties *, void *);
 
 	friend void ::get_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
 	friend void ::head_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
+	friend void ::delete_response_complete_cb_(S3Status, const S3ErrorDetails *, void *);
 	friend void ::multidelete_response_complete_cb_(S3Status, const S3ErrorDetails *, void *);
 	friend void ::put_response_complete_cb_(S3Status, const S3ErrorDetails*, void*);
 	friend int ::put_object_data_cb_(int, char*, void*);
@@ -211,40 +216,40 @@ protected:
 			p_tmpfs_->clear(); // clear eof
 			p_tmpfs_->seekg(0);
 		}
-		
+
 		~put_callback_data()
 		{
 			if(p_tmpfs_)
 				p_tmpfs_->close();
 		}
 	};
-	
+
 	struct get_callback_data
 	{
 		rml::utils::tmp_fstream::pointer p_tmpfs_;
 		S3Status status;
 		std::string md5; // TODO check MD5 after download
 
-		get_callback_data() : p_tmpfs_()
+		get_callback_data() : p_tmpfs_(), status(S3StatusOK)
 		{
 		}
 
 		get_callback_data(rml::utils::tmp_fstream::pointer p_tmpfs) : p_tmpfs_(p_tmpfs), status(S3StatusInternalError)
 		{
 		}
-		
+
 		~get_callback_data()
 		{
 			if(p_tmpfs_)
 				p_tmpfs_->close();
 		}
 	};
-	
+
 	struct head_callback_data
 	{
 		S3Status status;
 		string_map_t& headers;
-		
+
 		head_callback_data(string_map_t& headers) : status(S3StatusInternalError), headers(headers)
 		{
 		}
@@ -274,7 +279,7 @@ protected:
 		}
 	};
 
-	static S3Status put_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	static S3Status response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
 	{
 		return S3StatusOK;
 	}
@@ -282,17 +287,17 @@ protected:
 	static S3Status head_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
 	{
 		head_callback_data *data = (head_callback_data *) callbackData;
-		
+
 		if(properties->requestId)
 			data->headers["request-id"] = properties->requestId;
-		
+
 		if(properties->requestId2)
 			data->headers["request-id2"] = properties->requestId2;
-		
+
 		if(properties->contentLength) {
 			std::ostringstream ostr;
 			ostr << properties->contentLength;
-			
+
 			data->headers["content-length"] = ostr.str();
 		}
 
@@ -301,17 +306,17 @@ protected:
 
 		if(properties->server)
 			data->headers["server"] = properties->server;
-		
+
 		if(properties->eTag)
 			data->headers["etag"] = properties->eTag;
-		
+
 		if(properties->lastModified) {
 			std::ostringstream ostr;
 			ostr << properties->lastModified;
-			
+
 			data->headers["last-modified"] = ostr.str();
 		}
-		
+
 		if(properties->metaDataCount) {
 			for(int i = 0; i < properties->metaDataCount; ++i) {
 				if(0 == strncmp(properties->metaData[i].name, S3_METADATA_HEADER_NAME_PREFIX, sizeof(S3_METADATA_HEADER_NAME_PREFIX)-1))
@@ -330,46 +335,11 @@ protected:
 		return S3StatusOK;
 	}
 
-	static S3Status get_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
+	static void response_complete_cb(S3Status status, const S3ErrorDetails *error, S3Status *callbackData)
 	{
-		return S3StatusOK;
-	}
-
-	static S3Status multidelete_response_properties_cb(const S3ResponseProperties *properties, void *callbackData)
-	{
-		return S3StatusOK;
-	}
-
-	static void put_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
-	{
-		put_callback_data *data = (put_callback_data *) callbackData;
-		data->status = status;
-
-		LogDebug("status: "<<S3_get_status_name(status));
-
-		if (error) {
-			if (error->message)
-				LogDError("Error: "<<error->message, "IGNO");
-
-			if (error->resource)
-				LogDError("Resource: "<<error->resource, "IGNO");
-
-			if (error->furtherDetails)
-				LogDError("Further Details: "<<error->furtherDetails, "IGNO");
-
-			if (error->extraDetailsCount) {
-				LogDError("Extra Details:", "IGNO");
-				int i;
-				for (i = 0; i < error->extraDetailsCount; i++)
-					LogDError(error->extraDetails[i].name << ": " << error->extraDetails[i].value, "IGNO");
-			}
+		if (callbackData) {
+			*callbackData = status;
 		}
-	}
-
-	static void head_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
-	{
-		head_callback_data *data = (head_callback_data *) callbackData;
-		data->status = status;
 
 		LogDebug("status: "<<S3_get_status_name(status));
 
@@ -392,53 +362,24 @@ protected:
 		}
 	}
 
-	static void get_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	static void put_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
 	{
-		get_callback_data *data = (get_callback_data *) callbackData;
-		data->status = status;
-
-		LogDebug("status: "<<S3_get_status_name(status));
-
-		if (error && error->message)
-			LogError("Error: "<<error->message);
-
-		if (error && error->resource)
-			LogError("Resource: "<<error->resource);
-
-		if (error && error->furtherDetails)
-			LogError("Further Details: "<<error->furtherDetails);
-
-		if (error && error->extraDetailsCount) {
-			LogError("Extra Details:");
-			int i;
-			for (i = 0; i < error->extraDetailsCount; i++)
-				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
-		}
+		response_complete_cb(status, error, &((put_callback_data *) callbackData)->status);
 	}
 
+	static void head_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	{
+		response_complete_cb(status, error, &((head_callback_data *) callbackData)->status);
+	}
+
+	static void get_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
+	{
+		response_complete_cb(status, error, &((get_callback_data *) callbackData)->status);
+	}
 
 	static void multidelete_response_complete_cb(S3Status status, const S3ErrorDetails *error, void *callbackData)
 	{
-		multidelete_callback_data *data = (multidelete_callback_data *) callbackData;
-		data->status = status;
-
-		LogDebug("status: "<<S3_get_status_name(status));
-
-		if (error && error->message)
-			LogError("Error: "<<error->message);
-
-		if (error && error->resource)
-			LogError("Resource: "<<error->resource);
-
-		if (error && error->furtherDetails)
-			LogError("Further Details: "<<error->furtherDetails);
-
-		if (error && error->extraDetailsCount) {
-			LogError("Extra Details:");
-			int i;
-			for (i = 0; i < error->extraDetailsCount; i++)
-				LogError(error->extraDetails[i].name << ": " << error->extraDetails[i].value);
-		}
+		response_complete_cb(status, error, &((multidelete_callback_data *) callbackData)->status);
 	}
 
 	static int put_object_data_cb(int bufferSize, char *buffer, void *callbackData)
@@ -463,7 +404,7 @@ protected:
 		get_callback_data *data = (get_callback_data *) callbackData;
 
 		S3Status ret = S3StatusAbortedByCallback;
-		
+
 		if(data->p_tmpfs_->write(buffer, bufferSize))
 			ret = S3StatusOK;
 		else
@@ -471,7 +412,7 @@ protected:
 
 		return ret;
 	}
-	
+
 public:
 
 	friend class basic_backend< backend >;
@@ -497,13 +438,13 @@ public:
 	{
 		if(opdata->p_detail->state != operation_state::get_file_retrieve && opdata->p_detail->retry > 0)
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier<<": invalid state (retry: "<<opdata->p_detail->retry<<')');
-		
+
 		rml::utils::tmp_fstream::pointer ofs = opdata->get_tmp_fstream(opdata->p_detail->current_file_format, true, true);
 		types::caseless_key_string_map headers;
-		
+
 		get(opdata->p_detail->p_endpoint, std::string(opdata->p_detail->identifier), ofs, headers);
 	}
-	
+
 	inline_ void get(
 			const basic_endpoint::pointer p_endpoint,
 			const std::string& identifier,
@@ -511,7 +452,7 @@ public:
 			types::caseless_key_string_map& headers)
 	{
 		S3BucketContext bucket_context;
-		
+
 		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
 		bucket_context.bucketName = &s3_endpoint->bucket[0];
 		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
@@ -534,7 +475,7 @@ public:
 	    get_handler.responseHandler.completeCallback = &get_response_complete_cb_;
 	    get_handler.responseHandler.propertiesCallback = &get_response_properties_cb_;
 	    get_handler.getObjectDataCallback = &get_object_data_cb_;
-	    
+
 	    get_callback_data data(ofs);
 
 		int retry = 2;
@@ -604,7 +545,7 @@ public:
 					"file-type",
 					types::data_sub_format::to_string(
 							types::data_sub_format::data_sub_format_t(target_file_format & 0xff))));
-			
+
 			s3headers.insert(std::make_pair(
 					"clear-size",
 					boost::lexical_cast<std::string>(clear_size)));
@@ -654,7 +595,7 @@ public:
 		put_props.cannedAcl = S3CannedAclPrivate;
 
 		S3BucketContext bucket_context;
-		
+
 		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
 		bucket_context.bucketName = &s3_endpoint->bucket[0];
 		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
@@ -672,7 +613,7 @@ public:
 			bucket_context.baseHostname = 0;
 			bucket_context.serviceURI = 0;
 		}
-		
+
 		S3PutObjectHandler put_handler;
 		put_handler.responseHandler.completeCallback = &put_response_complete_cb_;
 		put_handler.responseHandler.propertiesCallback = &put_response_properties_cb_;
@@ -693,11 +634,11 @@ public:
 	{
 		stat(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, res);
 	}
-	
+
 	void stat(basic_endpoint::pointer p_endpoint, const std::string& identifier, string_map_t& res)
 	{
 		S3BucketContext bucket_context;
-		
+
 		endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
 		bucket_context.bucketName = &s3_endpoint->bucket[0];
 		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
@@ -719,7 +660,7 @@ public:
 		S3ResponseHandler head_handler;
 		head_handler.completeCallback = &head_response_complete_cb_;
 		head_handler.propertiesCallback = &head_response_properties_cb_;
-	    
+
 	    head_callback_data data(res);
 
 		int retry = 2;
@@ -736,20 +677,19 @@ public:
 		}
 	}
 
-	void remove(operation_data::pointer opdata) __attribute_deprecated__
+	/**
+	 * Remove an object from S3 / S3-compatible endpoint
+	 *
+	 * @param p_endpoint
+	 * @param identifier
+	 *
+	 * @return the outcome of the delete operation
+	 */
+	S3Status remove(const basic_endpoint::pointer p_endpoint, const std::string& identifier)
 	{
-		assert(false);
-	}
-
-	template < typename Iter, typename ExtractPEndpoint, typename ExtractIdentifier >
-	void remove_multiple(Iter begin, Iter end)
-	{
-		assert(begin != end);
-
 		S3BucketContext bucket_context;
 
-		boost::shared_ptr< endpoint > s3_endpoint = boost::static_pointer_cast< endpoint >(
-				ExtractPEndpoint()(*begin));
+		boost::shared_ptr< endpoint > s3_endpoint = boost::static_pointer_cast< endpoint >(p_endpoint);
 		bucket_context.bucketName = &s3_endpoint->bucket[0];
 		bucket_context.accessKeyId = &s3_endpoint->access_key[0];
 		bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
@@ -766,46 +706,92 @@ public:
 			bucket_context.serviceURI = 0;
 		}
 
+		S3ResponseHandler delete_handler;
+		delete_handler.completeCallback = &delete_response_complete_cb_;
+		delete_handler.propertiesCallback = &delete_response_properties_cb_;
+
+		S3Status status;
+
+		int retry = 2;
+		do {
+			S3_delete_object(&bucket_context, &identifier[0], 0, &delete_handler, &status);
+		} while (status != S3StatusOK && S3_status_is_retryable(status) && --retry);
+
+		LogMessage(identifier<<": DELETE Result Status: "<<S3_get_status_name(status));
+
+		return status;
+	}
+
+	template < typename Iter, typename ExtractPEndpoint, typename ExtractIdentifier >
+	void remove_multiple(Iter begin, Iter end)
+	{
+		assert(begin != end);
+
+
 		ExtractIdentifier ex_identifier;
 
-		S3ResponseHandler multidel_handler;
-		multidel_handler.completeCallback = &multidelete_response_complete_cb_;
-		multidel_handler.propertiesCallback = &multidelete_response_properties_cb_;
-
-		Iter i = begin;
-		while(i != end) {
-			unsigned int nKeys = 0;
-			char * keys[1000];
-
-			for(unsigned int count = 0; (count < 1000) && (i != end); ++i, count++)
-				keys[nKeys++] = strdup(((std::string)(ex_identifier(*i))).c_str());
-
-		    multidelete_callback_data data(nKeys);
-
-			int retry = 2;
-		    do {
-
-		        S3_delete_multiple_objects(&bucket_context, nKeys, const_cast<const char**>(keys),
-		        		&data.results[0], &data.resultsCount, &data.errorsCount,
-		        		0,
-		        		&multidel_handler, &data);
-		    } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
-
-			LogDMessage("DELETE-MULTI Result Status: "<<S3_get_status_name(data.status), "INFO");
-
-			if(data.status != S3StatusOK)
-				LogError("DELETE-MULTI failed");
-
-			if(data.errorsCount) {
-				unsigned int resCount(data.resultsCount);
-				while(resCount--)
-					if(data.results[resCount]->status)
-						LogWarning(std::string(data.results[resCount]->key, data.results[resCount]->keyLen)<<" failed to purge; status:"<<S3_get_status_name(data.results[resCount]->status));
+		boost::shared_ptr< endpoint > s3_endpoint = boost::static_pointer_cast< endpoint >(
+				ExtractPEndpoint()(*begin));
+		if(s3_endpoint->type == endpoint_type::s3_compatible) {
+			// with s3-compatible endpoints, we cant be sure that they all support S3's later added feature of
+			// multi-object deletion; hence the range has to be iterated over and deleted individually
+			for(Iter i = begin; i != end; ++i) {
+				const std::string& key(ex_identifier(*i));
+				const S3Status& status(remove(s3_endpoint, key));
+				if (status != S3StatusOK) {
+					LogWarning(key<<" failed to purge; status:"<<S3_get_status_name(status));
+				}
 			}
+		}
+		else {
+			S3BucketContext bucket_context;
+			bucket_context.bucketName = &s3_endpoint->bucket[0];
+			bucket_context.accessKeyId = &s3_endpoint->access_key[0];
+			bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
+			bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
+			bucket_context.uriStyle = S3UriStyleVirtualHost;
+			bucket_context.baseHostname = 0;
+			bucket_context.serviceURI = 0;
 
-			while(nKeys--) {
-				free(keys[nKeys]);
-				keys[nKeys] = 0;
+			S3ResponseHandler multidel_handler;
+			multidel_handler.completeCallback = &multidelete_response_complete_cb_;
+			multidel_handler.propertiesCallback = &multidelete_response_properties_cb_;
+
+			Iter i = begin;
+			while(i != end) {
+				unsigned int nKeys = 0;
+				char * keys[1000];
+
+				for(unsigned int count = 0; (count < 1000) && (i != end); ++i, count++)
+					keys[nKeys++] = strdup(((std::string)(ex_identifier(*i))).c_str());
+
+				multidelete_callback_data data(nKeys);
+
+				int retry = 2;
+				do {
+
+					S3_delete_multiple_objects(&bucket_context, nKeys, const_cast<const char**>(keys),
+							&data.results[0], &data.resultsCount, &data.errorsCount,
+							0,
+							&multidel_handler, &data);
+				} while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
+
+				LogDMessage("DELETE-MULTI Result Status: "<<S3_get_status_name(data.status), "INFO");
+
+				if(data.status != S3StatusOK)
+					LogError("DELETE-MULTI failed");
+
+				if(data.errorsCount) {
+					unsigned int resCount(data.resultsCount);
+					while(resCount--)
+						if(data.results[resCount]->status)
+							LogWarning(std::string(data.results[resCount]->key, data.results[resCount]->keyLen)<<" failed to purge; status:"<<S3_get_status_name(data.results[resCount]->status));
+				}
+
+				while(nKeys--) {
+					free(keys[nKeys]);
+					keys[nKeys] = 0;
+				}
 			}
 		}
 	}
@@ -858,6 +844,19 @@ void head_response_complete_cb_(S3Status status, const S3ErrorDetails *error, vo
 	}
 }
 
+void delete_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
+{
+	try {
+		app::storage::s3::backend::response_complete_cb(status, error, (S3Status *)callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+}
+
 void multidelete_response_complete_cb_(S3Status status, const S3ErrorDetails *error, void *callbackData)
 {
 	try {
@@ -893,7 +892,24 @@ S3Status get_response_properties_cb_(const S3ResponseProperties *properties, voi
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
-		ret = app::storage::s3::backend::get_response_properties_cb(properties, callbackData);
+		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
+	}
+	catch(const std::exception& e) {
+		LogError(e.what());
+	}
+	catch(...) {
+		LogError("Unexpected exception");
+	}
+
+	return ret;
+}
+
+S3Status delete_response_properties_cb_(const S3ResponseProperties *properties, void *callbackData)
+{
+	S3Status ret = S3StatusErrorUnknown;
+
+	try {
+		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());
@@ -910,7 +926,7 @@ S3Status multidelete_response_properties_cb_(const S3ResponseProperties *propert
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
-		ret = app::storage::s3::backend::multidelete_response_properties_cb(properties, callbackData);
+		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());
@@ -944,7 +960,7 @@ S3Status put_response_properties_cb_(const S3ResponseProperties *properties, voi
 	S3Status ret = S3StatusErrorUnknown;
 
 	try {
-		ret = app::storage::s3::backend::put_response_properties_cb(properties, callbackData);
+		ret = app::storage::s3::backend::response_properties_cb(properties, callbackData);
 	}
 	catch(const std::exception& e) {
 		LogError(e.what());
