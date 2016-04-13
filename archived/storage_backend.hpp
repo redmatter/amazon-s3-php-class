@@ -716,6 +716,9 @@ public:
         } while (status != S3StatusOK && S3_status_is_retryable(status) && --retry);
 
         LogMessage(identifier<<": DELETE Result Status: "<<S3_get_status_name(status));
+        if (status != S3StatusOK) {
+            LogWarning(identifier<<" failed to delete; status:"<<S3_get_status_name(status));
+        }
 
         return status;
     }
@@ -723,8 +726,10 @@ public:
     template < typename Iter, typename ExtractPEndpoint, typename ExtractIdentifier >
     void remove_multiple(Iter begin, Iter end)
     {
-        assert(begin != end);
-
+        if (begin == end) {
+            LogDMessage("Empty range given", "IGNO");
+            return;
+        }
 
         ExtractIdentifier ex_identifier;
 
@@ -734,11 +739,7 @@ public:
             // with s3-compatible endpoints, we cant be sure that they all support S3's later added feature of
             // multi-object deletion; hence the range has to be iterated over and deleted individually
             for(Iter i = begin; i != end; ++i) {
-                const std::string& key(ex_identifier(*i));
-                const S3Status& status(remove(s3_endpoint, key));
-                if (status != S3StatusOK) {
-                    LogWarning(key<<" failed to purge; status:"<<S3_get_status_name(status));
-                }
+                remove(s3_endpoint, ex_identifier(*i));
             }
         }
         else {
