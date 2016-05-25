@@ -63,11 +63,19 @@ class Archiving
 	const FILE_TYPE_EXTENSION_INFO               = '.info.xml';
 	const FILE_TYPE_EXTENSION_PCAP_SIP_ONLY      = '.sip.pcap';
 
+	const FORMAT_CLEAR      = 0x00;
+	const FORMAT_COMPRESSED = 0x01;
+	const FORMAT_ENCRYPTED  = 0x10;
+
+	const FORMAT_MASK_COMPRESSED = 0x0f;
+	const FORMAT_MASK_ENCRYPTED  = 0xf0;
+
 	const SUBFORMAT_UNKNOWN                = 0; // flags errors
 	const SUBFORMAT_BINARY                 = 1; // BLOB ( catchall for any unrecognized data )
 	const SUBFORMAT_XML                    = 2;
 	const SUBFORMAT_WAV                    = 3;
 	const SUBFORMAT_MP3                    = 4;
+	const SUBFORMAT_PCAP                   = 5;
 
 	const SUBFORMAT_STR_UNKNOWN            = 'unknown'; // flags errors
 	const SUBFORMAT_STR_BINARY             = 'binary';  // BLOB ( catchall for any unrecognized data )
@@ -75,13 +83,13 @@ class Archiving
 	const SUBFORMAT_STR_WAV                = 'wav';
 	const SUBFORMAT_STR_MP3                = 'mp3';
 
-	static $OperationalDataFileTypes = array(
+	public static $OperationalDataFileTypes = array(
 		self::FILE_TYPE_INT_CDR,
 		self::FILE_TYPE_INT_PCAP,
 		self::FILE_TYPE_INT_PCAP_SIP_ONLY
 	);
 
-	static $OperationalDataFileTypesAsString = array(
+	public static $OperationalDataFileTypesAsString = array(
 		self::FILE_TYPE_INT_CDR,
 		self::FILE_TYPE_INT_PCAP,
 		self::FILE_TYPE_INT_PCAP_SIP_ONLY
@@ -240,7 +248,7 @@ class Archiving
 	}
 
 	/**
-	 * sub-format to int
+	 * Sub-format to int
 	 *
 	 * @param string $str subformat string
 	 *
@@ -327,7 +335,7 @@ class Archiving
 	}
 
 	/**
-	 * state To string
+	 * State To string
 	 *
 	 * @param int $state state int value
 	 *
@@ -355,7 +363,7 @@ class Archiving
 	}
 
 	/**
-	 * string to state
+	 * String to state
 	 *
 	 * @param string $str state as string
 	 *
@@ -405,5 +413,55 @@ class Archiving
 	public static function ConstructIdentifier($file_type, $org_id, $uuid)
 	{
 		return sprintf('%s/%d/%s', Archiving::GetFileTypeStr($file_type), $org_id, $uuid);
+	}
+
+	/**
+	 * Get format integer; one used in Retention record
+	 *
+	 * @param bool $isCompressed compressed?
+	 * @param bool $isEncrypted  encrypted?
+	 * @param int  $subFormat    sub format
+	 *
+	 * @return int
+	 */
+	public static function GetFileFormat($isCompressed, $isEncrypted, $subFormat)
+	{
+		return ((($isCompressed ? self::FORMAT_COMPRESSED : 0) | ($isEncrypted ? self::FORMAT_ENCRYPTED : 0)) << 8) | $subFormat;
+	}
+
+	/**
+	 * Extract the sub-format from format integer
+	 *
+	 * @param int $format format
+	 *
+	 * @return int
+	 */
+	public static function GetSubFormatFromFormat($format)
+	{
+		return $format & 0x00ff;
+	}
+
+	/**
+	 * Is encrypted?
+	 *
+	 * @param int $format format
+	 *
+	 * @return bool
+	 */
+	public static function IsEncryptedFormat($format)
+	{
+		return 0 !== (($format >> 8) & self::FORMAT_MASK_ENCRYPTED);
+	}
+
+	/**
+	 * Is compressed?
+	 *
+	 * @param int $format format
+	 *
+	 * @return bool
+	 */
+	public static function IsCompressedFormat($format)
+	{
+		return 0 !== (($format >> 8) & self::FORMAT_MASK_COMPRESSED);
 	}
 }

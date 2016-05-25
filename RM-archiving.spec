@@ -73,6 +73,12 @@ Group: RedMatter/Archiving
 Requires: boost = 1.49.0
 Requires: cryptopp
 
+%package cli
+Summary: Archiving CLI Tools
+Group: RedMatter/Archiving
+Requires: boost = 1.49.0
+Requires: cryptopp
+
 %package common
 Summary: Archiving Common files
 Group: RedMatter/Archiving
@@ -86,6 +92,7 @@ Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 Requires: RM-daemonscripts-php => 0.0.1-35099
 Requires: p7zip
+Requires: RM-pcaptools >= 0.0.1-41989
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -123,6 +130,9 @@ It also makes sense of archiving policy and passes that on to ArchiveD.
 
 %description convert
 Archiving Convert Utility; used by core-api to fetch files from S3
+
+%description cli
+Archiving CLI Tools; used by various scripts
 
 %description common
 Archiving common config files, etc.
@@ -207,12 +217,17 @@ cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
 # Convert
 cp convert/tmp-%{buildtype}-build/convert %{buildroot}/usr/bin/archiving-convert
 
+# CLI
+for bin in convert-to-clear convert-to-archive download; do
+	cp cli/$bin/tmp-%{buildtype}-build/$bin %{buildroot}/usr/bin/archiving-cli-$bin
+done
+cp cli/cli.sh %{buildroot}/usr/bin/archiving-cli
+
 # Common
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
-# cp common/migration_database.conf %{buildroot}/etc/archiving/conf.d/migration_database.conf
 
 # Scripts
 for file in $(find scripts/inc -type f); do
@@ -243,6 +258,14 @@ cp scripts/archiving-export-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving
 cp scripts/archiving-export-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-export
 cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
 cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.conf
+# pcap-import
+mkdir -p %{buildroot}/var/lib/archiving/pcap-import/done
+cp scripts/pcap-recording-import.php %{buildroot}/usr/bin/archiving-pcap-recording-import
+cp scripts/pcap-recording-import.conf %{buildroot}/etc/archiving/pcap-recording-import.conf
+cp scripts/pcap-recording-import-init.sh %{buildroot}/etc/rc.d/init.d/rmarchpcapimport
+cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-pcap-recording-import.conf
+cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
+cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 
 # QA Scripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
@@ -391,6 +414,11 @@ fi
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
+/sbin/chkconfig --add rmarchpcapimport
+/sbin/chkconfig rmarchpcapimport on
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."
+
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
@@ -507,6 +535,12 @@ fi
 %defattr(-,root,root)
 /usr/bin/archiving-convert
 
+%files cli
+%defattr(-,root,root)
+/usr/bin/archiving-cli
+/usr/bin/archiving-cli-*
+/etc/archiving/conf.d/big_database.conf
+
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
@@ -542,6 +576,13 @@ fi
 /etc/logrotate.d/archiving-export
 /etc/rc.d/init.d/rmarchpolfix
 /etc/rc.d/init.d/rmarchexport
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import/done
+/usr/bin/archiving-pcap-recording-import
+/etc/archiving/pcap-recording-import.conf
+/etc/rc.d/init.d/rmarchpcapimport
+/etc/rsyslog.d/11-archiving-pcap-recording-import.conf
+/etc/logrotate.d/archiving-pcap-recording-import
 
 %files qascripts
 %defattr(-,root,root)

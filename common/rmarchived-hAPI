@@ -5,6 +5,7 @@ MYSQL_USER=archiving
 CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
 CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
+CONFIG_DB_BIG=/etc/archiving/conf.d/big_database.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 
@@ -83,6 +84,15 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 
 	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.host $MYSQL_RW
 	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.password $MYSQL_PW
+fi
+
+if [ -f $CONFIG_DB_BIG ]; then
+	MYSQL_DB=Logs
+	MYSQL_RW=`hapi mysql $MYSQL_USER $MYSQL_DB host rw || Die "Failed to call hapi mysql $MYSQL_USER $MYSQL_DB host rw"`
+	MYSQL_PW=`hapi mysql $MYSQL_USER $MYSQL_DB pass || Die "Failed to call hapi mysql $MYSQL_USER $MYSQL_DB pass"`
+
+	ChangeConfig $CONFIG_DB_BIG mysql_big.host $MYSQL_RW
+	ChangeConfig $CONFIG_DB_BIG mysql_big.password $MYSQL_PW
 fi
 
 if [ -f $CONFIG_COLLECTD ]; then
