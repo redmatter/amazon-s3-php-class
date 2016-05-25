@@ -92,7 +92,7 @@ Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 Requires: RM-daemonscripts-php => 0.0.1-35099
 Requires: p7zip
-Requires: RM-pcaptools >= 0.0.1-41989
+Requires: RM-pcaptools >= 0.0.1-42064
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
