@@ -1,4 +1,4 @@
-%define version 0.1.3
+%define version 0.2.0
 %define appname archiving
 %define buildtype dbgrel
 %define __os_install_post %{nil}
