@@ -93,6 +93,7 @@ Requires: RM-%{appname}-convert >= %{version}-%{release}
 Requires: RM-daemonscripts-php => 0.0.1-35099
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
+Requires: RM-%{appname}-cli >= %{version}-%{release}
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -539,7 +540,6 @@ fi
 %defattr(-,root,root)
 /usr/bin/archiving-cli
 /usr/bin/archiving-cli-*
-/etc/archiving/conf.d/big_database.conf
 
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
@@ -579,6 +579,7 @@ fi
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import/done
 /usr/bin/archiving-pcap-recording-import
+/etc/archiving/conf.d/big_database.conf
 /etc/archiving/pcap-recording-import.conf
 /etc/rc.d/init.d/rmarchpcapimport
 /etc/rsyslog.d/11-archiving-pcap-recording-import.conf
