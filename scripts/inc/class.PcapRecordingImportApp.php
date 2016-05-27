@@ -127,11 +127,21 @@ class PcapRecordingImportApp extends BaseDaemonApp
                 $csvMetadata = null;
                 if (file_exists($csvFileMetadata))
                 {
-                    $csvMetadata = json_decode(file_get_contents($csvFileMetadata));
+                    $csvMetadata = file_get_contents($csvFileMetadata);
+                    if (false === $csvMetadata)
+                    {
+                        throw new Exception("Cannot read $csvFileMetadata");
+                    }
+
+                    $csvMetadata = json_decode($csvMetadata);
+                    if (null === $csvMetadata)
+                    {
+                        throw new Exception("Invalid JSON in $csvFileMetadata");
+                    }
                 }
-                if (null === $csvMetadata)
+                else
                 {
-                    throw new Exception("Cannot read $csvFileMetadata");
+                    throw new Exception("Metadata file not found; $csvFileMetadata");
                 }
 
                 if (!isset($csvMetadata->OrgID))
