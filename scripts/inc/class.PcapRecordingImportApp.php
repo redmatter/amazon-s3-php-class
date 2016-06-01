@@ -211,15 +211,24 @@ class PcapRecordingImportApp extends BaseDaemonApp
                 }
 
                 $max_lines = 1000;
+                $tempFiles = array();
                 while ($csv = fgetcsv($fp))
                 {
-                    $tempFiles = array();
                     $importSentry = new ScopeSentry(
-                        function () use ($tempFiles) {
+                        function () use (&$tempFiles) {
                             foreach ($tempFiles as $file)
                             {
-                                @unlink($file);
+                                if (file_exists($file))
+                                {
+                                    LogDebug("Sentry: Deleting $file");
+                                    @unlink($file);
+                                }
+                                else
+                                {
+                                    LogDebug("Sentry: File already deleted ($file)");
+                                }
                             }
+                            $tempFiles = array();
                         }
                     );
 
@@ -243,9 +252,8 @@ class PcapRecordingImportApp extends BaseDaemonApp
                         if ($this->_isArchive($pcapFile))
                         {
                             LogVerbose("PCAP {$csv[$csvMetadata->PcapUuidField]} downloaded as archive format; converting to PCAP");
-                            $pcap = $this->_extractArchive($pcapFile, $orgOneEncKey);
-                            @unlink($pcapFile);
-                            $pcapFile = $pcap;
+                            $pcapFile = $this->_extractArchive($pcapFile, $orgOneEncKey);
+                            $tempFiles[] = $pcapFile;
                         }
 
                         // extract WAV from PCAP
