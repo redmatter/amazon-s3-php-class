@@ -21,6 +21,8 @@ define('RM_SYSLOGGER_LOG_MULTILINE', false);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
+date_default_timezone_set('Europe/London');
+
 require_once 'rmapp/class.BaseApp.php';
 
 define('ARCHIVING_INC_DIR', is_dir(__DIR__.'/../../inc')? (__DIR__.'/../../inc'): 'archiving');
