@@ -58,8 +58,6 @@ class App extends \BaseApp
      */
     public function run()
     {
-        global $argv;
-
         if (false === ($definitionFile = \CLI::Get('definition', false))) {
             throw new \CLIUsageErrorException('definition not given');
         }
@@ -81,10 +79,15 @@ class App extends \BaseApp
         $definition = $this->loadDefinition($definition);
 
         $idx = 1;
+        $outputDir = \CLI::Get('output-dir', getcwd());
+        if (!is_writable($outputDir)) {
+            LogConsole("Output directory not writable ($outputDir)");
+            LogConsole('Use --output-dir option to specify a different location');
+            return 1;
+        }
         foreach ($definition->Datasets as $dataset) {
             LogConsole('Dataset: '.json_encode($dataset));
-            $file = \CLI::Get('output-dir', dirname($argv[0])) .
-                '/'.strtolower($dataset->ExpectedOutcome).sprintf('_%03d.csv', $idx++);
+            $file = "{$outputDir}/".strtolower($dataset->ExpectedOutcome).sprintf('_%03d.csv', $idx++);
             LogConsole("Writing CSV to $file");
             $this->makeCsvFromDataset($dataset, $file);
         }
