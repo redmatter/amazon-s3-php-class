@@ -1,0 +1,108 @@
+{
+  "id": "http://archiving.rnd.redmatter.com/json/schema/purge-verification-csv-definition#",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "description": "schema for purge verification CSV definition",
+
+  "type": "object",
+  "additionalProperties": false,
+  "required": [ "Datasets" ],
+  "properties": {
+    "Datasets": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/csv-criterion"}}
+  },
+  "definitions": {
+    "csv-criterion": {
+      "oneOf": [
+        {"$ref": "#/definitions/csv-criterion-selection-mode-all"},
+        {"$ref": "#/definitions/csv-criterion-selection-mode-randomised"}
+      ]
+    },
+    "csv-criterion-selection-mode-all":{
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "ExpectedOutcome", "SelectionMode", "Criteria" ],
+      "properties": {
+        "ExpectedOutcome": {"enum": ["PURGED", "RETAINED"]},
+        "SelectionMode": {"enum": ["ALL"]},
+        "Criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/selection-criteria" }}
+      }
+    },
+    "csv-criterion-selection-mode-randomised":{
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "ExpectedOutcome", "SelectionMode", "Criteria" ],
+      "properties": {
+        "ExpectedOutcome": {"enum": ["PURGED", "RETAINED"]},
+        "SelectionMode": {"enum": ["RANDOMISED"]},
+        "Criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/selection-criteria" }}
+      }
+    },
+    "selection-criteria": {
+      "oneOf": [
+        {"$ref": "#/definitions/selection-criteria-values"},
+        {"$ref": "#/definitions/selection-criteria-range"}
+      ]
+    },
+    "selection-criteria-values": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "Field", "Exclude", "Values" ],
+      "properties": {
+        "Field": {"enum": ["CreationDate", "Type", "OrgID", "EndpointID", "PolicyID"]},
+        "Exclude": {"type": "boolean"},
+        "Values": {"type": "array", "minItems": 1, "items": { "$ref": "#/definitions/field-value" }}
+      }
+    },
+    "selection-criteria-range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "Field", "Exclude", "Range" ],
+      "properties": {
+        "Field": {"enum": ["CreationDate", "Type", "OrgID", "EndpointID", "PolicyID"]},
+        "Exclude": {"type": "boolean"},
+        "Range": { "$ref": "#/definitions/range" }
+      }
+    },
+    "range": {"oneOf": [
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "Min" ],
+        "properties": {
+          "Min": { "$ref": "#/definitions/field-value" }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "Max" ],
+        "properties": {
+          "Max": { "$ref": "#/definitions/field-value" }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "Min", "Max" ],
+        "properties": {
+          "Min": { "$ref": "#/definitions/field-value" },
+          "Max": { "$ref": "#/definitions/field-value" }
+        }
+      }
+    ]},
+    "field-value": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "integer" }
+      ]
+    },
+    "randomisation-criteria": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "On", "ForEachOf" ],
+      "properties": {
+        "On": {"enum": ["CreationDate"]},
+        "ForEachOf": {"type": "array", "minItems": 1, "items": {"enum": ["PolicyID", "EndpointID", "Type"]}}
+      }
+    }
+  }
+}

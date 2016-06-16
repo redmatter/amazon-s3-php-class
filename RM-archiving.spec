@@ -1,4 +1,4 @@
-%define version 0.2.0
+%define version 0.3.0
 %define appname archiving
 %define buildtype dbgrel
 %define __os_install_post %{nil}
@@ -100,8 +100,15 @@ Summary: Archiving Utility Scripts for QA
 Group: RedMatter/Archiving
 #Requires: RM-%{appname}-scripts >= %{version}-%{release}
 Requires: RM-%{appname}-scripts
+Requires: RM-%{appname}-purge-verify
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: php-gd
+
+%package purge-verify
+Summary: Archiving Utility Scripts for Purge Verification
+Group: RedMatter/Archiving
+Requires: RM-%{appname}-scripts
+Requires: RM-syslogger >= 0.0.1-22449
 
 %package eml2a
 Summary: Tools to puush SMS and MMS email messages into archive
@@ -143,6 +150,9 @@ Archiving Utility scripts for verification etc
 
 %description qascripts
 Archiving QA scripts for verification etc
+
+%description purge-verify
+Archiving Purge Verification scripts
 
 %description eml2a
 A milter that attaches to postscript, and processes messages from recognised
@@ -268,16 +278,20 @@ cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arch
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 
-# QA Scripts
+# qacripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
+cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
+
+# purge-verify
 cp scripts/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
 cp scripts/qa/verifypurge.conf %{buildroot}/usr/share/archiving/archiving-verifypurge.conf.sample
 cp scripts/qa/archiving-verifypurge-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-verifypurge.conf
 cp scripts/qa/archiving-verifypurge-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-verifypurge
-cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
+cp scripts/purge/make-verification-csv/app.php %{buildroot}/usr/bin/archiving-make-purge-verification-csv
+cp scripts/purge/make-verification-csv/app.conf %{buildroot}/etc/archiving/make-purge-verification-csv.conf
 
 # Other scripts
 cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
@@ -423,6 +437,8 @@ fi
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
+
+# %post qascripts
 
 %post eml2a
 /sbin/chkconfig --add eml2a-milter
@@ -592,10 +608,15 @@ fi
 /usr/share/archiving/archiving-makepurgedata.conf.sample
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
+
+%files purge-verify
+%defattr(-,root,root)
 /usr/bin/archiving-verifypurge
 /usr/share/archiving/archiving-verifypurge.conf.sample
 /etc/rsyslog.d/11-archiving-verifypurge.conf
 /etc/logrotate.d/archiving-verifypurge
+/usr/bin/archiving-make-purge-verification-csv
+/etc/archiving/make-purge-verification-csv.conf
 
 %files eml2a
 %defattr(-,root,root)

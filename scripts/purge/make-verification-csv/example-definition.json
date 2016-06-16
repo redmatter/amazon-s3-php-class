@@ -1,0 +1,39 @@
+{
+  "Datasets":
+  [
+    {
+      "ExpectedOutcome": "PURGED",
+      "SelectionMode": "ALL",
+      "Criteria": [
+        {"Field": "OrgID", "Exclude": false, "Values": [1, 434]},
+        {"Field": "Type", "Exclude": false, "Values": ["buffered-recording", "recording"]},
+        {"Field": "CreationDate", "Exclude": false, "Range": {"Min": "2010-07-01", "Max": "2010-10-01"}}
+      ]
+    },
+    {
+      "ExpectedOutcome": "RETAINED",
+      "SelectionMode": "RANDOMISED",
+      "Criteria": [
+        {"Field": "OrgID", "Exclude": true, "Values": [1, 434]}
+      ]
+    },
+    {
+      "ExpectedOutcome": "RETAINED",
+      "SelectionMode": "RANDOMISED",
+      "Criteria": [
+        {"Field": "OrgID", "Exclude": false, "Values": [1, 434]},
+        {"Field": "Type", "Exclude": true, "Values": ["buffered-recording", "recording"]},
+        {"Field": "CreationDate", "Exclude": false, "Range": {"Max": "2010-07-01"}}
+      ]
+    },
+    {
+      "ExpectedOutcome": "RETAINED",
+      "SelectionMode": "RANDOMISED",
+      "Criteria": [
+        {"Field": "OrgID", "Exclude": false, "Values": [1, 434]},
+        {"Field": "Type", "Exclude": true, "Values": ["buffered-recording", "recording"]},
+        {"Field": "CreationDate", "Exclude": false, "Range": {"Min": "2010-10-01"}}
+      ]
+    }
+  ]
+}
