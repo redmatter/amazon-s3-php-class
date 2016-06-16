@@ -107,6 +107,7 @@ Requires: php-gd
 %package purge-verify
 Summary: Archiving Utility Scripts for Purge Verification
 Group: RedMatter/Archiving
+Requires: php54-cli
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
