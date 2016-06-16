@@ -82,7 +82,7 @@ class DateRange
      */
     public static function getUtcDateTimeFromString($date)
     {
-        return new \DateTime($date, new \DateTimeZone('+00:00'));
+        return new \DateTime($date, new \DateTimeZone('UTC'));
     }
 
     /**
