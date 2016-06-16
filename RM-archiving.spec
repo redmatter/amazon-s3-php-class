@@ -292,6 +292,8 @@ cp scripts/qa/archiving-verifypurge-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-a
 cp scripts/qa/archiving-verifypurge-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-verifypurge
 cp scripts/purge/make-verification-csv/app.php %{buildroot}/usr/bin/archiving-make-purge-verification-csv
 cp scripts/purge/make-verification-csv/app.conf %{buildroot}/etc/archiving/make-purge-verification-csv.conf
+cp scripts/purge/make-verification-csv/definition-schema.json %{buildroot}/usr/share/archiving/purge-verify-definition-schema.json
+cp scripts/purge/make-verification-csv/example-definition.json %{buildroot}/usr/share/archiving/purge-verify-definition.example.json
 
 # Other scripts
 cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
@@ -617,6 +619,8 @@ fi
 /etc/logrotate.d/archiving-verifypurge
 /usr/bin/archiving-make-purge-verification-csv
 /etc/archiving/make-purge-verification-csv.conf
+/usr/share/archiving/purge-verify-definition-schema.json
+/usr/share/archiving/purge-verify-definition.example.json
 
 %files eml2a
 %defattr(-,root,root)

@@ -54,8 +54,12 @@ function Usage($message = null)
     echo <<<USAGE
 $app [options] --definition=/path/to/definition.json
 
-Creates CSV files named purged_XXX.csv and retained_XXX.csv in the specified
-output folder.
+Creates CSV files named purged_XXX.csv and retained_XXX.csv in the
+specified output folder.
+
+Please see /usr/share/archiving/purge-verify-definition.example.json for
+an example definition. Once you formulate the file, you can validate it
+using the --validate option, which will make sure there are no errors.
 
 Options:
     --conf <path to config file>
