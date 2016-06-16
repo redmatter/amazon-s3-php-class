@@ -618,7 +618,7 @@ fi
 /usr/share/archiving/archiving-verifypurge.conf.sample
 /etc/rsyslog.d/11-archiving-verifypurge.conf
 /etc/logrotate.d/archiving-verifypurge
-/usr/bin/archiving-make-purge-verification-csv
+%attr(555,root,root) /usr/bin/archiving-make-purge-verification-csv
 /etc/archiving/make-purge-verification-csv.conf
 /usr/share/archiving/purge-verify-definition-schema.json
 /usr/share/archiving/purge-verify-definition.example.json
