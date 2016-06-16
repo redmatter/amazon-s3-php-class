@@ -295,6 +295,7 @@ cp scripts/purge/make-verification-csv/app.php %{buildroot}/usr/bin/archiving-ma
 cp scripts/purge/make-verification-csv/app.conf %{buildroot}/etc/archiving/make-purge-verification-csv.conf
 cp scripts/purge/make-verification-csv/definition-schema.json %{buildroot}/usr/share/archiving/purge-verify-definition-schema.json
 cp scripts/purge/make-verification-csv/example-definition.json %{buildroot}/usr/share/archiving/purge-verify-definition.example.json
+cp scripts/purge/make-verification-csv/autoload.php %{buildroot}/usr/share/php/archiving/purgeverifycsv_autoload.php
 
 # Other scripts
 cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
