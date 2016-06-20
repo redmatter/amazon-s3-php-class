@@ -277,7 +277,9 @@ class App extends \BaseApp
             return $this->dbConnection;
         }
 
-        $retentionDb = \HAPIDbUser::Get('archiving')->getDb('ArchivingRetention');
+        $retentionDb = \HAPIDbUser::Get(
+            $this->getConf()->get('database.username', 'archiving_ro')
+        )->getDb('ArchivingRetention');
         $config = [
             'username' => $retentionDb->getDetail('username'),
             'password' => $retentionDb->getDetail('password'),
@@ -285,7 +287,7 @@ class App extends \BaseApp
             'database' => $retentionDb->getDetail('database', 'ArchivingRetention'),
             'ping_interval_seconds' => 30
         ];
-        LogConsole($config);
+        LogConsole(array_diff_key($config, ['password'=>null]), 'database-credentials');
         $this->dbConnection = \MySQLiConnection::Get($config);
 
         return $this->dbConnection;

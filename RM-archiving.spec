@@ -242,7 +242,7 @@ cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_data
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Scripts
-for file in $(find scripts/inc -type f); do
+for file in $( find scripts/inc -type f -not \( -path "scripts/inc/JsonSchema/*" -o -path "scripts/inc/JsonMapper/*" \) ); do
 	install -m 644 -D ${file} %{buildroot}/usr/share/php/archiving/${file#scripts/inc/}
 done
 ln -sf /usr/share/php/archiving/aws-2.7.17.phar %{buildroot}/usr/share/php/archiving/aws.phar
