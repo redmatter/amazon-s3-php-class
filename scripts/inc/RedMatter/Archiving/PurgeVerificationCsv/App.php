@@ -250,11 +250,11 @@ class App extends \BaseApp
         }
 
         $res = $this->getRetentionDb()->query(
-            'SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` '.
+            'SELECT SUBSTRING(TABLE_NAME FROM 11) `OrgID` '.
             ' FROM `information_schema`.TABLES '.
             ' WHERE TABLES.TABLE_SCHEMA="ArchivingRetention"' .
-            '  AND TABLE_NAME LIKE "Usage_%"' .
-            '  AND TABLE_NAME != "Usage_Template"'
+            '  AND TABLE_NAME LIKE "Retention_%"' .
+            '  AND TABLE_NAME != "Retention_Template"'
         )->fetch_all();
         $this->allOrgIds = array_map(
             function (\MySQLiResult_Row $row) {
