@@ -1,0 +1,6 @@
+{
+    "require": {
+        "justinrainbow/json-schema": "^2.0",
+        "mtdowling/burgomaster": "^0.0.3"
+    }
+}
