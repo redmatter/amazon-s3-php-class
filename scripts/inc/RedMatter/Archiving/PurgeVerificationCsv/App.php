@@ -43,6 +43,7 @@ class App extends \BaseApp
     const GROUP_CONCAT_BUF_LENGTH = 1024;
 
     private $allOrgIds;
+    private $dbConnection;
 
     /**
      * Run what you like!
@@ -272,7 +273,22 @@ class App extends \BaseApp
      */
     private function getRetentionDb()
     {
-        return \MySQLiConnection::Get('retention');
+        if ($this->dbConnection) {
+            return $this->dbConnection;
+        }
+
+        $retentionDb = \HAPIDbUser::Get('archiving')->getDb('ArchivingRetention');
+        $config = [
+            'username' => $retentionDb->getDetail('username'),
+            'password' => $retentionDb->getDetail('password'),
+            'host' => $retentionDb->getDetail('hostname_ro'),
+            'database' => $retentionDb->getDetail('database', 'ArchivingRetention'),
+            'ping_interval_seconds' => 30
+        ];
+        LogConsole($config);
+        $this->dbConnection = \MySQLiConnection::Get($config);
+
+        return $this->dbConnection;
     }
 
     /**
