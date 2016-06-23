@@ -71,7 +71,15 @@ class App extends \BaseApp
             $ok = $this->validateDefinition($definition);
         }
         if (false !== \CLI::Get('validate', false)) {
-            echo $ok ? 'Definition is correctly formatted' : 'Invalid definition';
+            if ($ok) {
+                echo "Definition is correctly formatted\n";
+            } else {
+                if ($definition === null) {
+                    echo "Invalid JSON in definition file; failed parsing (try http://pro.jsonlint.com/)\n";
+                } else {
+                    echo "Invalid definition file; failed schema validation\n";
+                }
+            }
             exit($ok ? 0 : 1);
         } elseif (!$ok) {
             throw new \RuntimeException("Invalid JSON in definition file $definitionFile");
@@ -116,7 +124,7 @@ class App extends \BaseApp
             return true;
         }
 
-        file_put_contents('php://stderr', json_encode($validator->getErrors(), JSON_PRETTY_PRINT));
+        LogConsole(json_encode($validator->getErrors(), JSON_PRETTY_PRINT));
 
         return false;
     }
@@ -208,16 +216,17 @@ class App extends \BaseApp
 
             $db = $this->getRetentionDb();
             foreach ($dateRangeIterator as $dateRange) {
+                $whereCombined = " `CreationDate` >= '{$dateRange->Min->format('Y-m-d')}' " .
+                    "AND `CreationDate` < '{$dateRange->Max->format('Y-m-d')}' " .
+                    ($whereOtherCriteria ? " AND $whereOtherCriteria " : '');
+
                 if ($dataset->SelectionMode === 'ALL') {
-                    $this->generateCsvFromSql($orgId, $whereOtherCriteria, $file);
+                    $this->generateCsvFromSql($orgId, $whereCombined, $file);
                 } else {
                     $db->query('SET @@group_concat_max_len='.self::GROUP_CONCAT_BUF_LENGTH);
                     $sql = 'SELECT GROUP_CONCAT(`ID` ORDER BY RAND()) IDs ' .
                         "FROM `ArchivingRetention`.`Retention_{$orgId}` " .
-                        'WHERE ' .
-                        " `CreationDate` >= '{$dateRange->Min->format('Y-m-d')}' " .
-                        " AND `CreationDate` < '{$dateRange->Max->format('Y-m-d')}' " .
-                        ($whereOtherCriteria ? " AND $whereOtherCriteria " : '').
+                        "WHERE {$whereCombined} " .
                         'GROUP BY CreationDate, PolicyID, EndpointID, Type';
                     LogConsole($sql);
                     $db->query($sql)->for_each(
