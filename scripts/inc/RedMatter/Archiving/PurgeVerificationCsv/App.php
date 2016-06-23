@@ -473,7 +473,6 @@ class App extends \BaseApp
                     $row['RetentionMinDate'],
                     $row['RetentionMaxDate'],
                     $row['EndpointID'],
-                    $row['Type'],
                     '',
                     '',
                 ];
