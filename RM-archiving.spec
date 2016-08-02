@@ -641,7 +641,7 @@ fi
 %attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
 /etc/logrotate.d/eml2a
 /etc/rsyslog.d/11-eml2a.conf
-%defattr(755,root,root) /usr/bin/eml2a-milter-hAPI
+%attr(755,root,root) /usr/bin/eml2a-milter-hAPI
 
 # ----------
 
