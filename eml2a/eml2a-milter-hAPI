@@ -1,0 +1,25 @@
+#!/bin/bash
+
+function Die {
+	echo "HAPI: $1" | /usr/bin/tee | logger -p local7.err -t eml2a-milter -s
+	exit 1
+}
+
+SEARCHDOMAIN=`hapi ge SearchDomain`
+
+if [ -z "${SEARCHDOMAIN}" ]; then
+	Die "SearchDomain could not be determined"
+fi
+
+install /usr/share/eml2a/eml2a-milter.conf -m 644 -o root -g root /etc/archiving/eml2a-milter.conf.tmp
+sed -i "s/\${hapi:SearchDomain}/${SEARCHDOMAIN}/" /etc/archiving/eml2a-milter.conf.tmp || Die "Couldn't set hAPI SearchDomain"
+
+NEWHASH=`md5sum /etc/archiving/eml2a-milter.conf.tmp`
+[ -f "/etc/archiving/eml2a-milter.conf" ] && OLDHASH=`md5sum /etc/archiving/eml2a-milter.conf 2> /dev/null`
+
+if [  "${NEWHASH}" != "${OLDHASH}" ]
+then
+	mv /etc/archiving/eml2a-milter.conf.tmp /etc/archiving/eml2a-milter.conf
+else
+	rm /etc/archiving/eml2a-milter.conf
+fi

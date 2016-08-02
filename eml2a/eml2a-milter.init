@@ -17,5 +17,9 @@ prog_projprefix=archiving
 prog_cliopts="-p /var/lib/eml2a/eml2a-milter.sock"
 prog_syslogtag=eml2a-milter
 
+callback_before_startup() {
+    /usr/bin/eml2a-milter-hAPI &>/dev/null
+}
+
 . /usr/share/rmdaemonscripts/init.sh
 

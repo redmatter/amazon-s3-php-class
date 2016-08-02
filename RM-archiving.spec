@@ -305,14 +305,16 @@ cp scripts/archiving-sms-recovery-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arc
 # eml2a
 mkdir -p %{buildroot}/var/lib/eml2a/messages
 mkdir -p %{buildroot}/var/run/eml2a
+mkdir -p %{buildroot}/usr/share/eml2a
 cp eml2a/tmp-%{buildtype}-build/eml2a %{buildroot}/usr/bin
 cp eml2a/eml2a-milter %{buildroot}/usr/bin
 cp eml2a/eml2a-milter_safe %{buildroot}/usr/bin/
 cp eml2a/eml2a-milter.init %{buildroot}/etc/rc.d/init.d/eml2a-milter
 cp eml2a/eml2a.conf %{buildroot}/etc/archiving/
-cp eml2a/eml2a-milter.conf %{buildroot}/etc/archiving/
+cp eml2a/eml2a-milter.conf %{buildroot}/usr/share/eml2a
 cp eml2a/logrotate.conf %{buildroot}/etc/logrotate.d/eml2a
 cp eml2a/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-eml2a.conf
+cp eml2a/eml2a-milter-hAPI %{buildroot}/usr/bin
 
 # ----------
 
@@ -630,14 +632,16 @@ fi
 %dir %attr(755,postfix,postfix) /var/run/eml2a
 %dir %attr(755,postfix,postfix) /var/lib/eml2a
 %dir %attr(755,postfix,postfix) /var/lib/eml2a/messages
+%dir %attr(755,postfix,postfix) /usr/share/eml2a
 /etc/archiving/eml2a.conf
-/etc/archiving/eml2a-milter.conf
+/usr/share/eml2a/eml2a-milter.conf
 %attr(4755,postfix,postfix) /usr/bin/eml2a
 %attr(4755,postfix,postfix) /usr/bin/eml2a-milter
 /usr/bin/eml2a-milter_safe
 %attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
 /etc/logrotate.d/eml2a
 /etc/rsyslog.d/11-eml2a.conf
+%defattr(755,root,root) /usr/bin/eml2a-milter-hAPI
 
 # ----------
 
