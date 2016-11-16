@@ -198,6 +198,7 @@ struct state
 		delete_retention_error = delete_retention | error,
 
 		finished               = _finished_ << 4,
+		finished_error         = finished | error,
 	};
 
 	static inline char const* to_string(const state_t& s)
@@ -256,6 +257,9 @@ struct state
 
 		case finished:
 			return "finished";
+			break;
+		case finished_error:
+			return "finished_error";
 			break;
 
 		case invalid:
@@ -330,6 +334,11 @@ struct item
 
 	uint64_t id;
 	state::state_t cur_state;
+	bool fatal_failure;
+	/**
+	 * set to true if the purge item was enqueued on processing an on-demand purge request
+	 */
+	const bool on_demand;
 
 	mutable volatile bool save_pending;
 
@@ -341,10 +350,11 @@ struct item
 //		LogDebug(identifier<<" deleted");
 //	}
 
-	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid)
+	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false), on_demand(false)
 	{}
 
-	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state)
+	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state),
+			fatal_failure(false), on_demand(false)
 	{
 	}
 
@@ -354,7 +364,8 @@ struct item
 			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
 		identifier(identifier), endpoint(endpoint), retention(retention_from_db),
 		clear_size(clear_size), real_size(real_size),
-		id(id), cur_state(cur_state), save_pending(false)
+		id(id), cur_state(cur_state), save_pending(false),
+		fatal_failure(false), on_demand(false)
 	{
 	}
 

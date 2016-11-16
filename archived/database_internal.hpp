@@ -41,6 +41,8 @@
 	SQL_DEBUG(line)
 #endif
 
+#define distribute_org_id " ( `OrgID` % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset "
+
 namespace app {
 
 extern std::string hostname;
@@ -488,6 +490,23 @@ public:
 		return false;
 	}
 
+private:
+	static inline std::string get_org_list_where_condition(const std::string& orgs_list)
+	{
+		if (orgs_list == "all") {
+			return std::string();
+		}
+
+		if(std::count(orgs_list.begin(), orgs_list.end(), ',') == 0) {
+			// if it is not a list use 'FieldName=OrgId' form
+			return boost::str(boost::format(" AND `OrgID` = %1% ") % orgs_list);
+		}
+
+		// else 'FieldName IN (OrgIdList)' form
+		return boost::str(boost::format(" AND `OrgID` IN ( %1% ) ") % orgs_list);
+	}
+
+public:
 	types::purge_def::pointer update_get_purge_def(const types::purge_def::pointer& previous, const unsigned int limit,
 			const std::string& enabled_orgs)
 	{
@@ -528,21 +547,7 @@ public:
 			}
 
 			if(!enabled_orgs.empty()) {
-
-				bool very_few_orgs_enabled(false);
-				std::string where_enabled_orgs;
-				{
-					if(enabled_orgs != "all") {
-						const size_t& commas_count(std::count(enabled_orgs.begin(), enabled_orgs.end(), ','));
-						very_few_orgs_enabled = (commas_count < 15);
-						if(commas_count == 0)
-							// not a list
-							where_enabled_orgs = " AND `OrgID` = "+enabled_orgs;
-						else
-							// a list or orgs
-							where_enabled_orgs = " AND `OrgID` IN ( "+enabled_orgs+" )";
-					}
-				}
+				const bool very_few_orgs_enabled(std::count(enabled_orgs.begin(), enabled_orgs.end(), ',') < 15);
 
 				p_ret->creation_time = time(0);
 
@@ -553,7 +558,7 @@ public:
 				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
 							"LastRunTime < DATE_SUB(NOW(), INTERVAL "<<(very_few_orgs_enabled? 20: 60)<<" MINUTE) LastRunMoreThan__MinutesAgo "
 						"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
-						"WHERE ( `OrgID` % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset "<<where_enabled_orgs<<" "
+						"WHERE "distribute_org_id<<get_org_list_where_condition(enabled_orgs)<<
 						"ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
 				__SQL_DEBUG(query.str());
 				mysqlpp::UseQueryResult res = query.use();
@@ -598,7 +603,7 @@ public:
 		return types::purge_def::pointer();
 	}
 
-	long get_purge_queue_size(const int& purge_max_queue_size)
+	long get_purge_queue_size(const int& purge_max_queue_size, const std::string& enabled_orgs, const std::string& state_filter)
 	{
 		try {
 			rml::MySQLConnection conn(*p_pool_);
@@ -607,8 +612,10 @@ public:
 
 				query << "SELECT COUNT(*) QSize, @@auto_increment_increment FROM ( "
 						"    SELECT 1 FROM ArchiveDPurgeQueue "
-						"        WHERE HostName=%0q:HostName "
-						"            AND ( `OrgID` % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset "
+						"        WHERE HostName=%0q:HostName"
+						"            AND "distribute_org_id
+						<<           state_filter
+						<<           get_org_list_where_condition(enabled_orgs)<<
 						"        LIMIT %1:MinQueueSizePlusOne ) x";
 				query.parse();
 
