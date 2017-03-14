@@ -50,7 +50,7 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
 CPPFLAGS += -isystem /usr/include/cpp-netlib
 
-LIBRML_VERSION=1.0
+LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
 LIBS += \
