@@ -24,6 +24,8 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
+BuildRequires: gcc
+BuildRequires: gcc-c++
 BuildRequires: boost-devel = 1.49.0
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: RM-librml-devel < 1.0
