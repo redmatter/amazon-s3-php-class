@@ -27,6 +27,9 @@ CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
 DEFAULT_LOG_FILE_PATH=syslog
 CPPFLAGS += -DDEFAULT_LOG_FILE_PATH='"$(DEFAULT_LOG_FILE_PATH)"'
 
+LIBRML_VERSION=1.0
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -35,7 +38,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri -lcppnetlib-client-connections \
-	-lcryptopp -lpugixml -lrml -larchiving_common -lcrypto -lssl
+	-lcryptopp -lpugixml $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lcrypto -lssl
 
 CXX_SRCS += \
 	main.cpp

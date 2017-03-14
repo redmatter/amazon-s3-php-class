@@ -39,6 +39,9 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
+LIBRML_VERSION=1.0
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
 CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
@@ -51,7 +54,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lmysqlpp -lcryptopp
+	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp
 
 CXX_SRCS += \
 	main.cpp

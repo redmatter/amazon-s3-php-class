@@ -32,6 +32,9 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
+LIBRML_VERSION=1.0
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -39,7 +42,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcryptopp -lrml -larchiving_common
+	-lcryptopp $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common
 
 CXX_SRCS += \
 
