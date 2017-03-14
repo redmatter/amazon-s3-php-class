@@ -1,15 +1,18 @@
-%define version 0.3.0
+%{!?__build_pkg_version: %define __build_pkg_version 1.0.0}
+%{!?__build_pkg_release: %define __build_pkg_release 1}
+%{!?__librml_buildtype: %define __librml_buildtype DBGREL}
+
 %define appname archiving
-%define buildtype dbgrel
+%define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
-Release: 0
+Version: %{__build_pkg_version}
 Source: RM-%{appname}-%{version}.tar.gz
 URL: http://www.redmatter.com/
-Version: %{version}
+Release: %{__build_pkg_release}%{?dist}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
@@ -168,7 +171,7 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
-make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
+make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/
