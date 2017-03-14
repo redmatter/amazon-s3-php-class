@@ -2,6 +2,8 @@ CXXFLAGS = -ggdb -O0
 # CXXFLAGS = -Ofast
 TESTS_CPPFLAGS += --coverage
 
+LIBRML_VERSION=1.1
+
 TESTS_CPPFLAGS += -DRML_DEV_DEBUG \
 	-DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
 
@@ -19,8 +21,7 @@ LIBS_test_purge_by_filetype_selection = \
 	../../common/libarchiving_common.a \
 	-lboost_system \
 	-lboost_iostreams \
-	-lcryptopp \
-	-lrml
+	-lcryptopp $(shell pkg-config rml-$(LIBRML_VERSION) --libs)
 
 CPPFLAGS_test_suppress_headers_check = \
 
@@ -29,7 +30,6 @@ LIBS_test_suppress_headers_check = \
 	-lboost_system \
 	-lboost_iostreams \
 	-lboost_date_time \
-	-lcryptopp \
-	-lrml
+	-lcryptopp $(shell pkg-config rml-$(LIBRML_VERSION) --libs)
 
 include /usr/share/librml/Makefile.gtest

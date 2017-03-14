@@ -50,6 +50,9 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
 CPPFLAGS += -isystem /usr/include/cpp-netlib
 
+LIBRML_VERSION=1.1
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -58,7 +61,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri -lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 -lrml -larchiving_common -lfcgi -lmysqlclient_r
+	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient_r
 
 CXX_SRCS += \
 	retention_purge.cpp \

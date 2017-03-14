@@ -41,6 +41,9 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
+LIBRML_VERSION=1.0
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -49,7 +52,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri-parsers \
-	-lrml -lpugixml -lmysqlpp -lcryptopp -ls3 -lmysqlclient_r
+	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -ls3 -lmysqlclient_r
 
 CXX_SRCS += \
 	main.cpp

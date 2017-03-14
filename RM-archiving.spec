@@ -1,19 +1,21 @@
-%define version 0.3.0
+%{!?__build_pkg_version: %define __build_pkg_version 1.0.0}
+%{!?__build_pkg_release: %define __build_pkg_release 1}
+%{!?__librml_buildtype: %define __librml_buildtype DBGREL}
+
 %define appname archiving
-%define buildtype dbgrel
+%define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
-Release: 0
+Version: %{__build_pkg_version}
 Source: RM-%{appname}-%{version}.tar.gz
 URL: http://www.redmatter.com/
-Version: %{version}
+Release: %{__build_pkg_release}%{?dist}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
@@ -21,9 +23,11 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
-BuildRequires: boost-devel = 1.49.0
+BuildRequires: gcc
+BuildRequires: gcc-c++
+BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel < 1.0
+BuildRequires: RM-librml-devel >= 1.0
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -35,7 +39,6 @@ BuildRequires: threadpool
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -47,7 +50,6 @@ Conflicts: RM-cdrmunch-cdrpostd
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
-Requires: boost = 1.49.0
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -59,7 +61,6 @@ Conflicts: RM-cdrmunch-cdrpostd
 # Summary: Archiving CollectD
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
-# Requires: boost = 1.49.0
 # Requires: mysql++ >= 3.1.0-29693
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
@@ -70,13 +71,11 @@ Conflicts: RM-cdrmunch-cdrpostd
 %package convert
 Summary: Archiving Convert Utility
 Group: RedMatter/Archiving
-Requires: boost = 1.49.0
 Requires: cryptopp
 
 %package cli
 Summary: Archiving CLI Tools
 Group: RedMatter/Archiving
-Requires: boost = 1.49.0
 Requires: cryptopp
 
 %package common
@@ -168,7 +167,7 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
-make TMP=tmp-%{buildtype}-build BUILD_MODE=`echo %{buildtype} | tr 'a-z' 'A-Z'`
+make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/
