@@ -1,0 +1,15 @@
+# JetBrains IDE
+/cmake-build-debug/
+/.idea/
+
+# Eclipse IDE
+/.cproject
+/.project
+/.settings/
+
+# Project stuff
+/external/sqlite/
+/collectd/collectd
+**/version_info
+**/tmp*-libc*/
+**/*.a
