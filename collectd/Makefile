@@ -66,6 +66,9 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
+LIBRML_VERSION=1.1
+CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -74,7 +77,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	-lrml -lpugixml -lcryptopp -larchiving_common -luuid
+	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \
 	main.cpp
