@@ -593,6 +593,10 @@ public:
 									if (is_cbr_file_expected) {
 										throw;
 									}
+
+									LogMessage(archivable_cdr<<" Call buffering WAV file was not found; Ignoring this as"
+											" it fits 'MT Call that ended up in voicemail, but cut before answering'"
+											" (ref: PLAT-10207)");
 								}
 
 								// if archivable_cbr is set; i.e if the file was not missing
