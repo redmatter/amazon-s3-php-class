@@ -531,28 +531,99 @@ public:
 								}
 
 								archiving::archivable::pointer archivable_cbr;
-								archivable_cbr.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, cbr_path, archiving::file_type::buffered_recording, "wav", pbx_hostname_, archivable_cdr, policy::pseudo_id::buffered_recording));
-								archivable_cbr->set_owners(*owners);
-								archivable_cbr->set_add_to_cdrmunch_cache(false);
-								archivable_cbr->set_current_state(archiving::archivable::state::inspected);
-								{
-									int retry = 0;
-									while(!internal_db_.save(archivable_cbr) && !app::quit) {
-										LogMessage(*archivable_cbr<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
-										boost::this_thread::sleep(boost::posix_time::seconds(15));
-										retry++;
+								try {
+									// new below will throw if the CBR file is missing, leading to archivable_cbr not being set
+									archivable_cbr.reset(
+											new archiving::archivable(
+													uuid, originator_uuid, start_epoch, cbr_path,
+													archiving::file_type::buffered_recording, "wav", pbx_hostname_,
+													archivable_cdr, policy::pseudo_id::buffered_recording));
+								}
+								catch (const rml::utils::tmp_fstream::error& e) {
+									const std::string error(e.what());
+									const std::string& cbr_path_not_found(cbr_path+" error:No such file or directory");
+
+									// if it is a failure due to a situation other than the one checked below, then throw!
+									if (error.length() <= cbr_path_not_found.length() ||
+											(0 != error.compare(
+													error.length() - cbr_path_not_found.length(),
+													cbr_path_not_found.length(),
+													cbr_path_not_found)))
+									{
+										throw;
 									}
 
-									if(retry && app::quit)
-										throw rml::exception("Quit flagged during database retry");
-								}
-								archivable_cbr->hibernate();
-								archivable_busy_set_.add(archivable_cbr);
-								pc_produce(out_channel, archivable_cbr, 1);
+									// else if the CBR file was not found on disk ...
 
-								variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
-								variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
-								modified = true;
+									// In the light of https://jira.redmatter.com/browse/PLAT-10207, there needs to be extra
+									// checks here to make sure that the PBX logic has actually created the file on disk.
+									// Apparently there are situations where it is impossible for the PBX to update the CDR
+									// with the fact that the buffered recording didn't get created, eventhough it was setup
+									// to do so.
+									//
+									// Quote from Neil B, from comment on the ticket.
+									//   ... these appears to be a call flow where an MT call is made and the call is then
+									//   diverted to voicemail. This can be easily configured by using a number that is set
+									//   up as a choice number and configuring the Numbers.VSIMs_CallConfig table to set
+									//   `IfUnavailable_Number` to 1, and the `IfUnavailable_Number` to +16465134491
+									//   (which is our voicemail number). Now, if you hang the call up when just before the
+									//   voicemail voice kicks in, there will be no recording made, but the channel variable
+									//   will have been set. If you let the voicemail start, then all is OK!
+									//
+									//   ... only solution I can see is for collectd to ignore situation if the following
+									//   holds true ...
+									//
+									//      if /cdr/variables/answer_epoch = 0 &&
+									//			preg_match('/^featureVoiceMailLeave_/', '//callflow/extension[0]/@number')
+									//		then
+									//			... OK if buffer file is missing
+									//		endif
+
+									bool is_cbr_file_expected = true;
+									{
+										pugi::xpath_node xpath_node = variables_node.select_single_node("answer_epoch/text()");
+										if (xpath_node && std::string(xpath_node.node().value()) == "0") {
+											xpath_node = doc.select_single_node("//callflow/extension[0]/@number");
+											if (xpath_node && boost::starts_with(xpath_node.node().value(), "featureVoiceMailLeave_")) {
+												is_cbr_file_expected = false;
+											}
+										}
+									}
+
+									if (is_cbr_file_expected) {
+										throw;
+									}
+
+									LogMessage(archivable_cdr<<" Call buffering WAV file was not found; Ignoring this as"
+											" it fits 'MT Call that ended up in voicemail, but cut before answering'"
+											" (ref: PLAT-10207)");
+								}
+
+								// if archivable_cbr is set; i.e if the file was not missing
+								if (archivable_cbr) {
+									archivable_cbr->set_owners(*owners);
+									archivable_cbr->set_add_to_cdrmunch_cache(false);
+									archivable_cbr->set_current_state(archiving::archivable::state::inspected);
+
+									{
+										int retry = 0;
+										while(!internal_db_.save(archivable_cbr) && !app::quit) {
+											LogMessage(*archivable_cbr<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
+											boost::this_thread::sleep(boost::posix_time::seconds(15));
+											retry++;
+										}
+
+										if(retry && app::quit)
+											throw rml::exception("Quit flagged during database retry");
+									}
+									archivable_cbr->hibernate();
+									archivable_busy_set_.add(archivable_cbr);
+									pc_produce(out_channel, archivable_cbr, 1);
+
+									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
+									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
+									modified = true;
+								}
 							}
 						}
 

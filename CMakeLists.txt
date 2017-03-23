@@ -1,0 +1,95 @@
+cmake_minimum_required(VERSION 2.8.4)
+project(archiving)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98")
+
+set(SOURCE_FILES
+        archived/test/extract.cpp
+        archived/test/main.cpp
+        archived/test2/test_boost_iostreams_bz2_decompress_hang.cpp
+        archived/test2/test_purge_by_filetype_selection.cpp
+        archived/test2/test_suppress_headers_check.cpp
+        archived/tmp/operation.hpp
+        archived/tmp/retention_purge_batch.hpp
+        archived/call_buffering_recording.hpp
+        archived/clear_cache.hpp
+        archived/compress.hpp
+        archived/converter.hpp
+        archived/coreapi_user.hpp
+        archived/crypto.hpp
+        archived/database_cdrmunch.hpp
+        archived/database_internal.hpp
+        archived/database_retention.hpp
+        archived/dispatcher.hpp
+        archived/fcgi_storage_access.hpp
+        archived/globals.h
+        archived/main.cpp
+        archived/monitor.hpp
+        archived/operation_data.hpp
+        archived/org_policy_versions.hpp
+        archived/pre.h
+        archived/purge.hpp
+        archived/put_server.hpp
+        archived/put_session.hpp
+        archived/retention_data_flusher.hpp
+        archived/retention_purge.cpp
+        archived/retention_purge.hpp
+        archived/retention_purge_runner.hpp
+        archived/retention_record.hpp
+        archived/state_action.hpp
+        archived/state_reactor.hpp
+        archived/storage.hpp
+        archived/storage_backend.hpp
+        archived/storage_endpoint.hpp
+        archived/storage_operation.hpp
+        archived/storage_runner.hpp
+        archived/suppress_headers_check.hpp
+        archived/types.hpp
+        archived/whisper_client.hpp
+        archived-monitor/main.cpp
+        collect-smsd/directory_loader.hpp
+        collect-smsd/main.cpp
+        collect-smsd/pre.h
+        collect-smsd/sms_dir_monitor.hpp
+        collect-smsd/sms_inspector.hpp
+        collectd/test/main.cpp
+        collectd/cdr_dir_monitor.hpp
+        collectd/cdr_inspector.hpp
+        collectd/database_sqlite.hpp
+        collectd/directory_loader.hpp
+        collectd/esl.h
+        collectd/fs_event_monitor.hpp
+        collectd/main.cpp
+        collectd/pre.h
+        common/test/main.cpp
+        common/archivable.hpp
+        common/archived_client.cpp
+        common/archived_client.hpp
+        common/basic_database.hpp
+        common/cache.hpp
+        common/coreapi_eventlog.hpp
+        common/database.hpp
+        common/defines.cpp
+        common/defines.h
+        common/dir_monitor.cpp
+        common/dir_monitor.hpp
+        common/directory_loader.h
+        common/exception.hpp
+        common/globals.h
+        common/inotify_monitor.hpp
+        common/logstack.h
+        common/md5.hpp
+        common/policy.hpp
+        common/pre.h
+        common/types.cpp
+        common/types.hpp
+        convert/archived.hpp
+        convert/main.cpp)
+
+include_directories(
+        /usr/include/cpp-netlib
+        /usr/include/threadpool
+        common
+)
+
+add_executable(archiving ${SOURCE_FILES})
