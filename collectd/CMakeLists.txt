@@ -1,0 +1,54 @@
+project(collectd)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+
+set(HEADER_FILES
+        directory_loader.hpp
+        database_sqlite.hpp
+        cdr_inspector.hpp
+        fs_event_monitor.hpp
+        cdr_dir_monitor.hpp
+#        esl.h
+#        pre.h
+        )
+
+include_directories(
+        /usr/include/cpp-netlib
+        ${SQLITE3_INCLUDE_DIR}
+        ../common
+)
+
+find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams regex REQUIRED)
+find_package(SQLite3 REQUIRED)
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+add_definitions(
+        -Dinline_=
+        -D__librml__tmp_fstream__constructor_private__
+        -DRML_LOGGER_SYSLOG_ONLY
+        -DLOG_SOURCE_LOCATION
+
+        -DARCHIVED_LISTEN_PORT="10100"
+        -DDATABASE_SQLITE
+
+        -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+
+        -DDATABASE_SQLITE
+)
+
+add_executable(rmcollectd.bin main.cpp ${HEADER_FILES})
+
+target_link_libraries(rmcollectd.bin
+        archiving-common
+
+        pugixml
+        cryptopp
+        uuid
+        sqlite3
+
+        rt
+        Threads::Threads
+        ${Boost_LIBRARIES}
+)
