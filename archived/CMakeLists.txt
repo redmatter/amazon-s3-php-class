@@ -38,19 +38,19 @@ set(HEADER_FILES
         whisper_client.hpp
         )
 
-include_directories(
-        /usr/include/cpp-netlib
-        /usr/include/threadpool
-        ${MYSQL_INCLUDE_DIR}
-        ../common
-)
-
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)
 find_package(MySQL++ REQUIRED)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
+include_directories(
+        /usr/include/cpp-netlib
+        /usr/include/threadpool
+        ${MYSQL_INCLUDE_DIR}
+        ../common
+)
 
 add_definitions(
         -Dinline_=
