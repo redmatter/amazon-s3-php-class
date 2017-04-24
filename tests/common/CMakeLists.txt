@@ -21,11 +21,14 @@ include_directories(
         ../../common
 )
 
-gtest_add_directory(${PROJECT_SOURCE_DIR}/common
-        archiving-common
-        cryptopp
+gtest_add_tests_from_directory(
+        DIRECTORY ${PROJECT_SOURCE_DIR}/common
+        NAME_PREFIX common/
+        LIBRARIES
+            archiving-common
+            cryptopp
 
-        rt
-        Threads::Threads
-        ${Boost_LIBRARIES}
+            rt
+            Threads::Threads
+            ${Boost_LIBRARIES}
         )

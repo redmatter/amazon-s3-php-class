@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.1)
 project(archiving)
 
+option(BUILD_TESTS "Build tests" ON)
 option(USE_CLANG "build application with clang" OFF)
 if (USE_CLANG)
     set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
@@ -18,4 +19,7 @@ add_subdirectory(collectd)
 #add_subdirectory(convert)
 #add_subdirectory(eml2a)
 #add_subdirectory(simbes)
+
+if(BUILD_TESTS)
 add_subdirectory(tests)
+endif(BUILD_TESTS)
