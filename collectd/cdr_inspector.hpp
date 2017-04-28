@@ -550,6 +550,7 @@ public:
 													cbr_path_not_found.length(),
 													cbr_path_not_found)))
 									{
+										LogDebug(*archivable_cdr<<" Exception did not match; '"<<cbr_path_not_found<<"' != '"<<error<<"'");
 										throw;
 									}
 
@@ -583,14 +584,14 @@ public:
 									{
 										pugi::xpath_node xpath_node = variables_node.select_single_node("answer_epoch/text()");
 										if (xpath_node && std::string(xpath_node.node().value()) == "0") {
-											xpath_node = doc.select_single_node("//callflow/extension[0]/@number");
-											if (xpath_node && boost::starts_with(xpath_node.node().value(), "featureVoiceMailLeave_")) {
+											if (doc.select_single_node("//callflow/extension[1][starts-with(@number, \"featureVoiceMailLeave_\")]")) {
 												is_cbr_file_expected = false;
 											}
 										}
 									}
 
 									if (is_cbr_file_expected) {
+										LogWarning(*archivable_cdr<<" No buffered recording was found in "<<cbr_path);
 										throw;
 									}
 
