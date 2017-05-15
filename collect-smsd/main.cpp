@@ -298,6 +298,18 @@ int main(int argc, char* argv[]) try
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
+		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
+		// without this change, if there is a backlog the application never starts properly, as there is
+		// a backlog log which is never removed (the items in the backlog list are never added to the queue via pc_produc)
+	    app::archived_client::pointer archived_client(new app::archived_client(
+	    		*p_io_service,
+	    		out_channel,
+	    		archivable_busy_set,
+	    		app::confMap["archived_client.server_host"].as<std::string>(),
+	    		app::confMap["archived_client.server_port"].as<std::string>(),
+	    		internal_db,
+	    		app::quit));
+
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
 		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, app::archived_client::get_is_archived_ok());
@@ -315,15 +327,6 @@ int main(int argc, char* argv[]) try
 		LogMessage("Waiting for processing of all leftover data, if any ...");
 		sms_inspector.start(wait_for_first_run);
 		LogMessage("Leftover data, processed, continuing with initialisation");
-
-	    app::archived_client::pointer archived_client(new app::archived_client(
-	    		*p_io_service,
-	    		out_channel,
-	    		archivable_busy_set,
-	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db,
-	    		app::quit));
 
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
 		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
