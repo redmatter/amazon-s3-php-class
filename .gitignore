@@ -21,3 +21,5 @@ tmp*-libc*/
 !/*/test*/data
 /tests/libs/*
 !/tests/libs/.git-placeholder
+!/*/tests/CMakeLists.txt
+!/collectd/test/cdrgen/

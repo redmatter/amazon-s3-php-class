@@ -1,0 +1,3 @@
+[submodule "cmake-modules/external/DownloadProject"]
+	path = cmake-modules/external/DownloadProject
+	url = git@github.com:redmatter/cmake-DownloadProject.git

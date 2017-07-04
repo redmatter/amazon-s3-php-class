@@ -1,9 +1,0 @@
-int version_number[4] = {
-    @VERSION_MAJOR@, @VERSION_MINOR@, @VERSION_PATCH@,
-    0 /* release-id in `version_number` is now legacy; will always be zero */
-};
-const char *version_number_string = "@VERSION_MAJOR@.@VERSION_MINOR@.@VERSION_PATCH@-@RELEASE_ID@ vcs:[git:@VCS_COMMIT_ID@] build-type:[@CMAKE_BUILD_TYPE@]";
-const char *version_number_only_string = "@VERSION_MAJOR@.@VERSION_MINOR@.@VERSION_PATCH@";
-const char *version_date = "@VCS_EPOCH_TIMESTAMP@";
-const char *build_host = "@BUILD_HOSTNAME@ build-id:[@BUILD_ID@] compiler:[@BUILD_COMPILER@] libc:[@BUILD_LIBC@]";
-const char *copyright_string = "(c) 2009 - @VCS_EPOCH_YEAR@ RedMatter Ltd. UK";

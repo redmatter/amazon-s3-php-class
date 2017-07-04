@@ -1,25 +1,82 @@
 cmake_minimum_required(VERSION 3.1)
-project(archiving)
 
-option(BUILD_TESTS "Build tests" ON)
-option(USE_CLANG "build application with clang" OFF)
+option(USE_CLANG "Build application with clang" OFF)
 if (USE_CLANG)
     set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
     set(CMAKE_C_COMPILER "/usr/bin/clang")
+
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag(-Wunnamed-type-template-args
+            HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 endif (USE_CLANG)
 
-set(CMAKE_CXX_FLAGS_INIT "-std=c++98")
+set(CMAKE_CXX_STANDARD 98)
+
+project(archiving)
+
+# setup additional cmake module path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake-modules)
+
+# setup git-submodule
+include(SetupGitSubmodules)
+
+# make sure DownloadProject is checked-out and added to cmake module path
+setup_git_submodules(SUBMODULE_PATH cmake-modules/external/DownloadProject)
+setup_cmake_modules(${CMAKE_SOURCE_DIR}/cmake-modules/external DownloadProject)
+
+# initialise DownloadProject
+include(DownloadProject)
+
+if (CMAKE_VERSION VERSION_LESS 3.2)
+    set(UPDATE_DISCONNECTED_IF_AVAILABLE "")
+else ()
+    set(UPDATE_DISCONNECTED_IF_AVAILABLE "UPDATE_DISCONNECTED 1")
+endif ()
+
+option(BUILD_TESTS "Build tests" ON)
+if (BUILD_TESTS)
+    download_project(PROJ googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG release-1.8.0
+            UPDATE_DISCONNECTED 1
+            )
+    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
+endif()
+
+# Use DownloadProject to load cmake-common
+download_project(PROJ cmake-common
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/cmake.git
+        GIT_TAG develop
+        ${UPDATE_DISCONNECTED_IF_AVAILABLE})
+
+# Add cmake-common to CMAKE_MODULE_PATH
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
+
+# Add rml-queue
+download_project(PROJ rml-queue
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
+        GIT_TAG master
+        UPDATE_DISCONNECTED 1
+        )
+add_subdirectory(${rml-queue_SOURCE_DIR})
 
 add_subdirectory(common)
 add_subdirectory(archived)
 #add_subdirectory(archived-monitor)
 #add_subdirectory(cli)
 add_subdirectory(collectd)
-#add_subdirectory(collect-smsd)
+add_subdirectory(collect-smsd)
 #add_subdirectory(convert)
 #add_subdirectory(eml2a)
 #add_subdirectory(simbes)
 
-if(BUILD_TESTS)
-add_subdirectory(tests)
-endif(BUILD_TESTS)
+if (BUILD_TESTS)
+    # --------------- setup tests ---------------
+    include(GTestAddTestsFromDirectory)
+
+    # Enable CTest; it provides means to invoke all tests from single command `ctest -N`
+    include(CTest)
+    enable_testing()
+
+    add_subdirectory(tests)
+endif ()

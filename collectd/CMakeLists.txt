@@ -10,11 +10,16 @@ set(HEADER_FILES
         cdr_dir_monitor.hpp
 #        esl.h
 #        pre.h
+        archivable/queue.hpp
+        archivable/catalogue.hpp
+        archivable/utils.hpp
+        archivable/error.hpp
         )
 
 include_directories(
         /usr/include/cpp-netlib
         ${SQLITE3_INCLUDE_DIR}
+        ${rml-queue_SOURCE_DIR}
         ../common
 )
 
@@ -52,3 +57,5 @@ target_link_libraries(rmcollectd.bin
         Threads::Threads
         ${Boost_LIBRARIES}
 )
+
+add_subdirectory(tests)
