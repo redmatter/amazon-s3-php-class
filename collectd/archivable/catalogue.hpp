@@ -33,7 +33,7 @@ struct catalogue :
 
         boost::unique_lock<boost::mutex> lock(mutex_);
 
-        const std::pair<typename set_t::iterator, bool> &ret(set_.insert(item));
+        const std::pair<set_t::iterator, bool> &ret(set_.insert(item));
         if (!ret.second) {
             ec = already_added_error();
         }
@@ -43,7 +43,7 @@ struct catalogue :
     {
         boost::unique_lock<boost::mutex> lock(mutex_);
 
-        typename set_t::const_iterator itr = set_.find(item);
+        set_t::const_iterator itr = set_.find(item);
         if (itr != set_.end()) {
             set_.erase(itr);
         }
@@ -52,14 +52,14 @@ struct catalogue :
     bool is_present(const item_t &item) const
     {
         boost::unique_lock<boost::mutex> lock(mutex_);
-        typename set_t::const_iterator itr = set_.find(item);
+        set_t::const_iterator itr = set_.find(item);
         return itr != set_.end();
     }
 
     item_t get_item(const item_t &item, boost::system::error_condition &ec) const
     {
         boost::unique_lock<boost::mutex> lock(mutex_);
-        typename set_t::const_iterator itr = set_.find(item);
+        set_t::const_iterator itr = set_.find(item);
         if (itr == set_.end()) {
             ec = not_found_error();
             return item_t();

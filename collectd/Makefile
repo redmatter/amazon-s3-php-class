@@ -95,7 +95,7 @@ main.cpp : $(RML_QUEUE_QUEUE_HPP)
 
 ifeq ($(RML_QUEUE_DIR),../libs/rml-queue)
 $(RML_QUEUE_QUEUE_HPP):
-	@cd $(THIS_DIR) && git submodule update --init --recursive libs/rml-queue
+	@cd .. && git submodule update --init --recursive libs/rml-queue
 endif
 
 ../external/sqlite/lib/libsqlite3.a:
