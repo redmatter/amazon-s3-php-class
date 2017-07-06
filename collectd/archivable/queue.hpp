@@ -6,23 +6,128 @@
 #define COLLECTD_ARCHIVABLE_QUEUE_HPP
 
 #include "../../common/archivable.hpp"
+#include "../../common/collectd/callbacks.hpp"
 #include "utils.hpp"
+#include "error.hpp"
+#include "catalogue.hpp"
 
 #include <rml/queue/queue.hpp>
 
-namespace collectd {
-namespace archivable {
+namespace collectd
+{
+namespace archivable
+{
 
-typedef rml::queue::queue<
-        archiving::archivable::pointer,
-        rml::queue::detail::shared_ptr_hash<archiving::archivable::pointer>,
-        rml::queue::detail::shared_ptr_equal_to<archiving::archivable::pointer> > base_queue;
+namespace rmlq = rml::queue;
+
+typedef rmlq::queue<
+        boost::shared_ptr<archiving::archivable>,
+        rmlq::detail::shared_ptr_hash<boost::shared_ptr<archiving::archivable> >,
+        rmlq::detail::shared_ptr_equal_to<boost::shared_ptr<archiving::archivable> > > base_queue;
+
+typename base_queue::classifier_type::classification_type classify(const boost::shared_ptr<archiving::archivable> &p)
+{
+    switch (p->get_type()) {
+        case archiving::file_type::cdr:
+            return 0;
+        case archiving::file_type::buffered_recording:
+            return 1;
+        case archiving::file_type::recording:
+            return 2;
+        default:
+            return 3;
+    }
+}
+
+boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving::archivable> &p)
+{
+    using namespace boost::chrono;
+    return duration_cast<nanoseconds>(seconds(1 + classify(p) + p->get_attempt() * 10));
+}
 
 struct queue : public base_queue
 {
-    queue(const fn_classify_type &fn_classify, const fn_calculate_deadline_type &fn_calculate_deadline,
-          const std::string &name) : base_queue(fn_classify, fn_calculate_deadline, name)
+    queue(const std::string &name, const boost::shared_ptr<catalogue> &catalogue) :
+            base_queue(boost::bind(classify, _1), boost::bind(calculate_deadline, _1), name), catalogue_(catalogue)
     {}
+
+    void produce(const boost::shared_ptr<archiving::archivable> &item, const boost::chrono::milliseconds &wait_timeout,
+                 const bool add_to_catalogue)
+    {
+        boost::system::error_condition ec;
+        if (add_to_catalogue) {
+            catalogue::item_sentry sentry(catalogue_, item);
+            base_queue::produce(item, wait_timeout, ec);
+            if (!ec) {
+                sentry.cancel();
+            }
+        } else {
+            base_queue::produce(item, wait_timeout, ec);
+        }
+
+        if (ec) {
+            throw boost::system::system_error(ec.value(), ec.category());
+        }
+    }
+
+    boost::shared_ptr<archiving::archivable>
+    consume(const boost::chrono::milliseconds &wait_timeout, const bool remove_from_catalogue)
+    {
+        boost::system::error_condition ec;
+        boost::shared_ptr<archiving::archivable> item;
+
+        base_queue::consume(item, wait_timeout, ec);
+        if (remove_from_catalogue && !ec) {
+            this->remove_from_catalogue(item);
+        }
+
+        if (ec) {
+            throw boost::system::system_error(ec.value(), ec.category());
+        }
+
+        return item;
+    }
+
+    boost::shared_ptr<archiving::archivable>
+    consume(const boost::chrono::milliseconds &wait_timeout, const bool remove_from_catalogue,
+            const common::collectd::consume_timeout_callback_type &timeout_callback)
+    {
+        try {
+            return consume(wait_timeout, remove_from_catalogue);
+        } catch (const boost::system::system_error &e) {
+            if (e.code() == rmlq::error::make_error_condition(rmlq::error::runtime_errors::consume_timeout)) {
+                timeout_callback();
+                return boost::shared_ptr<archiving::archivable>();
+            } else {
+                throw;
+            }
+        } catch (...) {
+            throw;
+        }
+    }
+
+    inline void remove_from_catalogue(const boost::shared_ptr<archiving::archivable> &item)
+    {
+        catalogue_->remove(item);
+    }
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "HidingNonVirtualFunction"
+
+    inline std::ptrdiff_t count() const
+    {
+        return base_queue::count();
+    }
+
+    inline void set_finishing()
+    {
+        base_queue::set_finishing();
+    }
+
+#pragma clang diagnostic pop
+
+private:
+    boost::shared_ptr<catalogue> catalogue_;
 };
 
 }

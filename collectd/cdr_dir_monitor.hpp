@@ -26,8 +26,9 @@ namespace archiving {
 class cdr_dir_monitor : private boost::noncopyable
 {
 	typedef std::set<std::string> string_set;
+	typedef boost::function<void (boost::shared_ptr<archivable>)> fn_produce_type;
 
-	archivable_channel_t& channel_;
+	const fn_produce_type fn_produce_;
 	const std::string& pbx_hostname_;
 	string_set files_created_waiting_close_;
 
@@ -40,8 +41,8 @@ public:
 					size_t& rev_path_uuid_idx, archiving::file_type::file_type_t& file_type, std::string& data_format
 			) > filename_decoder_t;
 
-	cdr_dir_monitor(archivable_channel_t& channel, const std::string& pbx_hostname) :
-		channel_(channel), pbx_hostname_(pbx_hostname)
+	cdr_dir_monitor(const fn_produce_type& fn_produce, const std::string& pbx_hostname) :
+			fn_produce_(fn_produce), pbx_hostname_(pbx_hostname)
 	{
 	}
 
@@ -165,10 +166,11 @@ public:
 			// The UUID can be extracted from the file path, starting from the passed index and continuing for 36
 			// characters, the length of the uuid.
 			std::string uuid(file_path, file_path.length() - rev_path_uuid_idx, 36);
-			archivable::pointer p_archivable(new archivable(uuid, "", 0, file_path, file_type, data_format, pbx_hostname_));
+			boost::shared_ptr<archivable> p_archivable =
+					boost::make_shared<archivable>(uuid, "", 0, file_path, file_type, data_format, pbx_hostname_);
 			p_archivable->hibernate();
 
-			pc_produce(channel_, p_archivable);
+			fn_produce_(p_archivable);
 
 			return true;
 		}

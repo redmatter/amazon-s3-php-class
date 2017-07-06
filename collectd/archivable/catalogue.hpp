@@ -20,7 +20,9 @@ namespace collectd
 namespace archivable
 {
 
-struct catalogue
+struct catalogue :
+        private boost::noncopyable,
+        public boost::enable_shared_from_this<catalogue>
 {
     typedef archiving::archivable::pointer item_t;
     typedef std::set<item_t, rml::queue::detail::shared_ptr_less<item_t> > set_t;
@@ -33,7 +35,7 @@ struct catalogue
 
         const std::pair<typename set_t::iterator, bool> &ret(set_.insert(item));
         if (!ret.second) {
-            ec = make_error_condition(error::already_added);
+            ec = already_added_error();
         }
     }
 
@@ -54,6 +56,18 @@ struct catalogue
         return itr != set_.end();
     }
 
+    item_t get_item(const item_t &item, boost::system::error_condition &ec) const
+    {
+        boost::unique_lock<boost::mutex> lock(mutex_);
+        typename set_t::const_iterator itr = set_.find(item);
+        if (itr == set_.end()) {
+            ec = not_found_error();
+            return item_t();
+        }
+
+        return *itr;
+    }
+
     std::size_t count() const
     {
         boost::unique_lock<boost::mutex> lock(mutex_);
@@ -62,11 +76,11 @@ struct catalogue
 
     struct item_sentry : private boost::noncopyable
     {
-        item_sentry(catalogue &c, const item_t &i, const bool throw_on_error = true)
-                : catalogue_(c), item_(i), owns_(false)
+        item_sentry(const boost::shared_ptr<catalogue> &c, const item_t &i, const bool throw_on_error = true)
+                : catalogue_(c), item_(i), owns_(false), cancelled_(false)
         {
             boost::system::error_condition ec;
-            catalogue_.add(item_, ec);
+            catalogue_->add(item_, ec);
             if (ec && throw_on_error) {
                 throw boost::system::system_error(ec.value(), ec.category());
             }
@@ -75,15 +89,21 @@ struct catalogue
 
         ~item_sentry()
         {
-            if (owns_) {
-                catalogue_.remove(item_);
+            if (owns_ && !cancelled_) {
+                catalogue_->remove(item_);
             }
         }
 
+        void cancel()
+        {
+            cancelled_ = true;
+        }
+
     private:
-        catalogue &catalogue_;
-        const item_t &item_;
-        mutable bool owns_;
+        boost::shared_ptr<catalogue> catalogue_;
+        const item_t item_;
+        bool owns_;
+        bool cancelled_;
 
         item_sentry &operator=(const item_sentry &other);
     };

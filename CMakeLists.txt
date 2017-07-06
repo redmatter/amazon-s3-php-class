@@ -4,15 +4,15 @@ option(USE_CLANG "Build application with clang" OFF)
 if (USE_CLANG)
     set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
     set(CMAKE_C_COMPILER "/usr/bin/clang")
-
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag(-Wunnamed-type-template-args
-            HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 endif (USE_CLANG)
 
 set(CMAKE_CXX_STANDARD 98)
 
 project(archiving)
+
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wunnamed-type-template-args
+        HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 
 # setup additional cmake module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake-modules)
