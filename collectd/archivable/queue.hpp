@@ -25,7 +25,7 @@ typedef rmlq::queue<
         rmlq::detail::shared_ptr_hash<boost::shared_ptr<archiving::archivable> >,
         rmlq::detail::shared_ptr_equal_to<boost::shared_ptr<archiving::archivable> > > base_queue;
 
-typename base_queue::classifier_type::classification_type classify(const boost::shared_ptr<archiving::archivable> &p)
+base_queue::classifier_type::classification_type classify(const boost::shared_ptr<archiving::archivable> &p)
 {
     switch (p->get_type()) {
         case archiving::file_type::cdr:
