@@ -80,3 +80,8 @@ if (BUILD_TESTS)
 
     add_subdirectory(tests)
 endif ()
+
+option(BUILD_POCS "Build proof-of-concepts" OFF)
+if (BUILD_POCS)
+    add_subdirectory(PoCs)
+endif()

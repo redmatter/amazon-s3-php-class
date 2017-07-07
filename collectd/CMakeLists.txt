@@ -6,9 +6,7 @@ set(HEADER_FILES
         directory_loader.hpp
         database_sqlite.hpp
         cdr_inspector.hpp
-        fs_event_monitor.hpp
         cdr_dir_monitor.hpp
-#        esl.h
 #        pre.h
         archivable/queue.hpp
         archivable/catalogue.hpp
