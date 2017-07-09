@@ -349,7 +349,7 @@ public:
 					// If we're here then we're treating the file as a CDR, having checked above for other situations.
 
 					// aliasing it to make the code more readable
-					archiving::archivable::pointer& archivable_cdr(p_archivable);
+					archiving::archivable::pointer archivable_cdr = p_archivable;
 
 					// inspect and cleanup CDR
 					{

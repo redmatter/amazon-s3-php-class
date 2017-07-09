@@ -124,6 +124,11 @@ struct queue : public base_queue
         base_queue::set_finishing();
     }
 
+    inline base_queue::stats_type get_statistics() const
+    {
+        return base_queue::get_statistics();
+    }
+
 #pragma clang diagnostic pop
 
 private:
