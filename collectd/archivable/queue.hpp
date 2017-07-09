@@ -47,8 +47,6 @@ boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving:
 
 struct queue : public base_queue
 {
-    typedef base_queue::stats_type stats_type;
-
     queue(const std::string &name, const boost::shared_ptr<catalogue> &catalogue) :
             base_queue(boost::bind(classify, _1), boost::bind(calculate_deadline, _1), name), catalogue_(catalogue)
     {}
@@ -112,26 +110,6 @@ struct queue : public base_queue
     {
         catalogue_->remove(item);
     }
-
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "HidingNonVirtualFunction"
-
-    inline std::ptrdiff_t count() const
-    {
-        return base_queue::count();
-    }
-
-    inline void set_finishing()
-    {
-        base_queue::set_finishing();
-    }
-
-    inline stats_type get_statistics() const
-    {
-        return base_queue::get_statistics();
-    }
-
-#pragma clang diagnostic pop
 
 private:
     boost::shared_ptr<catalogue> catalogue_;
