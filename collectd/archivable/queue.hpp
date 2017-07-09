@@ -47,6 +47,8 @@ boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving:
 
 struct queue : public base_queue
 {
+    typedef base_queue::stats_type stats_type;
+
     queue(const std::string &name, const boost::shared_ptr<catalogue> &catalogue) :
             base_queue(boost::bind(classify, _1), boost::bind(calculate_deadline, _1), name), catalogue_(catalogue)
     {}
