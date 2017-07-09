@@ -212,7 +212,7 @@ public:
 				connected_(false),
 				current_state_(state::initialised),
 				reconnect_delay_(reconnect_delay_seconds),
-				fn_produce_(fn_produce_), fn_consume_(fn_consume),
+				fn_produce_(fn_produce), fn_consume_(fn_consume),
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
 				quit_(quit)
