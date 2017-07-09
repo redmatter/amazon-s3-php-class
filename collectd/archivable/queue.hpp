@@ -42,7 +42,7 @@ base_queue::classifier_type::classification_type classify(const boost::shared_pt
 boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving::archivable> &p)
 {
     using namespace boost::chrono;
-    return duration_cast<nanoseconds>(seconds(1 + classify(p) + p->get_attempt() * 10));
+    return duration_cast<nanoseconds>(seconds(10 + (classify(p) + p->get_attempt()) * 10));
 }
 
 struct queue : public base_queue
