@@ -5,8 +5,8 @@
 #ifndef COLLECTSMSD_ARCHIVABLE_CHANNEL_HPP
 #define COLLECTSMSD_ARCHIVABLE_CHANNEL_HPP
 
-#include "../common/archivable.hpp"
-#include "../common/collectd/callbacks.hpp"
+#include "../../common/archivable.hpp"
+#include "../../common/collectd/callbacks.hpp"
 
 namespace collectsmsd
 {
