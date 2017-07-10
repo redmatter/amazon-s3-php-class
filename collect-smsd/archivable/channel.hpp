@@ -34,7 +34,7 @@ struct channel
      * @param sp_delay
      * @return
      */
-    bool produce(const item_type &item, const bool& add_to_catalogue, unsigned int sp_delay)
+    void produce(const item_type &item, const bool& add_to_catalogue, unsigned int sp_delay)
     {
         if (add_to_catalogue) {
             busy_set_.add(item);
