@@ -1,6 +1,3 @@
-[submodule "cmake-modules/external/DownloadProject"]
-	path = cmake-modules/external/DownloadProject
-	url = https://github.com/redmatter/cmake-DownloadProject.git
 [submodule "libs/rml-queue"]
 	path = libs/rml-queue
 	url = ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
