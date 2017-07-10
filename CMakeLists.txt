@@ -1,95 +1,87 @@
-cmake_minimum_required(VERSION 2.8.4)
+cmake_minimum_required(VERSION 3.1)
+
+option(USE_CLANG "Build application with clang" OFF)
+if (USE_CLANG)
+    set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+    set(CMAKE_C_COMPILER "/usr/bin/clang")
+endif (USE_CLANG)
+
+set(CMAKE_CXX_STANDARD 98)
+
 project(archiving)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98")
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wunnamed-type-template-args
+        HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 
-set(SOURCE_FILES
-        archived/test/extract.cpp
-        archived/test/main.cpp
-        archived/test2/test_boost_iostreams_bz2_decompress_hang.cpp
-        archived/test2/test_purge_by_filetype_selection.cpp
-        archived/test2/test_suppress_headers_check.cpp
-        archived/tmp/operation.hpp
-        archived/tmp/retention_purge_batch.hpp
-        archived/call_buffering_recording.hpp
-        archived/clear_cache.hpp
-        archived/compress.hpp
-        archived/converter.hpp
-        archived/coreapi_user.hpp
-        archived/crypto.hpp
-        archived/database_cdrmunch.hpp
-        archived/database_internal.hpp
-        archived/database_retention.hpp
-        archived/dispatcher.hpp
-        archived/fcgi_storage_access.hpp
-        archived/globals.h
-        archived/main.cpp
-        archived/monitor.hpp
-        archived/operation_data.hpp
-        archived/org_policy_versions.hpp
-        archived/pre.h
-        archived/purge.hpp
-        archived/put_server.hpp
-        archived/put_session.hpp
-        archived/retention_data_flusher.hpp
-        archived/retention_purge.cpp
-        archived/retention_purge.hpp
-        archived/retention_purge_runner.hpp
-        archived/retention_record.hpp
-        archived/state_action.hpp
-        archived/state_reactor.hpp
-        archived/storage.hpp
-        archived/storage_backend.hpp
-        archived/storage_endpoint.hpp
-        archived/storage_operation.hpp
-        archived/storage_runner.hpp
-        archived/suppress_headers_check.hpp
-        archived/types.hpp
-        archived/whisper_client.hpp
-        archived-monitor/main.cpp
-        collect-smsd/directory_loader.hpp
-        collect-smsd/main.cpp
-        collect-smsd/pre.h
-        collect-smsd/sms_dir_monitor.hpp
-        collect-smsd/sms_inspector.hpp
-        collectd/test/main.cpp
-        collectd/cdr_dir_monitor.hpp
-        collectd/cdr_inspector.hpp
-        collectd/database_sqlite.hpp
-        collectd/directory_loader.hpp
-        collectd/esl.h
-        collectd/fs_event_monitor.hpp
-        collectd/main.cpp
-        collectd/pre.h
-        common/test/main.cpp
-        common/archivable.hpp
-        common/archived_client.cpp
-        common/archived_client.hpp
-        common/basic_database.hpp
-        common/cache.hpp
-        common/coreapi_eventlog.hpp
-        common/database.hpp
-        common/defines.cpp
-        common/defines.h
-        common/dir_monitor.cpp
-        common/dir_monitor.hpp
-        common/directory_loader.h
-        common/exception.hpp
-        common/globals.h
-        common/inotify_monitor.hpp
-        common/logstack.h
-        common/md5.hpp
-        common/policy.hpp
-        common/pre.h
-        common/types.cpp
-        common/types.hpp
-        convert/archived.hpp
-        convert/main.cpp)
+# setup additional cmake module path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake-modules)
 
-include_directories(
-        /usr/include/cpp-netlib
-        /usr/include/threadpool
-        common
-)
+# setup git-submodule
+include(SetupGitSubmodules)
 
-add_executable(archiving ${SOURCE_FILES})
+# make sure DownloadProject is checked-out and added to cmake module path
+setup_git_submodules(SUBMODULE_PATH cmake-modules/external/DownloadProject)
+setup_cmake_modules(${CMAKE_SOURCE_DIR}/cmake-modules/external DownloadProject)
+
+# initialise DownloadProject
+include(DownloadProject)
+
+if (CMAKE_VERSION VERSION_LESS 3.2)
+    set(UPDATE_DISCONNECTED_IF_AVAILABLE "")
+else ()
+    set(UPDATE_DISCONNECTED_IF_AVAILABLE "UPDATE_DISCONNECTED 1")
+endif ()
+
+option(BUILD_TESTS "Build tests" ON)
+if (BUILD_TESTS)
+    download_project(PROJ googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG release-1.8.0
+            UPDATE_DISCONNECTED 1
+            )
+    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
+endif()
+
+# Use DownloadProject to load cmake-common
+download_project(PROJ cmake-common
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/cmake.git
+        GIT_TAG develop
+        ${UPDATE_DISCONNECTED_IF_AVAILABLE})
+
+# Add cmake-common to CMAKE_MODULE_PATH
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
+
+# Add rml-queue
+download_project(PROJ rml-queue
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
+        GIT_TAG master
+        UPDATE_DISCONNECTED 1
+        )
+add_subdirectory(${rml-queue_SOURCE_DIR})
+
+add_subdirectory(common)
+add_subdirectory(archived)
+#add_subdirectory(archived-monitor)
+#add_subdirectory(cli)
+add_subdirectory(collectd)
+add_subdirectory(collect-smsd)
+#add_subdirectory(convert)
+#add_subdirectory(eml2a)
+#add_subdirectory(simbes)
+
+if (BUILD_TESTS)
+    # --------------- setup tests ---------------
+    include(GTestAddTestsFromDirectory)
+
+    # Enable CTest; it provides means to invoke all tests from single command `ctest -N`
+    include(CTest)
+    enable_testing()
+
+    add_subdirectory(tests)
+endif ()
+
+option(BUILD_POCS "Build proof-of-concepts" OFF)
+if (BUILD_POCS)
+    add_subdirectory(PoCs)
+endif()

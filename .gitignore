@@ -1,5 +1,5 @@
 # JetBrains IDE
-/cmake-build-debug/
+/cmake-build-*/
 /.idea/
 
 # Eclipse IDE
@@ -10,6 +10,17 @@
 # Project stuff
 /external/sqlite/
 /collectd/collectd
-**/version_info
-**/tmp*-libc*/
-**/*.a
+version_info
+tmp*-libc*/
+*.a
+
+/*/test*/*
+!/*/test*/*.cpp
+!/*/test*/Makefile
+!/*/test*/*.conf
+!/*/test*/data
+/tests/libs/*
+!/tests/libs/.git-placeholder
+!/*/tests/CMakeLists.txt
+!/collectd/test/cdrgen/
+!/collectd/tests/cdrgen/

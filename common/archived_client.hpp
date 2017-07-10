@@ -8,16 +8,11 @@
 #ifndef ARCHIVED_CLIENT_HPP_
 #define ARCHIVED_CLIENT_HPP_
 
-#include "../common/archivable.hpp"
-#include "../common/defines.h"
-#include "../common/types.hpp"
-
+#include "archivable.hpp"
+#include "defines.h"
+#include "types.hpp"
 #include "globals.h"
-#ifndef DATABASE_SQLITE
-#include "database.hpp"
-#else
-#include "../collectd/database_sqlite.hpp"
-#endif
+#include "collectd/callbacks.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/bind.hpp>
@@ -168,13 +163,13 @@ private:
 	state::state_t current_state_;
 	int reconnect_delay_;
 
-	archiving::archivable_channel_t& channel_;
-	archiving::archivable_busy_set_t& archivable_busy_set_;
+	const common::collectd::fn_produce_type& fn_produce_;
+	const common::collectd::fn_consume_with_timeout_callback_type& fn_consume_;
+	const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue_;
+	const common::collectd::fn_save_to_database_type& fn_save_to_database_;
 
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
-
-	database::internal& internal_db_;
 
 	volatile bool& quit_;
 
@@ -199,11 +194,12 @@ public:
 
 	archived_client(
 			boost::asio::io_service& io_service,
-			archiving::archivable_channel_t& channel,
-			archiving::archivable_busy_set_t& archivable_busy_set,
+			const common::collectd::fn_produce_type& fn_produce,
+			const common::collectd::fn_consume_with_timeout_callback_type& fn_consume,
+			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
+			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
 			const std::string& archived_port,
-			database::internal& internal_db,
 			volatile bool& quit) :
 				instance_id_(__sync_add_and_fetch(&n_instances_, 1)),
 				io_service_(io_service),
@@ -216,12 +212,24 @@ public:
 				connected_(false),
 				current_state_(state::initialised),
 				reconnect_delay_(reconnect_delay_seconds),
-				channel_(channel),
-				archivable_busy_set_(archivable_busy_set),
-				internal_db_(internal_db),
+				fn_produce_(fn_produce), fn_consume_(fn_consume),
+				fn_remove_from_catalogue_(fn_remove_from_catalogue),
+				fn_save_to_database_(fn_save_to_database),
 				quit_(quit)
 	{
 		LogVerbose("Instance created; ID:"<<instance_id_);
+	}
+
+	inline void setup_retry_and_reset_current_archivable(const char *message)
+	{
+		if(put_archivable_ptr_) {
+			if(put_archivable_ptr_->setup_for_retry()) {
+				fn_produce_(put_archivable_ptr_, false);
+			}
+
+			LogVerbose(local_port_<<' '<<message<<' '<<put_archivable_ptr_);
+			put_archivable_ptr_.reset();
+		}
 	}
 
 	inline void connect_archived()
@@ -233,13 +241,7 @@ public:
 		}
 
 		connected_ = false;
-		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->setup_for_retry())
-				pc_produce(channel_, put_archivable_ptr_);
-
-			LogVerbose(local_port_<<" Reconnecting while processing "<<put_archivable_ptr_);
-			put_archivable_ptr_.reset();
-		}
+		setup_retry_and_reset_current_archivable("Reconnecting while processing");
 
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
 		resolver_.cancel();
@@ -339,6 +341,24 @@ private:
 	catch(...)
 	{
 		LogWarning("Exception: Unknown");
+	}
+
+	inline void finalise_current_archivable()
+	{
+		fn_remove_from_catalogue_(put_archivable_ptr_);
+		put_archivable_ptr_->set_done(false);
+
+		int retry = 0;
+		while(!fn_save_to_database_(put_archivable_ptr_) && !quit_) {
+			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
+			boost::this_thread::sleep(boost::posix_time::seconds(15));
+			retry++;
+		}
+
+		if(retry && quit_)
+			throw rml::exception("Quit flagged during database retry");
+
+		put_archivable_ptr_.reset();
 	}
 
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator) try
@@ -579,22 +599,8 @@ private:
 		case state::put_sent_file_ack_ok:
 		{
 			if(put_archivable_ptr_) {
-				archivable_busy_set_.remove(put_archivable_ptr_);
-				put_archivable_ptr_->set_done(false);
-				{
-					int retry = 0;
-					while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-						LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
-						boost::this_thread::sleep(boost::posix_time::seconds(15));
-						retry++;
-					}
-
-					if(retry && app::quit)
-						throw rml::exception("Quit flagged during database retry");
-				}
+				finalise_current_archivable();
 			}
-
-			put_archivable_ptr_.reset();
 		}
 		/* no break */
 		case state::nop_ack_ok:
@@ -607,24 +613,7 @@ private:
 		case state::put_sent_file_ack_err:
 		{
 			// TODO set retry interval etc
-			/*
-			if(put_archivable_ptr_) {
-				int retry = 0;
-				while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-					LogMessage(put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
-					boost::this_thread::sleep(boost::posix_time::seconds(15));
-					retry++;
-				}
-			}
-			*/
-
-			if(put_archivable_ptr_) {
-				if(put_archivable_ptr_->setup_for_retry())
-					pc_produce(channel_, put_archivable_ptr_);
-
-				LogVerbose(local_port_<<" Error while sending "<<put_archivable_ptr_);
-				put_archivable_ptr_.reset();
-			}
+			setup_retry_and_reset_current_archivable("Error while sending");
 
 			reconnect(false);
 			break;
@@ -773,8 +762,6 @@ private:
 
 	void get_archivable_for_put() try
 	{
-		boost::shared_ptr<tcp::socket> p_socket = p_socket_;
-		
 		try {
 			if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok) || put_archivable_ptr_.get()) {
 
@@ -788,29 +775,20 @@ private:
 				return;
 			}
 
-			while(!quit_ && p_socket && p_socket->is_open()) {
-				put_archivable_ptr_ = channel_.consume(10, 0);
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Got from "<<channel_);
+			while(!quit_ && p_socket_ && p_socket_->is_open()) {
+				put_archivable_ptr_ = fn_consume_(false, boost::chrono::milliseconds(10000), boost::protect(
+						boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())));
+
+				// if there was a timeout, the statemachine continues, cannot continue looping
+				if (!put_archivable_ptr_) {
+					return;
+				}
+
+				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
 
 				if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
 					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
-
-					archivable_busy_set_.remove(put_archivable_ptr_);
-					put_archivable_ptr_->set_done(false);
-					{
-						int retry = 0;
-						while(!internal_db_.save(put_archivable_ptr_) && !quit_) {
-							LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
-							boost::this_thread::sleep(boost::posix_time::seconds(15));
-							retry++;
-						}
-
-						if(retry && !quit_)
-							throw rml::exception("Quit flagged during database retry");
-					}
-
-					put_archivable_ptr_.reset();
-
+					finalise_current_archivable();
 					continue;
 				}
 
@@ -818,7 +796,7 @@ private:
 			}
 			
 			if(!put_archivable_ptr_) { // quit or socket closed
-				if(!p_socket || !p_socket->is_open())
+				if(!p_socket_ || !p_socket_->is_open())
 					reconnect(false);
 
 				return;
@@ -841,18 +819,7 @@ private:
 			}
 		}
 		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
-			if(p_socket && p_socket->is_open()) {
-				LogDebug(local_port_<<' '<<channel_<<' '<<e.what()<<"; NOP to ArchiveD");
-				std::ostream ostr(&send_buffer_); ostr.clear();
-				ostr << "NOP\r\n\r\n";
-				current_state_ = state::nop_sent;
-				boost::asio::async_write(*p_socket_, send_buffer_,
-						strand_.wrap(boost::bind(&archived_client::handle_write, shared_from_this(),
-								boost::asio::placeholders::error,
-								boost::asio::placeholders::bytes_transferred)));
-			}
-			else if(!quit_)
-				reconnect(false);
+			send_nop_or_reconnect();
 		}
 		catch(const archiving::archivable_channel_t::finishing_exception& e) {
 			LogMessage("channel finishing: closing");
@@ -866,6 +833,28 @@ private:
 	catch(...)
 	{
 		LogWarning("Exception: Unknown");
+	}
+
+	inline void send_nop_or_reconnect()
+	{
+		if (p_socket_ && p_socket_->is_open()) {
+			LogDebug(local_port_ << " Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
+
+			std::ostream ostr(&send_buffer_);
+			ostr.clear();
+			ostr << "NOP\r\n\r\n";
+
+			current_state_ = state::nop_sent;
+			boost::asio::async_write(
+					*p_socket_, send_buffer_,
+					strand_.wrap(
+							boost::bind(
+									&archived_client::handle_write, shared_from_this(),
+									boost::asio::placeholders::error,
+									boost::asio::placeholders::bytes_transferred)));
+		} else if (!quit_) {
+			reconnect(false);
+		}
 	}
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
@@ -954,14 +943,8 @@ private:
 			p_socket_->cancel(error_ignore);
 			p_socket_.reset();
 		}
-		
-		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->setup_for_retry())
-				pc_produce(channel_, put_archivable_ptr_);
 
-			LogVerbose(local_port_<<" Closing while sending "<<put_archivable_ptr_);
-			put_archivable_ptr_.reset();
-		}
+		setup_retry_and_reset_current_archivable("Closing while sending");
 
 		if(reconnect)
 			set_reconnect_timer(reconnect_delay_seconds, false);

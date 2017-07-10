@@ -9,6 +9,9 @@
 #include "directory_loader.hpp"
 #include "cdr_dir_monitor.hpp"
 
+#include "archivable/queue.hpp"
+#include "../common/collectd/callbacks.hpp"
+
 #ifndef DATABASE_SQLITE
 #include "../common/database.hpp"
 #else
@@ -36,6 +39,7 @@
 #include <boost/ref.hpp>
 #include <boost/bind.hpp>
 #include <boost/bind/protect.hpp>
+#include <boost/chrono/chrono_io.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -78,17 +82,19 @@ namespace app {
 
 class archivable_dedup
 {
-	const archiving::archivable_busy_set_t& busy_set_;
+	boost::shared_ptr< collectd::archivable::catalogue > busy_set_;
 	database::internal& internal_db_;
 
 public:
-	archivable_dedup(const archiving::archivable_busy_set_t& busy_set, database::internal& internal_db) : busy_set_(busy_set), internal_db_(internal_db)
+	archivable_dedup(const boost::shared_ptr<collectd::archivable::catalogue> &busy_set,
+					 database::internal &internal_db) :
+			busy_set_(busy_set), internal_db_(internal_db)
 	{
 	}
 
 	inline bool is_archivable_loaded(archiving::archivable::pointer p_arc) const
 	{
-		const bool& is_busied(busy_set_.is_busied(p_arc));
+		const bool& is_busied(busy_set_->is_present(p_arc));
 		LogDebug(p_arc<<" is_archivable_loaded [busied]: "<<is_busied);
 
 		if(is_busied)
@@ -125,7 +131,10 @@ public:
 
 	inline archiving::archivable::pointer get_loaded_instance(const archiving::archivable::pointer& p_lookup) const
 	{
-		return busy_set_.get_item(p_lookup);
+		boost::system::error_condition ec;
+		const archiving::archivable::pointer& ret(busy_set_->get_item(p_lookup, ec));
+		BOOST_ASSERT((ec && !ret) || (!ec && ret));
+		return ret;
 	}
 };
 
@@ -381,14 +390,35 @@ int main(int argc, char* argv[]) try
 		const std::string chunk_directory( app::confMap["chunk.directory"].as<std::string>() );
 		const std::string info_directory( app::confMap["info.directory"].as<std::string>() );
 
-		archiving::archivable_busy_set_t archivable_busy_set;
-		archiving::archivable_channel_t in_channel(
-				boost::bind(&archiving::archivable_busy_set_t::add, boost::ref(archivable_busy_set), _1),
-				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
-				0, "IN");
-		archiving::archivable_channel_t out_channel("OUT");
+		boost::shared_ptr< collectd::archivable::catalogue > archivable_catalogue =
+				boost::make_shared<collectd::archivable::catalogue>();
+		const common::collectd::fn_remove_from_catalogue_type fn_remove_from_catalogue(
+				boost::bind(&collectd::archivable::catalogue::remove, archivable_catalogue, _1));
+		const common::collectd::fn_is_in_catalogue_type fn_is_in_catalogue(
+				boost::bind(&collectd::archivable::catalogue::is_present, archivable_catalogue, _1));
+
+		boost::shared_ptr<collectd::archivable::queue>
+				in_queue = boost::make_shared<collectd::archivable::queue>("IN", archivable_catalogue),
+				out_queue = boost::make_shared<collectd::archivable::queue>("OUT", archivable_catalogue);
+		const common::collectd::fn_produce_type fn_in_queue_produce(
+				boost::bind(
+						&collectd::archivable::queue::produce, in_queue, _1, boost::chrono::milliseconds::zero(), _2));
+		const common::collectd::fn_produce_type fn_out_queue_produce(
+				boost::bind(
+						&collectd::archivable::queue::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
+
+		const common::collectd::fn_consume_type fn_in_queue_consume(
+				boost::bind(
+						&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+		const common::collectd::fn_consume_type fn_out_queue_consume(
+				boost::bind(
+						&collectd::archivable::queue::consume, out_queue, boost::chrono::milliseconds::zero(), _1));
+		const common::collectd::fn_consume_with_timeout_callback_type fn_consume_with_timeout_callback(
+				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3));
 
 		app::database::internal internal_db(app::confMap, "CollectDQueue");
+		const common::collectd::fn_save_to_database_type fn_save_to_database(
+				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -398,7 +428,7 @@ int main(int argc, char* argv[]) try
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
 				new boost::asio::io_service::work(io_service));
 
-		archiving::cdr_dir_monitor cdr_dir_monitor(in_channel, app::hostname);
+		archiving::cdr_dir_monitor cdr_dir_monitor(boost::bind(fn_in_queue_produce, _1, true), app::hostname);
 
 		// setup the inotify monitor
 		app::inotify::monitor inotify_monitor(io_service);
@@ -437,12 +467,12 @@ int main(int argc, char* argv[]) try
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
 							size_t(36/*uuid*/+4/*.xml*/), archiving::file_type::info, "xml"));
 
-		app::archivable_dedup archivable_dedup(archivable_busy_set, internal_db);
+		app::archivable_dedup archivable_dedup(archivable_catalogue, internal_db);
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
-		                boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
+						boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
 		// initialise the internal static variables before we load anything;
-		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, 1.0);
+		internal_db.find_archivables(app::hostname, fn_get_loaded_instance, boost::bind(fn_in_queue_produce, _1, true), more_to_load_from_db, 1.0);
 
 		// setup directory readers / loaders ( extra safety net if by any chance the inotify fails )
 		// also useful when we have to start collectd after letting it rest for a while
@@ -504,7 +534,9 @@ int main(int argc, char* argv[]) try
 									boost::bind(continue_loading_dir))));
 
 		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
-		app::cdr_inspector cdr_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname);
+		app::cdr_inspector cdr_inspector(
+				fn_in_queue_consume, fn_out_queue_produce, fn_remove_from_catalogue, fn_is_in_catalogue,
+				fn_save_to_database, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
@@ -513,11 +545,11 @@ int main(int argc, char* argv[]) try
 
 		std::list< app::archived_client::pointer > archived_clients;
 		for(unsigned int i = 0; i < (n_threads - 2); i++) {
-			archived_clients.push_back(app::archived_client::pointer(new app::archived_client(
-					io_service, out_channel, archivable_busy_set,
-					app::confMap["archived_client.server_host"].as<std::string>(),
-					app::confMap["archived_client.server_port"].as<std::string>(),
-					internal_db, app::quit)));
+			archived_clients.push_back(
+					boost::make_shared<app::archived_client>(
+							boost::ref(io_service), fn_out_queue_produce, fn_consume_with_timeout_callback, fn_remove_from_catalogue,
+							fn_save_to_database, app::confMap["archived_client.server_host"].as<std::string>(),
+							app::confMap["archived_client.server_port"].as<std::string>(), boost::ref(app::quit)));
 		}
 
 		for(unsigned int i = 0; i < n_threads; i++)
@@ -555,13 +587,15 @@ int main(int argc, char* argv[]) try
 			if(more_to_load_from_db && !(ticks % 10)) {
 				const float& loading_factor(app::archived_client::get_is_archived_ok());
 				if(loading_factor)
-					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, loading_factor);
+					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, boost::bind(fn_in_queue_produce, _1, true), more_to_load_from_db, loading_factor);
 				else
 					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
 			}
 
 			if(!(ticks % 60)) {
-				LogMessage("[statistics] IN:"<<in_channel.count()<<" OUT:"<<out_channel.count()<<" DBLoading:"<<RML_YES_NO(more_to_load_from_db));
+                LogMessage("[statistics] Queue:"<<in_queue<<in_queue->get_statistics());
+                LogMessage("[statistics] Queue:"<<out_queue<<out_queue->get_statistics());
+				LogMessage("[statistics] DBLoading:"<<RML_YES_NO(more_to_load_from_db));
 #ifdef DATABASE_SQLITE
 				LogDebug("[statistics] SQLIteSessions:"<<rml::sqlite::session::count());
 				LogDebug("[statistics] SQLIteSessionPoolSize:"<<internal_db.get_pool_size());
@@ -577,8 +611,8 @@ int main(int argc, char* argv[]) try
 			ticks++;
 		}
 
-		in_channel.set_finishing();
-		out_channel.set_finishing();
+		in_queue->set_finishing();
+		out_queue->set_finishing();
 
 		p_work.reset();
 

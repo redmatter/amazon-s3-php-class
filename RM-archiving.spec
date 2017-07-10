@@ -23,8 +23,8 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
-BuildRequires: gcc
-BuildRequires: gcc-c++
+BuildRequires: gcc44
+BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: RM-librml-devel >= 1.0
@@ -167,7 +167,7 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
-make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+CC=gcc44 CXX=g++44 make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/

@@ -5,6 +5,9 @@ VERSION_FILE=../version_info
 include /usr/share/librml/Makefile.macros
 include ../common/Makefile.macros
 
+RML_QUEUE_DIR=../libs/rml-queue
+RML_QUEUE_QUEUE_HPP=$(RML_QUEUE_DIR)/rml/queue/queue.hpp
+
 FREESWITCH_DIR=/opt/freeswitch
 
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
@@ -26,7 +29,7 @@ DATABASE_SQLITE=YES
 ifeq ($(DATABASE_SQLITE),YES)
 
 CPPFLAGS += -DDATABASE_SQLITE
-CXX_INCLUDES += -I ../external/sqlite/include
+CXX_INCLUDES += -I ../external/sqlite/include -I $(RML_QUEUE_DIR)
 LIBS += -L ../external/sqlite/lib -lsqlite3 -ldl
 
 else # DATABASE_SQLITE
@@ -77,6 +80,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
+	-lboost_chrono$(BOOST_NAME_EXT) \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \
@@ -87,6 +91,12 @@ C_SRCS += \
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
+main.cpp : $(RML_QUEUE_QUEUE_HPP)
+
+ifeq ($(RML_QUEUE_DIR),../libs/rml-queue)
+$(RML_QUEUE_QUEUE_HPP):
+	@cd .. && git submodule update --init --recursive libs/rml-queue
+endif
 
 ../external/sqlite/lib/libsqlite3.a:
 	@$(MAKE) -C ../external sqlite

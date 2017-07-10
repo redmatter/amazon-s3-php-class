@@ -16,6 +16,8 @@
 #include "../common/globals.h"
 #include "../common/types.hpp"
 #include "../common/archivable.hpp"
+#include "../common/collectd/callbacks.hpp"
+#include "archivable/catalogue.hpp"
 
 #include <rml/utils.h>
 
@@ -138,11 +140,11 @@ namespace app {
 
 class cdr_inspector : public boost::noncopyable
 {
-	archiving::archivable_channel_t& in_channel;
-	archiving::archivable_channel_t& out_channel;
-	archiving::archivable_busy_set_t& archivable_busy_set_;
-
-	database::internal& internal_db_;
+	const common::collectd::fn_consume_type &fn_in_queue_consume_;
+	const common::collectd::fn_produce_type &fn_out_queue_produce_;
+	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
+	const common::collectd::fn_is_in_catalogue_type &fn_is_in_catalogue_;
+	const common::collectd::fn_save_to_database_type &fn_save_to_database_;
 
 	const boost::program_options::variables_map& confMap;
 
@@ -181,23 +183,25 @@ public:
 	/**
 	 * Constructor
 	 *
-	 * @param in_channel
-	 * @param out_channel
+	 * @param fn_in_queue_consume
+	 * @param fn_out_queue_produce
+	 * @param fn_remove_from_catalogue
+	 * @param fn_is_in_catalogue
+	 * @param fn_save_to_database
 	 * @param confMap
-	 * @return
+	 * @param pbx_hostname
 	 */
-	cdr_inspector(archiving::archivable_channel_t& in_channel,
-			archiving::archivable_channel_t& out_channel,
-			archiving::archivable_busy_set_t& archivable_busy_set,
-			database::internal& internal_db,
-			const boost::program_options::variables_map& confMap,
-			const std::string& pbx_hostname) :
-		in_channel(in_channel),
-		out_channel(out_channel),
-		archivable_busy_set_(archivable_busy_set),
-		internal_db_(internal_db),
-		confMap(confMap),
-		pbx_hostname_(pbx_hostname)
+	cdr_inspector(
+			const common::collectd::fn_consume_type &fn_in_queue_consume,
+			const common::collectd::fn_produce_type &fn_out_queue_produce,
+			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
+			const common::collectd::fn_is_in_catalogue_type& fn_is_in_catalogue,
+			const common::collectd::fn_save_to_database_type &fn_save_to_database,
+			const boost::program_options::variables_map &confMap,
+			const std::string &pbx_hostname) :
+			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
+			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
+			fn_save_to_database_(fn_save_to_database), confMap(confMap), pbx_hostname_(pbx_hostname)
 	{
 		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
 			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
@@ -217,7 +221,7 @@ public:
 	}
 
 	/**
-	 * run()
+	 * Thread entrypoint
 	 */
 	void run()
 	{
@@ -267,7 +271,7 @@ public:
 
 			while(!app::quit) {
 				try {
-					archiving::archivable::pointer p_archivable = in_channel.consume();
+					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false);
 					LogVerbose(*p_archivable<<" from channel");
 
 					const archiving::file_type::file_type_t&  archivable_file_type(p_archivable->get_type());
@@ -317,7 +321,7 @@ public:
 								while(!app::quit) {
 									const time_t now(time(0));
 									if(!last_attempt || (now - last_attempt) > 15) {
-										if(internal_db_.save(p_archivable))
+										if(fn_save_to_database_(p_archivable))
 											break;
 
 										last_attempt = now;
@@ -338,14 +342,14 @@ public:
 
 						p_archivable->hibernate();
 
-						pc_produce(out_channel, p_archivable, 1);
+						fn_out_queue_produce_(p_archivable, false);
 						continue;
 					}
 
 					// If we're here then we're treating the file as a CDR, having checked above for other situations.
 
 					// aliasing it to make the code more readable
-					archiving::archivable::pointer& archivable_cdr(p_archivable);
+					archiving::archivable::pointer archivable_cdr = p_archivable;
 
 					// inspect and cleanup CDR
 					{
@@ -489,7 +493,7 @@ public:
 
 							{
 								int retry = 0;
-								while(!internal_db_.save(archivable_cdr) && !app::quit) {
+								while(!fn_save_to_database_(archivable_cdr) && !app::quit) {
 									LogMessage(archivable_cdr<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
 									boost::this_thread::sleep(boost::posix_time::seconds(15));
 									retry++;
@@ -499,7 +503,7 @@ public:
 									throw rml::exception("Quit flagged during database retry");
 							}
 
-							archivable_busy_set_.remove(archivable_cdr);
+							fn_remove_from_catalogue_(archivable_cdr);
 							archivable_cdr.reset();
 
 							continue;
@@ -608,7 +612,7 @@ public:
 
 									{
 										int retry = 0;
-										while(!internal_db_.save(archivable_cbr) && !app::quit) {
+										while(!fn_save_to_database_(archivable_cbr) && !app::quit) {
 											LogMessage(*archivable_cbr<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
 											boost::this_thread::sleep(boost::posix_time::seconds(15));
 											retry++;
@@ -618,8 +622,7 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 									archivable_cbr->hibernate();
-									archivable_busy_set_.add(archivable_cbr);
-									pc_produce(out_channel, archivable_cbr, 1);
+ 									fn_out_queue_produce_(archivable_cbr, true);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -669,7 +672,7 @@ public:
 											// make sure we are not duplicating
 											{
 												const std::pair<std::set<std::string>::iterator, bool> res(recording_uuids.insert(uuid));
-												if (!res.second || archivable_busy_set_.is_busied(archiving::archivable::pointer(new archiving::archivable(uuid, archiving::file_type::recording)))) {
+												if (!res.second || fn_is_in_catalogue_(boost::make_shared<archiving::archivable>(uuid, archiving::file_type::recording))) {
 													LogMessage(archivable_cdr<<" Recording [recording/"<<uuid<<"] already being processed; ignoring");
 													continue;
 												}
@@ -690,7 +693,7 @@ public:
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
 											{
 												int retry = 0;
-												while(!internal_db_.save(archivable_recording) && !app::quit) {
+												while(!fn_save_to_database_(archivable_recording) && !app::quit) {
 													LogMessage(*archivable_recording<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
 													boost::this_thread::sleep(boost::posix_time::seconds(15));
 													retry++;
@@ -701,8 +704,7 @@ public:
 											}
 
 											archivable_recording->hibernate();
-											archivable_busy_set_.add(archivable_recording);
-											pc_produce(out_channel, archivable_recording, 1);
+											fn_out_queue_produce_(archivable_recording, true);
 										}
 										catch(const std::exception& e) {
 											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
@@ -760,7 +762,7 @@ public:
 									archivable_recording->set_current_state(archiving::archivable::state::inspected);
 									{
 										int retry = 0;
-										while(!internal_db_.save(archivable_recording) && !app::quit) {
+										while(!fn_save_to_database_(archivable_recording) && !app::quit) {
 											LogMessage(archivable_recording<<" [retry: "<<retry<<"] Save state to DB failed; retrying ...");
 											boost::this_thread::sleep(boost::posix_time::seconds(15));
 											retry++;
@@ -771,8 +773,7 @@ public:
 									}
 
 									archivable_recording->hibernate();
-									archivable_busy_set_.add(archivable_recording);
-									pc_produce(out_channel, archivable_recording, 1);
+									fn_out_queue_produce_(archivable_recording, true);
 								}
 								catch(const std::exception& e) {
 									LogWarning("Failed producing archivable item; error: "<<e.what());
@@ -812,7 +813,7 @@ public:
 						archivable_cdr->move_to_subdir("collected");
 						{
 							int retry = 0;
-							while(!internal_db_.save(archivable_cdr) && !app::quit) {
+							while(!fn_save_to_database_(archivable_cdr) && !app::quit) {
 								LogMessage(*archivable_cdr<<" [retry: "<<retry<<"] Save states to DB failed; retrying ...");
 								boost::this_thread::sleep(boost::posix_time::seconds(15));
 								retry++;
@@ -823,7 +824,7 @@ public:
 						}
 
 						archivable_cdr->hibernate();
-						pc_produce(out_channel, archivable_cdr, 1);
+						fn_out_queue_produce_(archivable_cdr, false);
 					}
 				}
 				catch(const archiving::archivable_channel_t::finishing_exception& e) {

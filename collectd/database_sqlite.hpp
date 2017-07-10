@@ -65,16 +65,16 @@ public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-                ("sqlite.session_pool_size", boost::program_options::value<unsigned int>()
-                        ->default_value(3), "Max sessions to the queue database")
-                ("sqlite.session_max_dormant_seconds", boost::program_options::value<unsigned int>()
-                        ->default_value(60), "Max seconds before we kill a free session")
-                ("sqlite.database_path", boost::program_options::value<std::string>()
-                        ->default_value("/var/lib/archiving/collectd.db3"), "Path to the database file")
-                ("sqlite.debug_on", boost::program_options::value<bool>()
-                        ->default_value(false), "Database SQL debug on/off")
-                ("queue.save_interval_seconds", boost::program_options::value<unsigned int>()
-                        ->default_value(5), "Queue save (to db) interval in seconds")
+				("sqlite.session_pool_size", boost::program_options::value<unsigned int>()
+						->default_value(3), "Max sessions to the queue database")
+				("sqlite.session_max_dormant_seconds", boost::program_options::value<unsigned int>()
+						->default_value(60), "Max seconds before we kill a free session")
+				("sqlite.database_path", boost::program_options::value<std::string>()
+						->default_value("/var/lib/archiving/collectd.db3"), "Path to the database file")
+				("sqlite.debug_on", boost::program_options::value<bool>()
+						->default_value(false), "Database SQL debug on/off")
+				("queue.save_interval_seconds", boost::program_options::value<unsigned int>()
+						->default_value(5), "Queue save (to db) interval in seconds")
 				;
 	}
 
@@ -364,13 +364,13 @@ public:
 	 *
 	 * @param pbx_hostname (ignored)
 	 * @param fn_get_loaded_instance
-	 * @param in_channel
+	 * @param fn_produce
 	 * @param have_more_to_load
 	 */
 	void find_archivables(
 			const std::string& pbx_hostname,
 			const boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)>& fn_get_loaded_instance,
-			archiving::archivable_channel_t& in_channel,
+			const boost::function<void (boost::shared_ptr<archiving::archivable>)>& fn_produce,
 			bool& have_more_to_load,
 			const float& loading_factor)
 	{
@@ -439,13 +439,13 @@ public:
 								if(!p_parent) {
 									p_parent = load_archivable_by_id(res[3].as_int64());
 									if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-										pc_produce(in_channel, p_parent, p_parent->get_attempt() * 3);
+										fn_produce(p_parent);
 								}
 							}
 
 							p_child =  load_archivable_by_id(res[0].as_int64(), p_parent);
 							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-								pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
+								fn_produce(p_child);
 						}
 					}
 					catch(const std::exception& e) {

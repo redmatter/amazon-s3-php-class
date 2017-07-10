@@ -66,7 +66,7 @@ struct owner_info
 
 struct archivable_pointer_compare;
 
-class archivable
+class archivable : public boost::noncopyable
 {
 public:
 	enum constants {

@@ -14,6 +14,7 @@
 #include "sms_dir_monitor.hpp"
 
 #include "../common/logstack.h"
+#include "archivable/channel.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -273,6 +274,7 @@ int main(int argc, char* argv[]) try
 				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
 				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
+		collectsmsd::archivable::channel out_channel_wrapped(out_channel, archivable_busy_set);
 
 		app::database::internal internal_db(app::confMap, "CollectSmsDQueue");
 
@@ -301,14 +303,16 @@ int main(int argc, char* argv[]) try
 		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
 		// without this change, if there is a backlog the application never starts properly, as there is
 		// a backlog log which is never removed (the items in the backlog list are never added to the queue via pc_produc)
-	    app::archived_client::pointer archived_client(new app::archived_client(
-	    		*p_io_service,
-	    		out_channel,
-	    		archivable_busy_set,
-	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db,
-	    		app::quit));
+		app::archived_client::pointer archived_client = boost::make_shared<app::archived_client>(
+				boost::ref(*p_io_service),
+				boost::bind(&collectsmsd::archivable::channel::produce, boost::ref(out_channel_wrapped), _1, _2, 0),
+				boost::bind(&collectsmsd::archivable::channel::consume, boost::ref(out_channel_wrapped), _1, _2, _3),
+				boost::bind(&archiving::archivable_busy_set_t::remove, boost::ref(archivable_busy_set), _1),
+				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1),
+				app::confMap["archived_client.server_host"].as<std::string>(),
+				app::confMap["archived_client.server_port"].as<std::string>(),
+				boost::ref(app::quit)
+		);
 
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
