@@ -2,14 +2,19 @@ project(collect-smsd)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+find_package(MySQL)
+find_package(MySQL++)
+
 set(HEADER_FILES
         sms_dir_monitor.hpp
         sms_inspector.hpp
         directory_loader.hpp
 #        pre.h
-        )
+        archivable/channel.hpp)
 
 include_directories(
+        ${MYSQL_INCLUDE_DIR}
+        ${MYSQLPP_INCLUDE_DIR}
         /usr/include/cpp-netlib
         ../common
 )
@@ -39,8 +44,9 @@ target_link_libraries(rmcollect-smsd.bin
         cryptopp
         uuid
 
-        mysqlclient_r
-        mysqlpp
+        ${MYSQL_LIBRARIES}
+        ${MYSQLPP_LIBRARIES}
+        cppnetlib-uri
 
         rt
         Threads::Threads
