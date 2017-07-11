@@ -593,8 +593,8 @@ int main(int argc, char* argv[]) try
 			}
 
 			if(!(ticks % 60)) {
-                LogMessage("[statistics] Queue:"<<in_queue<<in_queue->get_statistics());
-                LogMessage("[statistics] Queue:"<<out_queue<<out_queue->get_statistics());
+                LogMessage("[statistics] Queue:"<<*in_queue<<' '<<in_queue->get_statistics());
+                LogMessage("[statistics] Queue:"<<*out_queue<<' '<<out_queue->get_statistics());
 				LogMessage("[statistics] DBLoading:"<<RML_YES_NO(more_to_load_from_db));
 #ifdef DATABASE_SQLITE
 				LogDebug("[statistics] SQLIteSessions:"<<rml::sqlite::session::count());
