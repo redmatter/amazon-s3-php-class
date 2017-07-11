@@ -77,8 +77,11 @@ struct queue : public base_queue
         boost::shared_ptr<archiving::archivable> item;
 
         base_queue::consume(item, wait_timeout, ec);
-        if (remove_from_catalogue && !ec) {
-            this->remove_from_catalogue(item);
+        if (!ec) {
+            item->set_next_attempt();
+            if (remove_from_catalogue) {
+                this->remove_from_catalogue(item);
+            }
         }
 
         if (ec) {

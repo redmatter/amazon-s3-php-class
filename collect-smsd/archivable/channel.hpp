@@ -42,6 +42,11 @@ struct channel
         channel_.produce(item, sp_delay);
     }
 
+    /**
+     * Remove item from the wrapped busyset
+     *
+     * @param item
+     */
     inline void remove_from_busyset(const item_type &item)
     {
         busy_set_.remove(item);
@@ -50,12 +55,12 @@ struct channel
     /**
      * Consume from the wrapped channel
      *
-     * @param remove_from_catalogue
+     * @param remove_from_busyset
      * @param wait_timeout
      * @param timeout_callback
      * @return
      */
-    item_type consume(const bool &remove_from_catalogue, const boost::chrono::milliseconds &wait_timeout,
+    item_type consume(const bool &remove_from_busyset, const boost::chrono::milliseconds &wait_timeout,
                       const consume_timeout_callback_type &timeout_callback)
     {
         item_type ret;
@@ -78,8 +83,8 @@ struct channel
             ret = channel_.consume();
         }
 
-        if (ret && remove_from_catalogue) {
-            this->remove_from_busyset(ret);
+        if (ret && remove_from_busyset) {
+            channel::remove_from_busyset(ret);
         }
 
         return ret;
