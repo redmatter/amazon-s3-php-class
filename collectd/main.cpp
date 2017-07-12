@@ -126,7 +126,7 @@ public:
 
 	inline bool is_loaded(const archiving::file_type::file_type_t& type, const std::string& uuid) const
 	{
-		return is_archivable_loaded(archiving::archivable::pointer(new archiving::archivable(uuid, type)));
+		return is_archivable_loaded(boost::make_shared<archiving::archivable>(uuid, type));
 	}
 
 	inline archiving::archivable::pointer get_loaded_instance(const archiving::archivable::pointer& p_lookup) const
@@ -425,8 +425,7 @@ int main(int argc, char* argv[]) try
 
 		boost::thread_group threads;
 		boost::asio::io_service io_service;
-		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
-				new boost::asio::io_service::work(io_service));
+		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::make_shared<boost::asio::io_service::work>(boost::ref(io_service));
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(boost::bind(fn_in_queue_produce, _1, true), app::hostname);
 
