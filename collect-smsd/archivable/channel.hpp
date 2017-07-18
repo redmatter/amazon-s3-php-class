@@ -16,6 +16,7 @@ struct channel
 {
     typedef boost::shared_ptr<archiving::archivable> item_type;
     typedef common::collectd::consume_timeout_callback_type consume_timeout_callback_type;
+    typedef common::collectd::is_finishing_callback_type is_finishing_callback_type;
 
     archiving::archivable_channel_t& channel_;
     archiving::archivable_busy_set_t& busy_set_;
@@ -61,26 +62,33 @@ struct channel
      * @return
      */
     item_type consume(const bool &remove_from_busyset, const boost::chrono::milliseconds &wait_timeout,
-                      const consume_timeout_callback_type &timeout_callback)
+                      const consume_timeout_callback_type &timeout_callback,
+                      const is_finishing_callback_type &is_finishing_callback)
     {
         item_type ret;
 
-        namespace chrono = boost::chrono;
-        if (wait_timeout != chrono::milliseconds::zero()) {
-            const chrono::seconds& wait_s(chrono::duration_cast<chrono::seconds>(wait_timeout));
-            const chrono::microseconds &wait_us(chrono::duration_cast<chrono::microseconds>(wait_timeout) -
-                                                chrono::microseconds(wait_s * 1000000));
-            try {
-                ret = channel_.consume(wait_s.count(), wait_us.count());
-            } catch (archiving::archivable_channel_t::consume_timed_out_exception& e) {
-                if (timeout_callback.empty()) {
-                    throw;
-                }
-
-                timeout_callback();
+        try {
+            if (wait_timeout != boost::chrono::milliseconds::zero()) {
+                ret = channel_.consume(/* timeout_seconds */ unsigned(wait_timeout.count() / 1000),
+                                       /* timeout_microseconds */ unsigned((wait_timeout.count() % 1000) * 1000));
+            } else {
+                ret = channel_.consume();
             }
-        } else {
-            ret = channel_.consume();
+        } catch (archiving::archivable_channel_t::consume_timed_out_exception& e) {
+            // consume_timed_out_exception is thrown only when wait_timeout != zero()
+            if (timeout_callback.empty()) {
+                throw;
+            }
+
+            LogVerbose(channel_<<" consume timeout");
+            timeout_callback();
+        } catch (archiving::archivable_channel_t::finishing_exception& e) {
+            if (is_finishing_callback.empty()) {
+                throw;
+            }
+
+            LogMessage(channel_<<" finishing");
+            is_finishing_callback();
         }
 
         if (ret && remove_from_busyset) {

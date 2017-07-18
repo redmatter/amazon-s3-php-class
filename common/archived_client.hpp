@@ -164,7 +164,7 @@ private:
 	int reconnect_delay_;
 
 	const common::collectd::fn_produce_type& fn_produce_;
-	const common::collectd::fn_consume_with_timeout_callback_type& fn_consume_;
+	const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume_;
 	const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue_;
 	const common::collectd::fn_save_to_database_type& fn_save_to_database_;
 
@@ -195,7 +195,7 @@ public:
 	archived_client(
 			boost::asio::io_service& io_service,
 			const common::collectd::fn_produce_type& fn_produce,
-			const common::collectd::fn_consume_with_timeout_callback_type& fn_consume,
+			const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
@@ -760,6 +760,16 @@ private:
 		reconnect(false, 10);
 	}
 
+	/**
+	 * @brief Get another for PUT
+	 *
+	 * Sets up get_archivable_for_put so that the statemachine can continue
+	 */
+	inline void get_next_archivable_for_put()
+	{
+		strand_.post(boost::bind(&archived_client::get_archivable_for_put, shared_from_this()));
+	}
+
 	void get_archivable_for_put() try
 	{
 		try {
@@ -775,9 +785,11 @@ private:
 				return;
 			}
 
-			while(!quit_ && p_socket_ && p_socket_->is_open()) {
-				put_archivable_ptr_ = fn_consume_(false, boost::chrono::milliseconds(10000), boost::protect(
-						boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())));
+			while (!quit_ && p_socket_ && p_socket_->is_open()) {
+				put_archivable_ptr_ = fn_consume_(
+						false, boost::chrono::milliseconds(10000),
+						boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
+						boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));
 
 				// if there was a timeout, the statemachine continues, cannot continue looping
 				if (!put_archivable_ptr_) {
@@ -813,8 +825,8 @@ private:
 			}
 			catch(const std::exception& e) {
 				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT init failed; error:"<<e.what());
-				put_archivable_ptr_.reset(); // so that it wouldnt retry!
-				strand_.post(boost::bind(&archived_client::get_archivable_for_put, shared_from_this())); // so that the statemachine continues!
+				put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
+				get_next_archivable_for_put();
 				return;
 			}
 		}

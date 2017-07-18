@@ -93,15 +93,22 @@ struct queue : public base_queue
 
     boost::shared_ptr<archiving::archivable>
     consume(const boost::chrono::milliseconds &wait_timeout, const bool remove_from_catalogue,
-            const common::collectd::consume_timeout_callback_type &timeout_callback)
+            const common::collectd::consume_timeout_callback_type &timeout_callback,
+            const common::collectd::is_finishing_callback_type &is_finishing_callback)
     {
         try {
             return consume(wait_timeout, remove_from_catalogue);
         } catch (const boost::system::system_error &e) {
             if (e.code() == rmlq::error::make_error_condition(rmlq::error::runtime_errors::consume_timeout)) {
+                LogVerbose(*this<<" consume timeout");
                 timeout_callback();
                 return boost::shared_ptr<archiving::archivable>();
+            } else if (e.code() == rmlq::error::make_error_condition(rmlq::error::runtime_errors::is_finishing)) {
+                LogMessage(*this<<" finishing");
+                is_finishing_callback();
+                return boost::shared_ptr<archiving::archivable>();
             } else {
+                LogVerbose(*this<<" consume:error "<<e.what());
                 throw;
             }
         } catch (...) {

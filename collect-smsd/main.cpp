@@ -300,15 +300,22 @@ int main(int argc, char* argv[]) try
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
+		const common::collectd::fn_produce_type &fn_out_channel_produce(
+				boost::bind(&collectsmsd::archivable::channel::produce, boost::ref(out_channel_wrapped), _1, _2, 0));
+		const common::collectd::fn_consume_with_timeout_finishing_callback_type &fn_out_channel_consume(
+				boost::bind(&collectsmsd::archivable::channel::consume, boost::ref(out_channel_wrapped), _1, _2, _3, _4));
+		const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue(
+				boost::bind(&archiving::archivable_busy_set_t::remove, boost::ref(archivable_busy_set), _1));
+		const common::collectd::fn_save_to_database_type &fn_save_to_database(
+				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
+
 		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
 		// without this change, if there is a backlog the application never starts properly, as there is
-		// a backlog log which is never removed (the items in the backlog list are never added to the queue via pc_produc)
-		app::archived_client::pointer archived_client = boost::make_shared<app::archived_client>(
-				boost::ref(*p_io_service),
-				boost::bind(&collectsmsd::archivable::channel::produce, boost::ref(out_channel_wrapped), _1, _2, 0),
-				boost::bind(&collectsmsd::archivable::channel::consume, boost::ref(out_channel_wrapped), _1, _2, _3),
-				boost::bind(&archiving::archivable_busy_set_t::remove, boost::ref(archivable_busy_set), _1),
-				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1),
+		// a backlog log which is never removed (the items in the backlog list are never added to the queue
+		// via fn_out_channel_produce)
+		boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
+				boost::ref(*p_io_service), fn_out_channel_produce, fn_out_channel_consume, fn_remove_from_catalogue,
+				fn_save_to_database,
 				app::confMap["archived_client.server_host"].as<std::string>(),
 				app::confMap["archived_client.server_port"].as<std::string>(),
 				boost::ref(app::quit)
