@@ -15,6 +15,7 @@
 
 #include "../common/logstack.h"
 #include "archivable/channel.hpp"
+#include "archivable/database.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -306,8 +307,12 @@ int main(int argc, char* argv[]) try
 				boost::bind(&collectsmsd::archivable::channel::consume, boost::ref(out_channel_wrapped), _1, _2, _3, _4));
 		const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue(
 				boost::bind(&archiving::archivable_busy_set_t::remove, boost::ref(archivable_busy_set), _1));
-		const common::collectd::fn_save_to_database_type &fn_save_to_database(
+		const common::collectd::fn_save_to_database_type &fn_save_to_database_real(
 				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
+
+		collectsmsd::archivable::database internal_db_save_retry(fn_save_to_database_real, boost::chrono::seconds(10));
+		const common::collectd::fn_save_to_database_type &fn_save_to_database(
+				boost::bind(&collectsmsd::archivable::database::save, boost::ref(internal_db_save_retry), _1));
 
 		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
 		// without this change, if there is a backlog the application never starts properly, as there is
@@ -357,6 +362,10 @@ int main(int argc, char* argv[]) try
 				app::confMap["purge.max_age_days"].as<unsigned int>(),
 				app::confMap["purge.batch_size"].as<unsigned int>(),
 				app::confMap["purge.frequency_minutes"].as<unsigned int>()));
+
+		threads.create_thread(
+				boost::bind(&collectsmsd::archivable::database::save_run, boost::ref(internal_db_save_retry),
+							boost::ref(app::quit)));
 
 		int ticks = 1;
 		while(!app::quit) {

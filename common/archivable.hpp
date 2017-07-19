@@ -467,7 +467,7 @@ public:
 				;
 	}
 
-	inline std::ostream& shove_put_request(std::ostream& ostr) const
+	inline bool inject_put_request(std::ostream &ostr) const try
 	{
 #ifndef RML_NO_DEBUG
 		std::string put_request;
@@ -482,7 +482,13 @@ public:
 		LogDebug("ToArchiveD: "<<put_request);
 		ostr << put_request;
 #endif
-		return ostr << "\r\n";
+		ostr << "\r\n";
+
+		return true;
+	}
+	catch(const std::exception& e) {
+		LogError(*this<<" PUT init failed; error:"<<e.what());
+		return false;
 	}
 
 	inline rml::utils::tmp_fstream::pointer get_fstream_ptr() const
