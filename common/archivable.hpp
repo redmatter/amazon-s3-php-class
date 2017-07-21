@@ -20,6 +20,7 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/foreach.hpp>
+#include <boost/atomic/atomic.hpp>
 
 #include <iostream>
 #include <vector>
@@ -243,9 +244,9 @@ private:
 	owner_info owners_;
 
 	uint64_t database_id_;
-	mutable volatile unsigned int attempt_;
+	mutable boost::atomic<unsigned int> attempt_;
 
-	mutable volatile bool is_save_setup_;
+	mutable boost::atomic<bool> is_save_setup_;
 
 	archivable();
 	archivable(const archivable& a);
@@ -394,9 +395,9 @@ public:
 
 	inline bool set_save_setup() const
 	{
-		const bool ret(is_save_setup_);
-		is_save_setup_ = true;
-		return ret;
+        bool already_setup = false;
+        is_save_setup_.compare_exchange_strong(already_setup, true);
+		return already_setup;
 	}
 
 	inline void reset_save_setup() const
@@ -561,7 +562,7 @@ public:
 	 */
 	inline void set_next_attempt()
 	{
-		__sync_fetch_and_add(&attempt_, 1);
+		attempt_++;
 	}
 
 	/**

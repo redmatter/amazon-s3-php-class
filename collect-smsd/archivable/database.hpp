@@ -84,8 +84,12 @@ private:
     {
         boost::recursive_mutex::scoped_lock lock(save_list_mutex_);
 
-        if(save_list_.empty())
+        if(save_list_.empty()) {
+            LogVerbose("There are NO items waiting for database-save retry");
             return;
+        }
+
+        LogMessage("There are "<<save_list_.size()<<" items waiting for database-save retry");
 
         try {
             for(archivable_list::iterator itr = save_list_.begin(); itr != save_list_.end(); ) {
