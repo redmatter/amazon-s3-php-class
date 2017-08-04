@@ -14,6 +14,8 @@
 #include "sms_dir_monitor.hpp"
 
 #include "../common/logstack.h"
+#include "archivable/channel.hpp"
+#include "archivable/database.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -273,6 +275,7 @@ int main(int argc, char* argv[]) try
 				boost::bind(&archiving::archivable_busy_set_t::is_busied, boost::ref(archivable_busy_set), _1),
 				0, "IN");
 		archiving::archivable_channel_t out_channel("OUT");
+		collectsmsd::archivable::channel out_channel_wrapped(out_channel, archivable_busy_set);
 
 		app::database::internal internal_db(app::confMap, "CollectSmsDQueue");
 
@@ -298,17 +301,30 @@ int main(int argc, char* argv[]) try
 		boost::function<archiving::archivable::pointer(const archiving::archivable::pointer&)> fn_get_loaded_instance(
 				boost::bind(&app::archivable_dedup::get_loaded_instance, boost::ref(archivable_dedup), _1));
 
+		const common::collectd::fn_produce_type &fn_out_channel_produce(
+				boost::bind(&collectsmsd::archivable::channel::produce, boost::ref(out_channel_wrapped), _1, _2, 0));
+		const common::collectd::fn_consume_with_timeout_finishing_callback_type &fn_out_channel_consume(
+				boost::bind(&collectsmsd::archivable::channel::consume, boost::ref(out_channel_wrapped), _1, _2, _3, _4));
+		const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue(
+				boost::bind(&archiving::archivable_busy_set_t::remove, boost::ref(archivable_busy_set), _1));
+		const common::collectd::fn_save_to_database_type &fn_save_to_database_real(
+				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
+
+		collectsmsd::archivable::database internal_db_save_retry(fn_save_to_database_real, boost::chrono::seconds(10));
+		const common::collectd::fn_save_to_database_type &fn_save_to_database(
+				boost::bind(&collectsmsd::archivable::database::save, boost::ref(internal_db_save_retry), _1));
+
 		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
 		// without this change, if there is a backlog the application never starts properly, as there is
-		// a backlog log which is never removed (the items in the backlog list are never added to the queue via pc_produc)
-	    app::archived_client::pointer archived_client(new app::archived_client(
-	    		*p_io_service,
-	    		out_channel,
-	    		archivable_busy_set,
-	    		app::confMap["archived_client.server_host"].as<std::string>(),
-	    		app::confMap["archived_client.server_port"].as<std::string>(),
-	    		internal_db,
-	    		app::quit));
+		// a backlog log which is never removed (the items in the backlog list are never added to the queue
+		// via fn_out_channel_produce)
+		boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
+				boost::ref(*p_io_service), fn_out_channel_produce, fn_out_channel_consume, fn_remove_from_catalogue,
+				fn_save_to_database,
+				app::confMap["archived_client.server_host"].as<std::string>(),
+				app::confMap["archived_client.server_port"].as<std::string>(),
+				boost::ref(app::quit)
+		);
 
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
@@ -346,6 +362,10 @@ int main(int argc, char* argv[]) try
 				app::confMap["purge.max_age_days"].as<unsigned int>(),
 				app::confMap["purge.batch_size"].as<unsigned int>(),
 				app::confMap["purge.frequency_minutes"].as<unsigned int>()));
+
+		threads.create_thread(
+				boost::bind(&collectsmsd::archivable::database::save_run, boost::ref(internal_db_save_retry),
+							boost::ref(app::quit)));
 
 		int ticks = 1;
 		while(!app::quit) {

@@ -20,6 +20,7 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/foreach.hpp>
+#include <boost/atomic/atomic.hpp>
 
 #include <iostream>
 #include <vector>
@@ -66,7 +67,7 @@ struct owner_info
 
 struct archivable_pointer_compare;
 
-class archivable
+class archivable : public boost::noncopyable
 {
 public:
 	enum constants {
@@ -243,9 +244,9 @@ private:
 	owner_info owners_;
 
 	uint64_t database_id_;
-	mutable volatile unsigned int attempt_;
+	mutable boost::atomic<unsigned int> attempt_;
 
-	mutable volatile bool is_save_setup_;
+	mutable boost::atomic<bool> is_save_setup_;
 
 	archivable();
 	archivable(const archivable& a);
@@ -394,9 +395,9 @@ public:
 
 	inline bool set_save_setup() const
 	{
-		const bool ret(is_save_setup_);
-		is_save_setup_ = true;
-		return ret;
+        bool already_setup = false;
+        is_save_setup_.compare_exchange_strong(already_setup, true);
+		return already_setup;
 	}
 
 	inline void reset_save_setup() const
@@ -467,7 +468,7 @@ public:
 				;
 	}
 
-	inline std::ostream& shove_put_request(std::ostream& ostr) const
+	inline bool inject_put_request(std::ostream &ostr) const try
 	{
 #ifndef RML_NO_DEBUG
 		std::string put_request;
@@ -482,7 +483,13 @@ public:
 		LogDebug("ToArchiveD: "<<put_request);
 		ostr << put_request;
 #endif
-		return ostr << "\r\n";
+		ostr << "\r\n";
+
+		return true;
+	}
+	catch(const std::exception& e) {
+		LogError(*this<<" PUT init failed; error:"<<e.what());
+		return false;
 	}
 
 	inline rml::utils::tmp_fstream::pointer get_fstream_ptr() const
@@ -555,7 +562,7 @@ public:
 	 */
 	inline void set_next_attempt()
 	{
-		__sync_fetch_and_add(&attempt_, 1);
+		attempt_++;
 	}
 
 	/**

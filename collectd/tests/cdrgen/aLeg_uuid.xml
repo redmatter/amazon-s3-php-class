@@ -220,7 +220,7 @@
     <bridge_stamp>2013-01-21%2009%3A45%3A15</bridge_stamp>
     <progress_media_stamp>2013-01-21%2009%3A45%3A15</progress_media_stamp>
     <end_stamp>2013-01-21%2009%3A45%3A41</end_stamp>
-    <start_epoch>1358761509</start_epoch>
+    <start_epoch>startEpoch</start_epoch>
     <start_uepoch>1358761509960070</start_uepoch>
     <profile_start_epoch>1358761511</profile_start_epoch>
     <profile_start_uepoch>1358761511720134</profile_start_uepoch>

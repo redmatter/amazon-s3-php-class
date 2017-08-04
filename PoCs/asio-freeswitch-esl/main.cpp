@@ -13,8 +13,8 @@
 #include <rml/utils.h>
 #include <rml/siginit.h>
 
-#include "../esl.h"
-#include "../fs_event_monitor.hpp"
+#include "esl.h"
+#include "fs_event_monitor.hpp"
 
 
 namespace app {
