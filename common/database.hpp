@@ -509,26 +509,26 @@ public:
 	 * @param done_items_max_age_minutes
 	 * @param max_age_days
 	 */
-	purgedef::pointer_vector purge_find(const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int max_age_days, const unsigned int limit)
+	purgedef::pointer_vector purge_find(const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int limit)
 	{
 		purgedef::pointer_vector ret;
 
 		try {
-			time_t max_age_days__boundary = time(0) - (max_age_days * 24 * 60 * 60);
-
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query <<"SELECT"
 					" ID, FileType, "<<format_uuid_field("UUID", "UUID")<<", Path, ModifiedPath "
 					"FROM ArchivingInternal." << tableName_ << " "
-					"WHERE HostName=%0q:HostName AND ( ( State IN ('stored','discarded') AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime ) OR %2:MaxAgeDays > StartEpoch )";
+					"WHERE HostName=%0q:HostName"
+                    " AND State IN ('stored','discarded')"
+                    " AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime";
 			if(limit)
 				query << " LIMIT "<<limit;
 
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << pbx_hostname << done_items_max_age_minutes << max_age_days__boundary;
+			qp << pbx_hostname << done_items_max_age_minutes;
 
 			std::cout << "SQL: "<<query.str(qp) << std::endl;
 

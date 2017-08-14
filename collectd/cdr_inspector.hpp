@@ -8,11 +8,7 @@
 #ifndef CDR_INSPECTOR_HPP_
 #define CDR_INSPECTOR_HPP_
 
-#ifndef DATABASE_SQLITE
-#include "../common/database.hpp"
-#else
 #include "database_sqlite.hpp"
-#endif
 #include "../common/globals.h"
 #include "../common/types.hpp"
 #include "../common/archivable.hpp"
