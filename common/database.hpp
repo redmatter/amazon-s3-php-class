@@ -20,6 +20,9 @@
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
 
 #include <set>
 
@@ -30,6 +33,27 @@ namespace app {
 extern std::string hostname;
 
 namespace database {
+
+struct format_uuid_field : public boost::format
+{
+	format_uuid_field(const std::string& field, const std::string& alias) :
+			boost::format("LCASE(CONCAT("
+								  "HEX(SUBSTR(%1%, 1, 4)),'-',"
+								  "HEX(SUBSTR(%1%, 5, 2)),'-',"
+								  "HEX(SUBSTR(%1%, 7, 2)),'-',"
+								  "HEX(SUBSTR(%1%, 9, 2)),'-',"
+								  "HEX(SUBSTR(%1%, 11)))) %2%")
+	{
+		*this % field % alias;
+	}
+};
+
+struct mysqlpp_uuid_literal : public mysqlpp::sql_blob
+{
+	explicit mysqlpp_uuid_literal(const std::string &value) :
+			mysqlpp::sql_blob("0x" + boost::algorithm::erase_all_copy(value, "-"))
+	{}
+};
 
 class internal : public basic_database< internal >
 {
@@ -115,8 +139,8 @@ public:
 					" OrgID=%2:OrgID,"
 					" UserIDs=%3q:UserIDs,"
 
-					" UUID=UNHEX(REPLACE(%4q:UUID, '-', '')),"
-					" OriginatorUUID=UNHEX(REPLACE(%5q:OriginatorUUID, '-', '')),"
+					" UUID=%4:UUID,"
+					" OriginatorUUID=%5:OriginatorUUID,"
 
 					" Path=%6q:Path,"
 					" ModifiedPath=%7q:ModifiedPath,"
@@ -149,8 +173,8 @@ public:
 					<< mysqlpp::sql_int(arc.get_org_id())
 					<< mysqlpp::sql_character_varying(userIDs_str)
 
-					<< mysqlpp::sql_char(arc.get_uuid())
-					<< mysqlpp::sql_char(arc.get_originator_uuid())
+					<< mysqlpp_uuid_literal(arc.get_uuid())
+					<< mysqlpp_uuid_literal(arc.get_originator_uuid())
 
 					<< mysqlpp::sql_character_varying(paths.first)
 					<< modified_path
@@ -200,11 +224,11 @@ public:
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 
 			mysqlpp::Query query = conn->query();
-			query << "SELECT COUNT(*) FROM `ArchivingInternal`.`" << tableName_ << "` WHERE FileType=%0:FileType AND UUID=UNHEX(REPLACE(%1q:UUID, '-', '')) AND HostName=%2q:HostName";
+			query << "SELECT COUNT(*) FROM `ArchivingInternal`.`" << tableName_ << "` WHERE FileType=%0:FileType AND UUID=%1:UUID AND HostName=%2q:HostName";
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp << mysqlpp::sql_int(p_arc->get_type()) << mysqlpp::sql_char(arc.get_uuid()) << app::hostname;
+			qp << mysqlpp::sql_int(p_arc->get_type()) << mysqlpp_uuid_literal(arc.get_uuid()) << app::hostname;
 
 			std::cout << "SQL: "<<query.str(qp) << std::endl;
 
@@ -267,8 +291,8 @@ public:
 			if(first_max_id && max_id <= first_max_id) {
 				mysqlpp::Query query = conn->query();
 				query << "SELECT"
-						" c.ID, c.FileType, LCASE(CONCAT(HEX(SUBSTR(c.UUID, 1, 4)),'-',HEX(SUBSTR(c.UUID, 5, 2)),'-',HEX(SUBSTR(c.UUID, 7, 2)),'-',HEX(SUBSTR(c.UUID, 9, 2)),'-',HEX(SUBSTR(c.UUID, 11)))) c_UUID,"
-						" p.ID, p.FileType, LCASE(CONCAT(HEX(SUBSTR(p.UUID, 1, 4)),'-',HEX(SUBSTR(p.UUID, 5, 2)),'-',HEX(SUBSTR(p.UUID, 7, 2)),'-',HEX(SUBSTR(p.UUID, 9, 2)),'-',HEX(SUBSTR(p.UUID, 11)))) p_UUID "
+						 " c.ID, c.FileType, "<<format_uuid_field("c.UUID", "c_UUID")<<","
+						 " p.ID, p.FileType, "<<format_uuid_field("p.UUID", "p_UUID")<<" "
 						 "FROM"
 						 " ArchivingInternal." << tableName_ << " c LEFT JOIN ArchivingInternal." << tableName_ << " p ON c.ParentID=p.ID "
 						 "WHERE"
@@ -342,9 +366,10 @@ public:
 	 * @param p_parent
 	 * @return
 	 */
+	template <typename ValueType>
 	archiving::archivable::pointer load_archivable_by_key_value(
 			const std::string &key,
-			const std::string &value,
+			const ValueType &value,
 			archiving::archivable::pointer p_parent
 			)
 	{
@@ -356,7 +381,7 @@ public:
 					" ParentID,"
 					" FileType,"
 					" OrgID,"
-					" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) str_UUID,"
+					<< format_uuid_field("UUID", "str_UUID") << ","
 					" Path,"
 					" ModifiedPath,"
 					" State,"
@@ -367,7 +392,7 @@ public:
 					" Retry,"
 					" StartEpoch,"
 					" HostName,"
-					" LCASE(CONCAT(HEX(SUBSTR(OriginatorUUID, 1, 4)),'-',HEX(SUBSTR(OriginatorUUID, 5, 2)),'-',HEX(SUBSTR(OriginatorUUID, 7, 2)),'-',HEX(SUBSTR(OriginatorUUID, 9, 2)),'-',HEX(SUBSTR(OriginatorUUID, 11)))) OrigUUID,"
+					<< format_uuid_field("OriginatorUUID", "OrigUUID") << ","
 					" UserIDs,"
 					" ID,"
 					" BufferedRecording "
@@ -438,9 +463,7 @@ public:
 			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
 			)
 	{
-		std::ostringstream oss;
-		oss << id;
-		return load_archivable_by_key_value (std::string("ID"), oss.str(), p_parent);
+		return load_archivable_by_key_value ("ID", mysqlpp::sql_bigint(id), p_parent);
 	}
 
 	/**
@@ -455,7 +478,7 @@ public:
 			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
 			)
 	{
-		return load_archivable_by_key_value (std::string("UUID"), std::string("UNHEX(REPLACE(\"" + uuid + "\", '-', ''))"), p_parent);
+		return load_archivable_by_key_value("UUID", mysqlpp_uuid_literal(uuid), p_parent);
 	}
 
 	struct purgedef
@@ -496,7 +519,7 @@ public:
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 			mysqlpp::Query query = conn->query();
 			query <<"SELECT"
-					" ID, FileType, LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, Path, ModifiedPath "
+					" ID, FileType, "<<format_uuid_field("UUID", "UUID")<<", Path, ModifiedPath "
 					"FROM ArchivingInternal." << tableName_ << " "
 					"WHERE HostName=%0q:HostName AND ( ( State IN ('stored','discarded') AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime ) OR %2:MaxAgeDays > StartEpoch )";
 			if(limit)

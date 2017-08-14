@@ -10,7 +10,8 @@ set(HEADER_FILES
         sms_inspector.hpp
         directory_loader.hpp
 #        pre.h
-        archivable/channel.hpp)
+        archivable/channel.hpp
+        archivable/database.hpp)
 
 include_directories(
         ${MYSQL_INCLUDE_DIR}

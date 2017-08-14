@@ -164,7 +164,7 @@ private:
 	int reconnect_delay_;
 
 	const common::collectd::fn_produce_type& fn_produce_;
-	const common::collectd::fn_consume_with_timeout_callback_type& fn_consume_;
+	const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume_;
 	const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue_;
 	const common::collectd::fn_save_to_database_type& fn_save_to_database_;
 
@@ -195,7 +195,7 @@ public:
 	archived_client(
 			boost::asio::io_service& io_service,
 			const common::collectd::fn_produce_type& fn_produce,
-			const common::collectd::fn_consume_with_timeout_callback_type& fn_consume,
+			const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
@@ -510,17 +510,17 @@ private:
 					is.get(lf)) &&
 					ArchiveD == "ArchiveD" && protocol == "protocol")) {
 				ostr << "ERR invalid response\r\n";
-				LogError("Error: Invalid response from server");
+				LogError(local_port_<<" Error: Invalid response from server");
 				current_state_ = state::handshake_err;
 			}
 			else if(protocol_version_number != archiving::put_protocol_version_str) {
 				ostr << "ERR protocol version mismatch\r\n";
-				LogError("Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
+				LogError(local_port_<<" Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
 				current_state_ = state::handshake_err;
 			}
 			else {
 				if(version_number != version_number_only_string)
-					LogWarning("Warning: Server differs in version from client");
+					LogWarning(local_port_<<" Warning: Server differs in version from client");
 
 				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
@@ -760,72 +760,84 @@ private:
 		reconnect(false, 10);
 	}
 
+	/**
+	 * @brief Get another for PUT
+	 *
+	 * Sets up get_archivable_for_put so that the statemachine can continue
+	 */
+	inline void get_next_archivable_for_put()
+	{
+		strand_.post(
+                strand_.wrap(
+                        boost::bind(&archived_client::get_archivable_for_put, shared_from_this())));
+	}
+
+    /**
+     * @brief Get an archivable for PUT
+     */
 	void get_archivable_for_put() try
 	{
-		try {
-			if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok) || put_archivable_ptr_.get()) {
-
-				if(!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
-					LogError(local_port_<<' '<<"Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; current_state_ == states::ready_to_put || current_state_ == states::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok");
-
-				if(put_archivable_ptr_)
-					LogError(local_port_<<' '<<"Invalid call sequence [current_state_:"<<state::to_string(current_state_)<<"]; put_archivable_ptr_ != NULL");
-
-				do_close(true);
-				return;
-			}
-
-			while(!quit_ && p_socket_ && p_socket_->is_open()) {
-				put_archivable_ptr_ = fn_consume_(false, boost::chrono::milliseconds(10000), boost::protect(
-						boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())));
-
-				// if there was a timeout, the statemachine continues, cannot continue looping
-				if (!put_archivable_ptr_) {
-					return;
-				}
-
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
-
-				if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
-					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
-					finalise_current_archivable();
-					continue;
-				}
-
-				break;
-			}
-			
-			if(!put_archivable_ptr_) { // quit or socket closed
-				if(!p_socket_ || !p_socket_->is_open())
-					reconnect(false);
-
-				return;
-			}
-
-			try {
-				std::ostream ostr(&send_buffer_); ostr.clear();
-				put_archivable_ptr_->shove_put_request(ostr); // this could throw rml::utils::tmp_fstream::error
-
-				current_state_ = state::put_sent;
-				boost::asio::async_write(*p_socket_, send_buffer_,
-						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-								boost::asio::placeholders::error)));
-			}
-			catch(const std::exception& e) {
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT init failed; error:"<<e.what());
-				put_archivable_ptr_.reset(); // so that it wouldnt retry!
-				strand_.post(boost::bind(&archived_client::get_archivable_for_put, shared_from_this())); // so that the statemachine continues!
-				return;
-			}
+		if (put_archivable_ptr_) {
+			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
+								 << "]; put_archivable_ptr_ != NULL");
+			do_close(true);
+			return;
 		}
-		catch(const archiving::archivable_channel_t::consume_timed_out_exception& e) {
-			send_nop_or_reconnect();
+
+		if (!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
+		{
+			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
+								 << "]; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
+			do_close(true);
+			return;
 		}
-		catch(const archiving::archivable_channel_t::finishing_exception& e) {
-			LogMessage("channel finishing: closing");
-			close();
+
+		put_archivable_ptr_ = fn_consume_(
+				false, boost::chrono::milliseconds(10000),
+				boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
+				boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));
+        // if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
+        if (!put_archivable_ptr_) {
+            return;
+        }
+
+        LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
+
+        // if we are going down, give up!
+		if (quit_) {
+            LogMessage(local_port_<<" Quit flagged during consume; closing");
+            // reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
+            // that would be set to be "finishing" by now
+            put_archivable_ptr_.reset();
+            do_close();
+			return;
 		}
-	}
+
+        // if the socket has disconnected while we were waiting, we need to reconnect
+        if (!p_socket_ || !p_socket_->is_open()) {
+            LogMessage(local_port_<<" Socket found unusable after consume; reconnecting");
+            reconnect(false);
+            return;
+        }
+
+        if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
+            LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
+            finalise_current_archivable();
+            get_next_archivable_for_put();
+            return;
+        }
+
+        std::ostream ostr(&send_buffer_); ostr.clear();
+        if (!put_archivable_ptr_->inject_put_request(ostr)) {
+            put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
+            get_next_archivable_for_put();
+            return;
+        }
+
+        current_state_ = state::put_sent;
+        boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+                boost::bind(&archived_client::run_statemachine, shared_from_this(), boost::asio::placeholders::error)));
+    }
 	catch(const std::exception& e)
 	{
 		LogWarning("Exception: "<<e.what());

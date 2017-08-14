@@ -20,7 +20,8 @@ set(HEADER_FILES
         md5.hpp
         policy.hpp
         pre.h
-        types.hpp)
+        types.hpp
+        collectd/callbacks.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

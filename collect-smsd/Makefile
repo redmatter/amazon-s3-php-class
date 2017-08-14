@@ -59,6 +59,7 @@ LIBS += \
 	-lboost_system$(BOOST_NAME_EXT) \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
+	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lcppnetlib-uri -lmysqlclient_r
 

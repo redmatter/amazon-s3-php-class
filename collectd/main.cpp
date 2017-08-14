@@ -410,11 +410,8 @@ int main(int argc, char* argv[]) try
 		const common::collectd::fn_consume_type fn_in_queue_consume(
 				boost::bind(
 						&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
-		const common::collectd::fn_consume_type fn_out_queue_consume(
-				boost::bind(
-						&collectd::archivable::queue::consume, out_queue, boost::chrono::milliseconds::zero(), _1));
-		const common::collectd::fn_consume_with_timeout_callback_type fn_consume_with_timeout_callback(
-				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3));
+		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
+				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3, _4));
 
 		app::database::internal internal_db(app::confMap, "CollectDQueue");
 		const common::collectd::fn_save_to_database_type fn_save_to_database(
@@ -546,7 +543,7 @@ int main(int argc, char* argv[]) try
 		for(unsigned int i = 0; i < (n_threads - 2); i++) {
 			archived_clients.push_back(
 					boost::make_shared<app::archived_client>(
-							boost::ref(io_service), fn_out_queue_produce, fn_consume_with_timeout_callback, fn_remove_from_catalogue,
+							boost::ref(io_service), fn_out_queue_produce, fn_out_queue_consume, fn_remove_from_catalogue,
 							fn_save_to_database, app::confMap["archived_client.server_host"].as<std::string>(),
 							app::confMap["archived_client.server_port"].as<std::string>(), boost::ref(app::quit)));
 		}

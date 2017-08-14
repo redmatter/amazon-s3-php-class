@@ -298,7 +298,7 @@ namespace app
 
 						// commit the new data to the archivable object
 
-						archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::shove_put_request()
+						archivable_sms->set_owners(*owners); // we change this when we send the PUT request @see archivable::inject_put_request()
 						archivable_sms->set_originator_uuid(archivable_sms->get_uuid());
 						archivable_sms->set_start_epoch(start_epoch);
 						/*
