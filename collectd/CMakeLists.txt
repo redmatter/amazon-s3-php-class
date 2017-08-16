@@ -2,6 +2,9 @@ project(collectd)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
+find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams regex REQUIRED)
+find_package(SQLite3 REQUIRED)
+
 set(HEADER_FILES
         directory_loader.hpp
         database_sqlite.hpp
@@ -16,13 +19,10 @@ set(HEADER_FILES
 
 include_directories(
         /usr/include/cpp-netlib
-        ${SQLITE3_INCLUDE_DIR}
+        ${SQLITE3_INCLUDE_DIRS}
         ${rml-queue_SOURCE_DIR}
         ../common
 )
-
-find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams regex REQUIRED)
-find_package(SQLite3 REQUIRED)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -34,11 +34,8 @@ add_definitions(
         -DLOG_SOURCE_LOCATION
 
         -DARCHIVED_LISTEN_PORT="10100"
-        -DDATABASE_SQLITE
 
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
-
-        -DDATABASE_SQLITE
 )
 
 add_executable(rmcollectd.bin main.cpp ${HEADER_FILES})
