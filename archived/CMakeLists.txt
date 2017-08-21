@@ -59,7 +59,6 @@ add_definitions(
         -DLOG_SOURCE_LOCATION
 
         -DARCHIVED_LISTEN_PORT="10100"
-        -DDATABASE_SQLITE
 
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
 )

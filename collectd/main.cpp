@@ -12,12 +12,8 @@
 #include "archivable/queue.hpp"
 #include "../common/collectd/callbacks.hpp"
 
-#ifndef DATABASE_SQLITE
-#include "../common/database.hpp"
-#else
 #include "database_sqlite.hpp"
 #include <rml/sqlite/status.hpp>
-#endif
 
 #include "../common/archived_client.hpp"
 #include "../common/types.hpp"
@@ -551,10 +547,8 @@ int main(int argc, char* argv[]) try
 		for(unsigned int i = 0; i < n_threads; i++)
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
-#ifdef DATABASE_SQLITE
 		// setup the save_run thread
-			threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db), boost::ref(app::quit)));
-#endif
+		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db), boost::ref(app::quit)));
 
 		// kick the monitor to life
 		inotify_monitor.async_monitor();
@@ -592,14 +586,12 @@ int main(int argc, char* argv[]) try
                 LogMessage("[statistics] Queue:"<<*in_queue<<' '<<in_queue->get_statistics());
                 LogMessage("[statistics] Queue:"<<*out_queue<<' '<<out_queue->get_statistics());
 				LogMessage("[statistics] DBLoading:"<<RML_YES_NO(more_to_load_from_db));
-#ifdef DATABASE_SQLITE
 				LogDebug("[statistics] SQLIteSessions:"<<rml::sqlite::session::count());
 				LogDebug("[statistics] SQLIteSessionPoolSize:"<<internal_db.get_pool_size());
 
 				internal_db.clear_dormant_sessions();
 
 				rml::sqlite::status::log_all();
-#endif
 			}
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));

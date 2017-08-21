@@ -136,7 +136,7 @@ bool unlink_path(const std::string& path)
 	return false;
 }
 
-void purge(database::internal& internal_db, volatile bool& quit, const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int max_age_days, const unsigned int limit, const unsigned int frequency_minutes)
+void purge(database::internal& internal_db, volatile bool& quit, const std::string& pbx_hostname, const unsigned int done_items_max_age_minutes, const unsigned int limit, const unsigned int frequency_minutes)
 {
 	int ticks = 1;
 
@@ -147,7 +147,7 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 			continue;
 
 		try {
-			const database::internal::purgedef::pointer_vector& purgeables( internal_db.purge_find(pbx_hostname, done_items_max_age_minutes, max_age_days, limit) );
+			const database::internal::purgedef::pointer_vector& purgeables( internal_db.purge_find(pbx_hostname, done_items_max_age_minutes, limit) );
 
 			if(!purgeables.empty()) {
 				for(database::internal::purgedef::pointer_vector::const_iterator itr = purgeables.begin();
@@ -221,7 +221,6 @@ int main(int argc, char* argv[]) try
 				("app.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "collect-smsd service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()->default_value(20), "Maximum age in minutes for done items")
-				("purge.max_age_days",  boost::program_options::value<unsigned int>()->default_value(1), "Maximum age")
 				("purge.batch_size",  boost::program_options::value<unsigned int>()->default_value(500), "Purge batch size")
 				("purge.frequency_minutes",  boost::program_options::value<unsigned int>()->default_value(1), "Purge frequency")
 				;
@@ -359,7 +358,6 @@ int main(int argc, char* argv[]) try
 		threads.create_thread(boost::bind(app::purge,
 				boost::ref(internal_db), boost::ref(app::quit), boost::ref(app::hostname),
 				app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>(),
-				app::confMap["purge.max_age_days"].as<unsigned int>(),
 				app::confMap["purge.batch_size"].as<unsigned int>(),
 				app::confMap["purge.frequency_minutes"].as<unsigned int>()));
 
