@@ -155,6 +155,7 @@ public:
 
 		// any pending shall be saved when we quit
 		save_all();
+		LogMessage("Database-save thread terminating");
 	}
 	catch(const std::exception& e) {
 		LogError("save_run failed; exception:"<<e.what());

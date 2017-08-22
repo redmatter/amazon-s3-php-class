@@ -166,7 +166,7 @@ void purge(database::internal& internal_db, volatile bool& quit, const std::stri
 
 	while(!quit) {
 
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
+		boost::this_thread::sleep_for(boost::chrono::seconds(1));
 		if(ticks++ % (frequency_minutes * 60))
 			continue;
 
@@ -583,8 +583,8 @@ int main(int argc, char* argv[]) try
 			}
 
 			if(!(ticks % 60)) {
-                LogMessage("[statistics] Queue:"<<*in_queue<<' '<<in_queue->get_statistics());
-                LogMessage("[statistics] Queue:"<<*out_queue<<' '<<out_queue->get_statistics());
+				LogMessage("[statistics] Queue:"<<*in_queue<<' '<<in_queue->get_statistics());
+				LogMessage("[statistics] Queue:"<<*out_queue<<' '<<out_queue->get_statistics());
 				LogMessage("[statistics] DBLoading:"<<RML_YES_NO(more_to_load_from_db));
 				LogDebug("[statistics] SQLIteSessions:"<<rml::sqlite::session::count());
 				LogDebug("[statistics] SQLIteSessionPoolSize:"<<internal_db.get_pool_size());
@@ -594,13 +594,31 @@ int main(int argc, char* argv[]) try
 				rml::sqlite::status::log_all();
 			}
 
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
+			boost::this_thread::sleep_for(boost::chrono::seconds(1));
 
 			ticks++;
 		}
 
 		in_queue->set_finishing();
 		out_queue->set_finishing();
+
+		// delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
+		// as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
+		// up to ~10s before continuing with shutdown.
+		archived_clients.clear();
+		{
+			const boost::chrono::steady_clock::time_point wait_until(
+					boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
+			while (wait_until >= boost::chrono::steady_clock::now()) {
+				const unsigned int& instances(app::archived_client::get_instances_count());
+				if (instances == 0) {
+					break;
+				}
+
+				LogMessage("Waiting for archived clients to finish;" << instances << " instances remaining");
+				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
+			}
+		}
 
 		p_work.reset();
 

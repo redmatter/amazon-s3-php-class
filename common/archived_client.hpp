@@ -15,6 +15,7 @@
 #include "collectd/callbacks.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/atomic.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
@@ -27,16 +28,18 @@ using boost::asio::ip::tcp;
 class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
-	static unsigned int n_instances_;
-	static unsigned int n_ok_;
+	static boost::atomic_uint n_instances_;
+	static boost::atomic_uint n_ok_;
+	static boost::atomic_uint instance_id_seq_;
 	
 	void set_is_archived_ok(const bool ok)
 	{
 		LogVerbose(instance_id_<<": set_is_archived_ok: "<<ok);
-		if(ok)
-			__sync_add_and_fetch(&n_ok_, 1);
-		else
-			__sync_sub_and_fetch(&n_ok_, 1);
+		if(ok) {
+			n_ok_++;
+		} else {
+			n_ok_--;
+		}
 	}
 
 	enum constants
@@ -178,10 +181,10 @@ public:
 
 	static float get_is_archived_ok()
 	{
-		if(!n_instances_ || !n_ok_)
+		if(n_instances_ == 0U || n_ok_ == 0U)
 			return 0.0;
 		
-		return (float)n_ok_ / (float)n_instances_;
+		return (float)n_ok_.load() / (float)n_instances_.load();
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
@@ -201,7 +204,7 @@ public:
 			const std::string& archived_host,
 			const std::string& archived_port,
 			volatile bool& quit) :
-				instance_id_(__sync_add_and_fetch(&n_instances_, 1)),
+				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),
 				resolver_(io_service_),
@@ -217,7 +220,19 @@ public:
 				fn_save_to_database_(fn_save_to_database),
 				quit_(quit)
 	{
-		LogVerbose("Instance created; ID:"<<instance_id_);
+		n_instances_++;
+		LogMessage("archived-client created; instance:"<<instance_id_);
+	}
+
+	~archived_client()
+	{
+		n_instances_--;
+		LogMessage("archived-client destroyed; instance:"<<instance_id_);
+	}
+
+	static inline unsigned int get_instances_count()
+	{
+		return n_instances_;
 	}
 
 	inline void setup_retry_and_reset_current_archivable(const char *message)
@@ -256,7 +271,7 @@ public:
 	void reconnect(const bool with_bye = true, int delay_seconds = reconnect_delay_seconds)
 	{
 		if (!with_bye) {
-			do_close(true, delay_seconds);
+			do_close(true, static_cast<unsigned int>(delay_seconds));
 		}
 		else {
 			reconnect_delay_ = delay_seconds;
@@ -348,15 +363,22 @@ private:
 		fn_remove_from_catalogue_(put_archivable_ptr_);
 		put_archivable_ptr_->set_done(false);
 
-		int retry = 0;
-		while(!fn_save_to_database_(put_archivable_ptr_) && !quit_) {
-			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
-			boost::this_thread::sleep(boost::posix_time::seconds(15));
-			retry++;
-		}
+		if (!fn_save_to_database_(put_archivable_ptr_)) {
+			int retry = 0;
+			bool saved_ok = false;
+			while (!quit_) {
+				boost::this_thread::sleep(boost::posix_time::seconds(2));
+				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
+                saved_ok = fn_save_to_database_(put_archivable_ptr_);
+				if (saved_ok) {
+					break;
+				}
+			}
 
-		if(retry && quit_)
-			throw rml::exception("Quit flagged during database retry");
+			if (!saved_ok && quit_) {
+				throw rml::exception("Quit flagged during database retry");
+			}
+		}
 
 		put_archivable_ptr_.reset();
 	}
@@ -377,6 +399,8 @@ private:
 			timer_.cancel();
 
 			local_port_ = p_socket_->local_endpoint().port();
+			LogWarning("ID:" << instance_id_ << "Connected to ArchiveD " << archived_host_ << ':' << archived_port_
+							 << " local-port:" << local_port_);
 
 			run_statemachine(error);
 		}
@@ -428,7 +452,7 @@ private:
 								boost::asio::placeholders::error)));
 			}
 			else
-				do_close(current_state_ == state::reconnecting_bye_wait, reconnect_delay_);
+				do_close(current_state_ == state::reconnecting_bye_wait, static_cast<unsigned int>(reconnect_delay_));
 
 			return;
 		}
@@ -733,7 +757,7 @@ private:
 		case state::reconnecting_bye_wait:
 		{
 			current_state_ = state::reconnecting;
-			do_close(true, reconnect_delay_);
+			do_close(true, static_cast<unsigned int>(reconnect_delay_));
 			break;
 		}
 
@@ -768,13 +792,13 @@ private:
 	inline void get_next_archivable_for_put()
 	{
 		strand_.post(
-                strand_.wrap(
-                        boost::bind(&archived_client::get_archivable_for_put, shared_from_this())));
+				strand_.wrap(
+						boost::bind(&archived_client::get_archivable_for_put, shared_from_this())));
 	}
 
-    /**
-     * @brief Get an archivable for PUT
-     */
+	/**
+	 * @brief Get an archivable for PUT
+	 */
 	void get_archivable_for_put() try
 	{
 		if (put_archivable_ptr_) {
@@ -796,48 +820,48 @@ private:
 				false, boost::chrono::milliseconds(10000),
 				boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
 				boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));
-        // if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
-        if (!put_archivable_ptr_) {
-            return;
-        }
-
-        LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
-
-        // if we are going down, give up!
-		if (quit_) {
-            LogMessage(local_port_<<" Quit flagged during consume; closing");
-            // reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
-            // that would be set to be "finishing" by now
-            put_archivable_ptr_.reset();
-            do_close();
+		// if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
+		if (!put_archivable_ptr_) {
 			return;
 		}
 
-        // if the socket has disconnected while we were waiting, we need to reconnect
-        if (!p_socket_ || !p_socket_->is_open()) {
-            LogMessage(local_port_<<" Socket found unusable after consume; reconnecting");
-            reconnect(false);
-            return;
-        }
+		LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
 
-        if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
-            LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
-            finalise_current_archivable();
-            get_next_archivable_for_put();
-            return;
-        }
+		// if we are going down, give up!
+		if (quit_) {
+			LogMessage(local_port_<<" Quit flagged during consume; closing");
+			// reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
+			// that would be set to be "finishing" by now
+			put_archivable_ptr_.reset();
+			do_close();
+			return;
+		}
 
-        std::ostream ostr(&send_buffer_); ostr.clear();
-        if (!put_archivable_ptr_->inject_put_request(ostr)) {
-            put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
-            get_next_archivable_for_put();
-            return;
-        }
+		// if the socket has disconnected while we were waiting, we need to reconnect
+		if (!p_socket_ || !p_socket_->is_open()) {
+			LogMessage(local_port_<<" Socket found unusable after consume; reconnecting");
+			reconnect(false);
+			return;
+		}
 
-        current_state_ = state::put_sent;
-        boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
-                boost::bind(&archived_client::run_statemachine, shared_from_this(), boost::asio::placeholders::error)));
-    }
+		if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
+			LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
+			finalise_current_archivable();
+			get_next_archivable_for_put();
+			return;
+		}
+
+		std::ostream ostr(&send_buffer_); ostr.clear();
+		if (!put_archivable_ptr_->inject_put_request(ostr)) {
+			put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
+			get_next_archivable_for_put();
+			return;
+		}
+
+		current_state_ = state::put_sent;
+		boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+				boost::bind(&archived_client::run_statemachine, shared_from_this(), boost::asio::placeholders::error)));
+	}
 	catch(const std::exception& e)
 	{
 		LogWarning("Exception: "<<e.what());
@@ -849,8 +873,14 @@ private:
 
 	inline void send_nop_or_reconnect()
 	{
+		// if shutdown is in progress, don't bother with any
+		if (quit_) {
+			return;
+		}
+
+		// if the socket looks OK, send NOP
 		if (p_socket_ && p_socket_->is_open()) {
-			LogDebug(local_port_ << " Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
+			LogMessage(local_port_<<" (instance:"<<instance_id_ << ") Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
 
 			std::ostream ostr(&send_buffer_);
 			ostr.clear();
@@ -864,7 +894,8 @@ private:
 									&archived_client::handle_write, shared_from_this(),
 									boost::asio::placeholders::error,
 									boost::asio::placeholders::bytes_transferred)));
-		} else if (!quit_) {
+		// else reconnect
+		} else {
 			reconnect(false);
 		}
 	}
@@ -899,7 +930,7 @@ private:
 		// TODO finetune memory usage here; now we double up unnecessarily!
 		// we could read directly into allocated stream space [ after send_buffer_.prepare(buf_length) ]
 
-		std::vector<char> buf(buf_length + 1);
+		std::vector<char> buf(static_cast<unsigned long>(buf_length + 1));
 		buf_length = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], buf_length);
 
 		put_sent_size_ += buf_length;

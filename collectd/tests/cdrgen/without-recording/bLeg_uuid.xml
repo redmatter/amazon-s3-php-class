@@ -9,7 +9,7 @@
   <variables>
     <direction>outbound</direction>
     <is_outbound>true</is_outbound>
-    <uuid>bLeg_uuid</uuid>
+    <uuid>{{bLeg_uuid}}</uuid>
     <session_id>19</session_id>
     <sip_gateway_name>magrathea</sip_gateway_name>
     <sip_invite_domain>sipgw.magrathea.net</sip_invite_domain>
@@ -18,7 +18,7 @@
     <sip_destination_url>sip%3A447956665283%40sipgw.magrathea.net</sip_destination_url>
     <max_forwards>66</max_forwards>
     <originator_codec>PCMA%408000h%4020i</originator_codec>
-    <originator>aLeg_uuid</originator>
+    <originator>{{aLeg_uuid}}</originator>
     <switch_m_sdp>v%3D0%0D%0Ao%3D-%2022596%2022596%20IN%20IP4%20127.0.1.1%0D%0As%3Dsession%0D%0Ac%3DIN%20IP4%20172.30.99.226%0D%0At%3D0%200%0D%0Am%3Daudio%2010000%20RTP/AVP%208%20101%0D%0Aa%3Drtpmap%3A8%20PCMA/8000%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-11%0D%0Aa%3Doldmediaip%3A127.0.1.1%0D%0A</switch_m_sdp>
     <execute_on_ring>execute_extension%20executeOnRing%20XML%20dpSupport</execute_on_ring>
     <rmNumberNormalised>447956665283</rmNumberNormalised>
@@ -44,7 +44,7 @@
     <rmDumpCalls>None</rmDumpCalls>
     <sip_redirect_context>redirect</sip_redirect_context>
     <domain_name>sip.dk.redmatter.com</domain_name>
-    <rmOriginatorUUID>aLeg_uuid</rmOriginatorUUID>
+    <rmOriginatorUUID>{{aLeg_uuid}}</rmOriginatorUUID>
     <rmOriginatorOrgId>1</rmOriginatorOrgId>
     <rmOriginatorContext>1</rmOriginatorContext>
     <rmOriginatorUserId>0</rmOriginatorUserId>
@@ -52,7 +52,7 @@
     <user_context>1</user_context>
     <hold_music>local_stream%3A//classical</hold_music>
     <originate_early_media>true</originate_early_media>
-    <originating_leg_uuid>aLeg_uuid</originating_leg_uuid>
+    <originating_leg_uuid>{{aLeg_uuid}}</originating_leg_uuid>
     <sip_local_sdp_str>v%3D0%0Ao%3DRMServer%201358731731%201358731732%20IN%20IP4%20172.30.98.23%0As%3DRMServer%0Ac%3DIN%20IP4%20172.30.98.23%0At%3D0%200%0Am%3Daudio%2029780%20RTP/AVP%208%200%209%203%20101%2013%0Aa%3Drtpmap%3A101%20telephone-event/8000%0Aa%3Dfmtp%3A101%200-16%0Aa%3Dptime%3A20%0Aa%3Dsendrecv%0A</sip_local_sdp_str>
     <sip_outgoing_contact_uri>%3Csip%3Agw%2Bmagrathea%40172.30.98.23%3A15080%3Btransport%3Dudp%3Bgw%3Dmagrathea%3E</sip_outgoing_contact_uri>
     <sip_req_uri>447956665283%40sipgw.magrathea.net</sip_req_uri>
@@ -77,10 +77,10 @@
     <sip_2833_recv_payload>101</sip_2833_recv_payload>
     <remote_media_ip>213.166.5.168</remote_media_ip>
     <remote_media_port>20092</remote_media_port>
-    <last_bridge_to>aLeg_uuid</last_bridge_to>
+    <last_bridge_to>{{aLeg_uuid}}</last_bridge_to>
     <bridge_channel>sofia/internal1/12000%40sip.dk.redmatter.com</bridge_channel>
-    <bridge_uuid>aLeg_uuid</bridge_uuid>
-    <signal_bond>aLeg_uuid</signal_bond>
+    <bridge_uuid>{{aLeg_uuid}}</bridge_uuid>
+    <signal_bond>{{aLeg_uuid}}</signal_bond>
     <sip_local_network_addr>172.30.98.23</sip_local_network_addr>
     <sip_reply_host>213.166.5.149</sip_reply_host>
     <sip_reply_port>5060</sip_reply_port>
@@ -127,7 +127,7 @@
     <bridge_stamp>2013-01-21%2009%3A45%3A15</bridge_stamp>
     <progress_media_stamp>2013-01-21%2009%3A45%3A15</progress_media_stamp>
     <end_stamp>2013-01-21%2009%3A45%3A41</end_stamp>
-    <start_epoch>startEpoch</start_epoch>
+    <start_epoch>{{startEpoch}}</start_epoch>
     <start_uepoch>1358761511720134</start_uepoch>
     <profile_start_epoch>1358761511</profile_start_epoch>
     <profile_start_uepoch>1358761511720134</profile_start_uepoch>
@@ -193,7 +193,7 @@
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
     <bridge_hangup_cause>NORMAL_CLEARING</bridge_hangup_cause>
-    <call_uuid>bLeg_uuid</call_uuid></variables>
+    <call_uuid>{{bLeg_uuid}}</call_uuid></variables>
   <app_log>
     <application app_name="lua" app_data="applications/features/PreProcessBLeg.lua execute_on_answer" app_stamp="1358761515573808"></application></app_log>
   <callflow dialplan="XML" unique-id="5ef0e69d-a3cf-4fc8-b8b5-799ebab879ee" clone-of="575cddf2-ba89-4a07-95fc-3a3533093a3d" profile_index="1">
@@ -209,7 +209,7 @@
       <network_addr>213.166.5.149</network_addr>
       <rdnis>OutboundHook</rdnis>
       <destination_number>447956665283</destination_number>
-      <uuid>bLeg_uuid</uuid>
+      <uuid>{{bLeg_uuid}}</uuid>
       <source>mod_sofia</source>
       <context>features</context>
       <chan_name>sofia/external1/447956665283</chan_name>
@@ -226,7 +226,7 @@
           <network_addr>172.30.98.23</network_addr>
           <rdnis>OutboundHook</rdnis>
           <destination_number>featureBridgeExternalCall</destination_number>
-          <uuid>aLeg_uuid</uuid>
+          <uuid>{{aLeg_uuid}}</uuid>
           <source>mod_sofia</source>
           <context>features</context>
           <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></originator_caller_profile></originator></caller_profile>
