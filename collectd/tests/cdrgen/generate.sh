@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -xeu
 
 : "${data_root_dir:="$(dirname "$0")"}"
 : "${out_dir:=/var/log/freeswitch/xml_cdr}"
@@ -64,14 +64,14 @@ while [ "$batch" -gt 0 ]; do
 		make_whitenoise_recording "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
 	fi
 
-	sed -e "s/{{aLeg_uuid}}/$auuid/" \
-		-e "s/{{bLeg_uuid}}/$buuid/" \
-		-e "s/startEpoch/$time/" \
+	sed -e "s/{{aLeg_uuid}}/$auuid/g" \
+		-e "s/{{bLeg_uuid}}/$buuid/g" \
+		-e "s/startEpoch/$time/g" \
 		< "$data_dir/aLeg_uuid.xml" \
 		> "$out_dir/$auuid.cdr.xml"
-	sed -e "s/{{aLeg_uuid}}/$auuid/" \
-		-e "s/{{bLeg_uuid}}/$buuid/" \
-		-e "s/startEpoch/$time/" \
+	sed -e "s/{{aLeg_uuid}}/$auuid/g" \
+		-e "s/{{bLeg_uuid}}/$buuid/g" \
+		-e "s/startEpoch/$time/g" \
 		< "$data_dir/bLeg_uuid.xml" \
 		> "$out_dir/$buuid.cdr.xml"
 
