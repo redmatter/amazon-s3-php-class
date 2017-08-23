@@ -433,7 +433,7 @@ private:
 						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 								boost::asio::placeholders::error)));
 
-				set_reconnect_timer(5, true);
+				set_reconnect_timer(10, true);
 				return;
 			}
 		}
@@ -513,7 +513,7 @@ private:
 					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
-			set_reconnect_timer(2, true);
+			set_reconnect_timer(5, true);
 
 			break;
 		}
@@ -572,7 +572,7 @@ private:
 					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
-			set_reconnect_timer(2, true);
+			set_reconnect_timer(10, true);
 
 			break;
 		}
@@ -650,7 +650,8 @@ private:
 					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
-			set_reconnect_timer(10, true);
+			// allow ArchiveD time based on the file-size to do disk allocations etc
+			set_reconnect_timer(static_cast<const int>(put_archivable_ptr_->get_fstream_ptr()->get_size() / 102400), true);
 
 			break;
 		}
@@ -713,7 +714,8 @@ private:
 					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
 							boost::asio::placeholders::error)));
 
-			set_reconnect_timer(10, true);
+			// wait for one second per 100KB; ArchiveD needs time to compute MD5, and do other housekeeping
+			set_reconnect_timer(static_cast<const int>(put_file_size_ / 102400), true);
 
 			break;
 		}
@@ -902,7 +904,7 @@ private:
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
-		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+		// LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
 		timer_.cancel();
 
@@ -943,7 +945,7 @@ private:
 						boost::asio::placeholders::error,
 						boost::asio::placeholders::bytes_transferred)));
 
-		set_reconnect_timer(10, true);
+		set_reconnect_timer(20, true);
 	}
 	catch(const std::exception& e)
 	{
