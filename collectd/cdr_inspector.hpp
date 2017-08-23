@@ -16,6 +16,7 @@
 #include "archivable/catalogue.hpp"
 
 #include <rml/utils.h>
+#include <rml/queue/error.hpp>
 
 #include <pugixml/pugixml.hpp>
 
@@ -826,6 +827,13 @@ public:
 				catch(const archiving::archivable_channel_t::finishing_exception& e) {
 					LogVerbose(e.what());
 					break;
+				}
+				catch (const boost::system::system_error &e) {
+					if (e.code() == rml::queue::error::make_error_condition(rml::queue::error::runtime_errors::is_finishing)) {
+						LogVerbose(e.what());
+						break;
+					}
+					LogWarning("exception:"<<e.what());
 				}
 				catch(const std::exception& e) {
 					LogWarning("exception:"<<e.what());

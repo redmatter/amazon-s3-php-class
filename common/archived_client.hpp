@@ -34,7 +34,7 @@ private:
 	
 	void set_is_archived_ok(const bool ok)
 	{
-		LogVerbose(instance_id_<<": set_is_archived_ok: "<<ok);
+		LogVerbose("ID:"<<instance_id_<<": set_is_archived_ok: "<<ok);
 		if(ok) {
 			n_ok_++;
 		} else {
@@ -221,13 +221,13 @@ public:
 				quit_(quit)
 	{
 		n_instances_++;
-		LogMessage("archived-client created; instance:"<<instance_id_);
+		LogMessage("archived-client created; ID:"<<instance_id_);
 	}
 
 	~archived_client()
 	{
 		n_instances_--;
-		LogMessage("archived-client destroyed; instance:"<<instance_id_);
+		LogMessage("archived-client destroyed; ID:"<<instance_id_);
 	}
 
 	static inline unsigned int get_instances_count()
@@ -399,7 +399,7 @@ private:
 			timer_.cancel();
 
 			local_port_ = p_socket_->local_endpoint().port();
-			LogWarning("ID:" << instance_id_ << "Connected to ArchiveD " << archived_host_ << ':' << archived_port_
+			LogWarning("ID:" << instance_id_ << " Connected to ArchiveD " << archived_host_ << ':' << archived_port_
 							 << " local-port:" << local_port_);
 
 			run_statemachine(error);
@@ -880,7 +880,7 @@ private:
 
 		// if the socket looks OK, send NOP
 		if (p_socket_ && p_socket_->is_open()) {
-			LogMessage(local_port_<<" (instance:"<<instance_id_ << ") Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
+			LogMessage(local_port_<<" (ID:"<<instance_id_ << ") Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
 
 			std::ostream ostr(&send_buffer_);
 			ostr.clear();
