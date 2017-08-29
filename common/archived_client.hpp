@@ -292,9 +292,17 @@ public:
 	}
 
 private:
+	inline void cancel_timer()
+	{
+		LogDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
+		timer_.cancel();
+	}
+
 	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
 	{
-		timer_.cancel();
+		LogDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
+
+		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
 		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
@@ -396,16 +404,16 @@ private:
 			}
 
 			current_state_ = state::connecting;
-			timer_.cancel();
+			cancel_timer();
 
 			local_port_ = p_socket_->local_endpoint().port();
-			LogWarning("ID:" << instance_id_ << " Connected to ArchiveD " << archived_host_ << ':' << archived_port_
+			LogMessage("ID:" << instance_id_ << " Connected to ArchiveD " << archived_host_ << ':' << archived_port_
 							 << " local-port:" << local_port_);
 
 			run_statemachine(error);
 		}
 		else {
-			LogWarning("Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
+			LogWarning("ID:" << instance_id_ << " Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
 			if (endpoint_iterator != tcp::resolver::iterator()) {
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				p_socket_.reset(new tcp::socket(io_service_));
@@ -478,10 +486,10 @@ private:
 	void run_statemachine(const boost::system::error_code& error) try
 	{
 		// reset any timer in progress; if we loop through, we are alive and kicking
-		timer_.cancel();
+		cancel_timer();
 
 		if(error) {
-			LogError("run_statemachine [current_state:"<<state::to_string(current_state_)<<"]: "<<error.message());
+			LogError(local_port_<<" (ID:"<<instance_id_ << ") run_statemachine [current_state:"<<state::to_string(current_state_)<<"]: "<<error.message());
 			
 			switch(current_state_) {
 			case state::closing_bye_wait:
@@ -651,7 +659,7 @@ private:
 							boost::asio::placeholders::error)));
 
 			// allow ArchiveD time based on the file-size to do disk allocations etc
-			set_reconnect_timer(static_cast<const int>(put_archivable_ptr_->get_fstream_ptr()->get_size() / 102400), true);
+			set_reconnect_timer(std::max(static_cast<const int>(put_file_size_ / 102400), 20), true);
 
 			break;
 		}
@@ -684,7 +692,6 @@ private:
 				ifs->re_open();
 				ifs->rdbuf()->pubseekpos(0,std::ios::in);
 
-				put_file_size_ = ifs->get_size();
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
 					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
@@ -715,7 +722,7 @@ private:
 							boost::asio::placeholders::error)));
 
 			// wait for one second per 100KB; ArchiveD needs time to compute MD5, and do other housekeeping
-			set_reconnect_timer(static_cast<const int>(put_file_size_ / 102400), true);
+			set_reconnect_timer(std::max(static_cast<const int>(put_file_size_ / 102400), 20), true);
 
 			break;
 		}
@@ -861,6 +868,7 @@ private:
 		}
 
 		current_state_ = state::put_sent;
+		put_file_size_ = put_archivable_ptr_->get_fstream_ptr()->get_size();
 		boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
 				boost::bind(&archived_client::run_statemachine, shared_from_this(), boost::asio::placeholders::error)));
 	}
@@ -904,9 +912,9 @@ private:
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
-		// LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
-		timer_.cancel();
+		cancel_timer();
 
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
 			if (!error && (put_sent_size_ == put_file_size_)) {
@@ -980,7 +988,7 @@ private:
 
 		set_is_archived_ok(false);
 
-		timer_.cancel();
+		cancel_timer();
 		resolver_.cancel();
 
 		if(p_socket_) {
