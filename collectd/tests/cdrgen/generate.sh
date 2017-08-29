@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -xeu
+set -eu
 
 : "${data_root_dir:="$(dirname "$0")"}"
 : "${out_dir:=/var/log/freeswitch/xml_cdr}"
@@ -24,7 +24,7 @@ make_whitenoise_wav() {
 	# Option differences in v12.x v/s v14.x+
 	# See http://sox.cvs.sourceforge.net/sox/sox/ChangeLog
 	if sox --version &>/dev/null; then
-		sox_opt=(-b 8)
+		sox_opt=(-b 16)
 	else
 		sox_opt=(-w)
 	fi
@@ -66,12 +66,12 @@ while [ "$batch" -gt 0 ]; do
 
 	sed -e "s/{{aLeg_uuid}}/$auuid/g" \
 		-e "s/{{bLeg_uuid}}/$buuid/g" \
-		-e "s/startEpoch/$time/g" \
+		-e "s/{{startEpoch}}/$time/g" \
 		< "$data_dir/aLeg_uuid.xml" \
 		> "$out_dir/$auuid.cdr.xml"
 	sed -e "s/{{aLeg_uuid}}/$auuid/g" \
 		-e "s/{{bLeg_uuid}}/$buuid/g" \
-		-e "s/startEpoch/$time/g" \
+		-e "s/{{startEpoch}}/$time/g" \
 		< "$data_dir/bLeg_uuid.xml" \
 		> "$out_dir/$buuid.cdr.xml"
 
