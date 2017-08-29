@@ -294,13 +294,13 @@ public:
 private:
 	inline void cancel_timer()
 	{
-		LogDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
+        DevDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
 		timer_.cancel();
 	}
 
 	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
 	{
-		LogDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
+        DevDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
 
 		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
