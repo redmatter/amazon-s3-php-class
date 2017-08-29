@@ -554,10 +554,13 @@ int main(int argc, char* argv[]) try
 		inotify_monitor.async_monitor();
 
 		// kick the ArchiveD clients to life
-		std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
-		for(std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-				itr != end; ++itr)
-			(*itr)->connect_archived();
+		{
+			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
+			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
+			for(itr; itr != end; ++itr) {
+				(*itr)->connect_archived();
+			}
+		}
 
 		DevDebug("app::confMap[\"purge.done_items_max_age_minutes\"].as<unsigned int>() "<<app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>());
 
@@ -602,6 +605,14 @@ int main(int argc, char* argv[]) try
 		in_queue->set_finishing();
 		out_queue->set_finishing();
 
+		// Initiate shutdown of ArchiveD clients
+		{
+			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
+			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
+			for(itr; itr != end; ++itr) {
+				(*itr)->shutdown();
+			}
+		}
 		// delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
 		// as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
 		// up to ~10s before continuing with shutdown.

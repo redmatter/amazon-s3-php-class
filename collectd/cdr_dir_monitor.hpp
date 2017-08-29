@@ -50,12 +50,12 @@ public:
 #if 0
 	void handle_event(dir_monitor::event ev, boost::system::error_code e)
 	{
-	    if (!e) {
-	    	LogDebug("cdr_dir_monitor: received event "<<ev);
+		if (!e) {
+			LogDebug("cdr_dir_monitor: received event "<<ev);
 
-	    	std::string file_path = ev.dir_name + '/' + ev.file_name;
+			std::string file_path = ev.dir_name + '/' + ev.file_name;
 
-	        if(ev.type & dir_monitor::event::created) {
+			if(ev.type & dir_monitor::event::created) {
 				files_created_waiting_close_.insert(file_path);
 			}
 			else if(ev.type & (dir_monitor::event::closed | dir_monitor::event::moved_to)) {
@@ -69,10 +69,10 @@ public:
 					}
 				}
 			}
-	        /* else ignore */
-	    }
-	    else
-	    	LogError("cdr_dir_monitor: err:"<<e);
+			/* else ignore */
+		}
+		else
+			LogError("cdr_dir_monitor: err:"<<e);
 	}
 #endif
 

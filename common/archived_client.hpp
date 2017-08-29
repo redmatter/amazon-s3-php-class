@@ -143,6 +143,17 @@ private:
 
 			return str[(s < 0 || s >= n_states)? n_states: s];
 		}
+
+		/**
+		 * All states are pretty much interruptable except in certain cases where it can cause duplication
+		 * 
+		 * @param s
+		 * @return
+		 */
+		static inline bool is_interruptable(const state_t& s)
+		{
+			return s <= put_sending_file || s >= put_sent_file_ack_err;
+		}
 	};
 
 	const unsigned int instance_id_;
@@ -291,16 +302,40 @@ public:
 						boost::asio::placeholders::bytes_transferred)));
 	}
 
+	void shutdown()
+	{
+		if (state::is_interruptable(current_state_)) {
+			shutdown(boost::system::error_code(/* no error */));
+		} else {
+			cancel_timer();
+			timer_.expires_from_now(boost::posix_time::seconds(5));
+			timer_.async_wait(strand_.wrap(boost::bind(
+					static_cast<void (archived_client::*)(boost::system::error_code)>(&archived_client::shutdown),
+					shared_from_this(), boost::asio::placeholders::error)));
+		}
+	}
+
 private:
+	void shutdown(const boost::system::error_code& err)
+	{
+		if (!err) {
+			if (put_archivable_ptr_) {
+				fn_save_to_database_(put_archivable_ptr_);
+			}
+
+			do_close(false);
+		}
+	}
+
 	inline void cancel_timer()
 	{
-        DevDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
+		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
 		timer_.cancel();
 	}
 
 	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
 	{
-        DevDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
+		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
 
 		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
@@ -377,7 +412,7 @@ private:
 			while (!quit_) {
 				boost::this_thread::sleep(boost::posix_time::seconds(2));
 				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
-                saved_ok = fn_save_to_database_(put_archivable_ptr_);
+				saved_ok = fn_save_to_database_(put_archivable_ptr_);
 				if (saved_ok) {
 					break;
 				}
