@@ -305,18 +305,17 @@ public:
 	void shutdown()
 	{
 		if (state::is_interruptable(current_state_)) {
-			shutdown(boost::system::error_code(/* no error */));
+			shutdown_now(boost::system::error_code(/* no error */));
 		} else {
 			cancel_timer();
 			timer_.expires_from_now(boost::posix_time::seconds(5));
-			timer_.async_wait(strand_.wrap(boost::bind(
-					static_cast<void (archived_client::*)(boost::system::error_code)>(&archived_client::shutdown),
-					shared_from_this(), boost::asio::placeholders::error)));
+			timer_.async_wait(strand_.wrap(
+					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::asio::placeholders::error)));
 		}
 	}
 
 private:
-	void shutdown(const boost::system::error_code& err)
+	void shutdown_now(const boost::system::error_code& err)
 	{
 		if (!err) {
 			if (put_archivable_ptr_) {
