@@ -321,9 +321,7 @@ int main(int argc, char* argv[]) try
 				boost::ref(*p_io_service), fn_out_channel_produce, fn_out_channel_consume, fn_remove_from_catalogue,
 				fn_save_to_database,
 				app::confMap["archived_client.server_host"].as<std::string>(),
-				app::confMap["archived_client.server_port"].as<std::string>(),
-				boost::ref(app::quit)
-		);
+				app::confMap["archived_client.server_port"].as<std::string>());
 
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
@@ -375,6 +373,26 @@ int main(int argc, char* argv[]) try
 						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db), app::archived_client::get_is_archived_ok()));
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
+		}
+
+		// Initiate shutdown of ArchiveD clients
+		archived_client->shutdown();
+		// delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
+		// as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
+		// up to ~10s before continuing with shutdown.
+		archived_client.reset();
+		{
+			const boost::chrono::steady_clock::time_point wait_until(
+					boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
+			while (wait_until >= boost::chrono::steady_clock::now()) {
+				const unsigned int& instances(app::archived_client::get_instances_count());
+				if (instances == 0) {
+					break;
+				}
+
+				LogMessage("Waiting for archived clients to finish;" << instances << " instances remaining");
+				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
+			}
 		}
 
 		in_channel.set_finishing();

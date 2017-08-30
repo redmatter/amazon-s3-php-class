@@ -541,7 +541,7 @@ int main(int argc, char* argv[]) try
 					boost::make_shared<app::archived_client>(
 							boost::ref(io_service), fn_out_queue_produce, fn_out_queue_consume, fn_remove_from_catalogue,
 							fn_save_to_database, app::confMap["archived_client.server_host"].as<std::string>(),
-							app::confMap["archived_client.server_port"].as<std::string>(), boost::ref(app::quit)));
+							app::confMap["archived_client.server_port"].as<std::string>()));
 		}
 
 		for(unsigned int i = 0; i < n_threads; i++)
