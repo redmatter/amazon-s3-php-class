@@ -948,6 +948,11 @@ private:
 	{
 		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
+		if (current_state_ == state::closed) {
+			LogDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"]");
+			return;
+		}
+
 		cancel_timer();
 
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
