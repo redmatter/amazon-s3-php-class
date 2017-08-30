@@ -309,7 +309,8 @@ public:
 	void shutdown()
 	{
 		if (state::is_interruptable(current_state_)) {
-			shutdown_now(boost::system::error_code(/* no error */));
+			strand_.post(strand_.wrap(
+					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::system::error_code())));
 		} else {
 			DevDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] shutdown in 5 seconds");
 			cancel_timer();
