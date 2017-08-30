@@ -387,10 +387,11 @@ int main(int argc, char* argv[]) try
 			while (wait_until >= boost::chrono::steady_clock::now()) {
 				const unsigned int& instances(app::archived_client::get_instances_count());
 				if (instances == 0) {
+					LogMessage("All ArchiveD-clients finished");
 					break;
 				}
 
-				LogMessage("Waiting for archived clients to finish;" << instances << " instances remaining");
+				LogMessage("Waiting for ArchiveD-clients to finish;" << instances << " instances remaining");
 				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
 			}
 		}
