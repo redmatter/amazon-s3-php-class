@@ -956,8 +956,8 @@ private:
 	{
 		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
-		if (current_state_ == state::closed) {
-			LogDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"]");
+		if (is_shutdown_flagged()) {
+			LogMessage(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] "<<put_archivable_ptr_<<" Aborting PUT");
 			return;
 		}
 
