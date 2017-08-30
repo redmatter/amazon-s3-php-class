@@ -185,7 +185,12 @@ private:
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
-	volatile bool& quit_;
+	boost::atomic_bool shutdown_flagged_;
+
+    inline bool is_shutdown_flagged()
+    {
+        return shutdown_flagged_.load(boost::memory_order_consume);
+    }
 
 public:
 	typedef boost::shared_ptr<archived_client> pointer;
@@ -213,8 +218,7 @@ public:
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
-			const std::string& archived_port,
-			volatile bool& quit) :
+			const std::string& archived_port) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),
@@ -229,7 +233,7 @@ public:
 				fn_produce_(fn_produce), fn_consume_(fn_consume),
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
-				quit_(quit)
+				shutdown_flagged_(false)
 	{
 		n_instances_++;
 		LogMessage("archived-client created; ID:"<<instance_id_);
@@ -317,6 +321,8 @@ public:
 private:
 	void shutdown_now(const boost::system::error_code& err)
 	{
+        shutdown_flagged_ = true;
+
 		if (!err) {
 			if (put_archivable_ptr_) {
 				fn_save_to_database_(put_archivable_ptr_);
@@ -408,7 +414,7 @@ private:
 		if (!fn_save_to_database_(put_archivable_ptr_)) {
 			int retry = 0;
 			bool saved_ok = false;
-			while (!quit_) {
+			while (!is_shutdown_flagged()) {
 				boost::this_thread::sleep(boost::posix_time::seconds(2));
 				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
 				saved_ok = fn_save_to_database_(put_archivable_ptr_);
@@ -417,7 +423,7 @@ private:
 				}
 			}
 
-			if (!saved_ok && quit_) {
+			if (!saved_ok && is_shutdown_flagged()) {
 				throw rml::exception("Quit flagged during database retry");
 			}
 		}
@@ -871,7 +877,7 @@ private:
 		LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
 
 		// if we are going down, give up!
-		if (quit_) {
+		if (is_shutdown_flagged()) {
 			LogMessage(local_port_<<" Quit flagged during consume; closing");
 			// reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
 			// that would be set to be "finishing" by now
@@ -918,7 +924,7 @@ private:
 	inline void send_nop_or_reconnect()
 	{
 		// if shutdown is in progress, don't bother with any
-		if (quit_) {
+		if (is_shutdown_flagged()) {
 			return;
 		}
 
