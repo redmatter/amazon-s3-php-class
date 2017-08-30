@@ -557,7 +557,7 @@ int main(int argc, char* argv[]) try
 		{
 			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
 			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-			for(itr; itr != end; ++itr) {
+			for(; itr != end; ++itr) {
 				(*itr)->connect_archived();
 			}
 		}
@@ -609,7 +609,7 @@ int main(int argc, char* argv[]) try
 		{
 			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
 			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-			for(itr; itr != end; ++itr) {
+			for(; itr != end; ++itr) {
 				(*itr)->shutdown();
 			}
 		}

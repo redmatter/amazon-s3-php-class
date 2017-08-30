@@ -187,10 +187,10 @@ private:
 
 	boost::atomic_bool shutdown_flagged_;
 
-    inline bool is_shutdown_flagged()
-    {
-        return shutdown_flagged_.load(boost::memory_order_consume);
-    }
+	inline bool is_shutdown_flagged()
+	{
+		return shutdown_flagged_.load(boost::memory_order_consume);
+	}
 
 public:
 	typedef boost::shared_ptr<archived_client> pointer;
@@ -311,6 +311,7 @@ public:
 		if (state::is_interruptable(current_state_)) {
 			shutdown_now(boost::system::error_code(/* no error */));
 		} else {
+			DevDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] shutdown in 5 seconds");
 			cancel_timer();
 			timer_.expires_from_now(boost::posix_time::seconds(5));
 			timer_.async_wait(strand_.wrap(
@@ -321,7 +322,8 @@ public:
 private:
 	void shutdown_now(const boost::system::error_code& err)
 	{
-        shutdown_flagged_ = true;
+		shutdown_flagged_ = true;
+		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] shutdown in progress");
 
 		if (!err) {
 			if (put_archivable_ptr_) {
