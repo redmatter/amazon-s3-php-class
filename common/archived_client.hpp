@@ -598,7 +598,7 @@ private:
 			std::string ArchiveD, version_number, protocol, protocol_version_number;
 			char v, lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			if(!((std::getline(is, ArchiveD, ' ') &&
@@ -657,7 +657,7 @@ private:
 			std::string OK_or_ERR, message;
 			char lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
 				LogError(*this<<" handshake_ack_waiting: error: "<<message);
@@ -680,7 +680,7 @@ private:
 			std::string OK_or_ERR, message;
 			char lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
 				LogError(*this<<" NOP Error: "<<message);
@@ -736,7 +736,7 @@ private:
 			std::string OK_or_ERR, PUT, file_type_str, OrgID_str, uuid, message;
 			char cr, lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(!(std::getline(is, OK_or_ERR, ' ') &&
 					std::getline(is, PUT, ' ') &&
 					std::getline(is, file_type_str, ' ') &&
@@ -798,7 +798,7 @@ private:
 		{
 			std::string OK_or_ERR, RECV, uuid, message, file_type_str, OrgID_str;
 			char cr, lf;
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(!(std::getline(is, OK_or_ERR, ' ') &&
 					std::getline(is, RECV, ' ') &&
 					std::getline(is, file_type_str, ' ') &&
