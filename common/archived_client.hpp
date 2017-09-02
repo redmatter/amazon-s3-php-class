@@ -290,6 +290,8 @@ public:
 			boost::system::error_code error_ignore;
 			p_socket_->cancel(error_ignore);
 			p_socket_.reset();
+
+			local_port_ = 0;
 		}
 
 		connected_ = false;
@@ -1063,6 +1065,8 @@ private:
 			boost::system::error_code error_ignore;
 			p_socket_->cancel(error_ignore);
 			p_socket_.reset();
+
+			local_port_ = 0;
 		}
 
 		setup_retry_and_reset_current_archivable("Closing while sending");
