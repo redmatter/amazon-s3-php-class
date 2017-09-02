@@ -25,6 +25,9 @@ namespace app {
 
 using boost::asio::ip::tcp;
 
+class archived_client;
+std::ostream &operator<<(std::ostream &os, archived_client const& ac);
+
 class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
@@ -193,6 +196,23 @@ private:
 	}
 
 public:
+	inline std::ostream &identify_with_state(std::ostream &os) const
+	{
+		os << "id:" << instance_id_;
+
+		if (local_port_) {
+			os << " port:" << local_port_;
+		}
+
+		os << " [" << state::to_string(current_state_) << ']';
+
+		if (put_archivable_ptr_) {
+			os << " [" << put_archivable_ptr_ << ']';
+		}
+
+		return os;
+	}
+
 	typedef boost::shared_ptr<archived_client> pointer;
 
 	static float get_is_archived_ok()
@@ -253,11 +273,13 @@ public:
 	inline void setup_retry_and_reset_current_archivable(const char *message)
 	{
 		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->setup_for_retry()) {
+			const bool &can_reschedule(put_archivable_ptr_->setup_for_retry());
+			if (!is_shutdown_flagged() && can_reschedule) {
+				// producing into the queue while shutting down will throw queue-finishing exception
 				fn_produce_(put_archivable_ptr_, false);
 			}
 
-			LogVerbose(local_port_<<' '<<message<<' '<<put_archivable_ptr_);
+			LogVerbose(*this<<' '<<message);
 			put_archivable_ptr_.reset();
 		}
 	}
@@ -308,11 +330,12 @@ public:
 
 	void shutdown()
 	{
+		shutdown_flagged_ = true;
 		if (state::is_interruptable(current_state_)) {
 			strand_.post(strand_.wrap(
 					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::system::error_code())));
 		} else {
-			DevDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] shutdown in 5 seconds");
+			DevDebug(*this<<" shutdown in 5 seconds");
 			cancel_timer();
 			timer_.expires_from_now(boost::posix_time::seconds(5));
 			timer_.async_wait(strand_.wrap(
@@ -323,8 +346,7 @@ public:
 private:
 	void shutdown_now(const boost::system::error_code& err)
 	{
-		shutdown_flagged_ = true;
-		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] shutdown in progress");
+		DevDebug(*this<<" shutdown in progress");
 
 		if (!err) {
 			if (put_archivable_ptr_) {
@@ -337,13 +359,13 @@ private:
 
 	inline void cancel_timer()
 	{
-		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") cancel_timer");
+		DevDebug(*this<<" cancel_timer");
 		timer_.cancel();
 	}
 
 	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
 	{
-		DevDebug(local_port_<<" (ID:"<<instance_id_ << ") set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect<<"   State["<<state::to_string(current_state_)<<"]");
+		DevDebug(*this<<" set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect);
 
 		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
@@ -354,22 +376,22 @@ private:
 	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
 		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
-			LogMessage("Timeout; reconnecting... (local-port:"<<local_port_<<" current-state:"<<state::to_string(current_state_)<<")");
+			LogMessage(*this<<" Timeout; reconnecting...");
 			connect_archived(force_reconnect);
 		}
 		else if(!timer_expired && (error == boost::asio::error::operation_aborted)) {
-			LogMessage("Socket operation aborted; reconnecting...");
+			LogMessage(*this<<" Socket operation aborted; reconnecting...");
 			set_reconnect_timer(10, true);
 		}
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 10);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 10);
 	}
 
@@ -382,7 +404,7 @@ private:
 
 		// we are here because the timer expired
 		else if(!connected_ && (current_state_ == state::initialised))
-			LogWarning("Archived connection failed; retrying...");
+			LogWarning(*this<<" Archived connection failed; retrying...");
 
 		connect_archived();
 	}
@@ -397,16 +419,16 @@ private:
 							boost::asio::placeholders::error, ++endpoint_iterator)));
 		}
 		else {
-			LogWarning("Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
+			LogWarning(*this<<" Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
 		}
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
 	inline void finalise_current_archivable()
@@ -414,12 +436,13 @@ private:
 		fn_remove_from_catalogue_(put_archivable_ptr_);
 		put_archivable_ptr_->set_done(false);
 
+		// try to save once; if it fails retry in a loop
 		if (!fn_save_to_database_(put_archivable_ptr_)) {
 			int retry = 0;
 			bool saved_ok = false;
 			while (!is_shutdown_flagged()) {
-				boost::this_thread::sleep(boost::posix_time::seconds(2));
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
+				boost::this_thread::sleep_for(boost::chrono::seconds(2));
+				LogMessage(*this<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
 				saved_ok = fn_save_to_database_(put_archivable_ptr_);
 				if (saved_ok) {
 					break;
@@ -427,7 +450,7 @@ private:
 			}
 
 			if (!saved_ok && is_shutdown_flagged()) {
-				throw rml::exception("Quit flagged during database retry");
+				LogWarning(*this<<" Quit flagged during database retry; not saved");
 			}
 		}
 
@@ -441,7 +464,7 @@ private:
 			boost::asio::socket_base::send_buffer_size option(8192);
 			p_socket_->set_option(option, ec);
 			if(ec) {
-				LogWarning("set_option:send_buffer_size failed; err:"<<ec.message());
+				LogWarning(*this<<" set_option:send_buffer_size failed; err:"<<ec.message());
 				run_statemachine(error);
 				return;
 			}
@@ -450,13 +473,12 @@ private:
 			cancel_timer();
 
 			local_port_ = p_socket_->local_endpoint().port();
-			LogMessage("ID:" << instance_id_ << " Connected to ArchiveD " << archived_host_ << ':' << archived_port_
-							 << " local-port:" << local_port_);
+			LogMessage(*this<<" Connected to ArchiveD " << archived_host_ << ':' << archived_port_);
 
 			run_statemachine(error);
 		}
 		else {
-			LogWarning("ID:" << instance_id_ << " Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
+			LogWarning(*this<<" Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
 			if (endpoint_iterator != tcp::resolver::iterator()) {
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 				p_socket_.reset(new tcp::socket(io_service_));
@@ -468,11 +490,11 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
 	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred) try
@@ -509,20 +531,20 @@ private:
 		}
 
 		if(!error)
-			LogWarning("Invalid current_state:"<<state::to_string(current_state_));
+			LogWarning(*this<<" Invalid current-state");
 		else
-			LogError("Socket IO error: "<<error.message());
+			LogError(*this<<" Socket IO error: "<<error.message());
 
 		reconnect(false);
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false);
 	}
 
@@ -532,7 +554,7 @@ private:
 		cancel_timer();
 
 		if(error) {
-			LogError(local_port_<<" (ID:"<<instance_id_ << ") run_statemachine [current_state:"<<state::to_string(current_state_)<<"]: "<<error.message());
+			LogError(*this<<" run_statemachine - error: "<<error.message());
 			
 			switch(current_state_) {
 			case state::closing_bye_wait:
@@ -585,17 +607,17 @@ private:
 					is.get(lf)) &&
 					ArchiveD == "ArchiveD" && protocol == "protocol")) {
 				ostr << "ERR invalid response\r\n";
-				LogError(local_port_<<" Error: Invalid response from server");
+				LogError(*this<<" Error: Invalid response from server");
 				current_state_ = state::handshake_err;
 			}
 			else if(protocol_version_number != archiving::put_protocol_version_str) {
 				ostr << "ERR protocol version mismatch\r\n";
-				LogError(local_port_<<" Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
+				LogError(*this<<" Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
 				current_state_ = state::handshake_err;
 			}
 			else {
 				if(version_number != version_number_only_string)
-					LogWarning(local_port_<<" Warning: Server differs in version from client");
+					LogWarning(*this<<" Warning: Server differs in version from client");
 
 				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
@@ -636,13 +658,13 @@ private:
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError("handshake_ack_waiting: error: "<<message);
+				LogError(*this<<" handshake_ack_waiting: error: "<<message);
 				current_state_ = state::handshake_ack_err;
 
 				reconnect(false);
 			}
 			else {
-				LogMessage(local_port_<<" Handshake OK; Ready to PUT");
+				LogMessage(*this<<" Handshake OK; Ready to PUT");
 				current_state_ = state::ready_to_put;
 				set_is_archived_ok(true);
 				run_statemachine(error);
@@ -659,7 +681,7 @@ private:
 			SetupRecvStream("ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError("NOP Error: "<<message);
+				LogError(*this<<" NOP Error: "<<message);
 				current_state_ = state::nop_ack_err;
 				reconnect(true, 5);
 			}
@@ -722,13 +744,13 @@ private:
 					OK_or_ERR == "OK")) {
 
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
+				LogError(*this<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
 				reconnect(true);
 			}
 			else {
 				is.get(cr); is.get(lf);
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Sending file");
+				LogMessage(*this<<" PUT OK; Sending file");
 
 				current_state_ = state::put_sending_file;
 				rml::utils::tmp_fstream::pointer ifs = put_archivable_ptr_->get_fstream_ptr();
@@ -737,7 +759,7 @@ private:
 
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
-					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
+					LogWarning(*this<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
 					send_buffer_.consume(send_buffer_.size());
 				}
 				run_statemachine(error);
@@ -784,12 +806,12 @@ private:
 					OK_or_ERR == "OK")) {
 
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT Error: "<<message);
+				LogError(*this<<" PUT Error: "<<message);
 				current_state_ = state::put_sent_file_ack_err;
 			}
 			else {
 				is.get(cr); is.get(lf);
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Get next for PUT");
+				LogMessage(*this<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
 			}
 
@@ -814,7 +836,7 @@ private:
 		}
 
 		default:
-			LogMessage(local_port_<<' '<<"State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
+			LogMessage(*this<<" (current-state) NOT implemented OR Invalid!");
 			/* no break */
 
 		case state::general_err:
@@ -827,12 +849,12 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 10);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 10);
 	}
 
@@ -854,16 +876,14 @@ private:
 	void get_archivable_for_put() try
 	{
 		if (put_archivable_ptr_) {
-			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
-								 << "]; put_archivable_ptr_ != NULL");
+			LogError(*this<<" Invalid call sequence; put_archivable_ptr_ != NULL");
 			do_close(true);
 			return;
 		}
 
 		if (!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
 		{
-			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
-								 << "]; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
+			LogError(*this<<" Invalid call sequence; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
 			do_close(true);
 			return;
 		}
@@ -877,11 +897,11 @@ private:
 			return;
 		}
 
-		LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
+		LogMessage(*this<<" Obtained for PUT");
 
 		// if we are going down, give up!
 		if (is_shutdown_flagged()) {
-			LogMessage(local_port_<<" Quit flagged during consume; closing");
+			LogMessage(*this<<" Quit flagged during consume; closing");
 			// reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
 			// that would be set to be "finishing" by now
 			put_archivable_ptr_.reset();
@@ -891,13 +911,13 @@ private:
 
 		// if the socket has disconnected while we were waiting, we need to reconnect
 		if (!p_socket_ || !p_socket_->is_open()) {
-			LogMessage(local_port_<<" Socket found unusable after consume; reconnecting");
+			LogMessage(*this<<" Socket found unusable after consume; reconnecting");
 			reconnect(false);
 			return;
 		}
 
 		if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
-			LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
+			LogWarning(*this<<" Already stored !!! ???");
 			finalise_current_archivable();
 			get_next_archivable_for_put();
 			return;
@@ -917,11 +937,11 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
 	inline void send_nop_or_reconnect()
@@ -933,7 +953,7 @@ private:
 
 		// if the socket looks OK, send NOP
 		if (p_socket_ && p_socket_->is_open()) {
-			LogMessage(local_port_<<" (ID:"<<instance_id_ << ") Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
+			LogMessage(*this<<" Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
 
 			std::ostream ostr(&send_buffer_);
 			ostr.clear();
@@ -955,10 +975,10 @@ private:
 
 	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
-		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+		DevDebug(*this<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
 		if (is_shutdown_flagged()) {
-			LogMessage(local_port_<<" (ID:"<<instance_id_ << ") State["<<state::to_string(current_state_)<<"] "<<put_archivable_ptr_<<" Aborting PUT");
+			LogMessage(*this<<" Aborting PUT");
 			return;
 		}
 
@@ -970,11 +990,11 @@ private:
 					std::string eof("\x1a");
 					boost::asio::write(*p_socket_, boost::asio::buffer(eof, 1));
 				}
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed OK");
+				LogMessage(*this<<" PUT send file completed OK");
 				current_state_ = state::put_sent_file_ok;
 			}
 			else {
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed with error; err:"<<error.message());
+				LogError(*this<<" PUT send file completed with error; err:"<<error.message());
 				current_state_ = state::put_sent_file_err;
 			}
 			
@@ -1005,12 +1025,12 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 5);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 5);
 	}
 
@@ -1021,12 +1041,12 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		do_close(reconnect, reconnect_delay_seconds);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		do_close(reconnect, reconnect_delay_seconds);
 	}
 
@@ -1061,6 +1081,11 @@ private:
 		do_close(false);
 	}
 };
+
+inline std::ostream &operator<<(std::ostream &os, archived_client const& ac)
+{
+	return ac.identify_with_state(os);
+}
 
 }  // namespace app
 

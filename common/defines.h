@@ -32,7 +32,7 @@ struct ports {
 	{ \
 		std::istream istr_dup(&recv_buffer); \
 		std::getline(istr_dup, line, '\n'); \
-		LogDebug(from" -> "<<line); \
+		LogDebug(*this<<' '<<from" -> "<<line); \
 	} \
 	\
 	std::istringstream istr(line+'\n'); \
