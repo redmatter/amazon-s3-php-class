@@ -141,7 +141,7 @@ public:
 	    handlers_.erase(it->second);
 
 	    if(inotify_rm_watch(fd_, it->second) == -1)
-			THROW_RML_EXCEPTION("Failed to remove directory monotaration - Directory: " << dir_name << " - Reason:" << strerror(errno));
+			THROW_RML_EXCEPTION("Failed to remove directory monitoration - Directory: " << dir_name << " - Reason:" << strerror(errno));
 	}
 
 	void async_monitor()
@@ -217,11 +217,16 @@ private:
 				LogDMessage((bytes_transferred - bytes_processed)<<" bytes NOT processed", "IGNO");
 
 			async_read();
+		} else {
+			if (e == boost::asio::error::operation_aborted || fd_ == -1) {
+				LogMessage("Closing directory monitoring");
+			} else {
+				if(error_handler_.empty())
+					LogWarning(e.message());
+				else
+					error_handler_(e);
+			}
 		}
-		else if(error_handler_.empty())
-			LogWarning(e.message());
-		else
-			error_handler_(e);
 	}
 
 	int fd_;
