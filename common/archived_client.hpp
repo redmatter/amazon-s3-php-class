@@ -37,7 +37,7 @@ private:
 	
 	void set_is_archived_ok(const bool ok)
 	{
-		LogVerbose("ID:"<<instance_id_<<": set_is_archived_ok: "<<ok);
+		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
 		if(ok) {
 			n_ok_++;
 		} else {
@@ -256,13 +256,13 @@ public:
 				shutdown_flagged_(false)
 	{
 		n_instances_++;
-		LogMessage("archived-client created; ID:"<<instance_id_);
+		LogMessage("id:"<<instance_id_<<" archived-client created");
 	}
 
 	~archived_client()
 	{
 		n_instances_--;
-		LogMessage("archived-client destroyed; ID:"<<instance_id_);
+		LogMessage("id:"<<instance_id_<<" archived-client destroyed");
 	}
 
 	static inline unsigned int get_instances_count()
