@@ -207,7 +207,7 @@ public:
 		os << " [" << state::to_string(current_state_) << ']';
 
 		if (put_archivable_ptr_) {
-			os << " [" << put_archivable_ptr_->identify_without_state(os) << ']';
+			put_archivable_ptr_->identify_without_state(os << " [") << ']';
 		}
 
 		return os;
@@ -286,6 +286,11 @@ public:
 
 	inline void connect_archived()
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if(p_socket_) {
 			boost::system::error_code error_ignore;
 			p_socket_->cancel(error_ignore);
@@ -333,11 +338,13 @@ public:
 	void shutdown()
 	{
 		shutdown_flagged_ = true;
+		DevDebug(*this<<" shutdown flagged");
+
 		if (state::is_interruptable(current_state_)) {
 			strand_.post(strand_.wrap(
 					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::system::error_code())));
 		} else {
-			DevDebug(*this<<" shutdown in 5 seconds");
+			DevDebug(*this<<" state found to be not interruptable; shutdown in 5 seconds");
 			cancel_timer();
 			timer_.expires_from_now(boost::posix_time::seconds(5));
 			timer_.async_wait(strand_.wrap(
@@ -377,6 +384,11 @@ private:
 
 	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
 			LogMessage(*this<<" Timeout; reconnecting...");
 			connect_archived(force_reconnect);
@@ -413,6 +425,11 @@ private:
 
 	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if (!err) {
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
 			p_socket_.reset(new tcp::socket(io_service_));
@@ -450,6 +467,11 @@ private:
 
 	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if (!error) {
 			boost::system::error_code ec;
 			boost::asio::socket_base::send_buffer_size option(8192);
@@ -491,6 +513,7 @@ private:
 	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
 		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
 			return;
 		}
 
@@ -956,6 +979,7 @@ private:
 	{
 		// if shutdown is in progress, don't bother with any
 		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
 			return;
 		}
 
@@ -986,7 +1010,7 @@ private:
 		DevDebug(*this<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
 
 		if (is_shutdown_flagged()) {
-			LogMessage(*this<<" Aborting PUT");
+			LogMessage(*this<<" Shutdown flagged; Aborting PUT");
 			return;
 		}
 
