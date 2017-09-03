@@ -338,13 +338,13 @@ public:
 	void shutdown()
 	{
 		shutdown_flagged_ = true;
-		DevDebug(*this<<" shutdown flagged");
+		LogMessage(*this<<" Shutdown flagged");
 
 		if (state::is_interruptable(current_state_)) {
 			strand_.post(strand_.wrap(
 					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::system::error_code())));
 		} else {
-			DevDebug(*this<<" state found to be not interruptable; shutdown in 5 seconds");
+			LogMessage(*this<<" Current state found to be not interruptable; shutdown in 5 seconds");
 			cancel_timer();
 			timer_.expires_from_now(boost::posix_time::seconds(5));
 			timer_.async_wait(strand_.wrap(
@@ -355,7 +355,7 @@ public:
 private:
 	void shutdown_now(const boost::system::error_code& err)
 	{
-		DevDebug(*this<<" shutdown in progress");
+		LogMessage(*this<<" Shutdown in progress");
 
 		if (!err) {
 			if (put_archivable_ptr_) {
@@ -571,17 +571,25 @@ private:
 		// reset any timer in progress; if we loop through, we are alive and kicking
 		cancel_timer();
 
-		if(error) {
-			LogError(*this<<" run_statemachine - error: "<<error.message());
-			
-			switch(current_state_) {
-			case state::closing_bye_wait:
-			case state::reconnecting_bye_wait:
-				break;
-				
-			default:
-				current_state_ = state::general_err;
-				break;
+		if (error) {
+			if (is_shutdown_flagged()) {
+				if (!state::is_interruptable(current_state_)) {
+					// we have an error here during shutdown (while processing non-interruptable state); not trying to recover.
+					// set it as general-error so that the logic below will just terminate the call-sequence
+					LogError(*this<<" Error occurred during shutdown - error: "<<error.message()<<" - Aborting");
+					current_state_ = state::general_err;
+				}
+			} else {
+				switch(current_state_) {
+					case state::closing_bye_wait:
+					case state::reconnecting_bye_wait:
+						break;
+
+					default:
+						LogError(*this<<" run_statemachine - error: "<<error.message());
+						current_state_ = state::general_err;
+						break;
+				}
 			}
 		}
 
