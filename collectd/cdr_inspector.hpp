@@ -701,7 +701,6 @@ public:
 											}
 
 											archivable_recording->hibernate();
-											fn_out_queue_produce_(archivable_recording, true);
 										}
 										catch(const std::exception& e) {
 											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
@@ -715,13 +714,18 @@ public:
 
 											modified = true;
 										}
+
+										if (archivable_recording) {
+											fn_out_queue_produce_(archivable_recording, true);
+										}
 									}
 								}
 							}
 							else if((node = doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' or rmDispRecordEmailSend = 'true' or rmDispPersonalRecordEmailSend = 'true' ]/rmLocalRecordLocation/text()"))) {
-								try {
-									archiving::archivable::pointer archivable_recording;
 
+								archiving::archivable::pointer archivable_recording;
+
+								try {
 									LogMessage(*archivable_cdr<<" - Archivable recording found.");
 
 									const app::policy::id_type recording_policy(
@@ -770,13 +774,16 @@ public:
 									}
 
 									archivable_recording->hibernate();
-									fn_out_queue_produce_(archivable_recording, true);
 								}
 								catch(const std::exception& e) {
 									LogWarning("Failed producing archivable item; error: "<<e.what());
 
 									variables_node.append_child("rmCallRecordingUnavailable").append_child(pugi::node_pcdata).set_value("true");
 									modified = true;
+								}
+
+								if (archivable_recording) {
+									fn_out_queue_produce_(archivable_recording, true);
 								}
 							}
 						}

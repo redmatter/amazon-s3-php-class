@@ -416,18 +416,18 @@ int main(int argc, char* argv[]) try
 		initialized = true;
 		LogMessage("Initialisation complete");
 
-		boost::thread_group threads;
+		boost::thread_group threads, cdr_inspector_threads, dir_loader_threads;
 		boost::asio::io_service io_service;
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::make_shared<boost::asio::io_service::work>(boost::ref(io_service));
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(boost::bind(fn_in_queue_produce, _1, true), app::hostname);
 
 		// setup the inotify monitor
-		app::inotify::monitor inotify_monitor(io_service);
+		boost::shared_ptr<app::inotify::monitor> inotify_monitor = boost::make_shared<app::inotify::monitor>(boost::ref(io_service));
 
 		// monitor freeswitch's xml_cdr folder for new CDRs
 		// Assumes CDR filename format is [uuid].cdr.xml.
-		inotify_monitor.add_directory(
+		inotify_monitor->add_directory(
 				cdr_directory,
 				app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 				boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
@@ -436,7 +436,7 @@ int main(int argc, char* argv[]) try
 		// monitor the PCap path for any new arrivals
 		// Assumes PCAP filename format is [uuid].pcap OR [uuid].sip.pcap OR [uuid].rtp.pcap
 		if(app::confMap["pcap.enabled"].as<bool>())
-			inotify_monitor.add_directory(
+			inotify_monitor->add_directory(
 					pcap_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2, identify_pcap_type));
@@ -444,7 +444,7 @@ int main(int argc, char* argv[]) try
 		// monitor folder for recording chunks
 		// Assumes chunked recording filename format ends with [uuid].wav
 		if(app::confMap["chunk.enabled"].as<bool>())
-			inotify_monitor.add_directory(
+			inotify_monitor->add_directory(
 					chunk_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
@@ -453,7 +453,7 @@ int main(int argc, char* argv[]) try
 		// monitor folder for info files
 		// Assumes info file filename format ends with [uuid].xml
 		if(app::confMap["info.enabled"].as<bool>())
-			inotify_monitor.add_directory(
+			inotify_monitor->add_directory(
 					info_directory,
 					app::inotify::event::created | app::inotify::event::moved_to | app::inotify::event::closed,
 					boost::bind(&archiving::cdr_dir_monitor::handle_event, boost::ref(cdr_dir_monitor), _1, _2,
@@ -471,7 +471,7 @@ int main(int argc, char* argv[]) try
 		app::directory_loader dir_loader(app::confMap, app::quit);
 
 		// one for CDRs
-		threads.create_thread(
+		dir_loader_threads.create_thread(
 				boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
 						"CDR", cdr_directory,
 						boost::protect(
@@ -485,7 +485,7 @@ int main(int argc, char* argv[]) try
 
 		// One for PCaps
 		if(app::confMap["pcap.enabled"].as<bool>())
-			threads.create_thread(
+			dir_loader_threads.create_thread(
 					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
 							"PCap", pcap_directory,
 							boost::protect(
@@ -499,7 +499,7 @@ int main(int argc, char* argv[]) try
 
 		// One for chunks
 		if(app::confMap["chunk.enabled"].as<bool>())
-			threads.create_thread(
+			dir_loader_threads.create_thread(
 					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
 							"chunk", chunk_directory,
 							boost::protect(
@@ -513,7 +513,7 @@ int main(int argc, char* argv[]) try
 
 		// One for info files
 		if(app::confMap["info.enabled"].as<bool>())
-			threads.create_thread(
+			dir_loader_threads.create_thread(
 					boost::bind(&app::directory_loader::run, boost::ref(dir_loader),
 							"info", info_directory,
 							boost::protect(
@@ -530,7 +530,7 @@ int main(int argc, char* argv[]) try
 				fn_in_queue_consume, fn_out_queue_produce, fn_remove_from_catalogue, fn_is_in_catalogue,
 				fn_save_to_database, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
-			threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
+			cdr_inspector_threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
 		const unsigned int n_threads( 2 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 1 ));
 		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
@@ -551,7 +551,7 @@ int main(int argc, char* argv[]) try
 		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db), boost::ref(app::quit)));
 
 		// kick the monitor to life
-		inotify_monitor.async_monitor();
+		inotify_monitor->async_monitor();
 
 		// kick the ArchiveD clients to life
 		{
@@ -602,7 +602,19 @@ int main(int argc, char* argv[]) try
 			ticks++;
 		}
 
+		LogMessage("Stopping inotify monitor(s)");
+		inotify_monitor.reset();
+
+		LogMessage("Waiting for directory-loaders to finish");
+		dir_loader_threads.join_all();
+
+		LogMessage("Setting IN queue to finish");
 		in_queue->set_finishing();
+
+		LogMessage("Waiting for cdr-inspectors to finish");
+		cdr_inspector_threads.join_all();
+
+		LogMessage("Setting OUT queue to finish");
 		out_queue->set_finishing();
 
 		// Initiate shutdown of ArchiveD clients
@@ -623,7 +635,7 @@ int main(int argc, char* argv[]) try
 			while (wait_until >= boost::chrono::steady_clock::now()) {
 				const unsigned int& instances(app::archived_client::get_instances_count());
 				if (instances == 0) {
-                    LogMessage("All ArchiveD-clients finished");
+					LogMessage("All ArchiveD-clients finished");
 					break;
 				}
 
