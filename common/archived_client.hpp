@@ -207,7 +207,7 @@ public:
 		os << " [" << state::to_string(current_state_) << ']';
 
 		if (put_archivable_ptr_) {
-			os << " [" << put_archivable_ptr_ << ']';
+			os << " [" << put_archivable_ptr_->identify_without_state(os) << ']';
 		}
 
 		return os;
@@ -438,21 +438,10 @@ private:
 		fn_remove_from_catalogue_(put_archivable_ptr_);
 		put_archivable_ptr_->set_done(false);
 
-		// try to save once; if it fails retry in a loop
 		if (!fn_save_to_database_(put_archivable_ptr_)) {
-			int retry = 0;
-			bool saved_ok = false;
-			while (!is_shutdown_flagged()) {
-				boost::this_thread::sleep_for(boost::chrono::seconds(2));
-				LogMessage(*this<<" [retry: "<<++retry<<"] Save states to DB failed; retrying..");
-				saved_ok = fn_save_to_database_(put_archivable_ptr_);
-				if (saved_ok) {
-					break;
-				}
-			}
-
-			if (!saved_ok && is_shutdown_flagged()) {
-				LogWarning(*this<<" Quit flagged during database retry; not saved");
+			boost::this_thread::sleep_for(boost::chrono::seconds(2));
+			if (!fn_save_to_database_(put_archivable_ptr_)) {
+				LogWarning(*this<<" Error while saving to database; giving up after retry");
 			}
 		}
 
@@ -573,6 +562,11 @@ private:
 			}
 		}
 
+		if (is_shutdown_flagged() && state::is_interruptable(current_state_)) {
+			LogMessage(*this<<" Shutdown in progress; Aborting state-machine");
+			return;
+		}
+
 		switch(current_state_) {
 		case state::connecting:
 		{
@@ -623,7 +617,7 @@ private:
 			}
 			else {
 				if(version_number != version_number_only_string)
-					LogWarning(*this<<" Warning: Server differs in version from client "<<version_number<<" != "<<version_number_only_string);
+					LogWarning(*this<<" Warning: Server differs in version from client [ArchiveDVersion:"<<version_number<<" != "<<version_number_only_string<<']');
 
 				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
@@ -887,6 +881,12 @@ private:
 			return;
 		}
 
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Quit flagged; closing");
+			do_close();
+			return;
+		}
+
 		if (!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
 		{
 			LogError(*this<<" Invalid call sequence; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
@@ -896,7 +896,9 @@ private:
 
 		put_archivable_ptr_ = fn_consume_(
 				false, boost::chrono::milliseconds(10000),
+				// on connection timeout, send NOP or reconnect if connection has gone away
 				boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
+				// if the queue is finishing, the archived_client has to close (shutdown) as well
 				boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));
 		// if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
 		if (!put_archivable_ptr_) {
