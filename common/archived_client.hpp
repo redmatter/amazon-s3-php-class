@@ -501,6 +501,10 @@ private:
 
 	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
+		if (is_shutdown_flagged()) {
+			return;
+		}
+
 		if(!error) {
 			if(current_state_ == state::nop_sent) {
 				current_state_ = state::nop_ack_wait;
@@ -619,7 +623,7 @@ private:
 			}
 			else {
 				if(version_number != version_number_only_string)
-					LogWarning(*this<<" Warning: Server differs in version from client");
+					LogWarning(*this<<" Warning: Server differs in version from client "<<version_number<<" != "<<version_number_only_string);
 
 				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
