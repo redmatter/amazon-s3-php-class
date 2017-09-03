@@ -198,19 +198,19 @@ private:
 public:
 	inline std::ostream &identify_with_state(std::ostream &os) const
 	{
-		os << "id:" << instance_id_;
+		os << "[id:" << instance_id_;
 
 		if (local_port_) {
-			os << " port:" << local_port_;
+			os << ' ' << local_port_;
 		}
 
-		os << " [" << state::to_string(current_state_) << ']';
+		os << ' ' << state::to_string(current_state_);
 
 		if (put_archivable_ptr_) {
-			put_archivable_ptr_->identify_without_state(os << " [") << ']';
+			put_archivable_ptr_->identify_without_state(os << ' ');
 		}
 
-		return os;
+		return os << ']';
 	}
 
 	typedef boost::shared_ptr<archived_client> pointer;
