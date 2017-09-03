@@ -548,7 +548,7 @@ int main(int argc, char* argv[]) try
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 
 		// setup the save_run thread
-		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db), boost::ref(app::quit)));
+		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db)));
 
 		// kick the monitor to life
 		inotify_monitor->async_monitor();
@@ -647,6 +647,9 @@ int main(int argc, char* argv[]) try
 		p_work.reset();
 
 		io_service.stop();
+
+		LogMessage("Shutting down internal-db");
+		internal_db.shutdown();
 
 		threads.join_all();
 

@@ -61,6 +61,13 @@ class internal
 	archivable_pointer_list save_list_;
 	boost::recursive_mutex save_list_mutex_;
 
+	boost::atomic_bool shutdown_flagged_;
+
+	inline bool is_shutdown_flagged()
+	{
+		return shutdown_flagged_.load(boost::memory_order_consume);
+	}
+
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -108,8 +115,13 @@ public:
 				confMap["sqlite.database_path"].as<std::string>(),
 				sqlite::session::flags_readonly | sqlite::session::flags_cache_shared,
 				confMap["sqlite.debug_on"].as<bool>())),
-		save_interval_seconds_(confMap["queue.save_interval_seconds"].as<unsigned int>())
+		save_interval_seconds_(confMap["queue.save_interval_seconds"].as<unsigned int>()), shutdown_flagged_(false)
 	{
+	}
+
+	inline void shutdown()
+	{
+		shutdown_flagged_ = true;
 	}
 
 	bool save(const archiving::archivable::pointer& p_arc) try
@@ -136,10 +148,10 @@ public:
 		return false;
 	}
 
-	void save_run(volatile bool& quit) try
+	void save_run() try
 	{
 		int iter(-21);
-		while(!quit) {
+		while(!is_shutdown_flagged()) {
 
 			iter++;
 
