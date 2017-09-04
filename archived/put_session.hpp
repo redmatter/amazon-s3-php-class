@@ -278,7 +278,7 @@ private:
 			std::string OK_or_ERR, CollectD, version_number, protocol, protocol_version_number, message;
 			char sp1, sp2, sp3, sp4, v, cr, lf;
 
-			SetupRecvStream("CollectD", istr, recv_buffer_);
+			SetupRecvStream(remote_ep_, "CollectD", istr, recv_buffer_);
 
 			std::ostream ostr(&send_buffer_);
 
@@ -584,9 +584,12 @@ private:
 				}
 
 				ofs_->re_open();
+
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
-//				LogDebug(remote_ep_<<' '<<resource_id_<<" Original MD5: "<<md5_);
-//				LogDebug(remote_ep_<<' '<<resource_id_<<" Computed MD5: "<<md5);
+				if(md5 != md5_) {
+					LogError(remote_ep_<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
+					throw protocol_exception("md5 mismatch");
+				}
 
 				app::policy::pointer p_policy;
 
@@ -600,16 +603,11 @@ private:
 					}
 				}
 
-				if(md5 != md5_) {
-					LogError(remote_ep_<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
-					throw protocol_exception("md5 mismatch");
-				}
-
 				LogMessage(remote_ep_<<" "<<resource_id_<<": PUT; Data received OK");
 
 				// create operation_data
-				operation_data::pointer opdata(new operation_data());
-				opdata->p_detail.reset(new operation_data::detail());
+				operation_data::pointer opdata = boost::make_shared<operation_data>();
+				opdata->p_detail = boost::make_shared<operation_data::detail>();
 
 				if(p_policy) {
 					opdata->p_detail->policy = applied_policy(p_policy, creation_time_);

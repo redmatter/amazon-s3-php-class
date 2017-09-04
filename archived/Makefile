@@ -61,7 +61,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri -lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient_r
+	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient
 
 CXX_SRCS += \
 	retention_purge.cpp \

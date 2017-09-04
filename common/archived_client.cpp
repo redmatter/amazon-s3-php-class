@@ -7,12 +7,13 @@
 
 #include "archived_client.hpp"
 
-#include <boost/thread.hpp>
+#include <boost/atomic.hpp>
 
 namespace app {
 
-unsigned int archived_client::n_instances_ = 0;
-unsigned int archived_client::n_ok_ = 0;
+boost::atomic_uint archived_client::n_instances_(0U);
+boost::atomic_uint archived_client::n_ok_(0U);
+boost::atomic_uint archived_client::instance_id_seq_(0U);
 
 }  // namespace app
 

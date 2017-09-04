@@ -27,12 +27,12 @@ struct ports {
 
 #ifndef RML_NO_DEBUG
 
-#define SetupRecvStream(from, istr, recv_buffer) \
+#define SetupRecvStream(id, from, istr, recv_buffer) \
 	std::string line; \
 	{ \
 		std::istream istr_dup(&recv_buffer); \
 		std::getline(istr_dup, line, '\n'); \
-		LogDebug(from" -> "<<line); \
+		LogDebug(id<<' '<<from" -> "<<line); \
 	} \
 	\
 	std::istringstream istr(line+'\n'); \
@@ -40,7 +40,7 @@ struct ports {
 
 #else
 
-#define SetupRecvStream(from, istr, recv_buffer) \
+#define SetupRecvStream(id, from, istr, recv_buffer) \
 	std::istream istr(&recv_buffer); \
 	istr.unsetf(std::ios_base::skipws)
 

@@ -15,6 +15,7 @@
 #include "collectd/callbacks.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
+#include <boost/atomic.hpp>
 #include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
@@ -24,19 +25,24 @@ namespace app {
 
 using boost::asio::ip::tcp;
 
+class archived_client;
+std::ostream &operator<<(std::ostream &os, archived_client const& ac);
+
 class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
-	static unsigned int n_instances_;
-	static unsigned int n_ok_;
+	static boost::atomic_uint n_instances_;
+	static boost::atomic_uint n_ok_;
+	static boost::atomic_uint instance_id_seq_;
 	
 	void set_is_archived_ok(const bool ok)
 	{
-		LogVerbose(instance_id_<<": set_is_archived_ok: "<<ok);
-		if(ok)
-			__sync_add_and_fetch(&n_ok_, 1);
-		else
-			__sync_sub_and_fetch(&n_ok_, 1);
+		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
+		if(ok) {
+			n_ok_++;
+		} else {
+			n_ok_--;
+		}
 	}
 
 	enum constants
@@ -50,10 +56,12 @@ private:
 		enum state_t
 		{
 			initialised,
+			resolving,
 			connecting,
 //			connected,
 			disconnected,
 
+			handshake,
 			handshake_recv,
 			handshake_sent,
 			handshake_err, // if CollectD received a wrong handshake initiation
@@ -97,10 +105,12 @@ private:
 		{
 			static const char* str[n_states+1] = {
 					"initialised",
+					"resolving",
 					"connecting",
 //					"connected",
 					"disconnected",
 
+					"handshake",
 					"handshake_recv",
 					"handshake_sent",
 					"handshake_err",
@@ -140,7 +150,20 @@ private:
 
 			return str[(s < 0 || s >= n_states)? n_states: s];
 		}
+
+		/**
+		 * All states are pretty much interruptable except in certain cases where it can cause duplication
+		 * 
+		 * @param s
+		 * @return
+		 */
+		static inline bool is_interruptable(const state_t& s)
+		{
+			return s <= put_sending_file || s >= put_sent_file_ack_err;
+		}
 	};
+
+	typedef boost::chrono::nanoseconds::rep socket_serial_type;
 
 	const unsigned int instance_id_;
 
@@ -148,8 +171,9 @@ private:
 	boost::asio::strand strand_;
 	
 	boost::asio::ip::tcp::resolver resolver_;
-	boost::shared_ptr< tcp::socket> p_socket_;
+	boost::shared_ptr<tcp::socket> p_socket_;
 	unsigned short int local_port_;
+	boost::atomic<socket_serial_type> socket_serial_;
 
 	boost::asio::deadline_timer timer_;
 
@@ -171,17 +195,82 @@ private:
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
-	volatile bool& quit_;
+	boost::atomic_bool shutdown_flagged_;
+
+	inline bool is_shutdown_flagged()
+	{
+		return shutdown_flagged_.load(boost::memory_order_consume);
+	}
+
+	inline socket_serial_type get_current_socket_serial()
+	{
+		return socket_serial_;
+	}
+
+	inline bool set_socket_serial()
+	{
+		socket_serial_type cur_socket_serial(socket_serial_.load());
+		const socket_serial_type &socket_serial(boost::chrono::duration_cast<boost::chrono::nanoseconds>(
+				boost::chrono::steady_clock::now().time_since_epoch()).count());
+		if (cur_socket_serial == 0 || socket_serial > cur_socket_serial) {
+			return socket_serial_.compare_exchange_strong(cur_socket_serial, socket_serial, boost::memory_order_acquire);
+		}
+
+		return false;
+	}
+
+	inline bool is_valid_socket_serial(const socket_serial_type& serial)
+	{
+		return serial == get_current_socket_serial();
+	}
+
+	inline bool new_socket(const char* function_name)
+	{
+		LogVerbose(*this<<" New socket from "<<function_name);
+		p_socket_ = boost::make_shared<tcp::socket>(boost::ref(io_service_));
+		return set_socket_serial();
+	}
+
+	inline void reset_socket(const char* function_name)
+	{
+		LogVerbose(*this<<" Socket reset from "<<function_name);
+
+		boost::system::error_code error_ignore;
+		p_socket_->cancel(error_ignore);
+		p_socket_.reset();
+
+		local_port_ = 0;
+
+		// here we don't care what the outcome was. A new_socket following this would.
+		set_socket_serial();
+	}
 
 public:
+	inline std::ostream &identify_with_state(std::ostream &os) const
+	{
+		os << "[id:" << instance_id_;
+
+		if (local_port_) {
+			os << ' ' << local_port_;
+		}
+
+		os << ' ' << state::to_string(current_state_);
+
+		if (put_archivable_ptr_) {
+			put_archivable_ptr_->identify_without_state(os << ' ');
+		}
+
+		return os << ']';
+	}
+
 	typedef boost::shared_ptr<archived_client> pointer;
 
 	static float get_is_archived_ok()
 	{
-		if(!n_instances_ || !n_ok_)
+		if(n_instances_ == 0U || n_ok_ == 0U)
 			return 0.0;
 		
-		return (float)n_ok_ / (float)n_instances_;
+		return (float)n_ok_.load() / (float)n_instances_.load();
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
@@ -199,9 +288,8 @@ public:
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
-			const std::string& archived_port,
-			volatile bool& quit) :
-				instance_id_(__sync_add_and_fetch(&n_instances_, 1)),
+			const std::string& archived_port) :
+				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),
 				resolver_(io_service_),
@@ -215,40 +303,58 @@ public:
 				fn_produce_(fn_produce), fn_consume_(fn_consume),
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
-				quit_(quit)
+				shutdown_flagged_(false)
 	{
-		LogVerbose("Instance created; ID:"<<instance_id_);
+		n_instances_++;
+		LogMessage("id:"<<instance_id_<<" archived-client created");
+	}
+
+	~archived_client()
+	{
+		n_instances_--;
+		LogMessage("id:"<<instance_id_<<" archived-client destroyed");
+	}
+
+	static inline unsigned int get_instances_count()
+	{
+		return n_instances_;
 	}
 
 	inline void setup_retry_and_reset_current_archivable(const char *message)
 	{
 		if(put_archivable_ptr_) {
-			if(put_archivable_ptr_->setup_for_retry()) {
+			const bool &can_reschedule(put_archivable_ptr_->setup_for_retry());
+			if (!is_shutdown_flagged() && can_reschedule) {
+				// producing into the queue while shutting down will throw queue-finishing exception
 				fn_produce_(put_archivable_ptr_, false);
 			}
 
-			LogVerbose(local_port_<<' '<<message<<' '<<put_archivable_ptr_);
+			LogVerbose(*this<<' '<<message);
 			put_archivable_ptr_.reset();
 		}
 	}
 
 	inline void connect_archived()
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if(p_socket_) {
-			boost::system::error_code error_ignore;
-			p_socket_->cancel(error_ignore);
-			p_socket_.reset();
+			reset_socket(__FUNCTION__);
 		}
 
 		connected_ = false;
 		setup_retry_and_reset_current_archivable("Reconnecting while processing");
 
+		current_state_ = state::resolving;
+
 		boost::asio::ip::tcp::resolver::query query(archived_host_, archived_port_);
 		resolver_.cancel();
-		resolver_.async_resolve(query,
-				strand_.wrap(boost::bind(&archived_client::handle_resolve, shared_from_this(),
-						boost::asio::placeholders::error,
-						boost::asio::placeholders::iterator)));
+		resolver_.async_resolve(query, strand_.wrap(
+				boost::bind(&archived_client::handle_resolve, shared_from_this(),
+							boost::asio::placeholders::error, boost::asio::placeholders::iterator)));
 
 		set_reconnect_timer(10, false);
 	}
@@ -256,7 +362,7 @@ public:
 	void reconnect(const bool with_bye = true, int delay_seconds = reconnect_delay_seconds)
 	{
 		if (!with_bye) {
-			do_close(true, delay_seconds);
+			do_close(true, static_cast<unsigned int>(delay_seconds));
 		}
 		else {
 			reconnect_delay_ = delay_seconds;
@@ -270,16 +376,54 @@ public:
 
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr << "BYE\r\n\r\n";
-		boost::asio::async_write(*p_socket_, send_buffer_,
-				strand_.wrap(boost::bind(&archived_client::handle_write, shared_from_this(),
-						boost::asio::placeholders::error,
-						boost::asio::placeholders::bytes_transferred)));
+		boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+				boost::bind(&archived_client::handle_write, shared_from_this(),
+							boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+							get_current_socket_serial())));
+	}
+
+	void shutdown()
+	{
+		shutdown_flagged_ = true;
+		LogMessage(*this<<" Shutdown flagged");
+
+		if (state::is_interruptable(current_state_)) {
+			strand_.post(strand_.wrap(
+					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::system::error_code())));
+		} else {
+			LogMessage(*this<<" Current state found to be not interruptable; shutdown in 5 seconds");
+			cancel_timer();
+			timer_.expires_from_now(boost::posix_time::seconds(5));
+			timer_.async_wait(strand_.wrap(
+					boost::bind(&archived_client::shutdown_now, shared_from_this(), boost::asio::placeholders::error)));
+		}
 	}
 
 private:
+	void shutdown_now(const boost::system::error_code& err)
+	{
+		LogMessage(*this<<" Shutdown in progress");
+
+		if (!err) {
+			if (put_archivable_ptr_) {
+				fn_save_to_database_(put_archivable_ptr_);
+			}
+
+			do_close(false);
+		}
+	}
+
+	inline void cancel_timer()
+	{
+		DevDebug(*this<<" cancel_timer");
+		timer_.cancel();
+	}
+
 	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
 	{
-		timer_.cancel();
+		DevDebug(*this<<" set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect);
+
+		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
 		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
@@ -287,23 +431,28 @@ private:
 
 	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if(timer_expired && (error != boost::asio::error::operation_aborted)) {
-			LogMessage("Timeout; reconnecting... (local-port:"<<local_port_<<" current-state:"<<state::to_string(current_state_)<<")");
+			LogMessage(*this<<" Timeout; reconnecting...");
 			connect_archived(force_reconnect);
 		}
 		else if(!timer_expired && (error == boost::asio::error::operation_aborted)) {
-			LogMessage("Socket operation aborted; reconnecting...");
+			LogMessage(*this<<" Socket operation aborted; reconnecting...");
 			set_reconnect_timer(10, true);
 		}
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 10);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 10);
 	}
 
@@ -315,32 +464,42 @@ private:
 		}
 
 		// we are here because the timer expired
-		else if(!connected_ && (current_state_ == state::initialised))
-			LogWarning("Archived connection failed; retrying...");
+		else if(!connected_ && (current_state_ <= state::resolving))
+			LogWarning(*this<<" Archived connection failed; retrying...");
 
 		connect_archived();
 	}
 
-	void handle_resolve(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator) try
+	void handle_resolve(const boost::system::error_code& err, tcp::resolver::iterator endpoint_iterator) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if (!err) {
+			current_state_ = state::connecting;
+
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
-			p_socket_.reset(new tcp::socket(io_service_));
-			p_socket_->async_connect(endpoint,
-					strand_.wrap(boost::bind(&archived_client::handle_connect, shared_from_this(),
-							boost::asio::placeholders::error, ++endpoint_iterator)));
+			if (new_socket(__FUNCTION__)) {
+				// if we are indeed the latest socket on this client, continue with the call sequence
+				p_socket_->async_connect(endpoint, strand_.wrap(
+						boost::bind(&archived_client::handle_connect, shared_from_this(),
+									boost::asio::placeholders::error,
+									++endpoint_iterator, get_current_socket_serial())));
+			}
 		}
 		else {
-			LogWarning("Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
+			LogWarning(*this<<" Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
 		}
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
 	inline void finalise_current_archivable()
@@ -348,77 +507,100 @@ private:
 		fn_remove_from_catalogue_(put_archivable_ptr_);
 		put_archivable_ptr_->set_done(false);
 
-		int retry = 0;
-		while(!fn_save_to_database_(put_archivable_ptr_) && !quit_) {
-			LogMessage(local_port_<<' '<<put_archivable_ptr_<<" [retry: "<<retry<<"] Save states to DB failed; retrying..");
-			boost::this_thread::sleep(boost::posix_time::seconds(15));
-			retry++;
+		if (!fn_save_to_database_(put_archivable_ptr_)) {
+			boost::this_thread::sleep_for(boost::chrono::seconds(2));
+			if (!fn_save_to_database_(put_archivable_ptr_)) {
+				LogWarning(*this<<" Error while saving to database; giving up after retry");
+			}
 		}
-
-		if(retry && quit_)
-			throw rml::exception("Quit flagged during database retry");
 
 		put_archivable_ptr_.reset();
 	}
 
-	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator) try
+	void handle_connect(const boost::system::error_code& error, tcp::resolver::iterator endpoint_iterator, const socket_serial_type& socket_serial) try
 	{
+		if (!is_valid_socket_serial(socket_serial)) {
+			DevDebug(*this<<" Invalid socket serial; Aborting");
+			return;
+		}
+
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
 		if (!error) {
 			boost::system::error_code ec;
 			boost::asio::socket_base::send_buffer_size option(8192);
 			p_socket_->set_option(option, ec);
 			if(ec) {
-				LogWarning("set_option:send_buffer_size failed; err:"<<ec.message());
-				run_statemachine(error);
+				LogWarning(*this<<" set_option:send_buffer_size failed; err:"<<ec.message());
+				run_statemachine(error, socket_serial);
 				return;
 			}
 
-			current_state_ = state::connecting;
-			timer_.cancel();
+			current_state_ = state::handshake;
+			cancel_timer();
 
 			local_port_ = p_socket_->local_endpoint().port();
+			LogMessage(*this<<" Connected to ArchiveD " << archived_host_ << ':' << archived_port_);
 
-			run_statemachine(error);
+			run_statemachine(error, socket_serial);
 		}
 		else {
-			LogWarning("Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
+			LogWarning(*this<<" Error connecting to ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<error.message());
 			if (endpoint_iterator != tcp::resolver::iterator()) {
 				boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
-				p_socket_.reset(new tcp::socket(io_service_));
-				p_socket_->async_connect(endpoint,
-						strand_.wrap(boost::bind(&archived_client::handle_connect, shared_from_this(),
-								boost::asio::placeholders::error, ++endpoint_iterator)));
+				if (new_socket(__FUNCTION__)) {
+					// if we are indeed the latest socket on this client, continue with the call sequence
+					p_socket_->async_connect(endpoint, strand_.wrap(
+							boost::bind(&archived_client::handle_connect, shared_from_this(),
+										boost::asio::placeholders::error,
+										++endpoint_iterator, get_current_socket_serial())));
+				}
 			}
 		}
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
-	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred) try
+	void handle_write(const boost::system::error_code& error, std::size_t bytes_transferred, const socket_serial_type& socket_serial) try
 	{
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
+		if (!is_valid_socket_serial(socket_serial)) {
+			DevDebug(*this<<" Invalid socket serial; Aborting");
+			return;
+		}
+
 		if(!error) {
 			if(current_state_ == state::nop_sent) {
 				current_state_ = state::nop_ack_wait;
-				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-								boost::asio::placeholders::error)));
+				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+						boost::bind(&archived_client::run_statemachine, shared_from_this(),
+									boost::asio::placeholders::error,
+									get_current_socket_serial())));
 
-				set_reconnect_timer(5, true);
+				set_reconnect_timer(10, true);
 				return;
 			}
 		}
 
 		if((current_state_ == state::closing_bye_wait) || (current_state_ == state::reconnecting_bye_wait)) {
 			if(!error) {
-				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-						strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-								boost::asio::placeholders::error)));
+				boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+						boost::bind(&archived_client::run_statemachine, shared_from_this(),
+									boost::asio::placeholders::error,
+									get_current_socket_serial())));
 
 				timer_.expires_from_now(boost::posix_time::seconds(2));
 				timer_.async_wait(
@@ -428,50 +610,68 @@ private:
 								boost::asio::placeholders::error)));
 			}
 			else
-				do_close(current_state_ == state::reconnecting_bye_wait, reconnect_delay_);
+				do_close(current_state_ == state::reconnecting_bye_wait, static_cast<unsigned int>(reconnect_delay_));
 
 			return;
 		}
 
 		if(!error)
-			LogWarning("Invalid current_state:"<<state::to_string(current_state_));
+			LogWarning(*this<<" Invalid current-state");
 		else
-			LogError("Socket IO error: "<<error.message());
+			LogError(*this<<" Socket IO error: "<<error.message());
 
 		reconnect(false);
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false);
 	}
 
-	void run_statemachine(const boost::system::error_code& error) try
+	void run_statemachine(const boost::system::error_code& error, const socket_serial_type& socket_serial) try
 	{
-		// reset any timer in progress; if we loop through, we are alive and kicking
-		timer_.cancel();
+		if (!is_valid_socket_serial(socket_serial)) {
+			DevDebug(*this<<" Invalid socket serial; Aborting");
+			return;
+		}
 
-		if(error) {
-			LogError("run_statemachine [current_state:"<<state::to_string(current_state_)<<"]: "<<error.message());
-			
-			switch(current_state_) {
-			case state::closing_bye_wait:
-			case state::reconnecting_bye_wait:
-				break;
-				
-			default:
-				current_state_ = state::general_err;
-				break;
+		// reset any timer in progress; if we loop through, we are alive and kicking
+		cancel_timer();
+
+		if (error) {
+			if (is_shutdown_flagged()) {
+				if (!state::is_interruptable(current_state_)) {
+					// we have an error here during shutdown (while processing non-interruptable state); not trying to recover.
+					// set it as general-error so that the logic below will just terminate the call-sequence
+					LogError(*this<<" Error occurred during shutdown - error: "<<error.message()<<" - Aborting");
+					current_state_ = state::general_err;
+				}
+			} else {
+				switch(current_state_) {
+					case state::closing_bye_wait:
+					case state::reconnecting_bye_wait:
+						break;
+
+					default:
+						LogError(*this<<" run_statemachine - error: "<<error.message());
+						current_state_ = state::general_err;
+						break;
+				}
 			}
 		}
 
+		if (is_shutdown_flagged() && state::is_interruptable(current_state_)) {
+			LogMessage(*this<<" Shutdown in progress; Aborting state-machine");
+			return;
+		}
+
 		switch(current_state_) {
-		case state::connecting:
+		case state::handshake:
 		{
 			connected_ = true;
 
@@ -480,16 +680,17 @@ private:
 				tcp::socket::keep_alive option(true);
 				p_socket_->set_option(option, ec);
 				if(ec)
-					run_statemachine(ec);
+					run_statemachine(ec, socket_serial);
 			}
 
 			current_state_ = state::handshake_recv;
 
-			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error,
+								get_current_socket_serial())));
 
-			set_reconnect_timer(2, true);
+			set_reconnect_timer(5, true);
 
 			break;
 		}
@@ -499,7 +700,7 @@ private:
 			std::string ArchiveD, version_number, protocol, protocol_version_number;
 			char v, lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 
 			std::ostream ostr(&send_buffer_); ostr.clear();
 			if(!((std::getline(is, ArchiveD, ' ') &&
@@ -510,26 +711,27 @@ private:
 					is.get(lf)) &&
 					ArchiveD == "ArchiveD" && protocol == "protocol")) {
 				ostr << "ERR invalid response\r\n";
-				LogError(local_port_<<" Error: Invalid response from server");
+				LogError(*this<<" Error: Invalid response from server");
 				current_state_ = state::handshake_err;
 			}
 			else if(protocol_version_number != archiving::put_protocol_version_str) {
 				ostr << "ERR protocol version mismatch\r\n";
-				LogError(local_port_<<" Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
+				LogError(*this<<" Error: Server's protocol version ("<<protocol_version_number<<") not same as "<<archiving::put_protocol_version_str);
 				current_state_ = state::handshake_err;
 			}
 			else {
 				if(version_number != version_number_only_string)
-					LogWarning(local_port_<<" Warning: Server differs in version from client");
+					LogWarning(*this<<" Warning: Server differs in version from client [ArchiveDVersion:"<<version_number<<" != "<<version_number_only_string<<']');
 
 				ostr << "OK CollectD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 
 				current_state_ = state::handshake_sent;
 			}
 
-			boost::asio::async_write(*p_socket_, send_buffer_,
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+			boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error,
+								get_current_socket_serial())));
 
 			break;
 		}
@@ -544,11 +746,12 @@ private:
 		case state::handshake_sent:
 		{
 			current_state_ = state::handshake_ack_waiting;
-			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error,
+								get_current_socket_serial())));
 
-			set_reconnect_timer(2, true);
+			set_reconnect_timer(10, true);
 
 			break;
 		}
@@ -558,19 +761,19 @@ private:
 			std::string OK_or_ERR, message;
 			char lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError("handshake_ack_waiting: error: "<<message);
+				LogError(*this<<" handshake_ack_waiting: error: "<<message);
 				current_state_ = state::handshake_ack_err;
 
 				reconnect(false);
 			}
 			else {
-				LogMessage(local_port_<<" Handshake OK; Ready to PUT");
+				LogMessage(*this<<" Handshake OK; Ready to PUT");
 				current_state_ = state::ready_to_put;
 				set_is_archived_ok(true);
-				run_statemachine(error);
+				run_statemachine(error, socket_serial);
 			}
 
 			break;
@@ -581,16 +784,16 @@ private:
 			std::string OK_or_ERR, message;
 			char lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(std::getline(is, OK_or_ERR, ' ') && (OK_or_ERR != "OK\r\n")) {
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError("NOP Error: "<<message);
+				LogError(*this<<" NOP Error: "<<message);
 				current_state_ = state::nop_ack_err;
 				reconnect(true, 5);
 			}
 			else {
 				current_state_ = state::nop_ack_ok;
-				run_statemachine(error);
+				run_statemachine(error, socket_serial);
 			}
 
 			break;
@@ -622,11 +825,13 @@ private:
 		case state::put_sent:
 		{
 			current_state_ = state::put_sent_ack_waiting;
-			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error,
+								get_current_socket_serial())));
 
-			set_reconnect_timer(10, true);
+			// allow ArchiveD time based on the file-size to do disk allocations etc
+			set_reconnect_timer(std::max(static_cast<const int>(put_file_size_ / 102400), 20), true);
 
 			break;
 		}
@@ -636,7 +841,7 @@ private:
 			std::string OK_or_ERR, PUT, file_type_str, OrgID_str, uuid, message;
 			char cr, lf;
 
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(!(std::getline(is, OK_or_ERR, ' ') &&
 					std::getline(is, PUT, ' ') &&
 					std::getline(is, file_type_str, ' ') &&
@@ -646,33 +851,32 @@ private:
 					OK_or_ERR == "OK")) {
 
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" put_sent_ack_waiting: PUT Error: "<<message);
+				LogError(*this<<" put_sent_ack_waiting: PUT Error: "<<message);
 				current_state_ = state::put_sent_ack_err;
 				reconnect(true);
 			}
 			else {
 				is.get(cr); is.get(lf);
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Sending file");
+				LogMessage(*this<<" PUT OK; Sending file");
 
 				current_state_ = state::put_sending_file;
 				rml::utils::tmp_fstream::pointer ifs = put_archivable_ptr_->get_fstream_ptr();
 				ifs->re_open();
 				ifs->rdbuf()->pubseekpos(0,std::ios::in);
 
-				put_file_size_ = ifs->get_size();
 				put_sent_size_ = 0;
 				if(send_buffer_.size()) {
-					LogWarning(local_port_<<' '<<put_archivable_ptr_<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
+					LogWarning(*this<<" send_buffer_.size() != 0 ["<<send_buffer_.size()<<"]; clearing it!");
 					send_buffer_.consume(send_buffer_.size());
 				}
-				run_statemachine(error);
+				run_statemachine(error, socket_serial);
 			}
 			break;
 		}
 
 		case state::put_sending_file:
 		{
-			put_send_file(error, 0);
+			put_send_file(error, 0, socket_serial);
 			break;
 		}
 
@@ -685,11 +889,13 @@ private:
 		case state::put_sent_file_ok:
 		{
 			current_state_ = state::put_sent_file_ack_waiting;
-			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n",
-					strand_.wrap(boost::bind(&archived_client::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
+			boost::asio::async_read_until(*p_socket_, recv_buffer_, "\r\n", strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(),
+								boost::asio::placeholders::error,
+								get_current_socket_serial())));
 
-			set_reconnect_timer(10, true);
+			// wait for one second per 100KB; ArchiveD needs time to compute MD5, and do other housekeeping
+			set_reconnect_timer(std::max(static_cast<const int>(put_file_size_ / 102400), 20), true);
 
 			break;
 		}
@@ -698,7 +904,7 @@ private:
 		{
 			std::string OK_or_ERR, RECV, uuid, message, file_type_str, OrgID_str;
 			char cr, lf;
-			SetupRecvStream("ArchiveD", is, recv_buffer_);
+			SetupRecvStream(*this, "ArchiveD", is, recv_buffer_);
 			if(!(std::getline(is, OK_or_ERR, ' ') &&
 					std::getline(is, RECV, ' ') &&
 					std::getline(is, file_type_str, ' ') &&
@@ -708,17 +914,17 @@ private:
 					OK_or_ERR == "OK")) {
 
 				std::getline(is, message, '\r'); is.get(lf);
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT Error: "<<message);
+				LogError(*this<<" PUT Error: "<<message);
 				current_state_ = state::put_sent_file_ack_err;
 			}
 			else {
 				is.get(cr); is.get(lf);
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT OK; Get next for PUT");
+				LogMessage(*this<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
 			}
 
 			put_archivable_ptr_->hibernate();
-			run_statemachine(error);
+			run_statemachine(error, socket_serial);
 
 			break;
 		}
@@ -733,12 +939,12 @@ private:
 		case state::reconnecting_bye_wait:
 		{
 			current_state_ = state::reconnecting;
-			do_close(true, reconnect_delay_);
+			do_close(true, static_cast<unsigned int>(reconnect_delay_));
 			break;
 		}
 
 		default:
-			LogMessage(local_port_<<' '<<"State ["<<state::to_string(current_state_)<<"] NOT implemented OR Invalid!");
+			LogMessage(*this<<" (current-state) NOT implemented OR Invalid!");
 			/* no break */
 
 		case state::general_err:
@@ -751,12 +957,12 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 10);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 10);
 	}
 
@@ -768,112 +974,136 @@ private:
 	inline void get_next_archivable_for_put()
 	{
 		strand_.post(
-                strand_.wrap(
-                        boost::bind(&archived_client::get_archivable_for_put, shared_from_this())));
+				strand_.wrap(
+						boost::bind(&archived_client::get_archivable_for_put, shared_from_this())));
 	}
 
-    /**
-     * @brief Get an archivable for PUT
-     */
+	/**
+	 * @brief Get an archivable for PUT
+	 */
 	void get_archivable_for_put() try
 	{
 		if (put_archivable_ptr_) {
-			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
-								 << "]; put_archivable_ptr_ != NULL");
+			LogError(*this<<" Invalid call sequence; put_archivable_ptr_ != NULL");
 			do_close(true);
+			return;
+		}
+
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Quit flagged; closing");
+			do_close();
 			return;
 		}
 
 		if (!(current_state_ == state::ready_to_put || current_state_ == state::put_sent_file_ack_ok || current_state_ == state::nop_ack_ok))
 		{
-			LogError(local_port_ << ' ' << "Invalid call sequence [current_state_:" << state::to_string(current_state_)
-								 << "]; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
+			LogError(*this<<" Invalid call sequence; current_state_ is not ready_to_put / put_sent_file_ack_ok / nop_ack_ok");
 			do_close(true);
 			return;
 		}
 
 		put_archivable_ptr_ = fn_consume_(
 				false, boost::chrono::milliseconds(10000),
+				// on connection timeout, send NOP or reconnect if connection has gone away
 				boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
+				// if the queue is finishing, the archived_client has to close (shutdown) as well
 				boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));
-        // if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
-        if (!put_archivable_ptr_) {
-            return;
-        }
-
-        LogMessage(local_port_<<' '<<put_archivable_ptr_<<" Obtained for PUT");
-
-        // if we are going down, give up!
-		if (quit_) {
-            LogMessage(local_port_<<" Quit flagged during consume; closing");
-            // reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
-            // that would be set to be "finishing" by now
-            put_archivable_ptr_.reset();
-            do_close();
+		// if no archivable was obtained, we would be either send_nop_or_reconnect-ing or close-ing by now
+		if (!put_archivable_ptr_) {
 			return;
 		}
 
-        // if the socket has disconnected while we were waiting, we need to reconnect
-        if (!p_socket_ || !p_socket_->is_open()) {
-            LogMessage(local_port_<<" Socket found unusable after consume; reconnecting");
-            reconnect(false);
-            return;
-        }
+		LogMessage(*this<<" Obtained for PUT");
 
-        if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
-            LogWarning(local_port_<<' '<<put_archivable_ptr_<<" Already stored !!! ???");
-            finalise_current_archivable();
-            get_next_archivable_for_put();
-            return;
-        }
+		// if we are going down, give up!
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Quit flagged during consume; closing");
+			// reset put_archivable_ptr_ so that the archivable does not get re-added into a queue / channel
+			// that would be set to be "finishing" by now
+			put_archivable_ptr_.reset();
+			do_close();
+			return;
+		}
 
-        std::ostream ostr(&send_buffer_); ostr.clear();
-        if (!put_archivable_ptr_->inject_put_request(ostr)) {
-            put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
-            get_next_archivable_for_put();
-            return;
-        }
+		// if the socket has disconnected while we were waiting, we need to reconnect
+		if (!p_socket_ || !p_socket_->is_open()) {
+			LogMessage(*this<<" Socket found unusable after consume; reconnecting");
+			reconnect(false);
+			return;
+		}
 
-        current_state_ = state::put_sent;
-        boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
-                boost::bind(&archived_client::run_statemachine, shared_from_this(), boost::asio::placeholders::error)));
-    }
+		if(put_archivable_ptr_->get_current_state() >= archiving::archivable::state::stored) {
+			LogWarning(*this<<" Already stored !!! ???");
+			finalise_current_archivable();
+			get_next_archivable_for_put();
+			return;
+		}
+
+		std::ostream ostr(&send_buffer_); ostr.clear();
+		if (!put_archivable_ptr_->inject_put_request(ostr)) {
+			put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
+			get_next_archivable_for_put();
+			return;
+		}
+
+		current_state_ = state::put_sent;
+		put_file_size_ = put_archivable_ptr_->get_fstream_ptr()->get_size();
+		boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+				boost::bind(&archived_client::run_statemachine, shared_from_this(),
+							boost::asio::placeholders::error,
+							get_current_socket_serial())));
+	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 	}
 
 	inline void send_nop_or_reconnect()
 	{
+		// if shutdown is in progress, don't bother with any
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting");
+			return;
+		}
+
+		// if the socket looks OK, send NOP
 		if (p_socket_ && p_socket_->is_open()) {
-			LogDebug(local_port_ << " Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
+			LogMessage(*this<<" Timeout while waiting for item to PUT; Sending NOP to ArchiveD");
 
 			std::ostream ostr(&send_buffer_);
 			ostr.clear();
 			ostr << "NOP\r\n\r\n";
 
 			current_state_ = state::nop_sent;
-			boost::asio::async_write(
-					*p_socket_, send_buffer_,
-					strand_.wrap(
-							boost::bind(
-									&archived_client::handle_write, shared_from_this(),
-									boost::asio::placeholders::error,
-									boost::asio::placeholders::bytes_transferred)));
-		} else if (!quit_) {
+			boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+					boost::bind(&archived_client::handle_write, shared_from_this(),
+								boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+								get_current_socket_serial())));
+		// else reconnect
+		} else {
 			reconnect(false);
 		}
 	}
 
-	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
+	void put_send_file(const boost::system::error_code& error, std::size_t bytes_transferred, const socket_serial_type& socket_serial) try
 	{
-		LogDebug(local_port_<<' '<<put_archivable_ptr_<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+		if (!is_valid_socket_serial(socket_serial)) {
+			DevDebug(*this<<" Invalid socket serial; Aborting");
+			return;
+		}
 
-		timer_.cancel();
+		DevDebug(*this<<" Sent: "<<put_sent_size_<<" / "<<put_file_size_<<" ("<<bytes_transferred<<" bytes)");
+
+		if (is_shutdown_flagged()) {
+			LogMessage(*this<<" Shutdown flagged; Aborting PUT");
+			return;
+		}
+
+		cancel_timer();
 
 		if(error || ( !error && (put_sent_size_ == put_file_size_) )) {
 			if (!error && (put_sent_size_ == put_file_size_)) {
@@ -881,16 +1111,16 @@ private:
 					std::string eof("\x1a");
 					boost::asio::write(*p_socket_, boost::asio::buffer(eof, 1));
 				}
-				LogMessage(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed OK");
+				LogMessage(*this<<" PUT send file completed OK");
 				current_state_ = state::put_sent_file_ok;
 			}
 			else {
-				LogError(local_port_<<' '<<put_archivable_ptr_<<" PUT send file completed with error; err:"<<error.message());
+				LogError(*this<<" PUT send file completed with error; err:"<<error.message());
 				current_state_ = state::put_sent_file_err;
 			}
 			
 			// post to avoid recursion
-			strand_.post(boost::bind(&archived_client::run_statemachine, shared_from_this(), error));
+			strand_.post(boost::bind(&archived_client::run_statemachine, shared_from_this(), error, socket_serial));
 			return;
 		}
 
@@ -899,7 +1129,7 @@ private:
 		// TODO finetune memory usage here; now we double up unnecessarily!
 		// we could read directly into allocated stream space [ after send_buffer_.prepare(buf_length) ]
 
-		std::vector<char> buf(buf_length + 1);
+		std::vector<char> buf(static_cast<unsigned long>(buf_length + 1));
 		buf_length = put_archivable_ptr_->get_fstream_ptr()->rdbuf()->sgetn(&buf[0], buf_length);
 
 		put_sent_size_ += buf_length;
@@ -907,21 +1137,21 @@ private:
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		ostr.write(&buf[0], buf_length);
 
-		boost::asio::async_write(*p_socket_, send_buffer_,
-				strand_.wrap(boost::bind(&archived_client::put_send_file, shared_from_this(),
-						boost::asio::placeholders::error,
-						boost::asio::placeholders::bytes_transferred)));
+		boost::asio::async_write(*p_socket_, send_buffer_, strand_.wrap(
+				boost::bind(&archived_client::put_send_file, shared_from_this(),
+							boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+							get_current_socket_serial())));
 
-		set_reconnect_timer(10, true);
+		set_reconnect_timer(20, true);
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		reconnect(false, 5);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		reconnect(false, 5);
 	}
 
@@ -932,12 +1162,12 @@ private:
 	}
 	catch(const std::exception& e)
 	{
-		LogWarning("Exception: "<<e.what());
+		LogWarning(*this<<" Exception: "<<e.what());
 		do_close(reconnect, reconnect_delay_seconds);
 	}
 	catch(...)
 	{
-		LogWarning("Exception: Unknown");
+		LogWarning(*this<<" Exception: Unknown");
 		do_close(reconnect, reconnect_delay_seconds);
 	}
 
@@ -947,13 +1177,11 @@ private:
 
 		set_is_archived_ok(false);
 
-		timer_.cancel();
+		cancel_timer();
 		resolver_.cancel();
 
 		if(p_socket_) {
-			boost::system::error_code error_ignore;
-			p_socket_->cancel(error_ignore);
-			p_socket_.reset();
+			reset_socket(__FUNCTION__);
 		}
 
 		setup_retry_and_reset_current_archivable("Closing while sending");
@@ -972,6 +1200,11 @@ private:
 		do_close(false);
 	}
 };
+
+inline std::ostream &operator<<(std::ostream &os, archived_client const& ac)
+{
+	return ac.identify_with_state(os);
+}
 
 }  // namespace app
 

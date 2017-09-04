@@ -334,7 +334,7 @@ private:
 			std::string OK_or_ERR;
 			char cr, lf;
 
-			SetupRecvStream("Distiller", is, recv_buffer_);
+			SetupRecvStream('-', "Distiller", is, recv_buffer_);
 
 			is >> OK_or_ERR >> cr >> lf;
 			if(OK_or_ERR == "ERR") {
@@ -356,7 +356,7 @@ private:
 			std::string OK_or_ERR;
 			char cr, lf;
 
-			SetupRecvStream("Distiller", is, recv_buffer_);
+			SetupRecvStream('-', "Distiller", is, recv_buffer_);
 
 			is >> OK_or_ERR >> cr >> lf;
 			if(OK_or_ERR == "ERR") {
