@@ -644,6 +644,10 @@ int main(int argc, char* argv[]) try
 			}
 		}
 
+		if (app::archived_client::get_instances_count()) {
+			LogWarning("ArchiveD-clients did not finish while waiting; continuing with shutdown");
+		}
+
 		p_work.reset();
 
 		io_service.stop();
