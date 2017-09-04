@@ -281,7 +281,7 @@ int main(int argc, char* argv[]) try
 		initialized = true;
 		LogMessage("Initialisation complete");
 
-		boost::thread_group threads;
+		boost::thread_group threads, sms_inspector_threads, dir_loader_threads;
 		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::shared_ptr<boost::asio::io_service::work>(
 				new boost::asio::io_service::work(*p_io_service));
@@ -335,14 +335,14 @@ int main(int argc, char* argv[]) try
 			internal_db.find_archivables(app::hostname, fn_get_loaded_instance, in_channel, more_to_load_from_db, 1.0f);
 
 		app::sms_inspector sms_inspector(in_channel, out_channel, archivable_busy_set, internal_db, app::confMap, app::hostname, coreapi, *p_io_service);
-		threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
+		sms_inspector_threads.create_thread(boost::bind(&app::sms_inspector::run, boost::ref(sms_inspector)));
 		// this blocks until the thread has completed the first run, hopefully dealing with all outstanding items
 		LogMessage("Waiting for processing of all leftover data, if any ...");
 		sms_inspector.start(wait_for_first_run);
 		LogMessage("Leftover data, processed, continuing with initialisation");
 
 		app::directory_loader directory_loader(sms_directory, app::confMap, directory_loader_fn, archivable_is_valid_fn, app::quit);
-		threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
+		dir_loader_threads.create_thread(boost::bind(&app::directory_loader::run, boost::ref(directory_loader)));
 
 		{
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 4 ));
@@ -360,8 +360,7 @@ int main(int argc, char* argv[]) try
 				app::confMap["purge.frequency_minutes"].as<unsigned int>()));
 
 		threads.create_thread(
-				boost::bind(&collectsmsd::archivable::database::save_run, boost::ref(internal_db_save_retry),
-							boost::ref(app::quit)));
+				boost::bind(&collectsmsd::archivable::database::save_run, boost::ref(internal_db_save_retry)));
 
 		int ticks = 1;
 		while(!app::quit) {
@@ -374,6 +373,18 @@ int main(int argc, char* argv[]) try
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}
+
+		LogMessage("Waiting for directory-loader to finish");
+		dir_loader_threads.join_all();
+
+		LogMessage("Setting IN channel to finish");
+		in_channel.set_finishing();
+
+		LogMessage("Waiting for sms-inspectors to finish");
+		sms_inspector_threads.join_all();
+
+		LogMessage("Setting OUT channel to finish");
+		out_channel.set_finishing();
 
 		// Initiate shutdown of ArchiveD clients
 		archived_client->shutdown();
@@ -396,20 +407,18 @@ int main(int argc, char* argv[]) try
 			}
 		}
 
-		in_channel.set_finishing();
-		out_channel.set_finishing();
-
 		coreapi.logout();
 
 		p_work.reset();
 
 		p_io_service->stop();
 
+		LogMessage("Shutting down internal-db save-retry thread");
+		internal_db_save_retry.shutdown();
+
 		threads.join_all();
 
-
 		LogMessage("Program terminated normally");
-
 		exit(rml::utils::exit_codes::normal);
 	}
 	catch(const std::exception &e) {
