@@ -8,7 +8,7 @@
     <caps>1=1;2=1;3=1;4=1;5=1;6=1</caps></channel_data>
   <variables>
     <direction>inbound</direction>
-    <uuid>aLeg_uuid</uuid>
+    <uuid>{{aLeg_uuid}</uuid>
     <session_id>18</session_id>
     <sip_from_user>12000</sip_from_user>
     <sip_from_uri>12000%40sip.dk.redmatter.com</sip_from_uri>
@@ -141,10 +141,10 @@
     <rmBridgeLRCRoute>false</rmBridgeLRCRoute>
     <rmLCRUseDefaultGatewayOnFailure>true</rmLCRUseDefaultGatewayOnFailure>
     <rmLCRPrivacyReqd>false</rmLCRPrivacyReqd>
-    <rmAdditionalLCRChannelVars>rmOriginatorUUID%3DaLeg_uuid,'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283</rmAdditionalLCRChannelVars>
+    <rmAdditionalLCRChannelVars>rmOriginatorUUID%3D{{aLeg_uuid},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283</rmAdditionalLCRChannelVars>
     <rmHangUpOnCallBar>true</rmHangUpOnCallBar>
     <rmFallBackRoutesEnabled>true</rmFallBackRoutesEnabled>
-    <rmOriginatorUUID>aLeg_uuid</rmOriginatorUUID>
+    <rmOriginatorUUID>{{aLeg_uuid}</rmOriginatorUUID>
     <rmOriginatorOrgId>1</rmOriginatorOrgId>
     <rmOriginatorContext>1</rmOriginatorContext>
     <rmOriginatorUserId>0</rmOriginatorUserId>
@@ -159,15 +159,15 @@
     <lcr_query_expanded_lrn_digits>'447956665283',%20'44795666528',%20'4479566652',%20'447956665',%20'44795666',%20'4479566',%20'447956',%20'44795',%20'4479',%20'447',%20'44',%20'4'</lcr_query_expanded_lrn_digits>
     <lcr_route_count>0</lcr_route_count>
     <lcr_carrier>magrathea</lcr_carrier>
-    <rmLCRRoute>%5B,rmOriginatorUUID%3DaLeg_uuid,'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmLCRRoute>
-    <rmBridgeString>%5B,rmOriginatorUUID%3DaLeg_uuid,'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmBridgeString>
+    <rmLCRRoute>%5B,rmOriginatorUUID%3D{{aLeg_uuid},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmLCRRoute>
+    <rmBridgeString>%5B,rmOriginatorUUID%3D{{aLeg_uuid},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmBridgeString>
     <max_forwards>67</max_forwards>
     <transfer_source>1358761511%3Aa3061caa-604c-4400-b062-2d95a652800c%3Abl_xfer%3AfeatureBridgeExternalCall/features/XML</transfer_source>
-    <call_uuid>aLeg_uuid</call_uuid>
+    <call_uuid>{{aLeg_uuid}</call_uuid>
     <user_context>1</user_context>
     <hold_music>local_stream%3A//classical</hold_music>
     <export_vars>default_language,rmTTSVoice,rmLanguageLocale,sound_prefix,_nolocal_execute_on_answer,rmDumpCalls,sip_redirect_context,rmOriginatorUserId,rmOriginatorDevId,domain_name,user_context,rmOriginatorUUID,rmOriginatorOrgId,rmOriginatorContext,rmOriginatorUserId,rmOriginatorDevId,user_context,hold_music</export_vars>
-    <originated_legs>bLeg_uuid%3BOutbound%20Call%3B447956665283</originated_legs>
+    <originated_legs>{{bLeg_uuid}}%3BOutbound%20Call%3B447956665283</originated_legs>
     <switch_m_sdp>v%3D0%0D%0Ao%3D-%201985744%200%20IN%20IP4%20213.166.5.168%0D%0As%3DCisco%20SDP%200%0D%0Ac%3DIN%20IP4%20213.166.5.168%0D%0At%3D0%200%0D%0Am%3Daudio%2020092%20RTP/AVP%208%20101%20100%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-15%0D%0Aa%3Drtpmap%3A100%20X-NSE/8000%0D%0Aa%3Dfmtp%3A100%20200-202%0D%0Aa%3DX-sqn%3A0%0D%0Aa%3DX-cap%3A%201%20audio%20RTP/AVP%20100%0D%0Aa%3DX-cpar%3A%20a%3Drtpmap%3A100%20X-NSE/8000%0D%0Aa%3DX-cpar%3A%20a%3Dfmtp%3A100%20200-202%0D%0Aa%3DX-cap%3A%202%20image%20udptl%20t38%0D%0A</switch_m_sdp>
     <local_media_ip>172.30.98.23</local_media_ip>
     <local_media_port>25760</local_media_port>
@@ -180,11 +180,11 @@
     <remote_media_port>10000</remote_media_port>
     <originate_disposition>SUCCESS</originate_disposition>
     <DIALSTATUS>SUCCESS</DIALSTATUS>
-    <originate_causes>bLeg_uuid%3BNONE</originate_causes>
-    <last_bridge_to>bLeg_uuid</last_bridge_to>
+    <originate_causes>{{bLeg_uuid}}%3BNONE</originate_causes>
+    <last_bridge_to>{{bLeg_uuid}}</last_bridge_to>
     <bridge_channel>sofia/external1/447956665283</bridge_channel>
-    <bridge_uuid>bLeg_uuid</bridge_uuid>
-    <signal_bond>bLeg_uuid</signal_bond>
+    <bridge_uuid>{{bLeg_uuid}}</bridge_uuid>
+    <signal_bond>{{bLeg_uuid}}</signal_bond>
     <bridge_pre_execute_app>lua</bridge_pre_execute_app>
     <bridge_pre_execute_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</bridge_pre_execute_data>
     <sip_local_sdp_str>v%3D0%0Ao%3DRMServer%201358735755%201358735757%20IN%20IP4%20172.30.98.23%0As%3DRMServer%0Ac%3DIN%20IP4%20172.30.98.23%0At%3D0%200%0Am%3Daudio%2025760%20RTP/AVP%208%20101%0Aa%3Drtpmap%3A8%20PCMA/8000%0Aa%3Drtpmap%3A101%20telephone-event/8000%0Aa%3Dfmtp%3A101%200-16%0Aa%3DsilenceSupp%3Aoff%20-%20-%20-%20-%0Aa%3Dptime%3A20%0Aa%3Dsendrecv%0A</sip_local_sdp_str>
@@ -220,7 +220,7 @@
     <bridge_stamp>2013-01-21%2009%3A45%3A15</bridge_stamp>
     <progress_media_stamp>2013-01-21%2009%3A45%3A15</progress_media_stamp>
     <end_stamp>2013-01-21%2009%3A45%3A41</end_stamp>
-    <start_epoch>startEpoch</start_epoch>
+    <start_epoch>{{startEpoch}}</start_epoch>
     <start_uepoch>1358761509960070</start_uepoch>
     <profile_start_epoch>1358761511</profile_start_epoch>
     <profile_start_uepoch>1358761511720134</profile_start_uepoch>
@@ -320,7 +320,7 @@
     <application app_name="export" app_data="_nolocal_execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer" app_stamp="1358761510244426"></application>
     <application app_name="set" app_data="rmUserExtension=" app_stamp="1358761510245179"></application>
     <application app_name="export" app_data="rmDumpCalls=None" app_stamp="1358761510245580"></application>
-    <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=None,UUID=aLeg_uuid,SIP-Call-ID=e67ded6d58aa4830a5549f78fcccfdf7@127.0.1.1" app_stamp="1358761510246057"></application>
+    <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=None,UUID={{aLeg_uuid},SIP-Call-ID=e67ded6d58aa4830a5549f78fcccfdf7@127.0.1.1" app_stamp="1358761510246057"></application>
     <application app_name="set" app_data="rmDialledNumberStripped=07956665283" app_stamp="1358761510246665"></application>
     <application app_name="set" app_data="rmCallCategory=SOC" app_stamp="1358761510247132"></application>
     <application app_name="set" app_data="rmNumberNormalised=12000" app_stamp="1358761510247657"></application>
@@ -348,7 +348,7 @@
     <application app_name="export" app_data="user_context=1" app_stamp="1358761510776000"></application>
     <application app_name="set" app_data="effective_caller_id_number=" app_stamp="1358761510776979"></application>
     <application app_name="set" app_data="effective_caller_id_name=" app_stamp="1358761510777485"></application>
-    <application app_name="export" app_data="rmOriginatorUUID=aLeg_uuid" app_stamp="1358761510778073"></application>
+    <application app_name="export" app_data="rmOriginatorUUID={{aLeg_uuid}" app_stamp="1358761510778073"></application>
     <application app_name="javascript" app_data="applications/lcr/lcr.js 07956665283" app_stamp="1358761510778649"></application>
     <application app_name="export" app_data="rmOriginatorOrgId=1" app_stamp="1358761510793083"></application>
     <application app_name="export" app_data="rmOriginatorContext=1" app_stamp="1358761510793683"></application>
@@ -360,7 +360,7 @@
     <application app_name="export" app_data="user_context=1" app_stamp="1358761511728782"></application>
     <application app_name="export" app_data="hold_music=local_stream://classical" app_stamp="1358761511729405"></application>
     <application app_name="unset" app_data="rmReferHandled" app_stamp="1358761511729924"></application>
-    <application app_name="bridge" app_data="[,rmOriginatorUUID=aLeg_uuid,'execute_on_ring=execute_extension executeOnRing XML dpSupport','execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer',rmOriginatorOrgId=1,rmNumberNormalised=447956665283,rmOrgID=1,rmUserID=0,rmDevID=0,rmTargetType=pstn,retailChargeBand='null',retailConnectCharge=0,retailRate=0,retailRateType=null,retailCountryCode=null,retailCountry='null',retailPrimaryBandType='null',retailSubBandType='null',rmCallCategory=CTC,origination_caller_id_number=,origination_caller_id_name=]sofia/gateway/magrathea/447956665283" app_stamp="1358761511730484"></application>
+    <application app_name="bridge" app_data="[,rmOriginatorUUID={{aLeg_uuid},'execute_on_ring=execute_extension executeOnRing XML dpSupport','execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer',rmOriginatorOrgId=1,rmNumberNormalised=447956665283,rmOrgID=1,rmUserID=0,rmDevID=0,rmTargetType=pstn,retailChargeBand='null',retailConnectCharge=0,retailRate=0,retailRateType=null,retailCountryCode=null,retailCountry='null',retailPrimaryBandType='null',retailSubBandType='null',rmCallCategory=CTC,origination_caller_id_number=,origination_caller_id_name=]sofia/gateway/magrathea/447956665283" app_stamp="1358761511730484"></application>
     <application app_name="lua" app_data="applications/features/PreALegBridgeHook.lua bridge_pre_execute_aleg" app_stamp="1358761515824699"></application></app_log>
   <callflow dialplan="XML" unique-id="a3061caa-604c-4400-b062-2d95a652800c" clone-of="692ba5a2-b863-4308-aa1b-58a61365e82b" profile_index="3">
     <extension name="force_context" number="featureBridgeExternalCall" current_app="set">
@@ -381,7 +381,7 @@
       <network_addr>172.30.98.23</network_addr>
       <rdnis>OutboundHook</rdnis>
       <destination_number>featureBridgeExternalCall</destination_number>
-      <uuid>aLeg_uuid</uuid>
+      <uuid>{{aLeg_uuid}</uuid>
       <source>mod_sofia</source>
       <transfer_source>1358761511:a3061caa-604c-4400-b062-2d95a652800c:bl_xfer:featureBridgeExternalCall/features/XML</transfer_source>
       <context>features</context>
@@ -399,7 +399,7 @@
           <network_addr>172.30.98.23</network_addr>
           <rdnis>OutboundHook</rdnis>
           <destination_number>447956665283</destination_number>
-          <uuid>bLeg_uuid</uuid>
+          <uuid>{{bLeg_uuid}}</uuid>
           <source>mod_sofia</source>
           <context>features</context>
           <chan_name>sofia/external1/447956665283</chan_name></origination_caller_profile></origination>
@@ -416,7 +416,7 @@
           <network_addr>213.166.5.149</network_addr>
           <rdnis>OutboundHook</rdnis>
           <destination_number>447956665283</destination_number>
-          <uuid>bLeg_uuid</uuid>
+          <uuid>{{bLeg_uuid}}</uuid>
           <source>mod_sofia</source>
           <context>features</context>
           <chan_name>sofia/external1/447956665283</chan_name></originatee_caller_profile></originatee></caller_profile>
@@ -454,7 +454,7 @@
       <network_addr>172.30.98.23</network_addr>
       <rdnis>07956665283</rdnis>
       <destination_number>OutboundHook</destination_number>
-      <uuid>aLeg_uuid</uuid>
+      <uuid>{{aLeg_uuid}</uuid>
       <source>mod_sofia</source>
       <transfer_source>1358761510:692ba5a2-b863-4308-aa1b-58a61365e82b:bl_xfer:OutboundHook/1/XML</transfer_source>
       <context>1</context>
@@ -513,7 +513,7 @@
       <network_addr>172.30.98.23</network_addr>
       <rdnis></rdnis>
       <destination_number>07956665283</destination_number>
-      <uuid>aLeg_uuid</uuid>
+      <uuid>{{aLeg_uuid}</uuid>
       <source>mod_sofia</source>
       <context>1</context>
       <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></caller_profile>

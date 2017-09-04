@@ -15,7 +15,9 @@ C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
 # CPPFLAGS += -Wsign-promo
+ifeq ($(WITH_DEV_DEBUG),YES)
 CPPFLAGS += -DRML_DEV_DEBUG
+endif
 
 TARGET=collectd
 

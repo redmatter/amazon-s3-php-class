@@ -26,8 +26,13 @@ struct database : private boost::noncopyable
 
     explicit database(const common::collectd::fn_save_to_database_type &fn_save_real,
                       const boost::chrono::seconds &retry_interval) :
-            fn_save_real_(fn_save_real), retry_interval_(retry_interval)
+            fn_save_real_(fn_save_real), retry_interval_(retry_interval), shutdown_flagged_(false)
     {}
+
+    inline void shutdown()
+    {
+        shutdown_flagged_ = true;
+    }
 
     bool save(const archiving::archivable::pointer &archivable) try
     {
@@ -55,10 +60,10 @@ struct database : private boost::noncopyable
         return false;
     }
 
-    void save_run(volatile bool& quit) try
+    void save_run() try
     {
         boost::chrono::steady_clock::time_point sleep_until(boost::chrono::steady_clock::now() + retry_interval_);
-        while(!quit) {
+        while(!is_shutdown_flagged()) {
             if(boost::chrono::steady_clock::now() < sleep_until) {
                 boost::this_thread::sleep_for(boost::chrono::seconds(1));
                 continue;
@@ -116,10 +121,17 @@ private:
         LogError("save_all failed; exception:unknown");
     }
 
+    inline bool is_shutdown_flagged()
+    {
+        return shutdown_flagged_.load(boost::memory_order_consume);
+    }
+
     const common::collectd::fn_save_to_database_type &fn_save_real_;
     const boost::chrono::seconds retry_interval_;
     archivable_list save_list_;
     boost::recursive_mutex save_list_mutex_;
+
+    boost::atomic_bool shutdown_flagged_;
 };
 
 } // namespace archivable
