@@ -77,7 +77,7 @@ target_link_libraries(rmarchived.bin
 
         fcgi
 
-        mysqlclient_r
+        mysqlclient
         mysqlpp
 
         rt
