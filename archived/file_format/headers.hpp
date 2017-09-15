@@ -12,18 +12,10 @@
 #include "detail/parameter.hpp"
 
 #include <stdint.h>
-#include <string>
 #include <cstring>
-#include <exception>
-#include <stdexcept>
-
-#include <cryptopp/aes.h>
-#include <cryptopp/blowfish.h>
 
 #include <boost/mpl/int.hpp>
 #include <boost/mpl/plus.hpp>
-#include <boost/mpl/sizeof.hpp>
-#include <boost/mpl/equal_to.hpp>
 #include <boost/parameter/parameters.hpp>
 
 namespace archiving

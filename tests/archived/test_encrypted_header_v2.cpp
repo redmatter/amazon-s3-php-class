@@ -38,15 +38,21 @@ TEST(FileFormatDetailParameter, Basics)
     typedef crypto_header<version<1> > crypto_header_v1;
     typedef crypto_header<version<2> > crypto_header_v2;
 
-    ASSERT_EQ(sizeof(crypto_header_v1::padding), crypto_header_v1::padding_length::value);
-    ASSERT_EQ(sizeof(crypto_header_v2::padding), crypto_header_v2::padding_length::value);
+    {
+        crypto_header_v1 v1;
+        ASSERT_EQ(sizeof(v1.padding), crypto_header_v1::padding_length::value);
+    }
+    {
+        crypto_header_v2 v2;
+        ASSERT_EQ(sizeof(v2.padding), crypto_header_v2::padding_length::value);
+    }
 
     crypto_header_v1 header_v1;
     initialise_crypto_header(header_v1, version_number);
-    std::memset(header_v1.iv, 0, sizeof(crypto_header_v1::iv));
+    std::memset(header_v1.iv, 0, sizeof(header_v1.iv));
 
     app::types::header_encrypted legacy_header;
-    std::memset(legacy_header.iv, 0, sizeof(app::types::header_encrypted::iv));
+    std::memset(legacy_header.iv, 0, sizeof(legacy_header.iv));
 
     ASSERT_EQ(sizeof(crypto_header_v1), sizeof(app::types::header_encrypted));
     ASSERT_EQ(0, std::memcmp(&legacy_header, &header_v1, sizeof(crypto_header_v1)));
@@ -62,4 +68,5 @@ TEST(FileFormatDetailParameter, Basics)
     ASSERT_EQ(legacy_header.format_version_major, header_union.format_version.major);
 
     ASSERT_EQ(0, std::memcmp(header_union.buffer, &legacy_header, sizeof(header_union.buffer)));
+    ASSERT_EQ(0, std::memcmp(header_union.buffer, &legacy_header, sizeof(legacy_header)));
 }
