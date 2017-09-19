@@ -294,6 +294,7 @@ public:
 				strand_(io_service_),
 				resolver_(io_service_),
 				local_port_(0),
+				socket_serial_(0),
 				timer_(io_service_),
 				archived_host_(archived_host),
 				archived_port_(archived_port),
@@ -481,6 +482,7 @@ private:
 			current_state_ = state::connecting;
 
 			boost::asio::ip::tcp::endpoint endpoint = *endpoint_iterator;
+			LogVerbose(*this<<" Connecting to "<<endpoint);
 			if (new_socket(__FUNCTION__)) {
 				// if we are indeed the latest socket on this client, continue with the call sequence
 				p_socket_->async_connect(endpoint, strand_.wrap(
@@ -488,6 +490,7 @@ private:
 									boost::asio::placeholders::error,
 									++endpoint_iterator, get_current_socket_serial())));
 			}
+			// no need to handle the else here as the deadline-timer will take care of that by reconnecting
 		}
 		else {
 			LogWarning(*this<<" Error resolving ArchiveD host "<<archived_host_<<" ( port "<<archived_port_<<" ) - error:"<<err.message());
