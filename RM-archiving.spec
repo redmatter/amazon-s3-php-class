@@ -134,6 +134,9 @@ Archiving daemon ( ArchiveD )
 Works on CDR from FreeSWITCH to identify files to be archived.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
+%description collectd
+CollectD Schema files
+
 %description collect-smsd
 Daemon that archives queued SMS messages from BES server via the callcontrol API.
 It also makes sense of archiving policy and passes that on to ArchiveD.
