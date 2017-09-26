@@ -134,7 +134,7 @@ Archiving daemon ( ArchiveD )
 Works on CDR from FreeSWITCH to identify files to be archived.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
-%description collectd
+%description collectd-schema
 CollectD Schema files
 
 %description collect-smsd
