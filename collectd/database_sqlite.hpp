@@ -2,7 +2,7 @@
  * database_sqlite.hpp
  *
  *  Created on: 13/01/2013
- *      Author: dkorah
+ *  Author: dkorah
  */
 
 #ifndef DATABASE_SQLITE_HPP_
@@ -131,10 +131,6 @@ public:
 		if(p_arc->set_save_setup())
 			return true; // save already in progress from an earlier call to save()
 
-		const archiving::archivable::pointer& p_parent(p_arc->get_parent());
-		if(p_parent && !p_parent->get_database_id())
-			(void) save(p_parent);
-
 		save_list_.push_back(p_arc);
 
 		return true;
@@ -221,12 +217,6 @@ private:
 	bool save_real(archiving::archivable::pointer p_arc, const sqlite::work& txn)
 	{
 		try {
-			archiving::archivable::pointer p_parent = p_arc->get_parent();
-			if (p_parent && !p_parent->get_database_id()) {
-				LogWarning(*p_arc<<" Failed to get parent-id; parent:"<<*p_parent);
-				return false;
-			}
-
 			sqlite::query::pointer p_query(txn.query());
 			{
 				if(!p_arc->get_database_id()) {
@@ -240,7 +230,8 @@ private:
 							" PolicyID, MD5, AddToCDRMunchCache, BufferedRecording, DataFormat,"
 							" Retry,"
 							" StartEpoch,"
-							" UpdateTime"
+							" UpdateTime,"
+                            " LegUUID"
 							" ) VALUES ( "
 							" :ParentID, :FileType,"
 							" :OrgID, :UserIDs,"
@@ -250,7 +241,8 @@ private:
 							" :PolicyID, :MD5, :AddToCDRMunchCache, :BufferedRecording, :DataFormat,"
 							" :Retry,"
 							" :StartEpoch,"
-							" DATETIME('NOW')"
+							" DATETIME('NOW'),"
+                            " :LegUUID"
 							")"
 							;
 				}
@@ -266,7 +258,8 @@ private:
 							" PolicyID=:PolicyID, MD5=:MD5, AddToCDRMunchCache=:AddToCDRMunchCache, BufferedRecording=:BufferedRecording, DataFormat=:DataFormat,"
 							" Retry=:Retry,"
 							" StartEpoch=:StartEpoch,"
-							" UpdateTime=DATETIME('NOW')"
+							" UpdateTime=DATETIME('NOW'),"
+                            " LegUUID=:LegUUID"
 							" WHERE ID=:ID";
 				}
 
@@ -299,7 +292,10 @@ private:
 			archiving::uuid_t originator_uuid;
 			bytes_from_string(p_arc->get_originator_uuid(), originator_uuid);
 
-			p_query->bind<int64_t>(p_parent? p_parent->get_database_id(): 0ULL, ":ParentID")
+            archiving::uuid_t leg_uuid;
+
+            // TODO remove ParentID altogether once we are confident with the parent-less version
+			p_query->bind<int64_t>(0ULL, ":ParentID")
 					->bind(p_arc->get_type(), ":FileType")
 
 					->bind<int>(p_arc->get_org_id(), ":OrgID")
@@ -321,7 +317,15 @@ private:
 					->bind<int64_t>(p_arc->get_start_epoch(), ":StartEpoch")
 					;
 
-			if(p_arc->get_database_id())
+            const std::string& str_leg_uuid(p_arc->get_leg_uuid());
+            if (str_leg_uuid.empty()) {
+                p_query->bind(sqlite::null, ":LegUUID");
+            } else {
+                bytes_from_string(p_arc->get_leg_uuid(), leg_uuid);
+                p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
+            }
+
+            if(p_arc->get_database_id())
 				p_query->bind<int64_t>(p_arc->get_database_id(), ":ID");
 
 			const sqlite::result& res(p_query->execute());
@@ -410,14 +414,13 @@ public:
 
 			if(first_max_id && max_id <= first_max_id) {
 				sqlite::query::pointer p_query(txn.query("SELECT"
-						" c.ID, c.FileType, LOWER(HEX(SUBSTR(c.UUID, 1, 4)) || '-' || HEX(SUBSTR(c.UUID, 5, 2)) || '-' || HEX(SUBSTR(c.UUID, 7, 2)) || '-' || HEX(SUBSTR(c.UUID, 9, 2)) || '-' || HEX(SUBSTR(c.UUID, 11))) AS c_UUID,"
-						" p.ID, p.FileType, LOWER(HEX(SUBSTR(p.UUID, 1, 4)) || '-' || HEX(SUBSTR(p.UUID, 5, 2)) || '-' || HEX(SUBSTR(p.UUID, 7, 2)) || '-' || HEX(SUBSTR(p.UUID, 9, 2)) || '-' || HEX(SUBSTR(p.UUID, 11))) AS p_UUID "
+						" ID, FileType, LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS UUID "
 						 "FROM"
-						 " `Queue` c LEFT JOIN `Queue` p ON c.ParentID=p.ID "
+						 " `Queue` "
 						 "WHERE"
-						 " c.Retry < 5 AND c.State NOT IN (:stateStored, :stateDiscarded)"
-						 " AND c.ID <= :FirstMaxID AND c.ID > :MaxID "
-						 "ORDER BY c.ID ASC "
+						 " Retry < 5 AND State NOT IN (:stateStored, :stateDiscarded)"
+						 " AND ID <= :FirstMaxID AND ID > :MaxID "
+						 "ORDER BY ID ASC "
 						 "LIMIT 100"));
 				const sqlite::result& res(p_query->prepare()
 						->bind(archiving::archivable::state::stored, ":stateStored")
@@ -430,35 +433,23 @@ public:
 				unsigned int count(0);
 
 				while(res) {
-					const uint64_t& child_id(res[0].as_int64());
-					max_id = child_id;
+					const uint64_t& id(res[0].as_int64());
+					max_id = id;
 
-					archiving::archivable::pointer p_parent;
-					archiving::archivable::pointer p_child;
+					archiving::archivable::pointer p_archivable;
 
-					archiving::file_type::file_type_t child_file_type = archiving::file_type::file_type_t(res[1].as_int());
-					archiving::file_type::file_type_t parent_file_type = archiving::file_type::file_type_t(res[4].as_int());
+					archiving::file_type::file_type_t archivable_file_type = archiving::file_type::file_type_t(res[1].as_int());
 
 					try{
-						p_child = fn_get_loaded_instance(archiving::archivable::pointer(
-								new archiving::archivable(res[2].as_text(), child_file_type)));
+						p_archivable = fn_get_loaded_instance(archiving::archivable::pointer(
+								new archiving::archivable(res[2].as_text(), archivable_file_type)));
 
-						if(!p_child) {
-							LogVerbose("Loading ID:"<<res[0].as_int64()<<" FileType:"<<archiving::file_type::to_string(child_file_type)<<" UUID:"<<res[2].as_text());
-							if(!res[3].is_null()) {
-								p_parent = fn_get_loaded_instance(archiving::archivable::pointer(
-										new archiving::archivable(res[5].as_text(), parent_file_type)));
+						if(!p_archivable) {
+							LogVerbose("Loading ID:"<<res[0].as_int64()<<" FileType:"<<archiving::file_type::to_string(archivable_file_type)<<" UUID:"<<res[2].as_text());
 
-								if(!p_parent) {
-									p_parent = load_archivable_by_id(res[3].as_int64());
-									if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-										fn_produce(p_parent);
-								}
-							}
-
-							p_child =  load_archivable_by_id(res[0].as_int64(), p_parent);
+							p_archivable =  load_archivable_by_id(res[0].as_int64());
 							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-								fn_produce(p_child);
+								fn_produce(p_archivable);
 						}
 					}
 					catch(const std::exception& e) {
@@ -484,21 +475,17 @@ public:
 	 *
 	 * @param key
 	 * @param value
-	 * @param p_parent
 	 * @return
 	 */
 	template< typename ValueType >
-	archiving::archivable::pointer load_archivable_by_key_value(
-			const std::string& key,
-			const ValueType& value,
-			archiving::archivable::pointer p_parent)
+	archiving::archivable::pointer load_archivable_by_key_value(const std::string& key, const ValueType& value)
 	{
 		try{
 			sqlite::work txn(p_pool_);
 
 			sqlite::query::pointer p_query(txn.query());
 			p_query << "SELECT"
-					" ParentID,"
+					" ParentID," // ParentID deprecated; only for fallback during the "self-migration" period
 					" FileType,"
 					" OrgID,"
 					" LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS str_UUID,"
@@ -515,19 +502,15 @@ public:
 					" LOWER(HEX(SUBSTR(OriginatorUUID, 1, 4)) || '-' || HEX(SUBSTR(OriginatorUUID, 5, 2)) || '-' || HEX(SUBSTR(OriginatorUUID, 7, 2)) || '-' || HEX(SUBSTR(OriginatorUUID, 9, 2)) || '-' || HEX(SUBSTR(OriginatorUUID, 11))) AS OrigUUID,"
 					" UserIDs,"
 					" ID,"
-					" BufferedRecording "
+					" BufferedRecording,"
+                    " LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) AS str_LegUUID"
 					"FROM `Queue` "
 					"WHERE "<<key<<" = :value";
 			const sqlite::result& res(p_query->prepare()
 					->bind(value, ":value")
 					->execute());
 			if(res) {
-				if(res[0].as_int64() && !p_parent)
-					throw rml::exception("No parent given");
-				else if(p_parent && (uint64_t(res[0].as_int64()) != p_parent->get_database_id()))
-					throw rml::exception("Parent given doesnt match");
-
-				const archiving::file_type::file_type_t type(static_cast<archiving::file_type::file_type_t>(res[1].as_int()));
+                const archiving::file_type::file_type_t type(static_cast<archiving::file_type::file_type_t>(res[1].as_int()));
 				archiving::archivable::pointer p_arc(new archiving::archivable(
 						res[3].as_text(),
 						res[14].is_null()? "": res[14].as_text(),
@@ -536,7 +519,6 @@ public:
 						type,
 						res[10].as_text(),
 						res[13].as_text(),
-						p_parent,
 						app::policy::id_type(res[7].as_int64()),
 						res[9].as_int(),
 						!res[5].is_null(),
@@ -557,7 +539,36 @@ public:
 					p_arc->set_owners(owner);
 				}
 
-				return p_arc;
+                // If LegUUID is empty and the file-type is not CDR and parent-id > 0, assume it to be an old record and
+                // get LegUUID from parent-id. In newer records, parent-id is set to zero.
+                // LegUUIDs loaded this way are saved later on into the db-record.
+                const uint64_t parent_id = static_cast<uint64_t>(res[0].as_int64());
+                std::string str_leg_uuid(res[18].is_null()? "": res[18].as_text());
+                if (str_leg_uuid.empty() && type != archiving::file_type::cdr && parent_id > 0) {
+                    LogMessage(p_arc<<" Archivable found with NO LegUUID but WITH a ParentID ("<<parent_id<<"); looking up parent for LegUUID");
+                    try {
+                        sqlite::work txn_leg_uuid(p_pool_);
+
+                        sqlite::query::pointer p_query_leg_uuid(txn_leg_uuid.query());
+                        p_query_leg_uuid << "SELECT"
+                                " LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS str_UUID "
+                                "WHERE"
+                                " ID = :ParentID AND FileType = :CdrFileType";
+                        const sqlite::result& res_leg_uuid(p_query->prepare()
+                                ->bind(static_cast<int64_t>(parent_id), ":ParentID")
+                                ->bind(static_cast<int>(archiving::file_type::cdr), ":CdrFileType")
+                                ->execute());
+                        if(res_leg_uuid) {
+                            str_leg_uuid = res_leg_uuid[0].as_text();
+                        }
+                    } catch (...) {
+                        /* ignore any exceptions here */
+                    }
+                }
+
+                p_arc->set_leg_uuid(str_leg_uuid);
+
+                return p_arc;
 			}
 		}
 		catch(const sqlite::exception& e) {
@@ -574,33 +585,25 @@ public:
 	 * Load archivable by its database id
 	 *
 	 * @param id
-	 * @param p_parent
 	 * @return
 	 */
-	archiving::archivable::pointer load_archivable_by_id(
-			const uint64_t& id,
-			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
-			)
+	archiving::archivable::pointer load_archivable_by_id(const uint64_t& id)
 	{
-		return load_archivable_by_key_value("ID", int64_t(id), p_parent);
+		return load_archivable_by_key_value("ID", int64_t(id));
 	}
 
 	/**
 	 * Load archivable by its uuid
 	 *
 	 * @param uuid
-	 * @param p_parent
 	 * @return
 	 */
-	archiving::archivable::pointer load_archivable_by_uuid(
-			const std::string &uuid,
-			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
-			)
+	archiving::archivable::pointer load_archivable_by_uuid(const std::string &uuid)
 	{
 		archiving::uuid_t uuid_bin;
 		bytes_from_string(uuid, uuid_bin);
 
-		return load_archivable_by_key_value<sqlite::types::blob>("UUID", sqlite::types::blob(uuid_bin), p_parent);
+		return load_archivable_by_key_value<sqlite::types::blob>("UUID", sqlite::types::blob(uuid_bin));
 	}
 
 	struct purgedef
