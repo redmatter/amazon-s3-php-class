@@ -504,7 +504,7 @@ public:
 					" ID,"
 					" BufferedRecording,"
                     " LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) AS str_LegUUID"
-					"FROM `Queue` "
+					"FROM Queue "
 					"WHERE "<<key<<" = :value";
 			const sqlite::result& res(p_query->prepare()
 					->bind(value, ":value")
@@ -552,8 +552,8 @@ public:
                         sqlite::query::pointer p_query_leg_uuid(txn_leg_uuid.query());
                         p_query_leg_uuid << "SELECT"
                                 " LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS str_UUID "
-                                "WHERE"
-                                " ID = :ParentID AND FileType = :CdrFileType";
+                                " FROM Queue"
+                                " WHERE ID = :ParentID AND FileType = :CdrFileType";
                         const sqlite::result& res_leg_uuid(p_query->prepare()
                                 ->bind(static_cast<int64_t>(parent_id), ":ParentID")
                                 ->bind(static_cast<int>(archiving::file_type::cdr), ":CdrFileType")
