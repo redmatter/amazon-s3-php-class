@@ -503,7 +503,7 @@ public:
 					" UserIDs,"
 					" ID,"
 					" BufferedRecording,"
-                    " CASE WHEN LegUUID IS NULL THEN NULL ELSE LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) END AS str_LegUUID"
+                    " CASE WHEN LegUUID IS NULL THEN NULL ELSE LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) END AS str_LegUUID "
 					"FROM Queue "
 					"WHERE "<<key<<" = :value";
 			const sqlite::result& res(p_query->prepare()
