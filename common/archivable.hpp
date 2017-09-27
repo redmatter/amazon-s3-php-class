@@ -746,7 +746,7 @@ namespace std {
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
-	return ostr << a.identify_without_state(ostr) << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
+	return a.identify_without_state(ostr) << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
 }
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& p_a)

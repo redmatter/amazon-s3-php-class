@@ -247,7 +247,7 @@ private:
 							;
 				}
 				else {
-					LogVerbose("Update "<<*p_arc);
+					LogVerbose("Update "<<p_arc);
 					p_query << "UPDATE `Queue` "
 							" SET"
 							" ParentID=:ParentID, FileType=:FileType,"
@@ -321,7 +321,7 @@ private:
             if (str_leg_uuid.empty()) {
                 p_query->bind(sqlite::null, ":LegUUID");
             } else {
-                bytes_from_string(p_arc->get_leg_uuid(), leg_uuid);
+                bytes_from_string(str_leg_uuid, leg_uuid);
                 p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
             }
 
@@ -503,7 +503,7 @@ public:
 					" UserIDs,"
 					" ID,"
 					" BufferedRecording,"
-                    " LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) AS str_LegUUID "
+                    " CASE WHEN LegUUID IS NULL THEN NULL ELSE LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) END AS str_LegUUID"
 					"FROM Queue "
 					"WHERE "<<key<<" = :value";
 			const sqlite::result& res(p_query->prepare()
