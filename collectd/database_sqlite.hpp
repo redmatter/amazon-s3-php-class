@@ -231,7 +231,7 @@ private:
 							" Retry,"
 							" StartEpoch,"
 							" UpdateTime,"
-                            " LegUUID"
+							" LegUUID"
 							" ) VALUES ( "
 							" :ParentID, :FileType,"
 							" :OrgID, :UserIDs,"
@@ -242,7 +242,7 @@ private:
 							" :Retry,"
 							" :StartEpoch,"
 							" DATETIME('NOW'),"
-                            " :LegUUID"
+							" :LegUUID"
 							")"
 							;
 				}
@@ -259,7 +259,7 @@ private:
 							" Retry=:Retry,"
 							" StartEpoch=:StartEpoch,"
 							" UpdateTime=DATETIME('NOW'),"
-                            " LegUUID=:LegUUID"
+							" LegUUID=:LegUUID"
 							" WHERE ID=:ID";
 				}
 
@@ -292,9 +292,9 @@ private:
 			archiving::uuid_t originator_uuid;
 			bytes_from_string(p_arc->get_originator_uuid(), originator_uuid);
 
-            archiving::uuid_t leg_uuid;
+			archiving::uuid_t leg_uuid;
 
-            // TODO remove ParentID altogether once we are confident with the parent-less version
+			// TODO remove ParentID altogether once we are confident with the parent-less version
 			p_query->bind<int64_t>(0ULL, ":ParentID")
 					->bind(p_arc->get_type(), ":FileType")
 
@@ -308,7 +308,7 @@ private:
 
 					->bind(p_arc->get_policy_id(), ":PolicyID")
 					->bind(sqlite::types::blob(p_arc->get_md5()), ":MD5")
-					->bind(p_arc->get_add_to_cdrmunch_cache()? "true": "false", ":AddToCDRMunchCache")
+					->bind(p_arc->get_add_to_cdrmunch_cache()? 1: 0, ":AddToCDRMunchCache")
 					->bind(0, ":BufferedRecording") // TODO migration from call-buffering v2 to v1 will need to address this
 					->bind(p_arc->get_data_format(), ":DataFormat")
 
@@ -317,15 +317,15 @@ private:
 					->bind<int64_t>(p_arc->get_start_epoch(), ":StartEpoch")
 					;
 
-            const std::string& str_leg_uuid(p_arc->get_leg_uuid());
-            if (str_leg_uuid.empty()) {
-                p_query->bind(sqlite::null, ":LegUUID");
-            } else {
-                bytes_from_string(str_leg_uuid, leg_uuid);
-                p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
-            }
+			const std::string& str_leg_uuid(p_arc->get_leg_uuid());
+			if (str_leg_uuid.empty()) {
+				p_query->bind(sqlite::null, ":LegUUID");
+			} else {
+				bytes_from_string(str_leg_uuid, leg_uuid);
+				p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
+			}
 
-            if(p_arc->get_database_id())
+			if(p_arc->get_database_id())
 				p_query->bind<int64_t>(p_arc->get_database_id(), ":ID");
 
 			const sqlite::result& res(p_query->execute());
@@ -494,7 +494,13 @@ public:
 					" State,"
 					" PolicyID,"
 					" HEX(MD5),"
-					" AddToCDRMunchCache,"
+					// Fix for call-logs gone missing due to CollectD restart
+					// This is a temporary workaround to make sure that the fix will work with old data
+					" CASE WHEN AddToCDRMunchCache == 'true' THEN 1 "
+					"  WHEN AddToCDRMunchCache == 'false' THEN 0 "
+					"  WHEN AddToCDRMunchCache IN (1, 0) THEN AddToCDRMunchCache "
+					"  ELSE 1 "
+					" END AS AddToCDRMunchCache,"
 					" DataFormat,"
 					" Retry,"
 					" StartEpoch,"
@@ -503,14 +509,14 @@ public:
 					" UserIDs,"
 					" ID,"
 					" BufferedRecording,"
-                    " CASE WHEN LegUUID IS NULL THEN NULL ELSE LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) END AS str_LegUUID "
+					" CASE WHEN LegUUID IS NULL THEN NULL ELSE LOWER(HEX(SUBSTR(LegUUID, 1, 4)) || '-' || HEX(SUBSTR(LegUUID, 5, 2)) || '-' || HEX(SUBSTR(LegUUID, 7, 2)) || '-' || HEX(SUBSTR(LegUUID, 9, 2)) || '-' || HEX(SUBSTR(LegUUID, 11))) END AS str_LegUUID "
 					"FROM Queue "
 					"WHERE "<<key<<" = :value";
 			const sqlite::result& res(p_query->prepare()
 					->bind(value, ":value")
 					->execute());
 			if(res) {
-                const archiving::file_type::file_type_t type(static_cast<archiving::file_type::file_type_t>(res[1].as_int()));
+				const archiving::file_type::file_type_t type(static_cast<archiving::file_type::file_type_t>(res[1].as_int()));
 				archiving::archivable::pointer p_arc(new archiving::archivable(
 						res[3].as_text(),
 						res[14].is_null()? "": res[14].as_text(),
@@ -520,7 +526,7 @@ public:
 						res[10].as_text(),
 						res[13].as_text(),
 						app::policy::id_type(res[7].as_int64()),
-						res[9].as_int(),
+						res[9].as_int() == 1,
 						!res[5].is_null(),
 						res[5].is_null()? "": res[5].as_text(),
 						res[8].as_text(),
@@ -539,36 +545,36 @@ public:
 					p_arc->set_owners(owner);
 				}
 
-                // If LegUUID is empty and the file-type is not CDR and parent-id > 0, assume it to be an old record and
-                // get LegUUID from parent-id. In newer records, parent-id is set to zero.
-                // LegUUIDs loaded this way are saved later on into the db-record.
-                const uint64_t parent_id = static_cast<uint64_t>(res[0].as_int64());
-                std::string str_leg_uuid(res[18].is_null()? "": res[18].as_text());
-                if (str_leg_uuid.empty() && type != archiving::file_type::cdr && parent_id > 0) {
-                    LogMessage(p_arc<<" Archivable found with NO LegUUID but WITH a ParentID ("<<parent_id<<"); looking up parent for LegUUID");
-                    try {
-                        sqlite::work txn_leg_uuid(p_pool_);
+				// If LegUUID is empty and the file-type is not CDR and parent-id > 0, assume it to be an old record and
+				// get LegUUID from parent-id. In newer records, parent-id is set to zero.
+				// LegUUIDs loaded this way are saved later on into the db-record.
+				const uint64_t parent_id = static_cast<uint64_t>(res[0].as_int64());
+				std::string str_leg_uuid(res[18].is_null()? "": res[18].as_text());
+				if (str_leg_uuid.empty() && type != archiving::file_type::cdr && parent_id > 0) {
+					LogMessage(p_arc<<" Archivable found with NO LegUUID but WITH a ParentID ("<<parent_id<<"); looking up parent for LegUUID");
+					try {
+						sqlite::work txn_leg_uuid(p_pool_);
 
-                        sqlite::query::pointer p_query_leg_uuid(txn_leg_uuid.query());
-                        p_query_leg_uuid << "SELECT"
-                                " LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS str_UUID "
-                                " FROM Queue"
-                                " WHERE ID = :ParentID AND FileType = :CdrFileType";
-                        const sqlite::result& res_leg_uuid(p_query->prepare()
-                                ->bind(static_cast<int64_t>(parent_id), ":ParentID")
-                                ->bind(static_cast<int>(archiving::file_type::cdr), ":CdrFileType")
-                                ->execute());
-                        if(res_leg_uuid) {
-                            str_leg_uuid = res_leg_uuid[0].as_text();
-                        }
-                    } catch (...) {
-                        /* ignore any exceptions here */
-                    }
-                }
+						sqlite::query::pointer p_query_leg_uuid(txn_leg_uuid.query());
+						p_query_leg_uuid << "SELECT"
+								" LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS str_UUID "
+								" FROM Queue"
+								" WHERE ID = :ParentID AND FileType = :CdrFileType";
+						const sqlite::result& res_leg_uuid(p_query->prepare()
+								->bind(static_cast<int64_t>(parent_id), ":ParentID")
+								->bind(static_cast<int>(archiving::file_type::cdr), ":CdrFileType")
+								->execute());
+						if(res_leg_uuid) {
+							str_leg_uuid = res_leg_uuid[0].as_text();
+						}
+					} catch (...) {
+						/* ignore any exceptions here */
+					}
+				}
 
-                p_arc->set_leg_uuid(str_leg_uuid);
+				p_arc->set_leg_uuid(str_leg_uuid);
 
-                return p_arc;
+				return p_arc;
 			}
 		}
 		catch(const sqlite::exception& e) {
