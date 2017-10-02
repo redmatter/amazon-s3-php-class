@@ -207,60 +207,43 @@ struct state
 		{
 		case init:
 			return "init";
-			break;
 		case init_ok:
 			return "init_ok";
-			break;
 		case init_error:
 			return "init_error";
-			break;
 
 		case approve:
 			return "approve";
-			break;
 		case approve_ok:
 			return "approve_ok";
-			break;
 		case approve_error:
 			return "approve_error";
-			break;
 
 		case delete_file:
 			return "delete_file";
-			break;
 		case delete_file_ok:
 			return "delete_file_ok";
-			break;
 		case delete_file_error:
 			return "delete_file_error";
-			break;
 
 		case delete_usage:
 			return "delete_usage";
-			break;
 		case delete_usage_ok:
 			return "delete_usage_ok";
-			break;
 		case delete_usage_error:
 			return "delete_usage_error";
-			break;
 
 		case delete_retention:
 			return "delete_retention";
-			break;
 		case delete_retention_ok:
 			return "delete_retention_ok";
-			break;
 		case delete_retention_error:
 			return "delete_retention_error";
-			break;
 
 		case finished:
 			return "finished";
-			break;
 		case finished_error:
 			return "finished_error";
-			break;
 
 		case invalid:
 		default:
@@ -350,12 +333,13 @@ struct item
 //		LogDebug(identifier<<" deleted");
 //	}
 
-	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false), on_demand(false)
-	{}
+	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false), on_demand(false),
+             save_pending(false)
+    {}
 
 	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state),
-			fatal_failure(false), on_demand(false)
-	{
+			fatal_failure(false), on_demand(false), save_pending(false)
+    {
 	}
 
 	item(const archiving::archivable::identifier& identifier,
@@ -385,19 +369,22 @@ struct item
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
-					rml::utils::strtoull(row[3].c_str()), row[4].c_str()),
+                       static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
 			retention(new retention_record(
-					identifier, types::file_format::unknown, 0, rml::utils::strtoull(row[7].c_str()), rml::utils::strtoull(row[8].c_str()),
-					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
-					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
-					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
-					0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+                    identifier, types::file_format::unknown, 0,
+                    static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
+                    static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
+                    boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
+                    boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
+                    boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
+                    0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),
-			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), save_pending(false)
+			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), fatal_failure(false), on_demand(false),
+			save_pending(false)
 	{
 	}
 	
@@ -432,10 +419,13 @@ struct item
 		p->save_pending = is_pending;
 	}
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 	static inline bool is_save_pending(const pointer& p)
 	{
 		return p->save_pending;
 	}
+#pragma clang diagnostic pop
 
 	static inline bool is_save_not_pending(const pointer& p)
 	{
@@ -481,10 +471,13 @@ struct item
 			return p->identifier.filetype == archiving::file_type::cdr;
 		}
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 		inline int filetype_as_int() const
 		{
 			return int(archiving::file_type::cdr);
 		}
+#pragma clang diagnostic pop
 	};
 
 	struct extract_retention_id
