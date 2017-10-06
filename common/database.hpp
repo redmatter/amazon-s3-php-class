@@ -116,10 +116,6 @@ public:
 				md5_str = ostr.str();
 			}
 
-			archiving::archivable::pointer p_parent(arc.get_parent());
-			if (p_parent && !p_parent->get_database_id())
-				save(p_parent);
-
 			mysqlpp::Query query = conn->query();
 
 			if(!arc.get_database_id()) {
@@ -167,7 +163,7 @@ public:
 			query.parse();
 
 			mysqlpp::SQLQueryParms qp;
-			qp		<< mysqlpp::sql_bigint_unsigned(p_parent? p_parent->get_database_id(): 0ULL)
+			qp		<< mysqlpp::sql_bigint_unsigned(0ULL) // remove this once ParentID is removed fully
 					<< mysqlpp::sql_int(arc.get_type())
 
 					<< mysqlpp::sql_int(arc.get_org_id())
@@ -292,9 +288,8 @@ public:
 				mysqlpp::Query query = conn->query();
 				query << "SELECT"
 						 " c.ID, c.FileType, "<<format_uuid_field("c.UUID", "c_UUID")<<","
-						 " p.ID, p.FileType, "<<format_uuid_field("p.UUID", "p_UUID")<<" "
 						 "FROM"
-						 " ArchivingInternal." << tableName_ << " c LEFT JOIN ArchivingInternal." << tableName_ << " p ON c.ParentID=p.ID "
+						 " ArchivingInternal." << tableName_ << " c "
 						 "WHERE"
 						 " c.HostName=%0q:HostName AND c.Retry < 5 AND c.State NOT IN ('stored','discarded')"
 						 " AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
@@ -314,11 +309,9 @@ public:
 					const uint64_t& child_id(rml::utils::strtoll(row[0].c_str()));
 					max_id = child_id;
 
-					archiving::archivable::pointer p_parent;
 					archiving::archivable::pointer p_child;
 
 					archiving::file_type::file_type_t child_file_type = archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0UL));
-					archiving::file_type::file_type_t parent_file_type = archiving::file_type::file_type_t(rml::utils::strtoull(row[4].c_str(), 0UL));
 
 					try{
 						p_child = fn_get_loaded_instance(archiving::archivable::pointer(
@@ -326,18 +319,7 @@ public:
 
 						if(!p_child) {
 							LogVerbose("Loading ID:"<<row[0].c_str()<<" FileType:"<<archiving::file_type::to_string(child_file_type)<<" UUID:"<<row[2].c_str());
-							if(row[3] != "NULL") {
-								p_parent = fn_get_loaded_instance(archiving::archivable::pointer(
-										new archiving::archivable(row[5].c_str(), parent_file_type)));
-
-								if(!p_parent) {
-									p_parent = load_archivable_by_id(rml::utils::strtoull(row[3].c_str()));
-									if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-										pc_produce(in_channel, p_parent, p_parent->get_attempt() * 3);
-								}
-							}
-
-							p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()), p_parent);
+							p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()));
 							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
 								pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
 						}
@@ -363,15 +345,10 @@ public:
 	 *
 	 * @param key
 	 * @param value
-	 * @param p_parent
 	 * @return
 	 */
 	template <typename ValueType>
-	archiving::archivable::pointer load_archivable_by_key_value(
-			const std::string &key,
-			const ValueType &value,
-			archiving::archivable::pointer p_parent
-			)
+	archiving::archivable::pointer load_archivable_by_key_value(const std::string &key, const ValueType &value)
 	{
 		try{
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
@@ -404,9 +381,6 @@ public:
 
 			mysqlpp::UseQueryResult res = query.use(key, value);
 			if(mysqlpp::Row row = res.fetch_row()) {
-				if(row[0] != "NULL" && row[0] != "0" && !p_parent)
-					throw rml::exception("No parent given");
-
 				archiving::file_type::file_type_t type = archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0ULL));
 				archiving::archivable::pointer p_arc( new archiving::archivable(
 						row[3].c_str(),
@@ -416,7 +390,6 @@ public:
 						type,
 						row[10].c_str(),
 						row[13].c_str(),
-						p_parent,
 						app::policy::id_type(rml::utils::strtoull(row[7].c_str(), 0ULL)),
 						row[9] == "true",
 						row[5] != "NULL",
@@ -455,30 +428,22 @@ public:
 	 * Load archivable by its database id
 	 *
 	 * @param id
-	 * @param p_parent
 	 * @return
 	 */
-	archiving::archivable::pointer load_archivable_by_id(
-			const uint64_t& id,
-			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
-			)
+	archiving::archivable::pointer load_archivable_by_id(const uint64_t& id)
 	{
-		return load_archivable_by_key_value ("ID", mysqlpp::sql_bigint(id), p_parent);
+		return load_archivable_by_key_value ("ID", mysqlpp::sql_bigint(id));
 	}
 
 	/**
 	 * Load archivable by its uuid
 	 *
 	 * @param uuid
-	 * @param p_parent
 	 * @return
 	 */
-	archiving::archivable::pointer load_archivable_by_uuid(
-			const std::string &uuid,
-			archiving::archivable::pointer p_parent = archiving::archivable::pointer()
-			)
+	archiving::archivable::pointer load_archivable_by_uuid(const std::string &uuid)
 	{
-		return load_archivable_by_key_value("UUID", mysqlpp_uuid_literal(uuid), p_parent);
+		return load_archivable_by_key_value("UUID", mysqlpp_uuid_literal(uuid));
 	}
 
 	struct purgedef
