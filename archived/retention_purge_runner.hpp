@@ -119,6 +119,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex purge_finished_time_mutex_;
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
+    std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
 
 	volatile bool& quit_;
 
@@ -151,6 +152,16 @@ class runner : public boost::enable_shared_from_this<runner>
 		return headers_check_suppressions_.is_suppressed(
 				p_item->identifier.filetype, boost::gregorian::date(p_item->retention->creation_date));
 	}
+
+    inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
+    {
+        if (!legacy_ondemand_purge_orgs_.empty()) {
+            const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
+            return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
+        }
+
+        return false;
+    }
 
 public:
 	runner(
@@ -195,6 +206,18 @@ public:
 
 		// initialise it! not thread-safe
 		(void) get_retention_purge_restrictions(confMap);
+
+        // setup legacy_ondemand_purge_orgs_
+        const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
+        if (!legacy_ondemand_purged_orgs_str.empty()) {
+            std::vector<std::string> orgs;
+            boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
+            std::vector<std::string>::const_iterator itr = orgs.begin();
+            std::vector<std::string>::const_iterator end = orgs.end();
+            for (; itr != end; ++itr) {
+                legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
+            }
+        }
 	}
 
 	/**
@@ -311,7 +334,7 @@ public:
 					retention_db_.get_retention_for_purge(
 							api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
 							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-							fn_is_filetype_auto_expired));
+							fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id)));
 
 			if(!purgeables.second.empty())
 /*

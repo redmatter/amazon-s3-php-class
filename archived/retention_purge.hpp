@@ -42,6 +42,7 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.enabled_filetypes", boost::program_options::value<std::string>()->default_value(""), "purge enabled filetypes")
 			("retention_purge.legacy_s3_headers_last_date", boost::program_options::value<std::string>()->default_value(""), "legacy s3 headers are not present beyond this date")
 			("retention_purge.bypass_headers_check_for", boost::program_options::value<std::string>()->default_value("none"), "bypass headers check; options are a comma delimited list")
+			("retention_purge.legacy_ondemand_purged_orgs", boost::program_options::value<std::string>()->default_value(""), "Orgs that has had on-demand purge in the past")
 			;
 }
 
