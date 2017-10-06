@@ -402,6 +402,14 @@ public:
 					return true;
 				}
 
+				/* Ref: PLAT-9772 - In cases where we have reset purge (for various historic reasons) and are being
+				 * attempted to purge again, then check Audit_XXX table to verify it. If a "Purge:*" is found, then we
+				 * can safely ignore and continue. */
+				if (audit_records_exist_for_purge(p_item->identifier)) {
+					LogMessage(p_item->identifier<<" Ignored as the object is already deleted according to audit records");
+					return true;
+				}
+
 				/* Ref: PLAT-9772 - If we come across a case where the file in storage is missing, we need to flag up data loss; but
 				 * in cases where the file would have been purged by now, had the purge been running, are not let to stick around as
 				 * failures. If they are let to stick around as failures, they will keep failing with no resolution, and generates a
@@ -414,14 +422,6 @@ public:
 						 */
 						&& retention_record::is_purgeable(cached_policy_finder_, p_item->retention, false)) {
 					LogMessage(p_item->identifier<<" Ignored as the object is already expired (storage-endpoint:"<<p_item->endpoint->id<<')');
-					return true;
-				}
-
-				/* In cases where we have reset purge (for various historic reasons) and are being attempted to purge
-				 * again, then check Audit_XXX table to verify it. If a "Purge:*" is found, then we can safely ignore
-				 * and continue. */
-				if (audit_records_exist_for_purge(p_item->identifier)) {
-					LogMessage(p_item->identifier<<" Ignored as the object is already deleted according to audit records");
 					return true;
 				}
 
