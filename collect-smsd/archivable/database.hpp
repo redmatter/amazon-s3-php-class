@@ -36,11 +36,6 @@ struct database : private boost::noncopyable
 
     bool save(const archiving::archivable::pointer &archivable) try
     {
-        const archiving::archivable::pointer& p_parent(archivable->get_parent());
-        if(p_parent && !p_parent->get_database_id()) {
-            (void) save(p_parent);
-        }
-
         if (!fn_save_real_(archivable)) {
             boost::recursive_mutex::scoped_lock lock(save_list_mutex_);
 

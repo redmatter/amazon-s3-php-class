@@ -538,7 +538,9 @@ public:
 											new archiving::archivable(
 													uuid, originator_uuid, start_epoch, cbr_path,
 													archiving::file_type::buffered_recording, "wav", pbx_hostname_,
-													archivable_cdr, policy::pseudo_id::buffered_recording));
+													policy::pseudo_id::buffered_recording));
+									archivable_cbr->set_leg_uuid(archivable_cdr->get_uuid());
+                                    LogMessage(*archivable_cdr<<" - Call buffering found - "<<*archivable_cbr);
 								}
 								catch (const rml::utils::tmp_fstream::error& e) {
 									const std::string error(e.what());
@@ -675,8 +677,8 @@ public:
 												}
 											}
 
-											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
-
+											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
+											archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
 											archivable_recording->set_owners(*owners);
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
@@ -726,8 +728,6 @@ public:
 								archiving::archivable::pointer archivable_recording;
 
 								try {
-									LogMessage(*archivable_cdr<<" - Archivable recording found.");
-
 									const app::policy::id_type recording_policy(
 											doc.select_single_node("/cdr/variables[ rmDispRecordRetain = 'true' or rmDispPersonalRecordRetain = 'true' ]")?
 													policy::pseudo_id::recording: policy::pseudo_id::do_not_archive);
@@ -736,7 +736,10 @@ public:
 									std::string uuid(file_path, file_path.length() - (36/*uuid*/+4/*.wav*/), 36);
 									archivable_recording.reset(
 											new archiving::archivable(uuid, originator_uuid, start_epoch, file_path,
-													archiving::file_type::recording, "wav", pbx_hostname_, archivable_cdr, recording_policy));
+													archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
+									archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
+
+                                    LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;

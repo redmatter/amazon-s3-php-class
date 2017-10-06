@@ -426,11 +426,11 @@ private:
 
 		cancel_timer();
 		timer_.expires_from_now(boost::posix_time::seconds(seconds));
-		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived, shared_from_this(),
+		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived_on_timeout, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
 	}
 
-	inline void connect_archived(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
+	inline void connect_archived_on_timeout(const bool force_reconnect, const bool timer_expired, const boost::system::error_code& error) try
 	{
 		if (is_shutdown_flagged()) {
 			LogMessage(*this<<" Shutdown flagged; Aborting");

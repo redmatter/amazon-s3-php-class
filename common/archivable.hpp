@@ -219,6 +219,7 @@ public:
 protected:
 	const std::string uuid;
 	std::string originator_uuid;
+	std::string leg_uuid;
 	time_t start_epoch;
 	std::string data_format;
 	std::string pbx_hostname;
@@ -232,12 +233,6 @@ private:
 	hash_vector md5_;
 
 	const file_type::file_type_t type_;
-
-	// do the parent only if all children have been done with
-	unsigned int n_children_;
-	unsigned int n_children_done_;
-
-	pointer parent_;
 
 	app::policy::id_type policy_id_;
 
@@ -258,9 +253,6 @@ public:
 //	  pbx_hostname("unknown"),
 //	  add_to_cdrmunch_cache(false),
 //	  type_(file_type::unknown),
-//	  n_children_(0),
-//	  n_children_done_(0),
-//	  parent_(0),
 //	  policy_id_(0),
 //	  database_id(0)
 //	{
@@ -283,9 +275,6 @@ public:
 		p_fstream_(),
 		is_modified_(false),
 		type_(type),
-		n_children_(0),
-		n_children_done_(0),
-		parent_(),
 		policy_id_(0),
 		database_id_(0),
 		attempt_(0),
@@ -300,7 +289,6 @@ public:
 	 * @param uuid
 	 * @param file_path
 	 * @param type
-	 * @param parent
 	 * @param policy_id
 	 * @return
 	 */
@@ -312,7 +300,6 @@ public:
 			const file_type::file_type_t& type,
 			const std::string& data_format,
 			const std::string& pbx_hostname,
-			const pointer& parent = pointer(),
 			const app::policy::id_type& policy_id = app::policy::id_type(0),
 			const bool& add_to_cdrmunch_cache = false,
 			const bool& is_modified = false,
@@ -322,6 +309,7 @@ public:
 	)
 	: uuid(uuid),
 	  originator_uuid(originator_uuid),
+	  leg_uuid(),
 	  start_epoch(start_epoch),
 	  data_format(data_format),
 	  pbx_hostname(pbx_hostname),
@@ -331,9 +319,6 @@ public:
 	  p_fstream_(rml::utils::tmp_fstream::create((is_modified && !modified_file_path.empty()? modified_file_path : file_path), std::fstream::in | std::fstream::out | std::fstream::binary)),
 	  is_modified_(is_modified),
 	  type_(type),
-	  n_children_(0),
-	  n_children_done_(0),
-	  parent_(parent),
 	  policy_id_(policy_id),
 	  database_id_(0),
 	  attempt_(0),
@@ -377,6 +362,16 @@ public:
 	{
 		return originator_uuid;
 	}
+
+    void set_leg_uuid(const std::string& uuid)
+    {
+        leg_uuid = uuid;
+    }
+
+    std::string get_leg_uuid()
+    {
+        return leg_uuid;
+    }
 
 	void set_start_epoch(const time_t& epoch)
 	{
@@ -443,16 +438,13 @@ public:
 			}
 		}
 
-		std::string leg_uuid;
-		{
-			if(parent_){
-				if(parent_->type_ != file_type::cdr)
-					LogError(*this<<"Parent arcivable NOT a CDR ?!?");
-
-				leg_uuid = parent_->uuid;
+		std::string leg_uuid_(leg_uuid);
+		if (leg_uuid_.empty()) {
+			if (type_ == file_type::recording) {
+				LogError(*this<<"Recording with empty LegUUID");
 			}
-			else
-				leg_uuid = uuid;
+
+			leg_uuid_ = uuid;
 		}
 
 		// TODO Get rid of OriginatorUUID
@@ -460,7 +452,7 @@ public:
 		return ostr << "FileType: "<<type_<<"\r\n"
 				<< "MD5: "<<md5_<<"\r\n"
 				<< "CreateTime: "<<start_epoch<<"\r\n"
-				<< "LegUUID: "<<leg_uuid<<"\r\n"
+				<< "LegUUID: "<<leg_uuid_<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
 				<< "DataFormat: "<<data_format<<"\r\n"
 				<< "PBXHostName: "<<pbx_hostname<<"\r\n"
@@ -530,11 +522,6 @@ public:
 	inline std::string get_data_format() const
 	{
 		return data_format;
-	}
-
-	inline pointer get_parent() const
-	{
-		return parent_;
 	}
 
 	inline uint64_t get_database_id() const
@@ -759,7 +746,7 @@ namespace std {
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable& a)
 {
-	return ostr << a.identify_without_state(ostr) << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
+	return a.identify_without_state(ostr) << " state:"<<archiving::archivable::state::to_string(a.get_current_state());
 }
 
 inline ostream& operator<<(ostream& ostr, const archiving::archivable::pointer& p_a)

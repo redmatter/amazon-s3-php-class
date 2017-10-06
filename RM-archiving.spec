@@ -47,6 +47,11 @@ Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
 Conflicts: RM-cdrmunch-cdrpostd
 
+%package collectd-schema
+Summary: Archiving CollectD Schema
+Group: RedMatter/Archiving
+Requires: RM-%{appname}-collectd = %{version}-%{release}
+
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
@@ -129,6 +134,9 @@ Archiving daemon ( ArchiveD )
 Works on CDR from FreeSWITCH to identify files to be archived.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
+%description collectd-schema
+CollectD Schema files
+
 %description collect-smsd
 Daemon that archives queued SMS messages from BES server via the callcontrol API.
 It also makes sense of archiving policy and passes that on to ArchiveD.
@@ -205,6 +213,11 @@ cp collectd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollectd.conf
 cp collectd/sqlite.conf %{buildroot}/etc/archiving/conf.d/sqlite.conf
 cp collectd/collectd.db3 %{buildroot}/usr/share/archiving/blank_collectd.db3
 cp external/sqlite/bin/sqlite3 %{buildroot}/usr/share/archiving/bin/sqlite3
+
+# CollectD Schema
+# bash-pack under "collectd/schema/redstart/vendor" is brought in by a build step
+# docker run --rm -it --volume="$(pwd)/collectd/schema/redstart:/project" redmatter/gitman install
+cp -r collectd/schema %{buildroot}/usr/share/archiving/collectd-schema
 
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
@@ -526,6 +539,10 @@ fi
 /etc/archiving/conf.d/sqlite.conf
 /usr/share/archiving/blank_collectd.db3
 /usr/share/archiving/bin/sqlite3
+
+%files collectd-schema
+%defattr(-,root,root)
+/usr/share/archiving/collectd-schema
 
 %files collect-smsd
 %defattr(-,root,root)
