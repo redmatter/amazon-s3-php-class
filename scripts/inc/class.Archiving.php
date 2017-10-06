@@ -331,6 +331,7 @@ class Archiving
 			self::$_purge_states['delete_retention_error'] = self::$_purge_states['delete_retention'] | 0x02;
 
 			self::$_purge_states['finished']               = 0x0f << 4;
+            self::$_purge_states['finished_error']         = self::$_purge_states['finished'] | 0x02;
 		}
 	}
 

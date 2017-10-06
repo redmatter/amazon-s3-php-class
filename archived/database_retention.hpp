@@ -487,6 +487,35 @@ public:
 		return false;
 	}
 
+	uint64_t count_purge_audit_records(const archiving::archivable::identifier& identifier)
+	{
+		rml::MySQLConnection conn(*p_pool_);
+		try {
+			mysqlpp::Query query = conn->query();
+
+			std::string uuid_hex(identifier.uuid);
+			boost::algorithm::erase_all(uuid_hex, "-");
+			query << "SELECT COUNT(*) FROM ArchivingRetention.Audit_"<<identifier.org<<" "
+					"WHERE Action LIKE 'Purge:%'"
+					" AND UUID=0x"<<uuid_hex<<
+					" AND Type="<<identifier.filetype;
+			__SQL_DEBUG(query.str());
+
+			return query.use().fetch_row().at(0);
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return 0;
+	}
+
 	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
 	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end, const bool& delete_cdrs)
 	{

@@ -56,14 +56,14 @@ struct constants
 
 struct fixable_init_failure_exception : rml::exception
 {
-	fixable_init_failure_exception(const std::string& message) : rml::exception(message)
+    explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
 	{
 	}
 };
 
 struct required_header_missing_exception : fixable_init_failure_exception
 {
-	required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
+    explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
 	{
 	}
 };
@@ -219,6 +219,7 @@ public:
 		ConsumeAllAndSave(delete_file_channel_)
 		ConsumeAllAndSave(delete_usage_channel_)
 		ConsumeAllAndSave(delete_retention_channel_)
+#undef ConsumeAllAndSave
 
 		LogMessage("Saving and terminating retention purge module");
 
@@ -348,6 +349,17 @@ public:
 	}
 
 	/**
+	 * @brief Check if given object has already been purged according to audit records
+	 *
+	 * @param identifier
+	 * @return
+	 */
+	inline bool audit_records_exist_for_purge(const archiving::archivable::identifier& identifier)
+	{
+		return retention_db_.count_purge_audit_records(identifier) > 0;
+	}
+
+	/**
 	 * Initialise purge - checks to make sure that the items picked up via the database query are definitely meant
 	 * to be purged. This is a measure against any sort of database corruption.
 	 *
@@ -362,7 +374,7 @@ public:
 	 *
 	 * @return
 	 */
-	bool purge_initialise(item::pointer p_item) try
+	bool purge_initialise(const item::pointer &p_item) try
 	{
 		// if headers check is suppressed by config, just move forward
 		if (headers_check_is_suppressed(p_item))
@@ -405,6 +417,14 @@ public:
 					return true;
 				}
 
+				/* In cases where we have reset purge (for various historic reasons) and are being attempted to purge
+				 * again, then check Audit_XXX table to verify it. If a "Purge:*" is found, then we can safely ignore
+				 * and continue. */
+				if (audit_records_exist_for_purge(p_item->identifier)) {
+					LogMessage(p_item->identifier<<" Ignored as the object is already deleted according to audit records");
+					return true;
+				}
+
 				LogError(p_item->identifier<<" could not be found in storage (endpoint:"<<p_item->endpoint->id<<"); Potential data loss");
 				/* FIXME Mark the item as fatally broken; not many items should get caught by this. If they do, then we will have to address those */
 				p_item->fatal_failure = true;
@@ -422,7 +442,7 @@ public:
 
 		LogDebug("stat("<<p_item->identifier<<") "<<props);
 
-		if(!props.size())
+		if(props.empty())
 			THROW_RML_EXCEPTION("could not stat item on endpoint:"<<p_item->endpoint->id);
 
 		if(props.find("clear-size") != props.end())
@@ -481,7 +501,7 @@ public:
 	}
 
 	// dummy function to move the item through the state-reactor
-	inline bool purge_stage_done(item::pointer p_item)
+	inline bool purge_stage_done(const item::pointer &p_item)
 	{
 		return true;
 	}
@@ -496,7 +516,7 @@ public:
 
 		static uint64_t loaded_max_id(0);
 
-		if(!require_approval && !(loaded_max_id < max_id)) {
+		if(!require_approval && loaded_max_id >= max_id) {
 			LogMessage("Approval not required and we have finished reloading");
 			return false;
 		}
@@ -587,7 +607,7 @@ public:
 		return auto_expire_filetype_[(int)(i.filetype)];
 	}
 
-	inline void move_forward(item::pointer p_item)
+	inline void move_forward(const item::pointer &p_item)
 	{
 		const state::outcome_t& cur_outcome(state::get_outcome(p_item->cur_state));
 		switch(cur_outcome) {
@@ -606,7 +626,7 @@ public:
 		}
 	}
 
-	inline void move_forward(item::pointer p_item, const bool& outcome_ok) try
+	inline void move_forward(const item::pointer &p_item, const bool& outcome_ok) try
 	{
 		static const unsigned int db_flush_interval_seconds(
 				confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
@@ -665,7 +685,7 @@ public:
 		return;
 	}
 
-	inline void perform_current_state_action(item::pointer p_item)
+	inline void perform_current_state_action(const item::pointer &p_item)
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
@@ -1005,7 +1025,7 @@ public:
 		for(std::list< size_t >::const_iterator i = samples.begin(); i != samples.end(); ++i)
 			sum += *i;
 
-		return sum / put_rate_sample_size;
+		return static_cast<int>(sum / put_rate_sample_size);
 	}
 
 	inline int get_limit()

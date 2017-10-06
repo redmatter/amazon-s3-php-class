@@ -100,11 +100,12 @@ class PurgePolicyFixerApp extends BaseApp
 		return $hostname;
 	}
 
-	/**
-	 * Get all enabled OrgIDs
-	 *
-	 * @return int[]|bool false for none, or an array of enabled OrgIDs
-	 */
+    /**
+     * Get all enabled OrgIDs
+     *
+     * @return int[]|bool false for none, or an array of enabled OrgIDs
+     * @throws \MySQLiErrorException
+     */
 	private function _GetEnabledOrgs()
 	{
 		$retentionDb = MySQLiTransactional::Get('retention');
@@ -616,8 +617,8 @@ class PurgePolicyFixerApp extends BaseApp
 						&$batchCount, $batchCallback, $fixS3Headers, &$orgHeaderFixRetentionIds)
 					{
 						/** @var MySQLiResult_Row|stdClass $row */
-						$orgId = (int)($row->OrgID);
-						$retentionId = (int)($row->RetentionID);
+						$orgId = (int)$row->OrgID;
+						$retentionId = (int)$row->RetentionID;
 						$batchKey = "{$orgId}:{$row->PolicyID}";
 						if (!isset($updatesBatch[$batchKey]))
 							$updatesBatch[$batchKey] = array();
@@ -626,7 +627,7 @@ class PurgePolicyFixerApp extends BaseApp
 						$updatesBatch[$batchKey][] = $retentionId;
 
 						// collect queue-ID into $deleteIDs
-						$deleteIDs[] = (int)($row->ID);
+						$deleteIDs[] = (int)$row->ID;
 						if (!isset($orgMinRetentionIds[$orgId]) || $retentionId < $orgMinRetentionIds[$orgId])
 							$orgMinRetentionIds[$orgId] = $retentionId;
 
@@ -683,10 +684,8 @@ class PurgePolicyFixerApp extends BaseApp
 				}
 
 				// reset the batch ( NOT the delete IDs )
-				unset($updatesBatch);
-				unset($orgHeaderFixRetentionIds);
-				unset($batchCount);
-			}
+                unset($updatesBatch, $orgHeaderFixRetentionIds, $batchCount);
+            }
 
 			// delete items from Queue
 			if (count($deleteIDs))
@@ -727,10 +726,9 @@ class PurgePolicyFixerApp extends BaseApp
 			$internalDb->CommitTransaction();
 			$retentionDb->CommitTransaction();
 
-			unset($orgMinRetentionIds);
-			unset($orgMaxRetentionIds);
+            unset($orgMinRetentionIds, $orgMaxRetentionIds);
 
-			$retentionDb = MySQLiTransactional::Get('retention', true);
+            $retentionDb = MySQLiTransactional::Get('retention', true);
 
 			// fix any that could be in the begining of the table
 			$enabledOrgs = $this->_GetEnabledOrgs();
@@ -739,7 +737,8 @@ class PurgePolicyFixerApp extends BaseApp
 
 			foreach ($enabledOrgs as $org)
 			{
-				$retentionDb->StartTransaction();
+                /** @noinspection DisconnectedForeachInstructionInspection */
+                $retentionDb->StartTransaction();
 
 				$sql = $getMassUpdateSQL($org);
 
@@ -758,7 +757,7 @@ class PurgePolicyFixerApp extends BaseApp
 				)->fetch_all();
 				$maxId = $maxId[0]->AUTO_INCREMENT;
 
-				for ($idRangeStart = $minId; (($idRangeStart < ($minId + 100000)) && ($idRangeStart < $maxId)); $idRangeStart += 10000)
+				for ($idRangeStart = $minId; ($idRangeStart < ($minId + 100000)) && ($idRangeStart < $maxId); $idRangeStart += 10000)
 				{
 					$sqlWithIDsRange = sprintf($sql, $idRangeStart, $idRangeStart+10000);
 					LogDebug($sqlWithIDsRange, '$sqlWithIDsRange');
@@ -766,6 +765,7 @@ class PurgePolicyFixerApp extends BaseApp
 					LogDebug($retentionDb->affected_rows, '$retention_db->affected_rows');
 				}
 
+                /** @noinspection DisconnectedForeachInstructionInspection */
 				$retentionDb->CommitTransaction();
 			}
 		}
@@ -792,7 +792,7 @@ class PurgePolicyFixerApp extends BaseApp
 function Usage($error = null)
 {
 	$self = basename(__FILE__, '.php');
-	if(!is_null($error))
+	if($error !== null)
 		$error = "\n\nERROR: $error\n\n";
 	else
 		$error = '';
