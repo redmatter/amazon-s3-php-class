@@ -17,7 +17,9 @@
 #include "./database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
 #include "../common/policy.hpp"
+#include "../common/types.hpp"
 #include "suppress_headers_check.hpp"
+#include "storage_backend.hpp"
 
 #include <rml/pc_channel.h>
 #include <rml/coreapi.hpp>
@@ -54,14 +56,14 @@ struct constants
 
 struct fixable_init_failure_exception : rml::exception
 {
-	fixable_init_failure_exception(const std::string& message) : rml::exception(message)
+    explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
 	{
 	}
 };
 
 struct required_header_missing_exception : fixable_init_failure_exception
 {
-	required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
+    explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
 	{
 	}
 };
@@ -117,6 +119,7 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex purge_finished_time_mutex_;
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
+    std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
 
 	volatile bool& quit_;
 
@@ -149,6 +152,16 @@ class runner : public boost::enable_shared_from_this<runner>
 		return headers_check_suppressions_.is_suppressed(
 				p_item->identifier.filetype, boost::gregorian::date(p_item->retention->creation_date));
 	}
+
+    inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
+    {
+        if (!legacy_ondemand_purge_orgs_.empty()) {
+            const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
+            return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
+        }
+
+        return false;
+    }
 
 public:
 	runner(
@@ -193,6 +206,18 @@ public:
 
 		// initialise it! not thread-safe
 		(void) get_retention_purge_restrictions(confMap);
+
+        // setup legacy_ondemand_purge_orgs_
+        const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
+        if (!legacy_ondemand_purged_orgs_str.empty()) {
+            std::vector<std::string> orgs;
+            boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
+            std::vector<std::string>::const_iterator itr = orgs.begin();
+            std::vector<std::string>::const_iterator end = orgs.end();
+            for (; itr != end; ++itr) {
+                legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
+            }
+        }
 	}
 
 	/**
@@ -217,6 +242,7 @@ public:
 		ConsumeAllAndSave(delete_file_channel_)
 		ConsumeAllAndSave(delete_usage_channel_)
 		ConsumeAllAndSave(delete_retention_channel_)
+#undef ConsumeAllAndSave
 
 		LogMessage("Saving and terminating retention purge module");
 
@@ -293,6 +319,10 @@ public:
 
 			if(!purgeables.empty()) {
 				batch_count_ -= purgeables.size();
+/*
+ * FIXME here we need to keep track of the type of purge that is feeding the queue
+ * Relevant for the HEAD failures in purge_initialise
+ */
 
 				schedule_purgeables(purgeables);
 			}
@@ -304,9 +334,13 @@ public:
 					retention_db_.get_retention_for_purge(
 							api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
 							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-							fn_is_filetype_auto_expired));
+							fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id)));
 
 			if(!purgeables.second.empty())
+/*
+ * FIXME here we need to keep track of the type of purge that is feeding the queue
+ * Relevant for the HEAD failures in purge_initialise
+ */
 				schedule_purgeables(purgeables.second);
 
 			return purgeables.first;
@@ -315,11 +349,61 @@ public:
 		return max_retention_id;
 	}
 
-	bool purge_initialise(item::pointer p_item) try
+	/**
+	 * Check if the given policy-id version is the latest
+	 *
+	 * @param org_id
+	 * @param policy_id
+	 * @param policy_version
+	 *
+	 * @throw rml::exception if org policies cannot be loaded from cache / from API
+	 *
+	 * @return
+	 */
+	inline bool is_policy_version_latest(const archiving::org_id_t& org_id, const policy::id_type& policy_id, const policy::version_type& policy_version) const
+	{
+		org_policy_versions::pointer p_opv(org_policy_versions_finder_(org_id));
+		if (!p_opv) {
+			org_policy_versions_finder_.forget(org_id);
+			throw rml::exception("Org policies could not be found");
+		}
+
+		return p_opv->is_policy_version_latest(policy_id, policy_version);
+	}
+
+	/**
+	 * @brief Check if given object has already been purged according to audit records
+	 *
+	 * @param identifier
+	 * @return
+	 */
+	inline bool audit_records_exist_for_purge(const archiving::archivable::identifier& identifier)
+	{
+		return retention_db_.count_purge_audit_records(identifier) > 0;
+	}
+
+	/**
+	 * Initialise purge - checks to make sure that the items picked up via the database query are definitely meant
+	 * to be purged. This is a measure against any sort of database corruption.
+	 *
+	 * Note: There are cases where it defeats the purpose of this check; in cases where older items (in storage)
+	 * have relevant headers missing. This is a case that is let to fail through to purge-policy-fixer which
+	 * relies greatly on the correctness of the database. Objects affected by this, if any, would be very few (those
+	 * from very early days, and ones that survived retention rules based expiry) and there are no known database
+	 * corruption so far (15 Nov 2016).
+	 *
+	 * @brief purge_initialise
+	 * @param p_item
+	 *
+	 * @return
+	 */
+	bool purge_initialise(const item::pointer &p_item) try
 	{
 		// if headers check is suppressed by config, just move forward
 		if (headers_check_is_suppressed(p_item))
 			return true;
+
+		const retention_record& retention_from_db(*(p_item->retention));
 
 		storage::s3::backend::pointer storage_backend = storage::s3::backend::get_instance();
 
@@ -330,15 +414,44 @@ public:
 		}
 		catch(const std::exception& e) {
 			bool const* isKeyNotFound = boost::get_error_info< storage::s3::KeyNotFound_error_info >(e);
+			/* If the error was due to object not being present anymore in the storage, we need to treat that differently */
 			if (isKeyNotFound && *isKeyNotFound) {
-				LogMessage("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
+				LogMessage("HEAD "<<p_item->identifier<<" failed; Error from backend:"<<e.what());
 
+				/* There are genuine cases where objects can be missing from storage. This is mainly designed for CDRs
+				 * and potentially PCAPs which can be deleted using auto-expiry capabilities of the storage backend. */
 				if(is_auto_expiring(p_item->identifier)) {
-					LogMessage("HEAD "<<p_item->identifier<<" failed; Assuming auto-expiry on storage endpoint "<<p_item->endpoint->id);
+					LogMessage(p_item->identifier<<" Assuming auto-expiry on storage endpoint "<<p_item->endpoint->id);
 					return true;
 				}
 
-				LogError("HEAD on "<<p_item->identifier<<" failed; could be data loss in storage endpoint "<<p_item->endpoint->id);
+				/* Ref: PLAT-9772 - In cases where we have reset purge (for various historic reasons) and are being
+				 * attempted to purge again, then check Audit_XXX table to verify it. If a "Purge:*" is found, then we
+				 * can safely ignore and continue. */
+				if (audit_records_exist_for_purge(p_item->identifier)) {
+					LogMessage(p_item->identifier<<" Ignored as the object is already deleted according to audit records");
+					return true;
+				}
+
+				/* Ref: PLAT-9772 - If we come across a case where the file in storage is missing, we need to flag up data loss; but
+				 * in cases where the file would have been purged by now, had the purge been running, are not let to stick around as
+				 * failures. If they are let to stick around as failures, they will keep failing with no resolution, and generates a
+				 * load of syslog errors. */
+				if (is_policy_version_latest(p_item->identifier.org, retention_from_db.policy_id, retention_from_db.policy_version)
+						/* XXX
+						 * do we need to check the policy version?!
+						 * is_purgeable() is already working against the latest policy version
+						 * that will be one less failure scenario that can be ignored safely
+						 */
+						&& retention_record::is_purgeable(cached_policy_finder_, p_item->retention, false)) {
+					LogMessage(p_item->identifier<<" Ignored as the object is already expired (storage-endpoint:"<<p_item->endpoint->id<<')');
+					return true;
+				}
+
+				LogError(p_item->identifier<<" could not be found in storage (endpoint:"<<p_item->endpoint->id<<"); Potential data loss");
+				/* FIXME Mark the item as fatally broken; not many items should get caught by this. If they do, then we will have to address those */
+				p_item->fatal_failure = true;
+
 				return false;
 			}
 
@@ -352,7 +465,7 @@ public:
 
 		LogDebug("stat("<<p_item->identifier<<") "<<props);
 
-		if(!props.size())
+		if(props.empty())
 			THROW_RML_EXCEPTION("could not stat item on endpoint:"<<p_item->endpoint->id);
 
 		if(props.find("clear-size") != props.end())
@@ -381,16 +494,13 @@ public:
 			throw;
 		}
 
-		const retention_record& retention_from_db(*(p_item->retention));
-		{
-			org_policy_versions::pointer p_opv(org_policy_versions_finder_(p_item->identifier.org));
-			if (!p_opv) {
-				org_policy_versions_finder_.forget(p_item->identifier.org);
-				throw rml::exception("Org policies could not be found");
-			}
-
-			if (!p_opv->is_policy_version_latest(retention_from_db.policy_id, retention_from_db.policy_version))
-				throw policy_version_not_latest_exception();
+		/* if policy version is not the latest, it means that the retention-min or retention-max dates
+		 * potentially is wrong in the database. So it needs to be recalculated before we proceed.
+		 * This recalculation is done by the purge-policy-fixer which is a separate daemon that monitors
+		 * purge activity. */
+		if (!is_policy_version_latest(
+				p_item->identifier.org, retention_from_db.policy_id, retention_from_db.policy_version)) {
+			throw policy_version_not_latest_exception();
 		}
 
 		const policy::id_type policy_id(rml::utils::strtoull(props["policy-id"].c_str()));
@@ -414,7 +524,7 @@ public:
 	}
 
 	// dummy function to move the item through the state-reactor
-	inline bool purge_stage_done(item::pointer p_item)
+	inline bool purge_stage_done(const item::pointer &p_item)
 	{
 		return true;
 	}
@@ -429,7 +539,7 @@ public:
 
 		static uint64_t loaded_max_id(0);
 
-		if(!require_approval && !(loaded_max_id < max_id)) {
+		if(!require_approval && loaded_max_id >= max_id) {
 			LogMessage("Approval not required and we have finished reloading");
 			return false;
 		}
@@ -520,7 +630,7 @@ public:
 		return auto_expire_filetype_[(int)(i.filetype)];
 	}
 
-	inline void move_forward(item::pointer p_item)
+	inline void move_forward(const item::pointer &p_item)
 	{
 		const state::outcome_t& cur_outcome(state::get_outcome(p_item->cur_state));
 		switch(cur_outcome) {
@@ -539,7 +649,7 @@ public:
 		}
 	}
 
-	inline void move_forward(item::pointer p_item, const bool& outcome_ok) try
+	inline void move_forward(const item::pointer &p_item, const bool& outcome_ok) try
 	{
 		static const unsigned int db_flush_interval_seconds(
 				confMap_["retention_purge.db_flush_interval_seconds"].as<unsigned int>());
@@ -570,13 +680,18 @@ public:
 			perform_current_state_action(p_item);
 		}
 		else {
-			// TODO handle errors mid way!!!
-			// currently we will retry when archived restarts
-			if (p_item->cur_state == state::init_error) {
-				LogMessage(p_item<<" Failed (not distinguishable from BAD errors)");
+			/* Fatal-failures are those hopeless cases which can never be revived or would need manual intervention. */
+			if (p_item->fatal_failure) {
+				LogMessage(p_item<<" Promoting to fatal failure from state:"<<state::to_string(p_item->cur_state)<<" to state:finished_error");
+				p_item->cur_state = state::finished_error;
+			}
+			// TODO handle errors mid way, more graciously!!!
+			/* All other failures are to be left dormant till archived restarts or till purge-policy-fixer attends to them */
+			else if (p_item->cur_state == state::init_error) {
+				LogMessage(p_item<<" Failed (resulting state:init_error)");
 			}
 			else {
-				LogWarning(p_item<<" Failed");
+				LogWarning(p_item<<" Failed (resulting state:"<<state::to_string(p_item->cur_state)<<')');
 			}
 		}
 	}
@@ -593,7 +708,7 @@ public:
 		return;
 	}
 
-	inline void perform_current_state_action(item::pointer p_item)
+	inline void perform_current_state_action(const item::pointer &p_item)
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
@@ -933,7 +1048,7 @@ public:
 		for(std::list< size_t >::const_iterator i = samples.begin(); i != samples.end(); ++i)
 			sum += *i;
 
-		return sum / put_rate_sample_size;
+		return static_cast<int>(sum / put_rate_sample_size);
 	}
 
 	inline int get_limit()
@@ -962,6 +1077,11 @@ public:
 	 */
 	void feed_purge_queue()
 	{
+		static const std::string not_finished_state(
+				boost::str(
+						boost::format(" AND `State` NOT IN ( %1% /* finished */, %2% /* finished_error */ ) ")
+								% state::finished % state::finished_error));
+
 		int iter = 1;
 
 		types::purge_def::pointer p_purge_def;
@@ -1047,7 +1167,7 @@ public:
 
 				default: // we shouldnt get here!
 				{
-					LogWarning("iter_test: "<<iter_tens<<" - Unexpected");
+					LogWarning("iter_tens: "<<iter_tens<<" - Unexpected");
 					break;
 				}
 				}
@@ -1060,9 +1180,11 @@ public:
 				break;
 
 			try {
+				const std::string& enabled_orgs(confMap_["retention_purge.enabled_orgs"].as<std::string>());
 
 				{
-					const long& purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+					const long& purge_queue_size(
+							internal_db_.get_purge_queue_size(purge_max_queue_size, enabled_orgs, not_finished_state));
 					if(purge_queue_size < 0) {
 						LogWarning("Failed to obtain purge queue size");
 						continue;
@@ -1095,7 +1217,7 @@ public:
 
 					const types::purge_def::set_t::const_iterator& end(p_purge_def->set.end());
 					for(types::purge_def::set_t::const_iterator itr = p_purge_def->set.begin(); !quit_ && (itr != end); ++itr) {
-						const long& purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size));
+						const long& purge_queue_size(internal_db_.get_purge_queue_size(purge_max_queue_size, enabled_orgs, not_finished_state));
 						if(purge_queue_size < 0) {
 							LogWarning("Failed to obtain purge queue size");
 							continue;

@@ -306,7 +306,8 @@ public:
 			const uint64_t& max_retention_id, const unsigned int limit,
 			const std::string& where_configured_restrictions,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
-			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired)
+			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
+			const bool& org_had_legacy_ondemand_purge)
 	{
 		std::pair< uint64_t, retention_record::set_t > the_pair;
 
@@ -347,13 +348,30 @@ public:
 			}
 		} while(limit_remaining && --max_retry);
 
+		// here look for any object that would fit legacy on-demand purge criteria.
+		if (org_had_legacy_ondemand_purge) {
+			mysqlpp::Query query = conn->query();
+			query << "SELECT " << retention_select_fields() << " "
+					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
+					"WHERE (ID > "<<max_retention_id<<" AND ID <= "<<new_max_retention_id<<" AND `State`='PurgeQueued' AND `Purged`='yes')"
+					" "<<where_configured_restrictions<<" "
+					"FOR UPDATE";
+
+			__SQL_DEBUG(query.str());
+
+			mysqlpp::UseQueryResult res = query.use();
+			while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
+				retention_set.insert(rec);
+			}
+		}
+
 		the_pair.first = new_max_retention_id;
 
 		if(!retention_set.empty()) {
 			// Update state
 			{
 				mysqlpp::Query query = conn->query();
-				query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
+				query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued', `Purged`='no' WHERE ID IN(";
 				retention_record::set_t::const_iterator begin(retention_set.begin());
 				retention_record::set_t::const_iterator end(retention_set.end());
 				for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
@@ -485,6 +503,35 @@ public:
 		}
 
 		return false;
+	}
+
+	uint64_t count_purge_audit_records(const archiving::archivable::identifier& identifier)
+	{
+		rml::MySQLConnection conn(*p_pool_);
+		try {
+			mysqlpp::Query query = conn->query();
+
+			std::string uuid_hex(identifier.uuid);
+			boost::algorithm::erase_all(uuid_hex, "-");
+			query << "SELECT COUNT(*) FROM ArchivingRetention.Audit_"<<identifier.org<<" "
+					"WHERE Action LIKE 'Purge:%'"
+					" AND UUID=0x"<<uuid_hex<<
+					" AND Type="<<identifier.filetype;
+			__SQL_DEBUG(query.str());
+
+			return query.use().fetch_row().at(0);
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return 0;
 	}
 
 	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
