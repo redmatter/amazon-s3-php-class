@@ -261,9 +261,10 @@ public:
 	 * Batch scheduler
 	 *
 	 * @param purgeables
-	 * @param max_retention_id
+	 * @param audit_id
+	 * @param on_demand_purge_id
 	 */
-	void schedule_purgeables(const retention_record::set_t& purgeables)
+	void schedule_purgeables(const retention_record::set_t& purgeables, const uint64_t& audit_id, const uint64_t& on_demand_purge_id)
 	{
 		bool quit_seen(false);
 		static const unsigned int db_flush_interval_seconds(
@@ -279,7 +280,7 @@ public:
 				continue;
 			}
 
-			item::pointer purge_item(new item((*itr)->identifier, endpoint, *itr));
+			item::pointer purge_item(new item((*itr)->identifier, endpoint, *itr, audit_id, on_demand_purge_id));
 
 			// save and keep it available till the save() fires!
 			internal_db_.batch_save< item >(purge_item);
@@ -307,43 +308,22 @@ public:
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
+        static const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) > fn_schedule_purgeables(
+                boost::bind(&app::retention_purge::runner::schedule_purgeables, shared_from_this(), _1, _2, _3));
 
 		int batch_count_(batch_count);
 
 		// look for any on-demand purge
-		{
-			const retention_record::set_t& purgeables(
-					retention_db_.get_retention_for_purge_ondemand(api_, org_id,
-							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
-							fn_is_filetype_auto_expired));
-
-			if(!purgeables.empty()) {
-				batch_count_ -= purgeables.size();
-/*
- * FIXME here we need to keep track of the type of purge that is feeding the queue
- * Relevant for the HEAD failures in purge_initialise
- */
-
-				schedule_purgeables(purgeables);
-			}
-		}
+        batch_count_ -= retention_db_.get_retention_for_purge_ondemand(
+                api_, org_id, boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
+                fn_is_filetype_auto_expired, fn_schedule_purgeables);
 
 		// continue with the regular purge
 		if(batch_count_ > 0) {
-			const std::pair< uint64_t, retention_record::set_t >& purgeables(
-					retention_db_.get_retention_for_purge(
-							api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
-							boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-							fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id)));
-
-			if(!purgeables.second.empty())
-/*
- * FIXME here we need to keep track of the type of purge that is feeding the queue
- * Relevant for the HEAD failures in purge_initialise
- */
-				schedule_purgeables(purgeables.second);
-
-			return purgeables.first;
+            return retention_db_.get_retention_for_purge(
+                    api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
+                    boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
+                    fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
 		}
 
 		return max_retention_id;
