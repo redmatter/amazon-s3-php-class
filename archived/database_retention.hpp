@@ -253,7 +253,7 @@ public:
 					while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
 						if(!is_purgeaple(rec)) {
 							not_purgeable_items++;
-							LogVerbose(rec->identifier<<" : Not yeat purgeable");
+							LogVerbose(rec->identifier<<" : Not yet purgeable");
 							continue;
 						}
 

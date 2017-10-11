@@ -319,20 +319,14 @@ struct item
 	uint64_t id;
 	state::state_t cur_state;
 	bool fatal_failure;
-	/**
-	 * set to true if the purge item was enqueued on processing an on-demand purge request
-	 */
+
+    /* set to true if the purge item was enqueued on processing an on-demand purge request */
 	const bool on_demand;
 
 	mutable volatile bool save_pending;
 
 	typedef boost::shared_ptr< item > pointer;
 	typedef boost::weak_ptr< item > weak_ptr;
-
-//	~item()
-//	{
-//		LogDebug(identifier<<" deleted");
-//	}
 
 	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false), on_demand(false),
              save_pending(false)
@@ -352,21 +346,10 @@ struct item
 		id(id), cur_state(cur_state), save_pending(false),
 		fatal_failure(false), on_demand(false)
 	{
+		if (retention_from_db->identifier != identifier) {
+			THROW_RML_EXCEPTION("Given identifier != retention-record (identifier:"<<identifier<<", retention-record:"<<retention_from_db->identifier<<')');
+		}
 	}
-
-
-//	item(const archiving::archivable::identifier& identifier,
-//			const storage::cached_endpoint_finder_t& endpoint_finder,
-//			const retention_record::pointer& retention_from_db,
-//			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
-//			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
-//		identifier(identifier),
-//		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
-//				identifier.org, retention_from_db->endpoint_id))),
-//		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
-//		id(id), cur_state(cur_state), save_pending(false)
-//	{
-//	}
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
@@ -387,6 +370,9 @@ struct item
 			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), fatal_failure(false), on_demand(false),
 			save_pending(false)
 	{
+		if (retention->identifier != identifier) {
+			THROW_RML_EXCEPTION("Given identifier != retention-record (identifier:"<<identifier<<", retention-record:"<<retention->identifier<<')');
+		}
 	}
 	
 	static inline pointer make_from_row(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder)
