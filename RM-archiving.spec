@@ -20,6 +20,7 @@ Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
+Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -35,6 +36,18 @@ BuildRequires: cpp-netlib >= 0.10.1
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
+
+%package platform-config-redmatter
+Summary: ArchiveD config specific to redmatter platform
+Group: RedMatter/Archiving
+Provides: RM-%{appname}-platform-config = %{version}-%{release}
+Conflicts: RM-%{appname}-platform-config-ipc
+
+%package platform-config-ipc
+Summary: ArchiveD config specific to redmatter platform
+Group: RedMatter/Archiving
+Provides: RM-%{appname}-platform-config = %{version}-%{release}
+Conflicts: RM-%{appname}-platform-config-redmatter
 
 %package collectd
 Summary: Archiving CollectD
@@ -130,6 +143,12 @@ BuildRequires: db4-devel
 %description
 Archiving daemon ( ArchiveD )
 
+%description platform-config-redmatter
+ArchiveD platform configs for redmatter
+
+%description platform-config-ipc
+ArchiveD platform configs for IPC (Etrali)
+
 %description collectd
 Works on CDR from FreeSWITCH to identify files to be archived.
 It also makes sense of archiving policy and passes that on to ArchiveD.
@@ -201,6 +220,10 @@ cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
 cp archived/rmarchived.conf %{buildroot}/etc/archiving/
 cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
 cp archived/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchived.conf
+
+# ArchiveD retention-purge config (platform specific)
+cp archived/retention-purge-config/redmatter.conf %{buildroot}/etc/archiving/conf.d/retention-purge-redmatter.conf
+cp archived/retention-purge-config/ipc.conf %{buildroot}/etc/archiving/conf.d/retention-purge-ipc.conf
 
 # CollectD
 cp collectd/tmp-%{buildtype}-build/collectd %{buildroot}/usr/bin/rmcollectd.bin
@@ -526,6 +549,14 @@ fi
 /etc/archiving/conf.d/internal_database.conf
 /var/www/rmarchived
 /etc/httpd/conf.d/rmarchived.conf
+
+%files platform-config-redmatter
+%defattr(-,root,root)
+/etc/archiving/conf.d/retention-purge-redmatter.conf
+
+%files platform-config-ipc
+%defattr(-,root,root)
+/etc/archiving/conf.d/retention-purge-ipc.conf
 
 %files collectd
 %defattr(-,root,root)
