@@ -70,7 +70,7 @@ class PurgePolicyFixerApp extends BaseApp
 				return $this->_archivedConf;
 		}
 
-		$this->_archivedConf = new ConfigMap(Archiving::CONFIG_FILE_RMARCHIVED);
+		$this->_archivedConf = new ConfigMap(Archiving::CONFIG_FILE_RMARCHIVED_RETENTION_PURGE);
 		$this->_archivedConfTimeout = $now + self::TIMEOUT_ARCHIVED_CONF;
 
 		return $this->_archivedConf;

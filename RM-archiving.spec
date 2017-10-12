@@ -424,6 +424,12 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
 
+%post platform-config-redmatter
+ln -sf /etc/archiving/conf.d/retention-purge-redmatter.conf /etc/archiving/rmarchived-retention-purge.conf
+
+%post platform-config-ipc
+ln -sf /etc/archiving/conf.d/retention-purge-ipc.conf /etc/archiving/rmarchived-retention-purge.conf
+
 %post collectd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollectd
@@ -502,6 +508,16 @@ if [ "$1" -eq 0 ]; then
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
 		/bin/true
+fi
+
+%postun platform-config-redmatter
+if [ "$1" -eq 0 ]; then # package being uninstalled
+	rm /etc/archiving/rmarchived-retention-purge.conf
+fi
+
+%postun platform-config-ipc
+if [ "$1" -eq 0 ]; then # package being uninstalled
+	rm /etc/archiving/rmarchived-retention-purge.conf
 fi
 
 %postun collectd

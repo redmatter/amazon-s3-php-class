@@ -105,6 +105,7 @@ class Archiving
 	);
 
 	const CONFIG_FILE_RMARCHIVED = '/etc/archiving/rmarchived.conf';
+    const CONFIG_FILE_RMARCHIVED_RETENTION_PURGE = '/etc/archiving/rmarchived-retention-purge.conf';
 
 	/**
 	 * Get all defined file-types
