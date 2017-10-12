@@ -557,7 +557,7 @@ int main(int argc, char* argv[]) try
 		// From: <4793859166@sms.netcom.no>
 		FromNumber = GetFromHeader(headers["From"].back(), boost::regex("([0-9]+)@.*"));
 		// Subject: NetCom SMSpluss - Kopi av SMS til 4793224070
-		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("^[^0-9]*([0-9]+)$"));
+		ToNumber   = GetFromHeader(headers["Subject"].back(), boost::regex("([0-9]+)$"));
 
 		// what will be used if we can't extract numbersf
 		FromNumberFallback = FromNumber.empty() ? headers["From"].back().substr(0, 18) : FromNumber;
