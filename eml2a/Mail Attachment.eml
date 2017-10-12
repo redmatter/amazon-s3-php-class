@@ -1,0 +1,43 @@
+Received: from HE1EUR02HT179.eop-EUR02.prod.protection.outlook.com
+ (2603:10a6:3:fb::20) by HE1PR1001MB1355.EURPRD10.PROD.OUTLOOK.COM with HTTPS
+ via HE1PR05CA0244.EURPRD05.PROD.OUTLOOK.COM; Thu, 12 Oct 2017 10:55:19 +0000
+Received: from HE1EUR02FT055.eop-EUR02.prod.protection.outlook.com
+ (10.152.10.60) by HE1EUR02HT179.eop-EUR02.prod.protection.outlook.com
+ (10.152.11.231) with Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id 15.20.77.10; Thu, 12
+ Oct 2017 10:55:18 +0000
+Received: from SNT004-MC10F2.hotmail.com (10.152.10.53) by
+ HE1EUR02FT055.mail.protection.outlook.com (10.152.11.101) with Microsoft SMTP
+ Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id
+ 15.20.77.10 via Frontend Transport; Thu, 12 Oct 2017 10:55:16 +0000
+Received: from SMSRele2.osl800.netcom.no ([212.169.66.50]) by
+ SNT004-MC10F2.hotmail.com over TLS secured channel with Microsoft
+ SMTPSVC(7.5.7601.23143);	 Thu, 12 Oct 2017 03:55:15 -0700
+Received: from [10.244.55.67] (helo=fsnone35.netcom.no)	by
+ SMSRele2.osl800.netcom.no with esmtp (Exim 4.86_2)	(envelope-from
+ <2052@smskopi.no>)	id 1e2b90-0000X9-Bm	for john.sletten@live.no; Thu, 12 Oct
+ 2017 12:55:14 +0200
+From: <2052@smskopi.no>
+To: <john.sletten@live.no>
+Subject: Kopi av SMS fra +2052 til +4793224070
+Thread-Topic: Kopi av SMS fra +2052 til +4793224070
+Thread-Index: AQHTQ0iYPALa9+YkrEKRCBn8dipM5A==
+Date: Thu, 12 Oct 2017 10:55:14 +0000
+Message-ID: <3633603.24.1507805714313.JavaMail.mafadmin@fsnone35.netcom.no>
+Content-Language: nb-NO
+X-MS-Exchange-Organization-AuthAs: Anonymous
+X-MS-Exchange-Organization-AuthSource: HE1EUR02FT055.eop-EUR02.prod.protection.outlook.com
+X-MS-Has-Attach:
+X-MS-Exchange-Organization-PCL: 2
+X-MS-TNEF-Correlator:
+received-spf: Neutral (protection.outlook.com: 212.169.66.50 is neither
+ permitted nor denied by domain of smskopi.no)
+x-ms-exchange-organization-originalclientipaddress: 10.152.10.53
+x-ms-exchange-organization-originalserveripaddress: 25.152.11.101
+x-ms-publictraffictype: Email
+Content-Type: text/plain; charset="utf-8"
+Content-ID: <F5D0070F2FA5D3449AB7FFA5AD29F85C@EURPRD10.PROD.OUTLOOK.COM>
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+U01TQlVMSy0yMDUyIHRlc3RPd25BY2NvdW50IFRlc3QgMA0K

@@ -1,0 +1,43 @@
+Received: from VE1EUR02HT022.eop-EUR02.prod.protection.outlook.com
+ (2603:10a6:3:fb::20) by HE1PR1001MB1355.EURPRD10.PROD.OUTLOOK.COM with HTTPS
+ via HE1PR05CA0244.EURPRD05.PROD.OUTLOOK.COM; Thu, 12 Oct 2017 10:55:07 +0000
+Received: from VE1EUR02FT037.eop-EUR02.prod.protection.outlook.com
+ (10.152.12.51) by VE1EUR02HT022.eop-EUR02.prod.protection.outlook.com
+ (10.152.13.53) with Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id 15.20.77.10; Thu, 12
+ Oct 2017 10:55:07 +0000
+Received: from COL004-MC6F26.hotmail.com (10.152.12.59) by
+ VE1EUR02FT037.mail.protection.outlook.com (10.152.12.195) with Microsoft SMTP
+ Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id
+ 15.20.77.10 via Frontend Transport; Thu, 12 Oct 2017 10:55:06 +0000
+Received: from SMSRele2.osl800.netcom.no ([212.169.66.50]) by
+ COL004-MC6F26.hotmail.com over TLS secured channel with Microsoft
+ SMTPSVC(7.5.7601.23143);	 Thu, 12 Oct 2017 03:55:03 -0700
+Received: from [10.244.55.67] (helo=fsnone35.netcom.no)	by
+ SMSRele2.osl800.netcom.no with esmtp (Exim 4.86_2)	(envelope-from
+ <Telia@smskopi.no>)	id 1e2b8n-0000X9-RY	for john.sletten@live.no; Thu, 12 Oct
+ 2017 12:55:01 +0200
+From: <Telia@smskopi.no>
+To: <john.sletten@live.no>
+Subject: Kopi av SMS fra +Telia til +4793224070
+Thread-Topic: Kopi av SMS fra +Telia til +4793224070
+Thread-Index: AQHTQ0iRHAxkNPuHV0O1DG1Fx8gJ9A==
+Date: Thu, 12 Oct 2017 10:55:01 +0000
+Message-ID: <5518766.23.1507805701849.JavaMail.mafadmin@fsnone35.netcom.no>
+Content-Language: nb-NO
+X-MS-Exchange-Organization-AuthAs: Anonymous
+X-MS-Exchange-Organization-AuthSource: VE1EUR02FT037.eop-EUR02.prod.protection.outlook.com
+X-MS-Has-Attach:
+X-MS-Exchange-Organization-PCL: 2
+X-MS-TNEF-Correlator:
+received-spf: Neutral (protection.outlook.com: 212.169.66.50 is neither
+ permitted nor denied by domain of smskopi.no)
+x-ms-exchange-organization-originalclientipaddress: 10.152.12.59
+x-ms-exchange-organization-originalserveripaddress: 25.152.12.195
+x-ms-publictraffictype: Email
+Content-Type: text/plain; charset="utf-8"
+Content-ID: <39EC354A3F36BA47B04DCD24595286FB@EURPRD10.PROD.OUTLOOK.COM>
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+U01TQlVMSy0yMDUyIHRlc3RPYUFscGhhDQo=
