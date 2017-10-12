@@ -515,7 +515,7 @@ public:
 			query << "SELECT COUNT(*) FROM ArchivingRetention.Audit_"<<identifier.org<<" "
 					"WHERE Action LIKE 'Purge:%'"
 					" AND UUID=0x"<<uuid_hex<<
-					" AND Type="<<identifier.filetype;
+					" AND Type="<<static_cast<int>(identifier.filetype);
 			__SQL_DEBUG(query.str());
 
 			return query.use().fetch_row().at(0);
