@@ -1,0 +1,41 @@
+Received: from AM5EUR02HT008.eop-EUR02.prod.protection.outlook.com
+ (2603:10a6:3:fb::27) by HE1PR1001MB1355.EURPRD10.PROD.OUTLOOK.COM with HTTPS
+ via HE1PR05CA0251.EURPRD05.PROD.OUTLOOK.COM; Thu, 12 Oct 2017 12:08:59 +0000
+Received: from AM5EUR02FT019.eop-EUR02.prod.protection.outlook.com
+ (10.152.8.52) by AM5EUR02HT008.eop-EUR02.prod.protection.outlook.com
+ (10.152.8.87) with Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id 15.20.77.10; Thu, 12
+ Oct 2017 12:08:59 +0000
+Received: from BAY004-MC4F33.hotmail.com (10.152.8.60) by
+ AM5EUR02FT019.mail.protection.outlook.com (10.152.8.169) with Microsoft SMTP
+ Server (version=TLS1_2, cipher=TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384) id
+ 15.20.77.10 via Frontend Transport; Thu, 12 Oct 2017 12:08:56 +0000
+Received: from SMSRele2.osl800.netcom.no ([212.169.66.50]) by
+ BAY004-MC4F33.hotmail.com over TLS secured channel with Microsoft
+ SMTPSVC(7.5.7601.23143);	 Thu, 12 Oct 2017 05:08:43 -0700
+Received: from [10.244.55.67] (helo=fsnone35.netcom.no)	by
+ SMSRele2.osl800.netcom.no with esmtp (Exim 4.86_2)	(envelope-from
+ <4793224070@smskopi.no>)	id 1e2cI5-0000X9-Op	for john.sletten@live.no; Thu,
+ 12 Oct 2017 14:08:41 +0200
+From: <4793224070@smskopi.no>
+To: <john.sletten@live.no>
+Subject: Kopi av SMS fra +4793224070 til +4740555045
+Thread-Topic: Kopi av SMS fra +4793224070 til +4740555045
+Thread-Index: AQHTQ1LiWIL4Cxjs9UCScCzk5Aeppw==
+Date: Thu, 12 Oct 2017 12:08:41 +0000
+Message-ID: <17808714.31.1507810121763.JavaMail.mafadmin@fsnone35.netcom.no>
+Content-Language: nb-NO
+X-MS-Exchange-Organization-AuthSource: AM5EUR02FT019.eop-EUR02.prod.protection.outlook.com
+X-MS-Has-Attach:
+X-MS-Exchange-Organization-PCL: 2
+X-MS-TNEF-Correlator:
+received-spf: Neutral (protection.outlook.com: 212.169.66.50 is neither
+ permitted nor denied by domain of smskopi.no)
+x-ms-exchange-organization-originalclientipaddress: 10.152.8.60
+x-ms-exchange-organization-originalserveripaddress: 25.152.8.169
+Content-Type: text/plain; charset="utf-8"
+Content-ID: <0476E7EB6B97F945958728782911F3D4@EURPRD10.PROD.OUTLOOK.COM>
+Content-Transfer-Encoding: base64
+MIME-Version: 1.0
+
+TVQgbWVzc2FnZSBzZW50IHRvIDQwNTU1MDQ1DQo=
