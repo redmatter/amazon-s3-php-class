@@ -153,7 +153,8 @@ public:
 	bool purge_audit(rml::MySQLConnection& conn, const archiving::org_id_t& org,
 			const coreapi_eventlog::id_t& eventlog_id, Iter begin, Iter end,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
-			const std::string& auditable_action)
+			const std::string& auditable_action,
+			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype = boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >())
 	{
 		if(begin == end)
 			return true;
@@ -172,6 +173,16 @@ public:
 
 				if(fn_is_filetype_auto_expired(id))
 					continue;
+
+				// it can be empty in the case of invocation from "on-demand" purge
+				if (!is_internal_filetype.empty()) {
+					boost::optional<bool> is_internal = is_internal_filetype(id.filetype);
+					// The optional-bool will evaluate to true only if the it contains a true.
+					// The implementation of the function returns a boost::none if the config-option is set to OFF
+					if (is_internal == true) {
+						continue;
+					}
+				}
 
 				has_items_to_audit = true;
 
@@ -307,6 +318,7 @@ public:
 			const std::string& where_configured_restrictions,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
+			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
 			const bool& org_had_legacy_ondemand_purge,
 			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
 	{
@@ -383,7 +395,7 @@ public:
 					"Purge:Auto");
 			purge_audit< retention_record::set_t::iterator, retention_record::extract_identifier >(
 					conn, org_id, eventlog->id, retention_set.begin(), retention_set.end(), fn_is_filetype_auto_expired,
-					eventlog->action);
+					eventlog->action, is_internal_filetype);
 
 			// schedule the found purge-able items
 			fn_schedule_purgeables(retention_set, eventlog->id, 0 /* not on-demand purge */);

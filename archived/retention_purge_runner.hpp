@@ -305,6 +305,15 @@ public:
 		}
 	}
 
+	static inline boost::optional<bool> check_is_internal_filetype(const bool& do_check, const archiving::file_type::file_type_t& filetype)
+	{
+		if (!do_check) {
+			return boost::none;
+		}
+
+		return archiving::file_type::is_internal(filetype);
+	}
+
 	/**
 	 * enqueue purge
 	 *
@@ -329,7 +338,8 @@ public:
             return retention_db_.get_retention_for_purge(
                     api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
                     boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-                    fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
+                    fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
+                    org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
 		}
 
 		return max_retention_id;
