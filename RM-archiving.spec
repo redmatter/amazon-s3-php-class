@@ -250,6 +250,7 @@ cp cli/cli.sh %{buildroot}/usr/bin/archiving-cli
 # Common
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
+cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/retention_delete_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
@@ -520,6 +521,7 @@ fi
 /etc/logrotate.d/rmarchived
 /etc/rsyslog.d/11-rmarchived.conf
 /etc/archiving/conf.d/retention_database.conf
+/etc/archiving/conf.d/retention_delete_database.conf
 /etc/archiving/conf.d/cdrmunch_database.conf
 /etc/archiving/conf.d/internal_database.conf
 /var/www/rmarchived
