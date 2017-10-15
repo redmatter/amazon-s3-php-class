@@ -533,52 +533,30 @@ public:
 		return 0;
 	}
 
-	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
-	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end, const bool& delete_cdrs)
+	template<typename Iter, typename ExtractRetentionID>
+	inline bool
+	set_purged(const archiving::org_id_t &org, const Iter &begin, const Iter &end, const ExtractRetentionID &extract_id)
 	{
+		if (begin == end) {
+			LogWarning("Empty set given; ignored!");
+			return true;
+		}
+
 		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction transaction(*conn, false);
 		try {
-			ExtractRetentionID extract_id;
-			IsFileTypeCDR is_cdr;
+			mysqlpp::Query query = conn->query();
+			query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
 
-			unsigned int cdrs_found(0);
-			bool noncdrs_found(false);
-			mysqlpp::Query query_bin_cdrs = conn->query();
-			query_bin_cdrs << "DELETE FROM ArchivingRetention.Retention_"<<org<<" WHERE Type="<<is_cdr.filetype_as_int()<<" AND ID IN (";
-
-			mysqlpp::Query query_update_noncdrs = conn->query();
-			query_update_noncdrs << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
-
+			bool first_one = true;
 			for(Iter itr = begin; itr != end; ++itr) {
-// TODO Move this functionality out and fix JIRA https://jira.redmatter.com/browse/PLAT-776
-//				if(delete_cdrs && is_cdr(*itr)) {
-//					query_bin_cdrs << (cdrs_found?',':' ')<<extract_id(*itr);
-//					cdrs_found++;
-//				}
-//				else {
-					query_update_noncdrs << (noncdrs_found?',':' ')<<extract_id(*itr);
-					noncdrs_found = true;
-//				}
+				query << (first_one?' ':',')<<extract_id(*itr);
+				first_one = false;
 			}
+			query << " )";
 
-			query_bin_cdrs << " )";
-			query_update_noncdrs << " )";
-
-			if(delete_cdrs && cdrs_found) {
-				__SQL_DEBUG(query_bin_cdrs.str());
-				const mysqlpp::SimpleResult& res(query_bin_cdrs.execute());
-				if (cdrs_found != res.rows()) {
-					LogError("Not all CDRs were deleted ("<<cdrs_found<<" != "<<res.rows()<<")");
-					// not bailing out here as there is nothing that can be done to fix it!
-				}
-			}
-
-			if(noncdrs_found) {
-				__SQL_DEBUG(query_update_noncdrs.str());
-				query_update_noncdrs.execute();
-			}
-
+			__SQL_DEBUG(query.str());
+			query.execute();
 			transaction.commit();
 
 			return true;

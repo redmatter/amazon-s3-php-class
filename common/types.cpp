@@ -82,6 +82,7 @@ bool file_type::is_internal(const file_type::file_type_t& type)
 	case file_type::cdr:
 	case file_type::pcap:
 	case file_type::pcap_sip_only:
+	case file_type::buffered_recording:
 		return true;
 
 	default:

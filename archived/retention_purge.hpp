@@ -31,7 +31,8 @@ inline void describe_config(boost::program_options::options_description& optsDes
 {
 	optsDesc.add_options()
 			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
-			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
+//			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
+			("retention_purge.delete_retention_records_for_internal_filetypes", boost::program_options::value<bool>()->default_value(false), "Delete records from retention database for internal-filetypes?")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
 			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
@@ -446,7 +447,7 @@ struct item
 	{
 		inline archiving::archivable::identifier operator()(const pointer& p) const
 		{
-			return p->identifier;
+			return p ? p->identifier : archiving::archivable::identifier();
 		}
 	};
 
@@ -464,6 +465,24 @@ struct item
 			return int(archiving::file_type::cdr);
 		}
 #pragma clang diagnostic pop
+	};
+
+	struct is_internal_filetype
+	{
+		inline bool operator()(const pointer& p) const
+		{
+			return p ? (*this)(*p) : false;
+		}
+
+        inline bool operator()(const item& item) const
+        {
+            return (*this)(item.identifier);
+        }
+
+        inline bool operator()(const archiving::archivable::identifier& identifier) const
+        {
+            return archiving::file_type::is_internal(identifier.filetype);
+        }
 	};
 
 	struct extract_retention_id
