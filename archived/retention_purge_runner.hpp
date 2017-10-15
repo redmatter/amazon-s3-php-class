@@ -122,6 +122,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
     std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
+    const bool delete_retention_records_for_internal_filetypes_;
 
 	volatile bool& quit_;
 
@@ -188,6 +189,8 @@ public:
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
 				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_),
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
+				delete_retention_records_for_internal_filetypes_(
+						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
 				quit_(quit)
 	{
 		// set all to false
@@ -923,7 +926,9 @@ public:
 								if(!quit_) {
 									// all or nothing here; if any of them fail, a retry will be scheduled (see below)
 									// by requeueing into the channel
-									if (archiving::file_type::is_internal((*itr_batch.first)->identifier.filetype)) {
+									if (delete_retention_records_for_internal_filetypes_ &&
+										archiving::file_type::is_internal((*itr_batch.first)->identifier.filetype))
+									{
 										done_ok = retention_delete_db_.delete_records(
 												(*itr_batch.first)->identifier.org, itr_batch.first, itr_batch.second,
 												item::extract_identifier(), item::is_internal_filetype());
