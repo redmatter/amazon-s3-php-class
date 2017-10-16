@@ -13,13 +13,14 @@
 #include "state_reactor.hpp"
 #include "retention_purge.hpp"
 #include "org_policy_versions.hpp"
-#include "./database_retention.hpp"
-#include "./database_internal.hpp"
+#include "database_retention.hpp"
+#include "database_internal.hpp"
 #include "../common/coreapi_eventlog.hpp"
 #include "../common/policy.hpp"
 #include "../common/types.hpp"
 #include "suppress_headers_check.hpp"
 #include "storage_backend.hpp"
+#include "database_retention_delete.hpp"
 
 #include <rml/pc_channel.h>
 #include <rml/coreapi.hpp>
@@ -100,6 +101,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	state_reactor<>& reactor_;
 	database::retention& retention_db_;
+	database::retention_delete& retention_delete_db_;
 	database::internal& internal_db_;
 
 	item::channel_t item_save_channel_;
@@ -120,6 +122,7 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
     std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
+    const bool delete_retention_records_for_internal_filetypes_;
 
 	volatile bool& quit_;
 
@@ -170,7 +173,8 @@ public:
 			const policy::cached_finder_t& cached_policy_finder,
 			const org_policy_versions::cached_finder_t& org_policy_versions_finder,
 			rml::coreapi& api, state_reactor<>& reactor,
-			database::retention& retention_db, database::internal& internal_db, volatile bool& quit) :
+			database::retention& retention_db, database::retention_delete& retention_delete_db,
+			database::internal& internal_db, volatile bool& quit) :
 				confMap_(confMap),
 				legacy_s3_headers_last_date_(
 						boost::gregorian::from_simple_string(
@@ -180,11 +184,13 @@ public:
 						legacy_s3_headers_last_date_),
 				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
 				org_policy_versions_finder_(org_policy_versions_finder), api_(api), reactor_(reactor),
-				retention_db_(retention_db), internal_db_(internal_db),
+				retention_db_(retention_db), retention_delete_db_(retention_delete_db), internal_db_(internal_db),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
 				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_),
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
+				delete_retention_records_for_internal_filetypes_(
+						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
 				quit_(quit)
 	{
 		// set all to false
@@ -299,6 +305,15 @@ public:
 		}
 	}
 
+	static inline boost::optional<bool> check_is_internal_filetype(const bool& do_check, const archiving::file_type::file_type_t& filetype)
+	{
+		if (!do_check) {
+			return boost::none;
+		}
+
+		return archiving::file_type::is_internal(filetype);
+	}
+
 	/**
 	 * enqueue purge
 	 *
@@ -323,7 +338,8 @@ public:
             return retention_db_.get_retention_for_purge(
                     api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
                     boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-                    fn_is_filetype_auto_expired, org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
+                    fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
+                    org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
 		}
 
 		return max_retention_id;
@@ -885,7 +901,7 @@ public:
 				if(lock) {
 					last_delete_retention_time_ = time(0);
 
-					item::org_grouped_multiset_t purge_set;
+					item::type_org_endpoint_grouped_multiset_t purge_set;
 					try {
 						delete_retention_channel_.consume(purge_set, 0, 500000);
 					}
@@ -896,11 +912,11 @@ public:
 
 					// we could get here if quit was flagged; if so we need to quit asap
 					if(!quit_ && !purge_set.empty()) {
-						item::org_grouped_multiset_t::const_iterator itr = purge_set.begin();
+						item::type_org_endpoint_grouped_multiset_t::const_iterator itr = purge_set.begin();
 						do {
 							const std::pair<
-									item::org_grouped_multiset_t::const_iterator,
-									item::org_grouped_multiset_t::const_iterator>& itr_batch(
+									item::type_org_endpoint_grouped_multiset_t::const_iterator,
+									item::type_org_endpoint_grouped_multiset_t::const_iterator>& itr_batch(
 											purge_set.equal_range(*itr));
 
 							bool done_ok(false);
@@ -918,13 +934,19 @@ public:
 								}
 
 								if(!quit_) {
-									// all or nothing here; if any of them fail, a retry will be scheduled (see below) by requeueing into the channel
-									done_ok = retention_db_.set_purged<
-										item::org_grouped_multiset_t::const_iterator,
-										item::extract_retention_id, item::is_filetype_cdr >(
-												(*itr_batch.first)->identifier.org,
-												itr_batch.first, itr_batch.second,
-												confMap_["retention_purge.delete_cdr_retention_records"].as<bool>());
+									// all or nothing here; if any of them fail, a retry will be scheduled (see below)
+									// by requeueing into the channel
+									if (delete_retention_records_for_internal_filetypes_ &&
+										archiving::file_type::is_internal((*itr_batch.first)->identifier.filetype))
+									{
+										done_ok = retention_delete_db_.delete_records(
+												(*itr_batch.first)->identifier.org, itr_batch.first, itr_batch.second,
+												item::extract_identifier(), item::is_internal_filetype());
+									} else {
+										done_ok = retention_db_.set_purged(
+												(*itr_batch.first)->identifier.org, itr_batch.first, itr_batch.second,
+												item::extract_retention_id());
+									}
 								}
 							}
 

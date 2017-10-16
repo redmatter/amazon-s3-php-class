@@ -89,6 +89,15 @@ class Archiving
 		self::FILE_TYPE_INT_PCAP_SIP_ONLY
 	);
 
+	// data-types that an enduser does not get to access directly.
+	// BUFFERED_RECORDING is a special kind and it does fall into this category
+	public static $InternalDataFileTypes = array(
+		self::FILE_TYPE_INT_CDR,
+		self::FILE_TYPE_INT_PCAP,
+		self::FILE_TYPE_INT_PCAP_SIP_ONLY,
+		self::FILE_TYPE_INT_BUFFERED_RECORDING
+	);
+
 	public static $OperationalDataFileTypesAsString = array(
 		self::FILE_TYPE_INT_CDR,
 		self::FILE_TYPE_INT_PCAP,
@@ -152,7 +161,19 @@ class Archiving
 	 */
 	public static function FileTypeIsOperationalData($type)
 	{
-		return in_array($type, self::$OperationalDataFileTypes);
+		return in_array($type, self::$OperationalDataFileTypes, true);
+	}
+
+	/**
+	 * Is Operational data type?
+	 *
+	 * @param int $type one from the above file_type constants
+	 *
+	 * @return bool
+	 */
+	public static function FileTypeIsInternalData($type)
+	{
+		return in_array($type, self::$InternalDataFileTypes, true);
 	}
 
 	/**

@@ -219,6 +219,7 @@ int main(int argc, char *argv[]) try
 		rml::coreapi::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 		app::database::retention::describe_config(optsDesc);
+		app::database::retention_delete::describe_config(optsDesc);
 		app::database::cdrmunch::describe_config(optsDesc);
 		app::clear_cache::describe_config(optsDesc);
 		app::whisper_client::describe_config(optsDesc);
@@ -278,6 +279,7 @@ int main(int argc, char *argv[]) try
 
 		app::database::internal internal_db(app::confMap);
 		app::database::retention retention_db(app::confMap);
+		app::database::retention_delete retention_delete_db(app::confMap);
 		app::database::cdrmunch cdrmunch_db(app::confMap);
 
 		app::operation_data::busy_set_t operation_data_busy_set;
@@ -338,7 +340,8 @@ int main(int argc, char *argv[]) try
 		boost::shared_ptr< app::state_reactor<> > p_purge_state_reactor(new app::state_reactor<>(app::confMap));
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
-						app::confMap, cached_endpoint_finder, cached_policy_finder, cached_org_policy_versions_finder, coreapi, *p_purge_state_reactor, retention_db, internal_db, app::quit));
+						app::confMap, cached_endpoint_finder, cached_policy_finder, cached_org_policy_versions_finder,
+						coreapi, *p_purge_state_reactor, retention_db, retention_delete_db, internal_db, app::quit));
 
 		app::whisper_client whisper_client(*p_io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
