@@ -2,8 +2,10 @@
 
 PKG=RM-archiving
 MYSQL_USER=archiving
+MYSQL_PURGE_USER=archiving-purge
 CONFIG_DB_CDRMUNCH=/etc/archiving/conf.d/cdrmunch_database.conf
 CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
+CONFIG_DB_RETENTION_DELETE=/etc/archiving/conf.d/retention_delete_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
 CONFIG_DB_BIG=/etc/archiving/conf.d/big_database.conf
 CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
@@ -84,6 +86,19 @@ if [ -f $CONFIG_DB_RETENTION ]; then
 
 	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.host $MYSQL_RW
 	ChangeConfig $CONFIG_DB_RETENTION mysql_retention.password $MYSQL_PW
+fi
+
+if [ -f $CONFIG_DB_RETENTION_DELETE ]; then
+	MYSQL_DB=ArchivingRetention
+	MYSQL_RO=`hapi mysql $MYSQL_PURGE_USER $MYSQL_DB host ro || Die "Failed to call hapi mysql $MYSQL_PURGE_USER $MYSQL_DB host ro"`
+	MYSQL_RW=`hapi mysql $MYSQL_PURGE_USER $MYSQL_DB host rw || Die "Failed to call hapi mysql $MYSQL_PURGE_USER $MYSQL_DB host rw"`
+	MYSQL_PW=`hapi mysql $MYSQL_PURGE_USER $MYSQL_DB pass || Die "Failed to call hapi mysql $MYSQL_PURGE_USER $MYSQL_DB pass"`
+	
+	hapi mysql $MYSQL_PURGE_USER $MYSQL_DB test ro || echo "TEST FAILED TO RO DATABASE CONNECTION: ${MYSQL_PURGE_USER}@${MYSQL_DB}"
+	hapi mysql $MYSQL_PURGE_USER $MYSQL_DB test rw || echo "TEST FAILED TO RW DATABASE CONNECTION: ${MYSQL_PURGE_USER}@${MYSQL_DB}"
+
+	ChangeConfig $CONFIG_DB_RETENTION_DELETE mysql_retention_delete.host $MYSQL_RW
+	ChangeConfig $CONFIG_DB_RETENTION_DELETE mysql_retention_delete.password $MYSQL_PW
 fi
 
 if [ -f $CONFIG_DB_BIG ]; then
