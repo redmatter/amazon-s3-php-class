@@ -287,14 +287,14 @@ public:
 			if(first_max_id && max_id <= first_max_id) {
 				mysqlpp::Query query = conn->query();
 				query << "SELECT"
-						 " c.ID, c.FileType, "<<format_uuid_field("c.UUID", "c_UUID")<<","
+						 " c.ID, c.FileType, "<<format_uuid_field("c.UUID", "c_UUID")<<" "
 						 "FROM"
 						 " ArchivingInternal." << tableName_ << " c "
 						 "WHERE"
 						 " c.HostName=%0q:HostName AND c.Retry < 5 AND c.State NOT IN ('stored','discarded')"
 						 " AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
-						 "LIMIT 100";
+						 "LIMIT 500";
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
