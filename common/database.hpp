@@ -263,6 +263,12 @@ public:
 		static uint64_t first_max_id = 0;
 		static uint64_t max_id = 0;
 
+		const int loading_limit(static_cast<int>(500.0f * std::min(1.0f, loading_factor)));
+		if (loading_limit <= 0) {
+			LogMessage("Skipping loading from database due to loading-factor: "<<loading_factor);
+			return;
+		}
+
 		try {
 			rml::MySQLConnection conn(*p_pool_); // scoped connection
 
@@ -294,7 +300,7 @@ public:
 						 " c.HostName=%0q:HostName AND c.Retry < 5 AND c.State NOT IN ('stored','discarded')"
 						 " AND c.ID <= %1:FirstMaxID AND c.ID > %2:MaxID "
 						 "ORDER BY c.ID ASC "
-						 "LIMIT 500";
+						 "LIMIT "<<loading_limit;
 				query.parse();
 
 				mysqlpp::SQLQueryParms qp;
@@ -302,27 +308,26 @@ public:
 
 				std::cout << "SQL: "<<query.str(qp) << std::endl;
 
-				unsigned int count(0);
-				
 				mysqlpp::UseQueryResult res = query.use(qp);
 				while(mysqlpp::Row row = res.fetch_row()) {
-					const uint64_t& child_id(rml::utils::strtoll(row[0].c_str()));
-					max_id = child_id;
+					const uint64_t& archivable_id(rml::utils::strtoull(row[0].c_str()));
+					max_id = archivable_id;
 
-					archiving::archivable::pointer p_child;
-
-					archiving::file_type::file_type_t child_file_type = archiving::file_type::file_type_t(rml::utils::strtoull(row[1].c_str(), 0UL));
+					const archiving::file_type::file_type_t archivable_file_type(rml::utils::strtoull(row[1].c_str(), 0UL));
+					const std::string archivable_uuid(row[2].c_str());
 
 					try{
-						p_child = fn_get_loaded_instance(archiving::archivable::pointer(
-								new archiving::archivable(row[2].c_str(), child_file_type)));
+						archiving::archivable::pointer p_archivable = fn_get_loaded_instance(archiving::archivable::pointer(
+								new archiving::archivable(archivable_uuid, archivable_file_type)));
 
-						if(!p_child) {
-							LogVerbose("Loading ID:"<<row[0].c_str()<<" FileType:"<<archiving::file_type::to_string(child_file_type)<<" UUID:"<<row[2].c_str());
-							p_child =  load_archivable_by_id(rml::utils::strtoull(row[0].c_str()));
-							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-								pc_produce(in_channel, p_child, p_child->get_attempt() * 3);
+						if(p_archivable) {
+							LogDebug("Already loaded; Skipping; ID:"<<archivable_id<<"  "<<archivable_file_type<<"/--/"<<archivable_uuid);
+							continue;
 						}
+
+						LogVerbose("Loading from database; ID:"<<archivable_id<<"  "<<archivable_file_type<<"/--/"<<archivable_uuid);
+						p_archivable =  load_archivable_by_id(archivable_id);
+						pc_produce(in_channel, p_archivable, p_archivable->get_attempt() * 3);
 					}
 					catch(const std::exception& e) {
 						LogWarning("Exception: "<<e.what());
