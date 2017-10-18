@@ -358,13 +358,13 @@ public:
 		} while(limit_remaining && --max_retry);
 
 		// here look for any object that would fit legacy on-demand purge criteria.
-		if (org_had_legacy_ondemand_purge && max_retention_id < new_max_retention_id) {
+		if (org_had_legacy_ondemand_purge && limit_remaining) {
 			mysqlpp::Query query = conn->query();
 			query << "SELECT " << retention_select_fields() << " "
 					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-					"WHERE (ID > "<<max_retention_id<<" AND ID <= "<<new_max_retention_id<<" AND `State`='PurgeQueued' AND `Purged`='yes')"
+					"WHERE (`State`='PurgeQueued' AND `Purged`='yes')"
 					" "<<where_configured_restrictions<<" "
-					"FOR UPDATE";
+                    "LIMIT "<<limit_remaining<<" FOR UPDATE";
 
 			__SQL_DEBUG(query.str());
 
