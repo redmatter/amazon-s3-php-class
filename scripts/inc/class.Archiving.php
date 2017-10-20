@@ -89,6 +89,15 @@ class Archiving
 		self::FILE_TYPE_INT_PCAP_SIP_ONLY
 	);
 
+	// data-types that an enduser does not get to access directly.
+	// BUFFERED_RECORDING is a special kind and it does fall into this category
+	public static $InternalDataFileTypes = array(
+		self::FILE_TYPE_INT_CDR,
+		self::FILE_TYPE_INT_PCAP,
+		self::FILE_TYPE_INT_PCAP_SIP_ONLY,
+		self::FILE_TYPE_INT_BUFFERED_RECORDING
+	);
+
 	public static $OperationalDataFileTypesAsString = array(
 		self::FILE_TYPE_INT_CDR,
 		self::FILE_TYPE_INT_PCAP,
@@ -96,6 +105,7 @@ class Archiving
 	);
 
 	const CONFIG_FILE_RMARCHIVED = '/etc/archiving/rmarchived.conf';
+    const CONFIG_FILE_RMARCHIVED_RETENTION_PURGE = '/etc/archiving/rmarchived-retention-purge.conf';
 
 	/**
 	 * Get all defined file-types
@@ -152,7 +162,19 @@ class Archiving
 	 */
 	public static function FileTypeIsOperationalData($type)
 	{
-		return in_array($type, self::$OperationalDataFileTypes);
+		return in_array($type, self::$OperationalDataFileTypes, true);
+	}
+
+	/**
+	 * Is Operational data type?
+	 *
+	 * @param int $type one from the above file_type constants
+	 *
+	 * @return bool
+	 */
+	public static function FileTypeIsInternalData($type)
+	{
+		return in_array($type, self::$InternalDataFileTypes, true);
 	}
 
 	/**
@@ -331,6 +353,7 @@ class Archiving
 			self::$_purge_states['delete_retention_error'] = self::$_purge_states['delete_retention'] | 0x02;
 
 			self::$_purge_states['finished']               = 0x0f << 4;
+            self::$_purge_states['finished_error']         = self::$_purge_states['finished'] | 0x02;
 		}
 	}
 

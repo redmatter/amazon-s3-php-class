@@ -20,6 +20,7 @@ Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
+Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 0.0.1-35099
@@ -35,6 +36,18 @@ BuildRequires: cpp-netlib >= 0.10.1
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
+
+%package platform-config-redmatter
+Summary: ArchiveD config specific to redmatter platform
+Group: RedMatter/Archiving
+Provides: RM-%{appname}-platform-config = %{version}-%{release}
+Conflicts: RM-%{appname}-platform-config-ipc
+
+%package platform-config-ipc
+Summary: ArchiveD config specific to redmatter platform
+Group: RedMatter/Archiving
+Provides: RM-%{appname}-platform-config = %{version}-%{release}
+Conflicts: RM-%{appname}-platform-config-redmatter
 
 %package collectd
 Summary: Archiving CollectD
@@ -130,6 +143,12 @@ BuildRequires: db4-devel
 %description
 Archiving daemon ( ArchiveD )
 
+%description platform-config-redmatter
+ArchiveD platform configs for redmatter
+
+%description platform-config-ipc
+ArchiveD platform configs for IPC (Etrali)
+
 %description collectd
 Works on CDR from FreeSWITCH to identify files to be archived.
 It also makes sense of archiving policy and passes that on to ArchiveD.
@@ -202,6 +221,10 @@ cp archived/rmarchived.conf %{buildroot}/etc/archiving/
 cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
 cp archived/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchived.conf
 
+# ArchiveD retention-purge config (platform specific)
+cp archived/retention-purge-config/redmatter.conf %{buildroot}/etc/archiving/conf.d/retention-purge-redmatter.conf
+cp archived/retention-purge-config/ipc.conf %{buildroot}/etc/archiving/conf.d/retention-purge-ipc.conf
+
 # CollectD
 cp collectd/tmp-%{buildtype}-build/collectd %{buildroot}/usr/bin/rmcollectd.bin
 cp collectd/rmcollectd_safe %{buildroot}/usr/bin/
@@ -250,6 +273,7 @@ cp cli/cli.sh %{buildroot}/usr/bin/archiving-cli
 # Common
 cp common/internal_database.conf  %{buildroot}/etc/archiving/conf.d/internal_database.conf
 cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_database.conf
+cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/retention_delete_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
@@ -400,6 +424,12 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
 
+%post platform-config-redmatter
+ln -sf /etc/archiving/conf.d/retention-purge-redmatter.conf /etc/archiving/rmarchived-retention-purge.conf
+
+%post platform-config-ipc
+ln -sf /etc/archiving/conf.d/retention-purge-ipc.conf /etc/archiving/rmarchived-retention-purge.conf
+
 %post collectd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollectd
@@ -480,6 +510,16 @@ if [ "$1" -eq 0 ]; then
 		/bin/true
 fi
 
+%postun platform-config-redmatter
+if [ "$1" -eq 0 ]; then # package being uninstalled
+	rm /etc/archiving/rmarchived-retention-purge.conf
+fi
+
+%postun platform-config-ipc
+if [ "$1" -eq 0 ]; then # package being uninstalled
+	rm /etc/archiving/rmarchived-retention-purge.conf
+fi
+
 %postun collectd
 if [ "$1" -eq 0 ]; then
 	[ -x /etc/init.d/rsyslog ] &&
@@ -520,10 +560,19 @@ fi
 /etc/logrotate.d/rmarchived
 /etc/rsyslog.d/11-rmarchived.conf
 /etc/archiving/conf.d/retention_database.conf
+/etc/archiving/conf.d/retention_delete_database.conf
 /etc/archiving/conf.d/cdrmunch_database.conf
 /etc/archiving/conf.d/internal_database.conf
 /var/www/rmarchived
 /etc/httpd/conf.d/rmarchived.conf
+
+%files platform-config-redmatter
+%defattr(-,root,root)
+/etc/archiving/conf.d/retention-purge-redmatter.conf
+
+%files platform-config-ipc
+%defattr(-,root,root)
+/etc/archiving/conf.d/retention-purge-ipc.conf
 
 %files collectd
 %defattr(-,root,root)

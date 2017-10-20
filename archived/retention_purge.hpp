@@ -31,7 +31,8 @@ inline void describe_config(boost::program_options::options_description& optsDes
 {
 	optsDesc.add_options()
 			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
-			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
+//			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
+			("retention_purge.delete_retention_records_for_internal_filetypes", boost::program_options::value<bool>()->default_value(false), "Delete records from retention database for internal-filetypes?")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
 			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
@@ -42,6 +43,7 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.enabled_filetypes", boost::program_options::value<std::string>()->default_value(""), "purge enabled filetypes")
 			("retention_purge.legacy_s3_headers_last_date", boost::program_options::value<std::string>()->default_value(""), "legacy s3 headers are not present beyond this date")
 			("retention_purge.bypass_headers_check_for", boost::program_options::value<std::string>()->default_value("none"), "bypass headers check; options are a comma delimited list")
+			("retention_purge.legacy_ondemand_purged_orgs", boost::program_options::value<std::string>()->default_value(""), "Orgs that has had on-demand purge in the past")
 			;
 }
 
@@ -198,6 +200,7 @@ struct state
 		delete_retention_error = delete_retention | error,
 
 		finished               = _finished_ << 4,
+		finished_error         = finished | error,
 	};
 
 	static inline char const* to_string(const state_t& s)
@@ -206,57 +209,43 @@ struct state
 		{
 		case init:
 			return "init";
-			break;
 		case init_ok:
 			return "init_ok";
-			break;
 		case init_error:
 			return "init_error";
-			break;
 
 		case approve:
 			return "approve";
-			break;
 		case approve_ok:
 			return "approve_ok";
-			break;
 		case approve_error:
 			return "approve_error";
-			break;
 
 		case delete_file:
 			return "delete_file";
-			break;
 		case delete_file_ok:
 			return "delete_file_ok";
-			break;
 		case delete_file_error:
 			return "delete_file_error";
-			break;
 
 		case delete_usage:
 			return "delete_usage";
-			break;
 		case delete_usage_ok:
 			return "delete_usage_ok";
-			break;
 		case delete_usage_error:
 			return "delete_usage_error";
-			break;
 
 		case delete_retention:
 			return "delete_retention";
-			break;
 		case delete_retention_ok:
 			return "delete_retention_ok";
-			break;
 		case delete_retention_error:
 			return "delete_retention_error";
-			break;
 
 		case finished:
 			return "finished";
-			break;
+		case finished_error:
+			return "finished_error";
 
 		case invalid:
 		default:
@@ -330,65 +319,61 @@ struct item
 
 	uint64_t id;
 	state::state_t cur_state;
+	bool fatal_failure;
 
+	/* id of on-demand purge request or 0 */
+	const uint64_t on_demand_purge_id;
+
+	/* audit-log id either from on-demand purge request or from the auto-purge */
+	const uint64_t audit_id;
+
+	// TODO use boost::atomic_bool
 	mutable volatile bool save_pending;
 
 	typedef boost::shared_ptr< item > pointer;
 	typedef boost::weak_ptr< item > weak_ptr;
 
-//	~item()
-//	{
-//		LogDebug(identifier<<" deleted");
-//	}
+	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false),
+			 on_demand_purge_id(0), audit_id(0), save_pending(false)
+    {}
 
-	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid)
-	{}
-
-	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state)
-	{
+	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state),
+			fatal_failure(false), on_demand_purge_id(0), audit_id(0), save_pending(false)
+    {
 	}
 
 	item(const archiving::archivable::identifier& identifier,
 			const storage::basic_endpoint::pointer& endpoint, const retention_record::pointer& retention_from_db,
-			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
-			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
+			const uint64_t& audit_id, const uint64_t& on_demand_purge_id) :
 		identifier(identifier), endpoint(endpoint), retention(retention_from_db),
-		clear_size(clear_size), real_size(real_size),
-		id(id), cur_state(cur_state), save_pending(false)
+		clear_size(0), real_size(0), id(0), cur_state(state::init),
+		fatal_failure(false), on_demand_purge_id(on_demand_purge_id), audit_id(audit_id), save_pending(false)
 	{
+		if (retention_from_db->identifier != identifier) {
+			THROW_RML_EXCEPTION("Given identifier != retention-record (identifier:"<<identifier<<", retention-record:"<<retention_from_db->identifier<<')');
+		}
 	}
-
-
-//	item(const archiving::archivable::identifier& identifier,
-//			const storage::cached_endpoint_finder_t& endpoint_finder,
-//			const retention_record::pointer& retention_from_db,
-//			const unsigned long long& clear_size = 0, const unsigned long long& real_size = 0,
-//			const uint64_t& id = 0, const state::state_t& cur_state = state::init) :
-//		identifier(identifier),
-//		endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
-//				identifier.org, retention_from_db->endpoint_id))),
-//		retention(retention_from_db), clear_size(clear_size), real_size(real_size),
-//		id(id), cur_state(cur_state), save_pending(false)
-//	{
-//	}
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
-					rml::utils::strtoull(row[3].c_str()), row[4].c_str()),
+                       static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
 			retention(new retention_record(
-					identifier, types::file_format::unknown, 0, rml::utils::strtoull(row[7].c_str()), rml::utils::strtoull(row[8].c_str()),
-					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
-					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
-					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
-					0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+                    identifier, types::file_format::unknown, 0,
+                    static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
+                    static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
+                    boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
+                    boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
+                    boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
+                    0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),
-			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), save_pending(false)
-	{
-	}
+			cur_state(state::state_t(rml::utils::strtoull(row[1].c_str()))), fatal_failure(false),
+			on_demand_purge_id(rml::utils::strtoull(row[15].c_str())), audit_id(rml::utils::strtoull(row[16].c_str())),
+			save_pending(false)
+	{}
 	
 	static inline pointer make_from_row(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder)
 	{
@@ -401,7 +386,7 @@ struct item
 			" ID, IF(`State`="<<state::approve_ok<<", "<<state::delete_file<<", `State`), FileType, OrgID, "
 			" LCASE(CONCAT(HEX(SUBSTR(UUID, 1, 4)),'-',HEX(SUBSTR(UUID, 5, 2)),'-',HEX(SUBSTR(UUID, 7, 2)),'-',HEX(SUBSTR(UUID, 9, 2)),'-',HEX(SUBSTR(UUID, 11)))) UUID, "
 			" EndpointID, RetentionID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, "
-			" ClearSize, RealSize, HostName "
+			" ClearSize, RealSize, HostName, DeleteRequestID, AuditEventlogID "
 			"FROM ArchivingInternal.ArchiveDPurgeQueue"
 			<< (where.empty()? " WHERE 1 ": " WHERE ") << where;
 	}
@@ -421,10 +406,13 @@ struct item
 		p->save_pending = is_pending;
 	}
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 	static inline bool is_save_pending(const pointer& p)
 	{
 		return p->save_pending;
 	}
+#pragma clang diagnostic pop
 
 	static inline bool is_save_not_pending(const pointer& p)
 	{
@@ -459,7 +447,7 @@ struct item
 	{
 		inline archiving::archivable::identifier operator()(const pointer& p) const
 		{
-			return p->identifier;
+			return p ? p->identifier : archiving::archivable::identifier();
 		}
 	};
 
@@ -470,10 +458,31 @@ struct item
 			return p->identifier.filetype == archiving::file_type::cdr;
 		}
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 		inline int filetype_as_int() const
 		{
 			return int(archiving::file_type::cdr);
 		}
+#pragma clang diagnostic pop
+	};
+
+	struct is_internal_filetype
+	{
+		inline bool operator()(const pointer& p) const
+		{
+			return p ? (*this)(*p) : false;
+		}
+
+        inline bool operator()(const item& item) const
+        {
+            return (*this)(item.identifier);
+        }
+
+        inline bool operator()(const archiving::archivable::identifier& identifier) const
+        {
+            return archiving::file_type::is_internal(identifier.filetype);
+        }
 	};
 
 	struct extract_retention_id
@@ -575,7 +584,7 @@ struct item
 				"`EndpointID`, "
 				"`RetentionID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, "
 				"`ClearSize`, `RealSize`, "
-				"`HostName`"
+				"`HostName`, `DeleteRequestID`, `AuditEventlogID`"
 				") "
 				"VALUES ";
 	}
@@ -604,7 +613,10 @@ struct item
 				<< static_cast<int64_t>(p->clear_size)<<", "
 				<< static_cast<int64_t>(p->real_size)<<", "
 
-				<< '\''<<hostname<<'\''
+				<< '\''<<hostname<<"', "
+
+				<< static_cast<uint64_t>(p->on_demand_purge_id)<<", "
+				<< static_cast<uint64_t>(p->audit_id)
 
 				<<')';
 	}

@@ -141,6 +141,11 @@ public:
 			return filetype == rhs.filetype && org == rhs.org && uuid == rhs.uuid;
 		}
 
+		bool operator!=(const identifier& rhs) const
+		{
+			return filetype != rhs.filetype || org != rhs.org || uuid != rhs.uuid;
+		}
+
 		struct compare
 		{
 			bool operator() (const identifier& lhs, const identifier& rhs) const

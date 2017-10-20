@@ -42,7 +42,7 @@ public:
 				;
 	}
 
-	state_reactor(const boost::program_options::variables_map& confMap) :
+	explicit state_reactor(const boost::program_options::variables_map& confMap) :
 		confMap_(confMap),
 		tp_(std::max<unsigned short>(min_threads, confMap["state_reactor.thread_pool_size"].as<unsigned short>()))
 	{

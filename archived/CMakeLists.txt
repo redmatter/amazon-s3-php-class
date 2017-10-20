@@ -12,6 +12,7 @@ set(HEADER_FILES
         database_cdrmunch.hpp
         database_internal.hpp
         database_retention.hpp
+        database_retention_delete.hpp
         dispatcher.hpp
         fcgi_storage_access.hpp
         globals.h
@@ -77,7 +78,7 @@ target_link_libraries(rmarchived.bin
 
         fcgi
 
-        mysqlclient_r
+        mysqlclient
         mysqlpp
 
         rt

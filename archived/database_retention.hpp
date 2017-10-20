@@ -151,23 +151,18 @@ public:
 
 	template < typename Iter, typename ExtractIdentifier >
 	bool purge_audit(rml::MySQLConnection& conn, const archiving::org_id_t& org,
-			const coreapi_eventlog::pointer& p_eventlog, Iter begin, Iter end,
-			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired)
+			const coreapi_eventlog::id_t& eventlog_id, Iter begin, Iter end,
+			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
+			const std::string& auditable_action,
+			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype = boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >())
 	{
 		if(begin == end)
 			return true;
-
-		const coreapi_eventlog::id_t& eventlog_id(p_eventlog->id);
-		const std::string& action(p_eventlog->action);
 
 		try
 		{
 			ExtractIdentifier get_identifier;
 
-			bool has_items_to_audit(false);
-
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO Audit_"<<org<<" ( `OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID` ) VALUES \n";
 			for(Iter itr = begin; itr != end; ++itr)
 			{
 				const archiving::archivable::identifier& id(get_identifier(*itr));
@@ -175,20 +170,29 @@ public:
 				if(fn_is_filetype_auto_expired(id))
 					continue;
 
-				has_items_to_audit = true;
+				// it can be empty in the case of invocation from "on-demand" purge
+				if (!is_internal_filetype.empty()) {
+					boost::optional<bool> is_internal = is_internal_filetype(id.filetype);
+					// The optional-bool will evaluate to true only if the it contains a true.
+					// The implementation of the function returns a boost::none if the config-option is set to OFF
+					if (is_internal == true) {
+						continue;
+					}
+				}
 
 				std::string uuid_hex(id.uuid);
 				boost::algorithm::erase_all(uuid_hex, "-");
 
-				query << (itr == begin? ' ': ',') << '(' << org << ',' << int(id.filetype) << ',' << "0x"<<uuid_hex << ", '"<<action<<"', NOW(), " << eventlog_id << ")\n";
+				mysqlpp::Query query = conn->query();
+				query << "/* audit "<<id<<' '<<auditable_action<<" */ "
+						"INSERT INTO `Audit_"<<org<<"` (`OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID`)"
+						"    SELECT "<<org<<", "<<int(id.filetype)<<", 0x"<<uuid_hex<<", '"<<auditable_action<<"', NOW(), "<<eventlog_id<<
+						"        FROM `Audit_"<<org<<"` WHERE NOT EXISTS ("
+						"            SELECT ID FROM `Audit_"<<org<<"` WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex<<" AND Action='"<<auditable_action<<"' LIMIT 1"
+						"        ) LIMIT 1";
+				__SQL_DEBUG(query.str());
+				query.execute();
 			}
-
-			if(!has_items_to_audit)
-				return true;
-
-			__SQL_DEBUG(query.str());
-
-			query.execute();
 
 			return true;
 		}
@@ -199,12 +203,13 @@ public:
 		return false;
 	}
 
-	retention_record::set_t get_retention_for_purge_ondemand(
+	int get_retention_for_purge_ondemand(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
-			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired)
+			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
 	{
-		retention_record::set_t ret;
+		int count(0);
 
 		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction transaction(*conn);
@@ -225,7 +230,7 @@ public:
 			 mysqlpp::StoreQueryResult res = query.store();
 			const size_t& n_rows(res.num_rows());
 			if(!n_rows || (res[0][0] == "NULL"))
-				return ret;
+				return 0;
 
 			for(size_t i_row = 0; i_row<n_rows; ++i_row) {
 
@@ -253,21 +258,35 @@ public:
 					while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
 						if(!is_purgeaple(rec)) {
 							not_purgeable_items++;
-							LogVerbose(rec->identifier<<" : Not yeat purgeable");
+							LogVerbose(rec->identifier<<" : Not yet purgeable");
 							continue;
 						}
 
 						requested_items.insert(rec);
+						count++;
 					}
 				}
 
 				if(!requested_items.empty()) {
 					// audit them
 					purge_audit< retention_record::set_t::iterator, retention_record::extract_identifier >(
-							conn, org_id, p_eventlog, requested_items.begin(), requested_items.end(), fn_is_filetype_auto_expired);
+							conn, org_id, p_eventlog->id, requested_items.begin(), requested_items.end(),
+							fn_is_filetype_auto_expired, "Purge:OnDemand");
 
-					// add them to the reurn set
-					ret.insert(requested_items.begin(), requested_items.end());
+					// update retention records to set State to PurgeQueued
+					rml::MySQLConnection conn_update_retention(*p_pool_);
+					mysqlpp::Query query_update_retention = conn_update_retention->query();
+					query_update_retention << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
+					retention_record::set_t::const_iterator begin(requested_items.begin());
+					retention_record::set_t::const_iterator end(requested_items.end());
+					for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
+						query_update_retention << (itr == begin? ' ': ',')<<(*itr)->id;
+					query_update_retention << ')';
+					__SQL_DEBUG(query_update_retention.str());
+					query_update_retention.execute();
+
+					// schedule the found purge-able items
+					fn_schedule_purgeables(requested_items, p_eventlog->id, delete_request_id);
 				}
 				else
 					LogDWarning("No records found to purge, for delete request ID:"<<delete_request_id, "IGNO");
@@ -283,35 +302,23 @@ public:
 			}
 		}
 
-		if(!ret.empty()) {
-			mysqlpp::Query query = conn->query();
-			query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
-			retention_record::set_t::const_iterator begin(ret.begin());
-			retention_record::set_t::const_iterator end(ret.end());
-			for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
-				query << (itr == begin? ' ': ',')<<(*itr)->id;
-			query << ')';
-
-			__SQL_DEBUG(query.str());
-			query.execute();
-		}
-
 		transaction.commit();
 
-		return ret;
+		return count;
 	}
 
-	std::pair< uint64_t, retention_record::set_t > get_retention_for_purge(
+	uint64_t get_retention_for_purge(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
 			const std::string& where_configured_restrictions,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
-			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired)
+			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
+			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
+			const bool& org_had_legacy_ondemand_purge,
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
 	{
-		std::pair< uint64_t, retention_record::set_t > the_pair;
-
-		uint64_t& new_max_retention_id(the_pair.first);
-		retention_record::set_t& retention_set(the_pair.second);
+		uint64_t new_max_retention_id = max_retention_id;
+		retention_record::set_t retention_set;
 
 		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction transaction(*conn);
@@ -323,8 +330,6 @@ public:
 		}
 
 		unsigned int limit_remaining(limit);
-		new_max_retention_id = max_retention_id;
-
 		unsigned int max_retry(10);
 		do {
 			mysqlpp::Query query = conn->query();
@@ -347,13 +352,28 @@ public:
 			}
 		} while(limit_remaining && --max_retry);
 
-		the_pair.first = new_max_retention_id;
+		// here look for any object that would fit legacy on-demand purge criteria.
+		if (org_had_legacy_ondemand_purge && limit_remaining) {
+			mysqlpp::Query query = conn->query();
+			query << "SELECT " << retention_select_fields() << " "
+					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
+					"WHERE (`State`='PurgeQueued' AND `Purged`='yes')"
+					" "<<where_configured_restrictions<<" "
+                    "LIMIT "<<limit_remaining<<" FOR UPDATE";
+
+			__SQL_DEBUG(query.str());
+
+			mysqlpp::UseQueryResult res = query.use();
+			while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
+				retention_set.insert(rec);
+			}
+		}
 
 		if(!retention_set.empty()) {
 			// Update state
 			{
 				mysqlpp::Query query = conn->query();
-				query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
+				query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued', `Purged`='no' WHERE ID IN(";
 				retention_record::set_t::const_iterator begin(retention_set.begin());
 				retention_record::set_t::const_iterator end(retention_set.end());
 				for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
@@ -365,16 +385,20 @@ public:
 			}
 
 			// make audit record
+			coreapi_eventlog::pointer eventlog = coreapi_eventlog::create(
+					api, org_id, coreapi_eventlog::levels::message, "Purge based on retention rules", "Archiving",
+					"Purge:Auto");
 			purge_audit< retention_record::set_t::iterator, retention_record::extract_identifier >(
-					conn, org_id, coreapi_eventlog::create(
-							api, org_id, coreapi_eventlog::levels::message,
-							"Purge based on retention rules", "Archiving", "Purge:Auto"),
-					retention_set.begin(), retention_set.end(), fn_is_filetype_auto_expired);
+					conn, org_id, eventlog->id, retention_set.begin(), retention_set.end(), fn_is_filetype_auto_expired,
+					eventlog->action, is_internal_filetype);
+
+			// schedule the found purge-able items
+			fn_schedule_purgeables(retention_set, eventlog->id, 0 /* not on-demand purge */);
 
 			transaction.commit();
 		}
 
-		return the_pair;
+		return new_max_retention_id;
 	}
 
 	retention_record::pointer get_retention(const archiving::archivable::identifier& identifier)
@@ -487,52 +511,59 @@ public:
 		return false;
 	}
 
-	template < typename Iter, typename ExtractRetentionID, typename IsFileTypeCDR >
-	inline bool set_purged(const archiving::org_id_t& org, Iter begin, Iter end, const bool& delete_cdrs)
+	uint64_t count_purge_audit_records(const archiving::archivable::identifier& identifier)
 	{
+		rml::MySQLConnection conn(*p_pool_);
+		try {
+			mysqlpp::Query query = conn->query();
+
+			std::string uuid_hex(identifier.uuid);
+			boost::algorithm::erase_all(uuid_hex, "-");
+			query << "SELECT COUNT(*) FROM ArchivingRetention.Audit_"<<identifier.org<<" "
+					"WHERE Action LIKE 'Purge:%'"
+					" AND UUID=0x"<<uuid_hex<<
+					" AND Type="<<static_cast<int>(identifier.filetype);
+			__SQL_DEBUG(query.str());
+
+			return query.use().fetch_row().at(0);
+		}
+		catch(const mysqlpp::Exception& e) {
+			LogError("MySQL Exception: "<<e.what());
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+		catch(...) {
+			LogError("Unknown Exception");
+		}
+
+		return 0;
+	}
+
+	template<typename Iter, typename ExtractRetentionID>
+	inline bool
+	set_purged(const archiving::org_id_t &org, const Iter &begin, const Iter &end, const ExtractRetentionID &extract_id)
+	{
+		if (begin == end) {
+			LogWarning("Empty set given; ignored!");
+			return true;
+		}
+
 		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction transaction(*conn, false);
 		try {
-			ExtractRetentionID extract_id;
-			IsFileTypeCDR is_cdr;
+			mysqlpp::Query query = conn->query();
+			query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
 
-			unsigned int cdrs_found(0);
-			bool noncdrs_found(false);
-			mysqlpp::Query query_bin_cdrs = conn->query();
-			query_bin_cdrs << "DELETE FROM ArchivingRetention.Retention_"<<org<<" WHERE Type="<<is_cdr.filetype_as_int()<<" AND ID IN (";
-
-			mysqlpp::Query query_update_noncdrs = conn->query();
-			query_update_noncdrs << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
-
+			bool first_one = true;
 			for(Iter itr = begin; itr != end; ++itr) {
-// TODO Move this functionality out and fix JIRA https://jira.redmatter.com/browse/PLAT-776
-//				if(delete_cdrs && is_cdr(*itr)) {
-//					query_bin_cdrs << (cdrs_found?',':' ')<<extract_id(*itr);
-//					cdrs_found++;
-//				}
-//				else {
-					query_update_noncdrs << (noncdrs_found?',':' ')<<extract_id(*itr);
-					noncdrs_found = true;
-//				}
+				query << (first_one?' ':',')<<extract_id(*itr);
+				first_one = false;
 			}
+			query << " )";
 
-			query_bin_cdrs << " )";
-			query_update_noncdrs << " )";
-
-			if(delete_cdrs && cdrs_found) {
-				__SQL_DEBUG(query_bin_cdrs.str());
-				const mysqlpp::SimpleResult& res(query_bin_cdrs.execute());
-				if (cdrs_found != res.rows()) {
-					LogError("Not all CDRs were deleted ("<<cdrs_found<<" != "<<res.rows()<<")");
-					// not bailing out here as there is nothing that can be done to fix it!
-				}
-			}
-
-			if(noncdrs_found) {
-				__SQL_DEBUG(query_update_noncdrs.str());
-				query_update_noncdrs.execute();
-			}
-
+			__SQL_DEBUG(query.str());
+			query.execute();
 			transaction.commit();
 
 			return true;
