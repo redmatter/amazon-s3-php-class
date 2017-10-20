@@ -163,10 +163,6 @@ public:
 		{
 			ExtractIdentifier get_identifier;
 
-			bool has_items_to_audit(false);
-
-			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO Audit_"<<org<<" ( `OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID` ) VALUES \n";
 			for(Iter itr = begin; itr != end; ++itr)
 			{
 				const archiving::archivable::identifier& id(get_identifier(*itr));
@@ -184,20 +180,19 @@ public:
 					}
 				}
 
-				has_items_to_audit = true;
-
 				std::string uuid_hex(id.uuid);
 				boost::algorithm::erase_all(uuid_hex, "-");
 
-				query << (itr == begin? ' ': ',') << '(' << org << ',' << int(id.filetype) << ',' << "0x"<<uuid_hex << ", '"<<auditable_action<<"', NOW(), " << eventlog_id << ")\n";
+				mysqlpp::Query query = conn->query();
+				query << "/* audit "<<id<<' '<<auditable_action<<" */ "
+						"INSERT INTO `Audit_"<<org<<"` (`OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID`)"
+						"    SELECT "<<org<<", "<<int(id.filetype)<<", 0x"<<uuid_hex<<", '"<<auditable_action<<"', NOW(), "<<eventlog_id<<
+						"        FROM `Audit_"<<org<<"` WHERE NOT EXISTS ("
+						"            SELECT ID FROM `Audit_"<<org<<"` WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex<<" AND Action='"<<auditable_action<<"' LIMIT 1"
+						"        ) LIMIT 1";
+				__SQL_DEBUG(query.str());
+				query.execute();
 			}
-
-			if(!has_items_to_audit)
-				return true;
-
-			__SQL_DEBUG(query.str());
-
-			query.execute();
 
 			return true;
 		}
@@ -358,13 +353,13 @@ public:
 		} while(limit_remaining && --max_retry);
 
 		// here look for any object that would fit legacy on-demand purge criteria.
-		if (org_had_legacy_ondemand_purge && max_retention_id < new_max_retention_id) {
+		if (org_had_legacy_ondemand_purge && limit_remaining) {
 			mysqlpp::Query query = conn->query();
 			query << "SELECT " << retention_select_fields() << " "
 					"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-					"WHERE (ID > "<<max_retention_id<<" AND ID <= "<<new_max_retention_id<<" AND `State`='PurgeQueued' AND `Purged`='yes')"
+					"WHERE (`State`='PurgeQueued' AND `Purged`='yes')"
 					" "<<where_configured_restrictions<<" "
-					"FOR UPDATE";
+                    "LIMIT "<<limit_remaining<<" FOR UPDATE";
 
 			__SQL_DEBUG(query.str());
 
