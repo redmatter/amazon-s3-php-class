@@ -87,7 +87,8 @@ public:
                 {
                     mysqlpp::Query query = conn->query();
                     query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex;
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
                     __SQL_DEBUG(query.str());
                     query.execute();
                 }
@@ -95,7 +96,8 @@ public:
                 {
                     mysqlpp::Query query = conn->query();
                     query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex;
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
                     __SQL_DEBUG(query.str());
                     query.execute();
                 }
