@@ -1,9 +1,10 @@
-/*
- * cdr_inspector.hpp
- *
- *  Created on: 25 Jan 2011
- *	  Author: dkorah
- */
+//
+// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 25/01/2011.
+//
 
 #ifndef CDR_INSPECTOR_HPP_
 #define CDR_INSPECTOR_HPP_
@@ -540,7 +541,7 @@ public:
 													archiving::file_type::buffered_recording, "wav", pbx_hostname_,
 													policy::pseudo_id::buffered_recording));
 									archivable_cbr->set_leg_uuid(archivable_cdr->get_uuid());
-                                    LogMessage(*archivable_cdr<<" - Call buffering found - "<<*archivable_cbr);
+									LogMessage(*archivable_cdr<<" - Call buffering found - "<<*archivable_cbr);
 								}
 								catch (const rml::utils::tmp_fstream::error& e) {
 									const std::string error(e.what());
@@ -621,7 +622,7 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 									archivable_cbr->hibernate();
- 									fn_out_queue_produce_(archivable_cbr, true);
+									fn_out_queue_produce_(archivable_cbr, true);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -739,7 +740,7 @@ public:
 													archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
 									archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
 
-                                    LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+									LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;
