@@ -17,6 +17,13 @@ all_enabled_data_variations=(with-recording with-recording-10mins without-record
 whitenoise_wav=()
 trap '{ [ ${#whitenoise_wav[@]} -gt 0 ] && rm "${whitenoise_wav[@]}"; }' EXIT
 
+make_temp_wav_path() {
+    local filename
+    filename="$(mktemp -p /tmp arcgen-XXXXXXXX)"
+    mv "$filename" "${filename}.wav"
+    echo -n "${filename}.wav"
+}
+
 make_minutes_whitenoise_wav() {
     if ! is_numeric "$1"; then
         error "Minute must be a number";
@@ -32,7 +39,7 @@ make_minutes_whitenoise_wav() {
     fi
 
     local outfile
-    outfile="$(mktemp arcgen-XXXXXXXX --suffix=.wav --tmpdir=/tmp)"
+    outfile="$(make_temp_wav_path)"
     sox -t sl -r 22050 -c 1 /dev/zero -r 22050 -c 1 "${sox_opt[@]}" "$outfile" \
         synth "${1}:00" whitenoise vol 0.6 fade q 10 "${1}:00" 10
 
@@ -95,12 +102,12 @@ usage_help() {
     cat <<HELP
 CollectD test data generator
 
+ +- IMPORTANT -----------------------------------------------+
+ | This script must be run as root user or with sudo prefix. |
+ +-----------------------------------------------------------+
+
 Usage:
     $(basename "$0") [--batch=<BatchSize>] [--data-variations=<DataVariations>] [--list-data-variations] [--help]
-
-+- IMPORTANT ----------------------------------------------+
-| This script must be run as root use or with sudo prefix. |
-+----------------------------------------------------------+
 
 Options:
     -b <BatchSize>, --batch=<BatchSize>
