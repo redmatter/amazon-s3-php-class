@@ -12,7 +12,7 @@ fi
 : "${batch:=100}"
 dv_selected=(all)
 
-all_enabled_data_variations=(with-recording with-recording-10mins without-recording)
+all_enabled_data_variations=(with-recording with-recording-10mins without-recording with-call-analysis)
 
 whitenoise_wav=()
 trap '{ [ ${#whitenoise_wav[@]} -gt 0 ] && rm "${whitenoise_wav[@]}"; }' EXIT
@@ -199,7 +199,7 @@ while [ "$batch" -gt 0 ]; do
     auuid=$(uuidgen);
     buuid=$(uuidgen);
 
-    if [[ "$variation" =~ ^with-recording-([0-9]+)mins$ ]]; then
+    if [[ "$variation" =~ -([0-9]+)mins-whitenoise ]]; then
         minutes="${BASH_REMATCH[1]}"
         make_whitenoise_recording "$minutes" "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
         make_whitenoise_recording "$minutes" "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
