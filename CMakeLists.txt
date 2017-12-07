@@ -69,6 +69,7 @@ add_subdirectory(collect-smsd)
 #add_subdirectory(convert)
 #add_subdirectory(eml2a)
 #add_subdirectory(simbes)
+add_subdirectory(estuary)
 
 if (BUILD_TESTS)
     # --------------- setup tests ---------------
