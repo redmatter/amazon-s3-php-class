@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.1)
 
 option(USE_CLANG "Build application with clang" OFF)
 if (USE_CLANG)
-    set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
-    set(CMAKE_C_COMPILER "/usr/bin/clang")
+    set(CMAKE_CXX_COMPILER clang++)
+    set(CMAKE_C_COMPILER clang)
 endif (USE_CLANG)
 
 set(CMAKE_CXX_STANDARD 98)
@@ -59,6 +59,13 @@ download_project(PROJ rml-queue
         UPDATE_DISCONNECTED 1
         )
 add_subdirectory(${rml-queue_SOURCE_DIR})
+
+download_project(PROJ rml-utils
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
+        GIT_TAG master
+        UPDATE_DISCONNECTED 1
+        )
+add_subdirectory(${rml-utils_SOURCE_DIR})
 
 add_subdirectory(common)
 add_subdirectory(archived)

@@ -11,16 +11,25 @@ find_package(MySQL REQUIRED)
 find_package(MySQL++ REQUIRED)
 
 set(HEADER_FILES
+        defines.h
         app/config/common.hpp
         app/config/command_line.hpp
-        defines.h
-)
+        app/typedefs.hpp
+        app/archived_shim.hpp
+        app/archived_client_adaptor.hpp
+        app/utils.hpp
+        app/error.hpp
+        app/queue/queue.hpp
+        app/queue/error.hpp
+        app/archivable_queue.hpp)
 
 include_directories(
         /usr/include/cpp-netlib
         /usr/include/threadpool
         ${MYSQL_INCLUDE_DIR}
+        ${rml-utils_SOURCE_DIR}
         ${rml-queue_SOURCE_DIR}
+        ${Boost_INCLUDE_DIRS}
         ../cpp-common
 )
 

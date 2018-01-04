@@ -9,6 +9,7 @@
 #include "defines.h"
 #include "app/config/common.hpp"
 #include "app/config/command_line.hpp"
+#include "../common/archived_client.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -17,6 +18,8 @@
 #include <rml/daemon.h>
 #include <rml/config.h>
 #include <rml/state_reactor.hpp>
+#include <rml/utils/snowflake.hpp>
+#include <rml/utils/cached_resolver.hpp>
 
 #include <boost/function.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -168,7 +171,7 @@ void handle_signals(const boost::system::error_code& error, int signal, boost::a
 }
 
 /**
- * Main!
+ * The Main
  *
  * @param argc
  * @param argv
@@ -206,6 +209,7 @@ int main(int argc, const char* argv[]) try
         rml::daemon::describe_config(options_desc);
         rml::logger::describe_config(options_desc);
         app::config::common::describe_config(options_desc);
+        app::archived_client::describe_config(options_desc);
         /* describe config here */
 
         if (cli_config.is_opted("help-conf")) {
@@ -271,6 +275,32 @@ int main(int argc, const char* argv[]) try
         rml::daemon::initialise(config, pid_file);
         app::config::common common_config(config);
         initialisation_complete = true;
+
+        rml::utils::snowflake snowflake(200801);
+
+        boost::shared_ptr<rml::utils::cached_resolver> resolver =
+                boost::make_shared<rml::utils::cached_resolver>(5, 5, 2);
+
+
+        // todo construct below call-backs
+        // construct an object that holds archivable and request
+
+        const common::collectd::fn_produce_type fn_out_queue_produce;
+        const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume;
+        const common::collectd::fn_remove_from_catalogue_type fn_remove_from_catalogue;
+        const common::collectd::fn_save_to_database_type fn_save_to_database;
+
+        std::list<boost::shared_ptr<app::archived_client> > archived_clients;
+        // todo make the number of archived-clients configurable
+        for (unsigned int i = 0; i < 5; i++) {
+            archived_clients.push_back(
+                    boost::make_shared<app::archived_client>(
+                            boost::ref(*p_io_service), fn_out_queue_produce, fn_out_queue_consume,
+                            fn_remove_from_catalogue,
+                            fn_save_to_database, config["archived_client.server_host"].as<std::string>(),
+                            config["archived_client.server_port"].as<std::string>()));
+        }
+
         LogMessage("Initialisation complete");
 
         // ------------- stuff happens here! ------------- //
@@ -293,6 +323,7 @@ int main(int argc, const char* argv[]) try
 //                                    boost::ref(task_loading_in_progress), false, "Task loading finished", _1),
 //                        state_reactor_type::priority::high);
 //            }
+
 
             boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
         }

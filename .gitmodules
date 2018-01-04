@@ -8,3 +8,6 @@
 	path = collectd/schema/redstart
 	url = https://github.com/codemedic/redstart.git
 	branch = master
+[submodule "libs/rml-utils"]
+	path = libs/rml-utils
+	url = ssh://git@bitbucket.redmatter.com/lib/rml-utils.git

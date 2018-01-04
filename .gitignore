@@ -24,3 +24,8 @@ tmp*-libc*/
 !/*/tests/CMakeLists.txt
 !/collectd/test/cdrgen/
 !/collectd/tests/cdrgen/
+
+# KDevelop
+/.kdev4/
+# M$ VS Code
+/.vscode/
