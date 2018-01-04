@@ -11,6 +11,7 @@
 
 #include "queue/queue.hpp"
 #include "../../common/archivable.hpp"
+#include "error.hpp"
 
 #include <boost/optional.hpp>
 
@@ -48,6 +49,64 @@ struct response
 
 typedef queue::base_queue<boost::shared_ptr<archiving::archivable> > archivable_queue;
 typedef queue::base_queue<response> response_queue;
+
+boost::shared_ptr<archiving::archivable> consume_archivable(
+        const boost::shared_ptr<archivable_queue>& queue,
+        const boost::chrono::milliseconds& wait_timeout,
+        const bool _ignored_,
+        const boost::function0<void>& timeout_callback,
+        const boost::function0<void>& is_finishing_callback)
+{
+    boost::shared_ptr<archiving::archivable> item;
+    boost::system::error_condition ec;
+    queue->consume(item, wait_timeout, ec);
+    if (ec) {
+        if (ec.value() == queue::error::runtime_errors::consume_timeout) {
+            timeout_callback();
+        } else if (ec.value() == queue::error::runtime_errors::is_finishing) {
+            is_finishing_callback();
+        } else {
+            throw boost::system::system_error(ec.value(), ec.category());
+        }
+    }
+
+    return item;
+}
+
+void produce_response_on_error(const boost::shared_ptr<response_queue>& queue,
+                               const boost::shared_ptr<archiving::archivable>& archivable, const bool _ignored_)
+{
+    boost::system::error_condition error;
+    queue->produce(
+            response(archivable->get_database_id(), boost::system::error_condition(error::http::internal_server_error)),
+            error);
+    if (error) {
+        LogError("Error scheduling response; " << error);
+    }
+}
+
+void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
+                               const boost::shared_ptr<archiving::archivable>& archivable)
+{
+    boost::system::error_condition error;
+    queue->produce(
+            response(archivable->get_database_id(), boost::system::error_condition(error::http::no_content)), error);
+    if (error) {
+        LogError("Error scheduling response; " << error);
+    }
+}
+
+void dummy_remove_from_catalogue(const boost::shared_ptr<archiving::archivable>& archivable)
+{
+    (void)archivable;
+}
+
+bool dummy_save_to_database(const boost::shared_ptr<archiving::archivable>& archivable)
+{
+    (void)archivable;
+    return true;
+}
+
 } // namespace app
 
 #endif //ARCHIVING_ESTUARY_APP_ARCHIVABLE_QUEUE_HPP

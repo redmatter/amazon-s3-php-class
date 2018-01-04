@@ -10,6 +10,7 @@
 #include "app/config/common.hpp"
 #include "app/config/command_line.hpp"
 #include "../common/archived_client.hpp"
+#include "app/archivable_queue.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -138,14 +139,20 @@ void handle_signals(const boost::system::error_code& error, int signal, boost::a
     if (!error) {
         switch (signal) {
         case SIGINT:
-        case SIGTERM: { initiate_shutdown(shutdown_hooks); }
+        case SIGTERM: {
+            initiate_shutdown(shutdown_hooks);
+        }
             break;
 
-        case SIGHUP: { app::wasHUPed = true; }
+        case SIGHUP: {
+            app::wasHUPed = true;
+        }
             break;
 
 #ifdef RML_LOG_RUNTIME_LEVEL_CHANGE
-        case SIGUSR1: { toggle_debug(); }
+        case SIGUSR1: {
+            toggle_debug();
+        }
             break;
 #endif
         case SIGUSR2:
@@ -202,8 +209,9 @@ int main(int argc, const char* argv[]) try
         }
 
         boost::program_options::options_description options_desc(
-                boost::str(boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions")
-                           % version_number_string % copyright_string));
+        boost::str(boost::format(DEFAULT_APP_LONG_NAME
+        " v%1%\n%2%\noptions")
+        % version_number_string % copyright_string));
 
         /* describe config here */
         rml::daemon::describe_config(options_desc);
@@ -219,7 +227,8 @@ int main(int argc, const char* argv[]) try
 
         if (cli_config.is_opted("version")) {
             std::cout << boost::str(
-                    boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string);
+                    boost::format(DEFAULT_APP_LONG_NAME
+            " v%1%\n%2%\n") % version_number_string % copyright_string);
             exit(rml::utils::exit_codes::normal);
         }
 
@@ -228,7 +237,7 @@ int main(int argc, const char* argv[]) try
         rml::logger::configure(config, SYSLOG_APP_NAME);
 
         LogMessage(DEFAULT_APP_LONG_NAME
-                           " v" << version_number_string);
+        " v" << version_number_string);
         LogMessage(copyright_string << " built on " << version_date << ' ' << build_host);
 
         pid_file = cli_config.get_option<std::string>("pid");
@@ -281,23 +290,29 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<rml::utils::cached_resolver> resolver =
                 boost::make_shared<rml::utils::cached_resolver>(5, 5, 2);
 
+        // todo set the max-limit based on archived_client count
+        boost::shared_ptr<app::archivable_queue> archivable_queue = boost::make_shared<app::archivable_queue>(10);
+        boost::shared_ptr<app::response_queue> response_queue = boost::make_shared<app::response_queue>(0);
 
-        // todo construct below call-backs
-        // construct an object that holds archivable and request
+        const common::collectd::fn_produce_type fn_error_callback =
+                boost::bind(app::produce_response_on_error, response_queue, _1, _2);
+        const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_get_archivable_callback =
+                boost::bind(app::consume_archivable, archivable_queue, _1, _2, _3, _4);
+        const common::collectd::fn_remove_from_catalogue_type fn_dummy_remove_from_catalogue =
+                boost::bind(app::dummy_remove_from_catalogue, _1);
+        const common::collectd::fn_save_to_database_type fn_dummy_save_to_database =
+                boost::bind(app::dummy_save_to_database, _1);
+        const common::collectd::fn_on_successful_put_type fn_on_successful_put =
+                boost::bind(app::produce_response_on_success, response_queue, _1);
 
-        const common::collectd::fn_produce_type fn_out_queue_produce;
-        const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume;
-        const common::collectd::fn_remove_from_catalogue_type fn_remove_from_catalogue;
-        const common::collectd::fn_save_to_database_type fn_save_to_database;
-
-        std::list<boost::shared_ptr<app::archived_client> > archived_clients;
+        std::list <boost::shared_ptr<app::archived_client> > archived_clients;
         // todo make the number of archived-clients configurable
         for (unsigned int i = 0; i < 5; i++) {
             archived_clients.push_back(
                     boost::make_shared<app::archived_client>(
-                            boost::ref(*p_io_service), fn_out_queue_produce, fn_out_queue_consume,
-                            fn_remove_from_catalogue,
-                            fn_save_to_database, config["archived_client.server_host"].as<std::string>(),
+                            boost::ref(*p_io_service), fn_error_callback, fn_get_archivable_callback,
+                            fn_dummy_remove_from_catalogue, fn_dummy_save_to_database, fn_on_successful_put,
+                            config["archived_client.server_host"].as<std::string>(),
                             config["archived_client.server_port"].as<std::string>()));
         }
 

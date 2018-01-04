@@ -17,6 +17,7 @@
 #include <boost/bind.hpp>
 #include <boost/chrono/system_clocks.hpp>
 #include "error.hpp"
+#include "../../../common/collectd/callbacks.hpp"
 
 namespace app
 {
@@ -78,7 +79,8 @@ public:
     }
 
     template<class Rep, class Period>
-    void produce(const T& item, boost::chrono::duration<Rep, Period> wait_duration, boost::system::error_condition& ec)
+    void
+    produce(const T& item, const boost::chrono::duration<Rep, Period> wait_duration, boost::system::error_condition& ec)
     {
         produce(item, boost::chrono::steady_clock::now() + wait_duration, ec);
     };
@@ -123,12 +125,12 @@ public:
     }
 
     template<class Rep, class Period>
-    void consume(T& item, boost::chrono::duration<Rep, Period> wait_duration, boost::system::error_condition& ec)
+    void consume(T& item, const boost::chrono::duration<Rep, Period>& wait_duration, boost::system::error_condition& ec)
     {
         consume(item, boost::chrono::steady_clock::now() + wait_duration, ec);
     }
 
-    void consume(T& item, boost::chrono::steady_clock::time_point wait_until, boost::system::error_condition& ec)
+    void consume(T& item, const boost::chrono::steady_clock::time_point& wait_until, boost::system::error_condition& ec)
     {
         boost::mutex::scoped_lock lock(mutex);
 
