@@ -219,6 +219,9 @@ public:
 				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" file size mismatch: "
 					<< precrypt_hdr.content_length << " vs " << current_fstream->get_size());
 
+            // get_size() messes with the pointer
+            current_fstream->seekg(sizeof(types::header_precrypt));
+
 			*(decrypted_fstream) << current_fstream->rdbuf();
 
 			decrypted_fstream->re_open();
@@ -232,7 +235,8 @@ public:
 			}
 
 			if(crc32 != precrypt_hdr.crc32)
-				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch");
+				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch: "
+                    << crc32 << " vs " << precrypt_hdr.crc32);
 		}
 
 		opdata->get_tmp_fstream()->close();
