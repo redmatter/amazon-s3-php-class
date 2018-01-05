@@ -170,10 +170,13 @@ public:
 				precrypt_hdr.crc32 = crc32;
 			}
 
+			current_fstream->clear();
+			current_fstream->seekg(0);
+
 			p_tmp->write((char*)&precrypt_hdr, sizeof(types::header_precrypt));
 			*(p_tmp) << current_fstream->rdbuf();
 
-			p_tmp->seekg(0);
+			p_tmp->re_open();
 
 			encrypt(*p_tmp, *encrypted_fstream, encryption_key);
 		}
@@ -200,11 +203,11 @@ public:
 
 			current_fstream = decrypted_fstream;
 
-			rml::utils::tmp_fstream::pointer decrypted_fstream = opdata->get_tmp_fstream(decrypted_format, true, true);
+			decrypted_fstream = opdata->get_tmp_fstream(decrypted_format, true, true);
 			if(!decrypted_fstream)
 				throw rml::exception("Unable to get tmp_fstream");
 
-			current_fstream->seekg(0);
+			current_fstream->re_open();
 
 			types::header_precrypt precrypt_hdr;
 			current_fstream->read(reinterpret_cast<char *>(&precrypt_hdr), sizeof(types::header_precrypt));
@@ -213,11 +216,12 @@ public:
 				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" not 'clear' according to precrypt-header");
 
 			if(precrypt_hdr.content_length != (current_fstream->get_size() - sizeof(types::header_precrypt)))
-				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" file size mismatch");
+				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" file size mismatch: "
+					<< precrypt_hdr.content_length << " vs " << current_fstream->get_size());
 
 			*(decrypted_fstream) << current_fstream->rdbuf();
 
-			decrypted_fstream->seekg(0);
+			decrypted_fstream->re_open();
 
 			uint32_t crc32;
 			{
