@@ -1,0 +1,24 @@
+{
+    "autoload" : {},
+    "require": {
+        "phpseclib/phpseclib": "2.0.9"
+    },
+    "extra": {
+        "phar-builder": {
+            "compression": "GZip",
+            "skip-shebang": false,
+            "name": "phonero-cron.phar",
+            "output-dir": "../",
+            "entry-point": "phonero-cron.php",
+            "include": ["vendor"],
+            "include-dev": false,
+            "events": {
+                "build.before": "git describe --tags > bin/version.txt",
+                "build.after": [
+                    "rm bin/version.txt",
+                    "chmod +x ../phonero-cron.phar"
+                ]
+            }
+        }
+    }
+}

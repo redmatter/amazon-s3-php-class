@@ -1,0 +1,23 @@
+#!/bin/bash
+#
+# rmcollect-importd  This shell script takes care of starting and stopping
+#                 the Archive Import Daemon.
+#
+# chkconfig: 2345 80 05
+# description: Archiving Collect Daemon
+# processname: rmcollect-importd
+# config: /etc/archiving/rmcollect-importd.conf
+# pidfile: /var/run/archiving/rmcollect-importd.pid
+
+prog_longname="Archiving Collect Import Daemon"
+prog_shortname=rmcollect-importd
+prog_projprefix=archiving
+prog_cliopts="--hostname $( uname -n | cut -d. -f1 )"
+prog_syslogtag=rm-collect-importd
+
+callback_before_startup() {
+	/usr/bin/rmarchived-hAPI
+}
+
+. /usr/share/rmdaemonscripts/init.sh
+
