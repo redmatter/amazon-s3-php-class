@@ -392,6 +392,8 @@ class importPhonero extends BaseApp
             $filexml = array();
             $fileinfo = array();
 
+            $count = 0;
+
             foreach($files as $file) {
 
                 $matches = array();
@@ -432,6 +434,13 @@ class importPhonero extends BaseApp
                     $filexml[] = "<ImportedCall><AUUID>$auuid</AUUID><BUUID>$buuid</BUUID><Time>$epoch</Time><From_Number>$fromnumber</From_Number><To_Number>$tonumber</To_Number><Time_Talking>$duration</Time_Talking></ImportedCall>";
 
                     $fileinfo[] = array('Name' => $file, 'AUUID' => $auuid, 'BUUID' => $buuid, 'Duration' => $duration, 'Epoch' => $epoch, 'From_Number' => $fromnumber, 'To_Number' => $tonumber);
+
+                    $count++;
+                }
+
+                if ($count > $config->hi_water_mark) {
+                    LogMessage ("$count messages in the queue: that'll do for now");
+                    break;
                 }
             }
 
@@ -540,7 +549,8 @@ class importPhonero extends BaseApp
             'not_handled_dir',
             'import_dir',
             'coreapi_url',
-            'coreapi_creds'
+            'coreapi_creds',
+            'hi_water_mark'
         );
 
         $config = array();
