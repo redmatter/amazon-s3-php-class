@@ -498,6 +498,10 @@ class importPhonero extends BaseApp
                 }
             }
 
+            // the API call may or may not have delivered results for all messages
+            // go through the list matching inputs to the API results, and forward the successes
+            // to rmcollect-importd and the failures to $config->not_handled_dir
+
             foreach($fileinfo as $finfo)
             {
                 $foundA = key_exists($finfo['AUUID'], $logResults);
@@ -550,7 +554,8 @@ class importPhonero extends BaseApp
             'import_dir',
             'coreapi_url',
             'coreapi_creds',
-            'hi_water_mark'
+            'hi_water_mark',
+            'skip_regex'
         );
 
         $config = array();
@@ -572,6 +577,17 @@ class importPhonero extends BaseApp
         $this->hAPILocName = $hAPIHost->get('LocName');
         $config->coreapi_url = str_replace('{hAPI:SearchDomain}', $this->hAPISearchDomain, $config->coreapi_url);
         $config->import_dir .= '/'.$this->hAPILocName;
+
+        // decide whether it's our turn to run or not. A regex (skip_regex) is defined in the config. This
+        // is compared to a string with the <HAPI LocName>-<wallclock minutes>. If there is a match, the session
+        // aborts. This is to prevent more than one instance accessing the same SFTP site simultaneously
+
+        $minutes = date('i'); // return current wallclock minutes (with leading zero)
+        $skip_regex_cmp = $this->hAPILocName.'-'.$minutes;
+        if (preg_match($config->skip_regex, $skip_regex_cmp)) {
+            LogMessage("Exiting process due to skip_regex match: $skip_regex_cmp");
+            return;
+        }
 
         // set uid and gid to cdrmunch
 
