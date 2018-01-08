@@ -32,6 +32,8 @@
 #include <boost/regex.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/container/slist.hpp>
+#include <boost/range/iterator_range.hpp>
 
 #include <cstring>
 
@@ -42,6 +44,7 @@ struct archived_shim;
 typedef boost::network::http::async_server<archived_shim> http_server;
 typedef typename http_server::request http_request_type;
 typedef typename http_server::connection http_connection_type;
+typedef typename http_server::response_header http_response_header_type;
 typedef typename http_server::connection_ptr http_connection_ptr_type;
 typedef typename http_connection_type::status_t http_status_type;
 
@@ -343,7 +346,6 @@ std::ostream& operator<<(std::ostream& os, const request_properties& h)
 struct handled_request
 {
     const uint64_t id;
-    request_status::enum_t status;
 
     const http_connection_ptr_type connection;
     const request_properties properties;
@@ -353,7 +355,7 @@ struct handled_request
 
     handled_request(const rml::utils::snowflake::id_t id, const http_connection_ptr_type& connection,
                     const http_request_type& request) :
-            id(id), status(request_status::processing), connection(connection), properties(request),
+            id(id), connection(connection), properties(request),
             bytes_remaining(*(properties.content_length))
     {}
 };
@@ -372,9 +374,20 @@ struct archived_shim
     boost::mutex mutex;
     handled_request_map_type connection_map;
 
+    boost::atomic_bool shutting_down;
+
+    static void describe_config(boost::program_options::options_description& desc)
+    {
+        desc.add_options()
+                ("http_server.listen_address", boost::program_options::value<std::string>()->default_value("0.0.0.0"),
+                 "HTTP listen address")
+                ("http_server.listen_port", boost::program_options::value<std::string>()->default_value("80"),
+                 "HTTP listen port");
+    }
+
     explicit archived_shim(rml::utils::snowflake& snowflake, const boost::shared_ptr<archivable_queue>& send_queue,
                            const boost::shared_ptr<response_queue>& responder_queue) :
-            snowflake(snowflake), send_queue(send_queue), responder_queue(responder_queue)
+            snowflake(snowflake), send_queue(send_queue), responder_queue(responder_queue), shutting_down(false)
     {}
 
     void read_callback(
@@ -387,19 +400,20 @@ struct archived_shim
     {
         // if there are errors; bail out and return the error to client or most likely just close the connection / just drop it off!
         if (ec || connection->has_error()) {
-            LogMessage(handled_request->id << " Error while reading request; ErrorCode:'" << ec << "' ConnectionError:"
-                                           << RML_YES_NO(connection->has_error()));
+            LogMessage(request_state->id << " Error while reading request; ErrorCode:'" << ec << "' ConnectionError:"
+                                         << RML_YES_NO(connection->has_error()));
             return;
         }
 
         request_state->fstream->write(bytes_range.begin(), bytes_count);
         request_state->bytes_remaining -= bytes_count;
         if (request_state->bytes_remaining > 0) {
-            // TODO hibernate the file here?
+            // If we are to handle too many requests, resulting in too many open file-handles, consider closing
+            // the file-stream here, and re-opening before the next write (in append-mode)
 
             // if there are more to get from the request, keep reading
             connection->read(
-                    boost::bind(&archived_shim::read_callback, this, _1, _2, _3, _4, request_state, send_queue));
+                    boost::bind(&archived_shim::read_callback, this, _1, _2, _3, _4, request_state));
             return;
         }
 
@@ -441,11 +455,13 @@ struct archived_shim
                             << error::error_info_error_condition(error));
         }
     } catch (const error::http_error_exception& e) {
-        if (std::string const* internal_error_message = boost::get_error_info<error::tag_internal_error_message>(e)) {
+        if (std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(
+                e)) {
             LogError(request_state->id << " Error: " << *internal_error_message);
         }
 
-        boost::system::error_condition const* error_condition = boost::get_error_info<error::tag_error_condition>(e);
+        boost::system::error_condition const* error_condition = boost::get_error_info<
+                error::error_info_error_condition>(e);
         if (error_condition) {
             LogVerbose(request_state->id << " Error: " << *error_condition);
         }
@@ -460,12 +476,13 @@ struct archived_shim
     } catch (const std::exception& e) {
         LogError(request_state->id << " Exception: " << e.what());
 
-        if (std::string const* internal_error_message = boost::get_error_info<error::tag_internal_error_message>(e)) {
+        if (std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(
+                e)) {
             LogError(request_state->id << " Error: " << *internal_error_message);
         }
 
         if (boost::system::error_condition const* error_condition =
-                boost::get_error_info<error::tag_error_condition>(e)) {
+                boost::get_error_info<error::error_info_error_condition>(e)) {
             LogError(request_state->id << " Error: " << *error_condition);
         }
 
@@ -478,18 +495,47 @@ struct archived_shim
         }
     }
 
-    // TODO setup shutdown
+    /**
+     * @brief Initiate shutdown; make sure all requests are responded to!
+     */
     void shutdown()
     {
+        shutting_down = true;
+
+        // If there are objects in send_queue, we need to respond "Service Unavailable" ASAP
+        while (send_queue->size()) {
+            boost::shared_ptr<archiving::archivable> item;
+            boost::system::error_condition ec;
+            send_queue->consume(item, boost::chrono::seconds(1), ec);
+            if (ec) {
+                LogMessage(ec);
+                break;
+            }
+
+            LogMessage(item->get_database_id() << " Cancelled on shutdown; " << ec);
+
+            ec.clear();
+            responder_queue->produce(
+                    response(item->get_database_id(), boost::system::error_condition(
+                            error::http::service_unavailable)), ec);
+            if (ec) {
+                LogError(item->get_database_id() << " Failed to setup error-response; " << ec);
+            }
+        }
+
         send_queue->set_finishing();
+
         while (responder_queue->size()) {
             LogMessage("Waiting for responder_queue to be empty");
             boost::this_thread::sleep_for(boost::chrono::seconds(1));
         }
+
         responder_queue->set_finishing();
     }
 
-    // TODO Setup run_responder thread
+    /**
+     * @brief Prepare response and send it!
+     */
     void run_responder()
     {
         while (true) {
@@ -585,11 +631,31 @@ struct archived_shim
             return !ec;
         }
 
-        // TODO setup response headers
+//        http_response_header_type response_headers[] = {
+//                {"Connection",   "close"}
+//                {"Content-Type", "application/json"}
+//        };
+
+        boost::container::slist<http_response_header_type> headers;
+        {
+            http_response_header_type connection = {"Connection", "close"};
+            headers.push_front(connection);
+        }
 
         http_status_type status;
         if (to_netlib_status(status_code, status)) {
             connection->set_status(status);
+
+            if (!response_body.empty()) {
+                http_response_header_type content_type = {"Content-Type", "application/json"};
+                headers.push_front(content_type);\
+                http_response_header_type content_length = {"Content-Length",
+                                                            boost::lexical_cast<std::string>(response_body.length())};
+                headers.push_front(content_length);
+            }
+
+            connection->set_headers(boost::make_iterator_range(headers.begin(), headers.end()));
+
             if (!response_body.empty()) {
                 connection->write(response_body);
             }
@@ -600,13 +666,28 @@ struct archived_shim
         LogError("Failed to translate response-code");
 
         connection->set_status(http_connection_type::internal_server_error);
-        connection->write("Internal Server Error");
+        const std::string body("Internal Server Error");
+        {
+            http_response_header_type content_type = {"Content-Type", "text/plain"};
+            headers.push_front(content_type);
+            http_response_header_type content_length = {"Content-Length",
+                                                        boost::lexical_cast<std::string>(body.length())};
+            headers.push_front(content_length);
+        }
+        connection->set_headers(boost::make_iterator_range(headers.begin(), headers.end()));
+        connection->write(body);
 
         return false;
     }
 
     void operator()(http_request_type const& request, http_connection_ptr_type connection)
-    try {
+    try
+    {
+        if (shutting_down == true) {
+            respond(connection, error::http::service_unavailable, "Service Unavailable");
+            return;
+        }
+
         // Make a snowflake-id
         const rml::utils::snowflake::id_t& id(snowflake.make_id());
 
@@ -615,7 +696,6 @@ struct archived_shim
         if (request_state->properties.content_length != boost::none
             && request_state->properties.content_length > static_cast<size_t>(0)) {
 
-            // TODO setup encryption for temp file if Estuary is be running in the red-zone
             const std::string& path(
                     boost::str(boost::format("%1%_%2%_%3%") %
                                archiving::file_type::to_string(*(request_state->properties.file_type)) %
@@ -646,10 +726,10 @@ struct archived_shim
             }
 
             connection->read(
-                    boost::bind(&archived_shim::read_callback, this,_1, _2, _3, _4, request_state, send_queue));
+                    boost::bind(&archived_shim::read_callback, this, _1, _2, _3, _4, request_state));
         }
     } catch (const std::exception& e) {
-        LogError("Error while accepting a request; Error: "<<e.what());
+        LogError("Error while accepting a request; Error: " << e.what());
         respond(connection, error::http::internal_server_error, "Internal error");
     }
 };

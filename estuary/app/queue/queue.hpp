@@ -75,6 +75,7 @@ public:
 
     inline unsigned long size()
     {
+        boost::mutex::scoped_lock lock(mutex);
         return list.size();
     }
 

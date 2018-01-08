@@ -6,11 +6,13 @@
 // Created by Dino Korah on 20/11/2017.
 //
 
+#include "app/error.hpp" // work around for "‘make_error_condition’ was not declared in this scope"
 #include "defines.h"
 #include "app/config/common.hpp"
 #include "app/config/command_line.hpp"
 #include "../common/archived_client.hpp"
 #include "app/archivable_queue.hpp"
+#include "app/archived_shim.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -18,10 +20,10 @@
 #include <rml/version.h>
 #include <rml/daemon.h>
 #include <rml/config.h>
-#include <rml/state_reactor.hpp>
 #include <rml/utils/snowflake.hpp>
 #include <rml/utils/cached_resolver.hpp>
 
+#include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/chrono/chrono.hpp>
@@ -110,22 +112,6 @@ void callback_set_flag(boost::atomic<FlagType>& flag, const FlagType& value, con
     }
 }
 
-template<typename FlagType>
-void state_reactor_callback_set_flag(boost::atomic<FlagType>& flag, const FlagType& value, const char* message,
-                                     const bool& outcome)
-{
-    flag = value;
-    if (message) {
-        if (outcome) {
-            LogVerbose(message << " [value: " << value << " outcome:ok]");
-        } else {
-            LogWarning(message << " [value: " << value << " outcome:failure]");
-        }
-    } else if (!outcome) {
-        LogWarning("FIXME: Unknown callback with error [outcome:failure]");
-    }
-}
-
 /**
  * Signal handling via boost::asio
  *
@@ -209,16 +195,19 @@ int main(int argc, const char* argv[]) try
         }
 
         boost::program_options::options_description options_desc(
-        boost::str(boost::format(DEFAULT_APP_LONG_NAME
-        " v%1%\n%2%\noptions")
-        % version_number_string % copyright_string));
+                boost::str(boost::format(DEFAULT_APP_LONG_NAME " v%1%\n%2%\noptions")
+                           % version_number_string % copyright_string));
 
         /* describe config here */
         rml::daemon::describe_config(options_desc);
         rml::logger::describe_config(options_desc);
         app::config::common::describe_config(options_desc);
         app::archived_client::describe_config(options_desc);
-        /* describe config here */
+        app::archived_shim::describe_config(options_desc);
+
+        options_desc.add_options()
+                ("estuary.archived_connections", boost::program_options::value<unsigned>()->default_value(2),
+                 "Number of connections to ArchiveD");
 
         if (cli_config.is_opted("help-conf")) {
             std::cout << options_desc << "\n";
@@ -227,8 +216,7 @@ int main(int argc, const char* argv[]) try
 
         if (cli_config.is_opted("version")) {
             std::cout << boost::str(
-                    boost::format(DEFAULT_APP_LONG_NAME
-            " v%1%\n%2%\n") % version_number_string % copyright_string);
+                    boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string);
             exit(rml::utils::exit_codes::normal);
         }
 
@@ -237,7 +225,7 @@ int main(int argc, const char* argv[]) try
         rml::logger::configure(config, SYSLOG_APP_NAME);
 
         LogMessage(DEFAULT_APP_LONG_NAME
-        " v" << version_number_string);
+                           " v" << version_number_string);
         LogMessage(copyright_string << " built on " << version_date << ' ' << build_host);
 
         pid_file = cli_config.get_option<std::string>("pid");
@@ -253,8 +241,8 @@ int main(int argc, const char* argv[]) try
 
         boost::thread_group io_service_threads;
         {
-            unsigned int n_cores = boost::thread::hardware_concurrency();
-            while (0 < n_cores--) {
+            unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2);
+            while (0 < n_threads--) {
                 io_service_threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
             }
         }
@@ -290,14 +278,33 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<rml::utils::cached_resolver> resolver =
                 boost::make_shared<rml::utils::cached_resolver>(5, 5, 2);
 
-        // todo set the max-limit based on archived_client count
-        boost::shared_ptr<app::archivable_queue> archivable_queue = boost::make_shared<app::archivable_queue>(10);
+        const unsigned int archived_connections = std::max(config["estuary.archived_connections"].as<unsigned int>(), 2U);
+
+        boost::shared_ptr<app::archivable_queue> archivable_queue = boost::make_shared<app::archivable_queue>(archived_connections * 2);
         boost::shared_ptr<app::response_queue> response_queue = boost::make_shared<app::response_queue>(0);
+
+        boost::shared_ptr<boost::thread_group> http_server_threads = boost::make_shared<boost::thread_group>();
+        boost::shared_ptr<boost::asio::io_service> http_server_io_service =
+                boost::make_shared<boost::asio::io_service>();
+
+        app::archived_shim archived_shim(snowflake, archivable_queue, response_queue);
+        boost::shared_ptr<app::http_server> http_server = boost::make_shared<app::http_server>(
+                app::http_server::options(archived_shim)
+                        .address(config["http_server.listen_address"].as<std::string>())
+                        .port(config["http_server.listen_port"].as<std::string>())
+                        .thread_pool(
+                                boost::make_shared<boost::network::utils::thread_pool>(
+                                        std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2),
+                                        http_server_io_service, http_server_threads))
+                        .reuse_address(true));
+
+        // responder thread; it only enqueues on to cpp-netlib's internal threadpool, so one thread should do
+        http_server_threads->create_thread(boost::bind(&app::archived_shim::run_responder, boost::ref(archived_shim)));
 
         const common::collectd::fn_produce_type fn_error_callback =
                 boost::bind(app::produce_response_on_error, response_queue, _1, _2);
         const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_get_archivable_callback =
-                boost::bind(app::consume_archivable, archivable_queue, _1, _2, _3, _4);
+                boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4);
         const common::collectd::fn_remove_from_catalogue_type fn_dummy_remove_from_catalogue =
                 boost::bind(app::dummy_remove_from_catalogue, _1);
         const common::collectd::fn_save_to_database_type fn_dummy_save_to_database =
@@ -305,16 +312,20 @@ int main(int argc, const char* argv[]) try
         const common::collectd::fn_on_successful_put_type fn_on_successful_put =
                 boost::bind(app::produce_response_on_success, response_queue, _1);
 
-        std::list <boost::shared_ptr<app::archived_client> > archived_clients;
-        // todo make the number of archived-clients configurable
-        for (unsigned int i = 0; i < 5; i++) {
-            archived_clients.push_back(
-                    boost::make_shared<app::archived_client>(
-                            boost::ref(*p_io_service), fn_error_callback, fn_get_archivable_callback,
-                            fn_dummy_remove_from_catalogue, fn_dummy_save_to_database, fn_on_successful_put,
-                            config["archived_client.server_host"].as<std::string>(),
-                            config["archived_client.server_port"].as<std::string>()));
+        std::list<boost::shared_ptr<app::archived_client> > archived_clients;
+        for (unsigned int i = 0; i < archived_connections; i++) {
+            boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
+                    boost::ref(*p_io_service), fn_error_callback, fn_get_archivable_callback,
+                    fn_dummy_remove_from_catalogue, fn_dummy_save_to_database,
+                    config["archived_client.server_host"].as<std::string>(),
+                    config["archived_client.server_port"].as<std::string>(),
+                    fn_on_successful_put);
+            archived_client->connect_archived();
+
+            archived_clients.push_back(archived_client);
         }
+
+        http_server->listen();
 
         LogMessage("Initialisation complete");
 
@@ -326,20 +337,6 @@ int main(int argc, const char* argv[]) try
         while (!shutdown_flag) {
             const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
 
-//            if ((task_loading_time + boost::chrono::seconds(10)) < now && !task_loading_in_progress) {
-//                task_loading_time = now;
-//                task_loading_in_progress = true;
-//                // set-off loading
-//                LogVerbose("Task loading setup");
-//                state_reactor.schedule(
-//                        boost::bind(app::load_task, cdrdb,
-//                                    boost::protect(boost::bind(app::enqueue_task, task_queue, _1))),
-//                        boost::bind(callback_atomic_flag_status < bool > ,
-//                                    boost::ref(task_loading_in_progress), false, "Task loading finished", _1),
-//                        state_reactor_type::priority::high);
-//            }
-
-
             boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
         }
 
@@ -347,12 +344,47 @@ int main(int argc, const char* argv[]) try
 
         // todo review shutdown-procedure
 
+        {
+            std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
+            std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
+            for(; itr != end; ++itr) {
+                (*itr)->shutdown();
+            }
+        }
+        // delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
+        // as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
+        // up to ~10s before continuing with shutdown.
+        archived_clients.clear();
+        {
+            const boost::chrono::steady_clock::time_point wait_until(
+                    boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
+            while (wait_until >= boost::chrono::steady_clock::now()) {
+                const unsigned int& instances(app::archived_client::get_instances_count());
+                if (instances == 0) {
+                    LogMessage("All ArchiveD-clients finished");
+                    break;
+                }
+
+                LogMessage("Waiting for ArchiveD-clients to finish;" << instances << " instances remaining");
+                boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
+            }
+        }
+
+        if (app::archived_client::get_instances_count()) {
+            LogWarning("ArchiveD-clients did not finish while waiting; continuing with shutdown");
+        }
+
+        archived_shim.shutdown();
+
         shutdown_hooks.clear();
 
         p_work.reset();
         p_io_service->stop();
 
         io_service_threads.join_all();
+
+        http_server->stop();
+        http_server_threads->join_all();
 
         LogMessage("Terminated normally");
 

@@ -45,6 +45,8 @@ add_definitions(
 
         -DRML_LOG_RUNTIME_LEVEL_CHANGE
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+
+        -DARCHIVED_LISTEN_PORT="10100"
 )
 
 add_executable(rmestuary.bin main.cpp ${HEADER_FILES})
@@ -61,6 +63,9 @@ target_link_libraries(rmestuary.bin
         rt
         Threads::Threads
         ${Boost_LIBRARIES}
+
+        cppnetlib-uri
+        cppnetlib-server-parsers
 )
 
 #add_subdirectory(tests)

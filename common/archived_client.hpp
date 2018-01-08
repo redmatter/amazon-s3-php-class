@@ -191,7 +191,7 @@ private:
 	const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume_;
 	const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue_;
 	const common::collectd::fn_save_to_database_type& fn_save_to_database_;
-	const common::collectd::fn_on_successful_put_type& fn_on_successful_put_;
+	const common::collectd::fn_on_successful_put_type fn_on_successful_put_;
 
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
@@ -288,9 +288,9 @@ public:
 			const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
-			const common::collectd::fn_on_successful_put_type& fn_on_successful_put,
 			const std::string& archived_host,
-			const std::string& archived_port) :
+			const std::string& archived_port,
+            const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),

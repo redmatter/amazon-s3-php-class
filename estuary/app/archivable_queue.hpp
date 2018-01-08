@@ -9,9 +9,9 @@
 #ifndef ARCHIVING_ESTUARY_APP_ARCHIVABLE_QUEUE_HPP
 #define ARCHIVING_ESTUARY_APP_ARCHIVABLE_QUEUE_HPP
 
+#include "error.hpp"
 #include "queue/queue.hpp"
 #include "../../common/archivable.hpp"
-#include "error.hpp"
 
 #include <boost/optional.hpp>
 
