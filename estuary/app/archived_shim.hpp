@@ -42,11 +42,11 @@ namespace app
 
 struct archived_shim;
 typedef boost::network::http::async_server<archived_shim> http_server;
-typedef typename http_server::request http_request_type;
-typedef typename http_server::connection http_connection_type;
-typedef typename http_server::response_header http_response_header_type;
-typedef typename http_server::connection_ptr http_connection_ptr_type;
-typedef typename http_connection_type::status_t http_status_type;
+typedef http_server::request http_request_type;
+typedef http_server::connection http_connection_type;
+typedef http_server::response_header http_response_header_type;
+typedef http_server::connection_ptr http_connection_ptr_type;
+typedef http_connection_type::status_t http_status_type;
 
 bool to_netlib_status(const error::http::enum_t e, http_status_type& status)
 {

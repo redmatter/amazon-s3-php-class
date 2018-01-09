@@ -108,6 +108,14 @@ Requires: cryptopp
 Summary: Archiving Common files
 Group: RedMatter/Archiving
 
+%package estuary
+Summary: Archiving Estuary
+Group: RedMatter/Archiving
+Requires: mysql++ >= 3.1.0-29693
+Requires: cryptopp
+Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-%{appname}-common = %{version}-%{release}
+
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
@@ -183,6 +191,9 @@ Archiving CLI Tools; used by various scripts
 
 %description common
 Archiving common config files, etc.
+
+%description estuary
+HTTP PUT interface to ArchiveD for adding objects
 
 %description scripts
 Archiving Utility scripts for verification etc
@@ -306,6 +317,13 @@ cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_da
 cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/retention_delete_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
+
+# Estuary
+cp estuary/tmp-%{buildtype}-build/estuary %{buildroot}/usr/bin/rmestuary.bin
+cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/
+cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
+cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
+cp estuary/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmestuary.conf
 
 # Scripts
 for file in $( find scripts/inc -type f -not \( -path "scripts/inc/JsonSchema/*" -o -path "scripts/inc/JsonMapper/*" \) ); do
@@ -439,6 +457,17 @@ fi
 # 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 # fi
 
+%pre estuary
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
+fi
+
 %pre eml2a
 if grep ^cdrmunch: /etc/group &>/dev/null; then
 	: # group already exists
@@ -516,6 +545,15 @@ fi
 # 		/etc/init.d/rsyslog condrestart ||
 # 		echo "**WARNING** rsyslog not found; consider installing it."
 # fi
+
+%post estuary
+/sbin/chkconfig --add rmestuary
+/sbin/chkconfig rmestuary on
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 %post scripts
 /sbin/chkconfig --add rmarchpolfix
@@ -602,6 +640,12 @@ if [ "$1" -eq 0 ]; then
 	/sbin/service postfix condrestart &> /dev/null
 fi
 
+%postun estuary
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
 
 # ----------
 
@@ -710,7 +754,16 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
-# /etc/archiving/conf.d/migration_database.conf
+
+%files estuary
+%defattr(-,root,root)
+/usr/bin/rmestuary.bin
+/etc/rc.d/init.d/rmestuary
+/etc/archiving/rmestuary.conf
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+/etc/logrotate.d/rmestuary
+/etc/rsyslog.d/11-rmestuary.conf
 
 %files scripts
 %defattr(-,root,root)
