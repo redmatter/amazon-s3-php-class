@@ -11,3 +11,6 @@
 [submodule "libs/rml-utils"]
 	path = libs/rml-utils
 	url = ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
+[submodule "libs/rml-statistics"]
+	path = libs/rml-statistics
+	url = ssh://git@bitbucket.redmatter.com/lib/rml-statistics.git

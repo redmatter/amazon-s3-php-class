@@ -4,9 +4,9 @@ VERSION_FILE=../version_info
 
 include /usr/share/librml/Makefile.macros
 
-RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-database-mysql
-RML_DATABASE_MYSQL_DIR=../$(RML_DATABASE_MYSQL_GIT_SUBMODULE)
-RML_DATABASE_MYSQL_HPP=$(RML_DATABASE_MYSQL_DIR)/rml/database/mysql/basic_database.hpp
+RML_UTILS_GIT_SUBMODULE=libs/rml-utils
+RML_UTILS_DIR=../$(RML_UTILS_GIT_SUBMODULE)
+RML_UTILS_HPP=$(RML_UTILS_DIR)/rml/utils/snowflake.hpp
 
 RML_QUEUE_GIT_SUBMODULE=libs/rml-queue
 RML_QUEUE_DIR=../$(RML_QUEUE_GIT_SUBMODULE)
@@ -26,11 +26,13 @@ CXX_INCLUDES += \
 	-I /usr/include/cpp-netlib \
 	-I /usr/include/threadpool \
 	-I ../cpp-common \
-	-I $(RML_DATABASE_MYSQL_DIR) \
+	-I $(RML_UTILS_DIR) \
 	-I $(RML_QUEUE_DIR) \
 	-I $(RML_STATISTICS_DIR)
 
 CPPFLAGS += -DBOOST_CHRONO_VERSION=2
+
+include ../common/Makefile.macros
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -78,23 +80,26 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri \
+	-lcppnetlib-uri -lcppnetlib-server-parsers \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) \
-	-lpugixml -lmysqlpp -lmysqlclient -lcryptopp -ls3
+	-lpugixml -lmysqlpp -lmysqlclient -lcryptopp -ls3 \
+	-L ../common/$(TMP)/ -larchiving_common
 
 CXX_SRCS += \
 	main.cpp
 
 C_SRCS += \
 
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
+
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 
-main.cpp: $(RML_DATABASE_MYSQL_HPP) $(RML_QUEUE_HPP) $(RML_STATISTICS_HPP)
+main.cpp: $(RML_UTILS_HPP) $(RML_QUEUE_HPP) $(RML_STATISTICS_HPP)
 
-ifeq ($(RML_DATABASE_MYSQL_DIR),../$(RML_DATABASE_MYSQL_GIT_SUBMODULE))
-$(RML_DATABASE_MYSQL_HPP):
-	@cd .. && git submodule update --init --recursive $(RML_DATABASE_MYSQL_GIT_SUBMODULE)
+ifeq ($(RML_UTILS_DIR),../$(RML_UTILS_GIT_SUBMODULE))
+$(RML_UTILS_HPP):
+	@cd .. && git submodule update --init --recursive $(RML_UTILS_GIT_SUBMODULE)
 endif
 
 ifeq ($(RML_QUEUE_DIR),../$(RML_QUEUE_GIT_SUBMODULE))
@@ -106,3 +111,9 @@ ifeq ($(RML_STATISTICS_DIR),../$(RML_STATISTICS_GIT_SUBMODULE))
 $(RML_STATISTICS_HPP):
 	@cd .. && git submodule update --init --recursive $(RML_STATISTICS_GIT_SUBMODULE)
 endif
+
+../common/$(TMP)/libarchiving_common.a :
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES
+
+clean_extra:
+	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES clean

@@ -145,6 +145,8 @@ struct http_category : public boost::system::error_category
         case http::insufficient_storage:
             return "Insufficient Storage";
         }
+
+        return "Invalid Status Code";
     }
 };
 
