@@ -234,6 +234,7 @@ int main(int argc, const char* argv[]) try
         exit(rml::utils::exit_codes::initialization_error);
     }
 
+    // TODO review logging levels and check if there are adequate logging for tracing purposes
     try {
         boost::shared_ptr<boost::asio::io_service> p_io_service = boost::make_shared<boost::asio::io_service>();
         boost::shared_ptr<boost::asio::io_service::work> p_work = boost::make_shared<boost::asio::io_service::work>(

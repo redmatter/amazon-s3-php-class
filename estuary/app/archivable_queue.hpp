@@ -61,7 +61,7 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
     boost::system::error_condition ec;
     queue->consume(item, wait_timeout, ec);
     if (ec) {
-        if (ec.value() == queue::error::runtime_errors::consume_timeout) {
+        if (ec.value() == queue::error::runtime_errors::is_empty) {
             timeout_callback();
         } else if (ec.value() == queue::error::runtime_errors::is_finishing) {
             is_finishing_callback();

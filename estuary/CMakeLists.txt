@@ -16,7 +16,6 @@ set(HEADER_FILES
         app/config/command_line.hpp
         app/typedefs.hpp
         app/archived_shim.hpp
-        app/archived_client_adaptor.hpp
         app/utils.hpp
         app/error.hpp
         app/queue/queue.hpp
