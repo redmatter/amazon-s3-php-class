@@ -77,12 +77,10 @@ LIBS += \
 	-lboost_thread$(BOOST_NAME_EXT) \
 	-lboost_system$(BOOST_NAME_EXT) \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
-	-lboost_date_time$(BOOST_NAME_EXT) \
-	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri -lcppnetlib-server-parsers \
+	-lcryptopp -lpugixml \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) \
-	-lpugixml -lmysqlpp -lmysqlclient -lcryptopp -ls3 \
 	-L ../common/$(TMP)/ -larchiving_common
 
 CXX_SRCS += \
