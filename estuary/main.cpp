@@ -273,7 +273,7 @@ int main(int argc, const char* argv[]) try
         app::config::common common_config(config);
         initialisation_complete = true;
 
-        rml::utils::snowflake snowflake(200801);
+        rml::utils::snowflake snowflake(313); // just a happy prime (magic number)
 
         boost::shared_ptr<rml::utils::cached_resolver> resolver =
                 boost::make_shared<rml::utils::cached_resolver>(5, 5, 2);
