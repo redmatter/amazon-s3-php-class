@@ -319,7 +319,7 @@ cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_data
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Estuary
-cp estuary/tmp-%{buildtype}-build/estuary %{buildroot}/usr/bin/rmestuary.bin
+cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
 cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
 cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
