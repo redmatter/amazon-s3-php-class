@@ -201,10 +201,14 @@ struct request_properties
                 } else if (front->name == "Content-MD5") {
                     content_md5 = utils::base64_to_hex(front->value);
                 } else if (front->name == "Accept") {
-                    boost::throw_exception(
-                            boost::enable_error_info(error::http_error_exception("JSON not acceptable"))
-                                    << error::error_info_error_condition(
-                                            boost::system::error_condition(error::http::not_acceptable)));
+                    if (!boost::regex_search(front->value,
+                                             boost::regex("(?:^|, )(?:application/json|\\*/\\*)(?=$|[;,])"))) {
+
+                        boost::throw_exception(
+                                boost::enable_error_info(error::http_error_exception("JSON not acceptable"))
+                                        << error::error_info_error_condition(
+                                                boost::system::error_condition(error::http::not_acceptable)));
+                    }
                 }
             }
 

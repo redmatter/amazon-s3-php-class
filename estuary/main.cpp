@@ -295,7 +295,7 @@ int main(int argc, const char* argv[]) try
                         .port(config["http_server.listen_port"].as<std::string>())
                         .thread_pool(
                                 boost::make_shared<boost::network::utils::thread_pool>(
-                                        std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2),
+                                        std::max<unsigned>(boost::thread::hardware_concurrency() / 4, 2),
                                         http_server_io_service, http_server_threads))
                         .reuse_address(true));
 
@@ -326,7 +326,12 @@ int main(int argc, const char* argv[]) try
             archived_clients.push_back(archived_client);
         }
 
-        http_server->listen();
+        {
+            unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 4, 2);
+            while (0 < n_threads--) {
+                http_server_threads->create_thread(boost::bind(&app::http_server::run, http_server));
+            }
+        }
 
         LogMessage("Initialisation complete");
 
