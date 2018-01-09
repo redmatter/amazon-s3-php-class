@@ -78,6 +78,7 @@ LIBS += \
 	-lboost_system$(BOOST_NAME_EXT) \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
+	-lboost_regex$(BOOST_NAME_EXT) \
 	-lcppnetlib-uri -lcppnetlib-server-parsers \
 	-lcryptopp -lpugixml \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) \
