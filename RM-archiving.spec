@@ -320,7 +320,7 @@ cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Estuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
-cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/
+cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
 cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
 cp estuary/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmestuary.conf
