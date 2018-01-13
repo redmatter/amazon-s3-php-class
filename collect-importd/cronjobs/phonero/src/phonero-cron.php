@@ -546,8 +546,8 @@ class importPhonero extends BaseApp
             'host',
             'username',
             'password',
-            'filename_regex',
             'remote_dir',
+            'filename_regex',
             'download_dir',
             'queue_dir',
             'not_handled_dir',
@@ -560,10 +560,18 @@ class importPhonero extends BaseApp
 
         $config = array();
 
+        $hAPIHost = new HAPIHost();
+        $inProduction = $hAPIHost->InProduction();
+
         foreach ($mandatory_config_items as $item) {
-            $val = $this->conf->get("phonero.$item", false);
+            $itemlabel = $item;
+            if($inProduction && in_array($itemlabel, array('host','username','password','remote_dir')))
+                $itemlabel = "prod.$itemlabel";
+            $itemlabel = "phonero.$itemlabel";
+
+            $val = $this->conf->get($itemlabel, false);
             if (!$val)
-                throw new Exception("Config item phonero.$item missing from ".PHONERO_CONFIG_FILE);
+                throw new Exception("Config item $itemlabel missing from ".PHONERO_CONFIG_FILE);
 
             $config[$item] = $val;
         }
@@ -572,7 +580,6 @@ class importPhonero extends BaseApp
 
         // get hAPI stuff and transform config if necessary
 
-        $hAPIHost = new HAPIHost();
         $this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
         $this->hAPILocName = $hAPIHost->get('LocName');
         $config->coreapi_url = str_replace('{hAPI:SearchDomain}', $this->hAPISearchDomain, $config->coreapi_url);
