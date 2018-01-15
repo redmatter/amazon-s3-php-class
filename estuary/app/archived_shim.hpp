@@ -13,10 +13,15 @@
 #include "error.hpp"
 #include "utils.hpp"
 #include "archivable_queue.hpp"
+#include "http/server.hpp"
+#include "http/request_wrapped.hpp"
+#include "http/pending_request.hpp"
+#include "put_object_request.hpp"
+#include "http/pending_request_map.hpp"
 
+#include <rml/logger.h>
 #include <rml/utils/snowflake.hpp>
 #include <rml/utils.h>
-#include <rml/logger.hpp>
 
 #include <boost/network/protocol/http/server.hpp>
 #include <boost/unordered_map.hpp>
@@ -36,91 +41,10 @@
 #include <boost/range/iterator_range.hpp>
 
 #include <cstring>
+#include <boost/io/ios_state.hpp>
 
 namespace app
 {
-
-struct archived_shim;
-typedef boost::network::http::async_server<archived_shim> http_server;
-typedef http_server::request http_request_type;
-typedef http_server::connection http_connection_type;
-typedef http_server::response_header http_response_header_type;
-typedef http_server::connection_ptr http_connection_ptr_type;
-typedef http_connection_type::status_t http_status_type;
-
-bool to_netlib_status(const error::http::enum_t e, http_status_type& status)
-{
-    switch (e) {
-    case error::http::ok:
-        status = http_connection_type::ok;
-        break;
-    case error::http::created:
-        status = http_connection_type::created;
-        break;
-    case error::http::accepted:
-        status = http_connection_type::accepted;
-        break;
-    case error::http::no_content:
-        status = http_connection_type::no_content;
-        break;
-
-    case error::http::multiple_choices:
-        status = http_connection_type::multiple_choices;
-        break;
-    case error::http::moved_permanently:
-        status = http_connection_type::moved_permanently;
-        break;
-    case error::http::moved_temporarily:
-        status = http_connection_type::moved_temporarily;
-        break;
-    case error::http::not_modified:
-        status = http_connection_type::not_modified;
-        break;
-
-    case error::http::bad_request:
-        status = http_connection_type::bad_request;
-        break;
-    case error::http::unauthorized:
-        status = http_connection_type::unauthorized;
-        break;
-    case error::http::forbidden:
-        status = http_connection_type::forbidden;
-        break;
-    case error::http::not_found:
-        status = http_connection_type::not_found;
-        break;
-    case error::http::method_not_allowed:
-        status = http_connection_type::not_supported;
-        break;
-    case error::http::not_acceptable:
-        status = http_connection_type::not_acceptable;
-        break;
-    case error::http::length_required:
-        status = http_connection_type::bad_request;
-        break;
-
-    case error::http::internal_server_error:
-        status = http_connection_type::internal_server_error;
-        break;
-    case error::http::not_implemented:
-        status = http_connection_type::not_implemented;
-        break;
-    case error::http::bad_gateway:
-        status = http_connection_type::bad_gateway;
-        break;
-    case error::http::service_unavailable:
-        status = http_connection_type::service_unavailable;
-        break;
-    case error::http::insufficient_storage:
-        status = http_connection_type::space_unavailable;
-        break;
-
-    default:
-        return false;
-    }
-
-    return true;
-}
 
 struct request_status
 {
@@ -153,230 +77,14 @@ struct request_status
     }
 };
 
-struct request_properties
-{
-    const boost::chrono::steady_clock::time_point request_time;
-
-    boost::optional<archiving::file_type::file_type_t> file_type;
-    boost::optional<archiving::org_id_t> org_id;
-    boost::optional<boost::uuids::uuid> uuid;
-
-    boost::optional<time_t> creation_time;
-    boost::optional<app::policy::id_type> policy_id;
-
-    boost::optional<bool> expect_100_continue;
-    boost::optional<size_t> content_length;
-    boost::optional<std::string> content_type;
-    boost::optional<std::string> pbx_hostname;
-    boost::optional<std::string> content_md5;
-
-    std::string get_pbx_hostname() const
-    {
-        if (pbx_hostname == boost::none) {
-            return "unknown";
-        }
-
-        return *pbx_hostname;
-    }
-
-    explicit request_properties(const http_request_type& req) : request_time(boost::chrono::steady_clock::now())
-    {
-        try {
-            if (req.method != "PUT") {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception())
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::method_not_allowed)));
-            }
-
-            http_request_type::vector_type::const_iterator front(req.headers.begin());
-            const http_request_type::vector_type::const_iterator& end(req.headers.end());
-            for (; front != end; ++front) {
-                if (front->name == "Expect" && std::string::npos != front->value.find("100-continue")) {
-                    expect_100_continue = true;
-                } else if (front->name == "Content-Length") {
-                    content_length = boost::lexical_cast<size_t>(front->value);
-                } else if (front->name == "Content-Type") {
-                    content_type = front->value;
-                } else if (front->name == "Content-MD5") {
-                    content_md5 = utils::base64_to_hex(front->value);
-                } else if (front->name == "Accept") {
-                    if (!boost::regex_search(front->value,
-                                             boost::regex("(?:^|, )(?:application/json|\\*/\\*)(?=$|[;,])"))) {
-
-                        boost::throw_exception(
-                                boost::enable_error_info(error::http_error_exception("JSON not acceptable"))
-                                        << error::error_info_error_condition(
-                                                boost::system::error_condition(error::http::not_acceptable)));
-                    }
-                }
-            }
-
-            std::string path(boost::network::http::destination(req));
-            std::string query_string;
-            const std::string::size_type& query_pos(path.find('?'));
-            if (std::string::npos != query_pos) {
-                query_string = std::string(path, query_pos + 1);
-                path.erase(query_pos);
-            }
-
-            if (!path.empty()) {
-                std::vector<std::string> path_components;
-                boost::algorithm::split(
-                        path_components, path, boost::algorithm::is_any_of("/"), boost::token_compress_on);
-                path_components.erase(std::remove_if(path_components.begin(), path_components.end(),
-                                                     boost::bind(&std::string::empty, _1)));
-
-                if (path_components.size() == 3) {
-                    file_type = archiving::file_type::from_string(path_components[0]);
-                    org_id = boost::lexical_cast<archiving::org_id_t>(path_components[1]);
-                    uuid = boost::lexical_cast<boost::uuids::uuid>(path_components[2]);
-                } else {
-                    boost::throw_exception(
-                            boost::enable_error_info(error::http_error_exception("Unexpected path-info in request"))
-                                    << error::error_info_error_condition(
-                                            boost::system::error_condition(error::http::bad_request)));
-                }
-            }
-
-            if (!query_string.empty()) {
-                {
-                    const std::string::size_type& pos(query_string.find("policy="));
-                    if (pos != std::string::npos && (pos == 0 || query_string.at(pos - 1) == '&')) {
-                        const std::string::size_type& amp_pos(query_string.find('&', pos + 7));
-                        policy_id = boost::lexical_cast<app::policy::id_type>(
-                                std::string(query_string, pos + 7,
-                                            amp_pos != std::string::npos ? (amp_pos - pos - 7) : std::string::npos));
-                    }
-                }
-
-                {
-                    const std::string::size_type& pos(query_string.find("time="));
-                    if (pos != std::string::npos && (pos == 0 || query_string.at(pos - 1) == '&')) {
-                        const std::string::size_type& amp_pos(query_string.find('&', pos + 5));
-                        creation_time = boost::lexical_cast<time_t>(
-                                std::string(query_string, pos + 5,
-                                            amp_pos != std::string::npos ? (amp_pos - pos - 5) : std::string::npos));
-                    }
-                }
-
-                {
-                    const std::string::size_type& pos(query_string.find("pbx="));
-                    if (pos != std::string::npos && (pos == 0 || query_string.at(pos - 1) == '&')) {
-                        const std::string::size_type& amp_pos(query_string.find('&', pos + 4));
-                        pbx_hostname = std::string(query_string, pos + 4,
-                                                   amp_pos != std::string::npos ? (amp_pos - pos - 4)
-                                                                                : std::string::npos);
-                    }
-                }
-            }
-
-            if (content_length == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Length not given"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::length_required)));
-            }
-
-            if (content_length <= static_cast<size_t>(0)) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Length invalid"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (content_type == boost::none || (*content_type).empty()) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Type invalid"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (content_md5 == boost::none || (*content_md5).empty()) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-MD5 invalid"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (policy_id == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Policy-ID not given"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (creation_time == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Creation-Time not specified"))
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-        } catch (const error::http_error_exception& e) {
-            throw;
-        } catch (const std::exception& e) {
-            boost::throw_exception(
-                    boost::enable_error_info(error::http_error_exception(e.what()))
-                            << error::error_info_error_condition(
-                                    boost::system::error_condition(error::http::bad_request)));
-        }
-    }
-};
-
-
-std::ostream& operator<<(std::ostream& os, const request_properties& h)
-{
-    os << '{';
-
-    os << "file_type: " << h.file_type << ", ";
-    os << "org_id: " << h.org_id << ", ";
-    os << "uuid: " << h.uuid << ", ";
-
-    os << "creation_time: " << h.creation_time << ", ";
-    os << "policy_id: " << h.policy_id << ", ";
-
-    os << "expect_100_continue: " << h.expect_100_continue << ", ";
-    os << "content_length: " << h.content_length << ", ";
-    os << "content_type: " << h.content_type << ", ";
-    os << "pbx_hostname: " << h.pbx_hostname << ", ";
-    os << "content_md5: " << h.content_md5;
-
-    os << '}';
-
-    return os;
-}
-
-
-struct handled_request
-{
-    const uint64_t id;
-
-    const http_connection_ptr_type connection;
-    const request_properties properties;
-
-    size_t bytes_remaining;
-    boost::shared_ptr<rml::utils::tmp_fstream> fstream;
-
-    handled_request(const rml::utils::snowflake::id_t id, const http_connection_ptr_type& connection,
-                    const http_request_type& request) :
-            id(id), connection(connection), properties(request),
-            bytes_remaining(*(properties.content_length))
-    {}
-};
-
 struct archived_shim
 {
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "TemplateArgumentsIssues"
-    typedef boost::unordered_map<uint64_t, boost::shared_ptr<handled_request> > handled_request_map_type;
-#pragma clang diagnostic pop
-
     rml::utils::snowflake& snowflake;
+
     const boost::shared_ptr<archivable_queue> send_queue;
     const boost::shared_ptr<response_queue> responder_queue;
 
-    boost::mutex mutex;
-    handled_request_map_type connection_map;
+    http::pending_request_map pending_requests;
 
     boost::atomic_bool shutting_down;
 
@@ -394,52 +102,48 @@ struct archived_shim
             snowflake(snowflake), send_queue(send_queue), responder_queue(responder_queue), shutting_down(false)
     {}
 
-    void read_callback(
+    void read_request_body_to_stream(
             const boost::iterator_range<const char*>& bytes_range,
             const boost::system::error_code& ec,
             const size_t& bytes_count,
-            const http_connection_ptr_type& connection,
-            const boost::shared_ptr<handled_request> request_state)
+            const boost::shared_ptr<http::connection_type>& connection,
+
+            size_t& bytes_remaining,
+            const boost::shared_ptr<std::iostream>& stream,
+            const http::correlation& correlation,
+            const boost::function<void(bool)> completion_callback)
     try
     {
-        // if there are errors; bail out and return the error to client or most likely just close the connection / just drop it off!
         if (ec || connection->has_error()) {
-            LogMessage(request_state->id << " Error while reading request; ErrorCode:'" << ec << "' ConnectionError:"
-                                         << RML_YES_NO(connection->has_error()));
+            LogMessage(correlation << " Error while reading request; ErrorCode:'" << ec << "' ConnectionError:"
+                                   << RML_YES_NO(connection->has_error()));
+            completion_callback(false);
             return;
         }
 
-        request_state->fstream->write(bytes_range.begin(), bytes_count);
-        request_state->bytes_remaining -= bytes_count;
-        if (request_state->bytes_remaining > 0) {
+        stream->write(bytes_range.begin(), bytes_count);
+        bytes_remaining -= bytes_count;
+        if (bytes_remaining > 0) {
             // If we are to handle too many requests, resulting in too many open file-handles, consider closing
             // the file-stream here, and re-opening before the next write (in append-mode)
 
             // if there are more to get from the request, keep reading
             connection->read(
-                    boost::bind(&archived_shim::read_callback, this, _1, _2, _3, _4, request_state));
-            return;
+                    boost::bind(&archived_shim::read_request_body_to_stream, this, _1, _2, _3, _4,
+                                bytes_remaining, stream, correlation, boost::protect(completion_callback)));
+        } else {
+            completion_callback(true);
         }
+    } catch (const std::exception& e) {
+        LogError(correlation << " Error while reading request; " << e.what());
+        // completion_callback(false);
+    }
 
-        request_state->fstream->close();
-
-        // prepare the archivable object
-        boost::shared_ptr<archiving::archivable> archivable(
-                new archiving::archivable(
-                        boost::lexical_cast<std::string>(request_state->properties.uuid),
-                        "" /* originator uuid */,
-                        *(request_state->properties.creation_time),
-                        request_state->fstream->get_filename(),
-                        *(request_state->properties.file_type),
-                        "json",
-                        request_state->properties.get_pbx_hostname(),
-                        *(request_state->properties.policy_id),
-                        false,
-                        false,
-                        "" /* modified file path */,
-                        *(request_state->properties.content_md5),
-                        archiving::archivable::state::collected));
-        archivable->set_database_id(request_state->id);
+    void enqueue_put_archivable(const boost::shared_ptr<archiving::archivable> archivable,
+                                const boost::shared_ptr<const http::pending_request> pending_request)
+    try
+    {
+        archivable->set_database_id(pending_request->correlation.id);
 
         boost::system::error_condition error;
         send_queue->produce(archivable, boost::chrono::seconds(10), error);
@@ -449,6 +153,7 @@ struct archived_shim
             if (is_busy_or_shutting_down) {
                 boost::throw_exception(
                         boost::enable_error_info(error::http_error_exception())
+                                << error::error_info_request_correlation(pending_request->correlation)
                                 << error::error_info_error_condition(
                                         boost::system::error_condition(error::http::service_unavailable))
                                 << error::error_info_internal_error_message(error.message()));
@@ -456,47 +161,49 @@ struct archived_shim
 
             boost::throw_exception(
                     boost::enable_error_info(error::internal_error_exception())
+                            << error::error_info_request_correlation(pending_request->correlation)
                             << error::error_info_error_condition(error));
         }
     } catch (const error::http_error_exception& e) {
-        if (std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(
-                e)) {
-            LogError(request_state->id << " Error: " << *internal_error_message);
-        }
-
-        boost::system::error_condition const* error_condition = boost::get_error_info<
-                error::error_info_error_condition>(e);
-        if (error_condition) {
-            LogVerbose(request_state->id << " Error: " << *error_condition);
-        }
-
-        const std::string message(e.what());
-
-        boost::system::error_condition error;
-        responder_queue->produce(response(request_state->id, *error_condition, message), error);
-        if (error) {
-            LogError(request_state->id << " Failed to setup error-response; " << error);
-        }
+        respond(e);
     } catch (const std::exception& e) {
-        LogError(request_state->id << " Exception: " << e.what());
+        respond(e);
+    }
 
-        if (std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(
-                e)) {
-            LogError(request_state->id << " Error: " << *internal_error_message);
+    inline
+    bool respond(const std::exception& e)
+    {
+        http::correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
+        if (!e_correlation) {
+            LogError("Request-correlation NOT found in exception");
+            return false;
         }
 
-        if (boost::system::error_condition const* error_condition =
-                boost::get_error_info<error::error_info_error_condition>(e)) {
-            LogError(request_state->id << " Error: " << *error_condition);
+        const http::correlation& correlation(*e_correlation);
+
+        LogError(correlation << " Exception: " << e.what());
+
+        std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(e);
+        if (internal_error_message) {
+            LogError(correlation << " Error: " << *internal_error_message);
+        }
+
+        boost::system::error_condition const* error_condition =
+                boost::get_error_info<error::error_info_error_condition>(e);
+        if (error_condition) {
+            LogError(correlation << " Error: " << *error_condition);
         }
 
         boost::system::error_condition error;
-        responder_queue->produce(
-                response(request_state->id, boost::system::error_condition(error::http::internal_server_error)),
-                error);
+        responder_queue->produce(boost::make_shared<response>(correlation.id,
+                                                              boost::system::error_condition(
+                                                                      error::http::internal_server_error)), error);
         if (error) {
-            LogError(request_state->id << " Failed to setup error-response; " << error);
+            LogError(correlation << " Failed to setup error-response; " << error);
+            return false;
         }
+
+        return true;
     }
 
     /**
@@ -520,7 +227,7 @@ struct archived_shim
 
             ec.clear();
             responder_queue->produce(
-                    response(item->get_database_id(), boost::system::error_condition(
+                    boost::make_shared<response>(item->get_database_id(), boost::system::error_condition(
                             error::http::service_unavailable)), ec);
             if (ec) {
                 LogError(item->get_database_id() << " Failed to setup error-response; " << ec);
@@ -544,12 +251,18 @@ struct archived_shim
     {
         while (true) {
             try {
-                response res;
+                boost::shared_ptr<response> res;
                 boost::system::error_condition error;
                 responder_queue->consume(res, error);
                 if (!error) {
-                    LogMessage(res.id << " Result: " << res.upshot << " Message: " << res.message);
-                    finalise_request(res.id, res.upshot, res.message);
+                    boost::shared_ptr<const http::pending_request> pending_request =
+                            pending_requests.lookup(res->request_id);
+                    if (pending_request) {
+                        LogMessage(pending_request->correlation << " Result: " << *res);
+                        finalise_request(pending_request, res->upshot, res->message);
+                    } else {
+                        LogError("Could not find pending-request-instance for request-id:" << res->request_id);
+                    }
                 } else if (error == queue::error::make_error_condition(queue::error::runtime_errors::is_finishing)) {
                     break;
                 } else {
@@ -562,15 +275,17 @@ struct archived_shim
     }
 
     inline
-    void finalise_request(const rml::utils::snowflake::id_t id, const boost::system::error_condition& ec,
+    void finalise_request(const boost::shared_ptr<const http::pending_request>& pending_request,
+                          const boost::system::error_condition& ec,
                           const std::string& message)
     {
         if (ec.category() != error::get_http_category()) {
-            LogError(id << ' ' << error::http::internal_server_error << " Internal Error: " << message
-                        << " (" << ec << ')');
-            finalise_request(id, error::http::internal_server_error, (message.empty() ? "Internal Error" : message));
+            LogError(pending_request->correlation << ' ' << error::http::internal_server_error << " Internal Error: "
+                                                  << message << " (" << ec << ')');
+            finalise_request(pending_request, error::http::internal_server_error,
+                             (message.empty() ? "Internal Error" : message));
         } else {
-            finalise_request(id, static_cast<error::http::enum_t>(ec.value()), message);
+            finalise_request(pending_request, static_cast<error::http::enum_t>(ec.value()), message);
         }
     }
 
@@ -590,151 +305,101 @@ struct archived_shim
     }
 
     inline
-    void finalise_request(const rml::utils::snowflake::id_t id, const error::http::enum_t status_code,
+    void finalise_request(const boost::shared_ptr<const http::pending_request>& pending_request,
+                          const error::http::enum_t status_code,
                           const std::string& message)
     {
-        send_response(id, status_code, render_response(status_code, message), true);
+        if (!pending_request->request.respond(status_code, "application/json", render_response(status_code, message))) {
+
+            LogError(pending_request->correlation << " Failed to send response");
+        }
+
+        pending_requests.remove(pending_request);
     }
 
     inline
-    void send_response(const rml::utils::snowflake::id_t id, const error::http::enum_t status_code,
-                       const std::string& response_body, const bool finish_request)
+    bool respond(const error::http_error_exception& e)
     {
-        bool finish_request_(finish_request);
-
-        handled_request_map_type::iterator itr = connection_map.find(id);
-        if (itr == connection_map.end()) {
-            LogError("Unable to find request instance in map; ID:" << id);
-            return;
+        http::correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
+        if (!e_correlation) {
+            LogError("Request-correlation NOT found in exception");
+            return false;
         }
 
-        boost::shared_ptr<handled_request> request_state = itr->second;
-        if (!send_response(request_state->connection, status_code, response_body)) {
-            finish_request_ = true;
+        const http::correlation& correlation(*e_correlation);
+
+        std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(e);
+        if (internal_error_message) {
+            LogError(correlation << " Error: " << *internal_error_message);
         }
 
-        if (finish_request_) {
-            connection_map.erase(itr);
+        boost::system::error_condition const* ec = boost::get_error_info<error::error_info_error_condition>(e);
+        if (!ec) {
+            LogError(correlation << " http_error_exception without error_condition");
+            return false;
         }
+
+        LogVerbose(correlation << " Error: " << *ec);
+
+        boost::system::error_condition error;
+        responder_queue->produce(boost::make_shared<response>(correlation.id, *ec, e.what()), error);
+        if (error) {
+            LogError(correlation << " Failed to setup error-response; " << error);
+            return false;
+        }
+
+        return true;
     }
 
-    inline
-    bool respond(const http_connection_ptr_type& connection, const error::http::enum_t status_code,
-                 const std::string& message)
+    void respond_internal_server_error(http::server::connection_ptr connection)
     {
-        return send_response(connection, status_code, render_response(status_code, message));
+        http::send_response(connection, error::http::internal_server_error, "text/plain", "Internal Server Error");
     }
 
-    inline
-    bool send_response(const http_connection_ptr_type connection, const error::http::enum_t status_code,
-                       const std::string& response_body)
-    {
-        if (status_code == error::http::continue_) {
-            boost::system::error_code ec;
-            connection->socket().write_some(boost::asio::buffer("HTTP/1.1 100 Continue\r\n\r\n"), ec);
-            return !ec;
-        }
-
-//        http_response_header_type response_headers[] = {
-//                {"Connection",   "close"}
-//                {"Content-Type", "application/json"}
-//        };
-
-        boost::container::slist<http_response_header_type> headers;
-        {
-            http_response_header_type connection = {"Connection", "close"};
-            headers.push_front(connection);
-        }
-
-        http_status_type status;
-        if (to_netlib_status(status_code, status)) {
-            connection->set_status(status);
-
-            if (!response_body.empty()) {
-                http_response_header_type content_type = {"Content-Type", "application/json"};
-                headers.push_front(content_type);\
-                http_response_header_type content_length = {"Content-Length",
-                                                            boost::lexical_cast<std::string>(response_body.length())};
-                headers.push_front(content_length);
-            }
-
-            connection->set_headers(boost::make_iterator_range(headers.begin(), headers.end()));
-
-            if (!response_body.empty()) {
-                connection->write(response_body);
-            }
-
-            return true;
-        }
-
-        LogError("Failed to translate response-code");
-
-        connection->set_status(http_connection_type::internal_server_error);
-        const std::string body("Internal Server Error");
-        {
-            http_response_header_type content_type = {"Content-Type", "text/plain"};
-            headers.push_front(content_type);
-            http_response_header_type content_length = {"Content-Length",
-                                                        boost::lexical_cast<std::string>(body.length())};
-            headers.push_front(content_length);
-        }
-        connection->set_headers(boost::make_iterator_range(headers.begin(), headers.end()));
-        connection->write(body);
-
-        return false;
-    }
-
-    void operator()(http_request_type const& request, http_connection_ptr_type connection)
+    void operator()(http::server::request const& request, http::server::connection_ptr connection)
     try
     {
+        const rml::utils::snowflake::id_t& id(snowflake.make_id());
+
+        boost::shared_ptr<http::pending_request> pending_request =
+                boost::make_shared<http::pending_request>(id, request, connection);
+
         if (shutting_down == true) {
-            respond(connection, error::http::service_unavailable, "Service Unavailable");
+            pending_request->request.respond(error::http::service_unavailable);
             return;
         }
 
-        // Make a snowflake-id
-        const rml::utils::snowflake::id_t& id(snowflake.make_id());
+        try {
+            LogMessage(pending_request->correlation
+                               << ' ' << pending_request->request.get_method()
+                               << ' ' << pending_request->request.get_path() << " Handling request");
 
-        // read the data from request and save to file
-        boost::shared_ptr<handled_request> request_state = boost::make_shared<handled_request>(id, connection, request);
-        if (request_state->properties.content_length != boost::none
-            && request_state->properties.content_length > static_cast<size_t>(0)) {
-
-            const std::string& path(
-                    boost::str(boost::format("%1%_%2%_%3%") %
-                               archiving::file_type::to_string(*(request_state->properties.file_type)) %
-                               request_state->properties.org_id % request_state->properties.uuid));
-            try {
-                request_state->fstream = rml::utils::tmp_fstream::create(path, request_state->bytes_remaining, "/tmp");
-            } catch (const rml::utils::tmp_fstream::error& e) {
-                if (std::strcmp("Failed to reserve space", e.what()) == 0) {
-                    respond(connection, error::http::insufficient_storage, e.what());
-                } else {
-                    LogError(id << ' ' << e.what());
-                    respond(connection, error::http::internal_server_error, "Internal error");
+            if (pending_request->request.expect_100_continue()) {
+                if (!pending_request->request.respond(error::http::continue_)) {
+                    LogMessage(pending_request->correlation << " Failed to send 'Continue'");
                     return;
                 }
             }
 
-            if (request_state->properties.expect_100_continue == true) {
-                if (!send_response(connection, error::http::continue_, "")) {
-                    return;
-                }
-            }
+            pending_requests.add(pending_request);
 
-            // save the connection object so that we can write back a response
-            // put connection into a map[snowflake-id, connection_state<connection_ptr>]
-            {
-                boost::unique_lock<boost::mutex> lock(mutex);
-                connection_map.insert(std::make_pair(id, request_state));
-            }
+            boost::shared_ptr<const put_object_request> put_request =
+                    pending_request->make_shared_data_from_request<put_object_request>();
 
             connection->read(
-                    boost::bind(&archived_shim::read_callback, this, _1, _2, _3, _4, request_state));
+                    boost::bind(&archived_shim::read_request_body_to_stream, this, _1, _2, _3, _4,
+                                boost::ref(put_request->bytes_remaining), put_request->get_iostream(),
+                                boost::cref(pending_request->correlation),
+                                boost::protect(boost::bind(&put_object_request::enqueue_archivable, put_request, _1,
+                                                           boost::protect(
+                                                                   boost::bind(&archived_shim::enqueue_put_archivable,
+                                                                               this, _1, pending_request))))));
+        } catch (const error::http_error_exception& e) {
+            respond(e);
         }
     } catch (const std::exception& e) {
         LogError("Error while accepting a request; Error: " << e.what());
-        respond(connection, error::http::internal_server_error, "Internal error");
+        respond_internal_server_error(connection);
     }
 };
 

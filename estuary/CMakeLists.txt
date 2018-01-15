@@ -20,7 +20,14 @@ set(HEADER_FILES
         app/error.hpp
         app/queue/queue.hpp
         app/queue/error.hpp
-        app/archivable_queue.hpp)
+        app/archivable_queue.hpp
+        app/http/correlation.hpp
+        app/http/request_wrapped.hpp
+        app/http/server.hpp
+        app/handled_request.hpp
+        app/put_object_request.hpp
+        app/http/detail/path_info.hpp
+        app/http/detail/query_map.hpp app/http/pending_request_map.hpp app/http/pending_request.hpp)
 
 include_directories(
         /usr/include/cpp-netlib
@@ -65,6 +72,6 @@ target_link_libraries(rmestuary.bin
 
         cppnetlib-uri
         cppnetlib-server-parsers
-)
+        )
 
 #add_subdirectory(tests)

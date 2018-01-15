@@ -9,6 +9,8 @@
 #ifndef ARCHIVING_ESTUARY_APP_ERRORS_HPP
 #define ARCHIVING_ESTUARY_APP_ERRORS_HPP
 
+#include "http/correlation.hpp"
+
 #include <boost/type_traits/integral_constant.hpp>
 
 namespace app
@@ -161,6 +163,9 @@ typedef boost::error_info<tag_error_condition, boost::system::error_condition> e
 
 struct tag_internal_error_message;
 typedef boost::error_info<tag_internal_error_message, std::string> error_info_internal_error_message;
+
+struct tag_request_correlation;
+typedef boost::error_info<tag_request_correlation, const app::http::correlation> error_info_request_correlation;
 
 struct http_error_exception : public std::runtime_error
 {

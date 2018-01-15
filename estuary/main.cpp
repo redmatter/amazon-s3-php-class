@@ -289,8 +289,8 @@ int main(int argc, const char* argv[]) try
                 boost::make_shared<boost::asio::io_service>();
 
         app::archived_shim archived_shim(snowflake, archivable_queue, response_queue);
-        boost::shared_ptr<app::http_server> http_server = boost::make_shared<app::http_server>(
-                app::http_server::options(archived_shim)
+        boost::shared_ptr<app::http::server> http_server = boost::make_shared<app::http::server>(
+                app::http::server::options(archived_shim)
                         .address(config["http_server.listen_address"].as<std::string>())
                         .port(config["http_server.listen_port"].as<std::string>())
                         .thread_pool(
@@ -329,7 +329,7 @@ int main(int argc, const char* argv[]) try
         {
             unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 4, 2);
             while (0 < n_threads--) {
-                http_server_threads->create_thread(boost::bind(&app::http_server::run, http_server));
+                http_server_threads->create_thread(boost::bind(&app::http::server::run, http_server));
             }
         }
 

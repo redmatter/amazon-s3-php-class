@@ -20,35 +20,38 @@ namespace app
 
 struct response
 {
-    uint64_t id;
-    boost::system::error_condition upshot;
-    std::string message;
+    const uint64_t request_id;
+    const boost::system::error_condition upshot;
+    const std::string message;
 
-    response(const uint64_t& id, const boost::system::error_condition& upshot, const std::string& message) :
-            id(id), upshot(upshot), message(message)
+    response(const uint64_t request_id, const boost::system::error_condition& upshot, const std::string& message) :
+            request_id(request_id), upshot(upshot), message(message)
     {}
 
-    response(const uint64_t& id, const boost::system::error_condition& upshot) : id(id), upshot(upshot)
+    response(const uint64_t request_id, const boost::system::error_condition& upshot) :
+            request_id(request_id), upshot(upshot)
     {}
 
-    response(const response& other) : id(other.id), upshot(other.upshot), message(other.message)
-    {}
+private:
+    response();
 
-    response& operator=(const response& other)
-    {
-        id = other.id;
-        upshot = other.upshot;
-        message = other.message;
+    response(const response& other);
 
-        return *this;
-    }
-
-    response() : id(0)
-    {}
+    response& operator=(const response& other);
 };
 
+std::ostream& operator<<(std::ostream& os, const response& r)
+{
+    os << r.upshot;
+    if (!r.message.empty()) {
+        os << " Message:" << r.message;
+    }
+
+    return os;
+}
+
 typedef queue::base_queue<boost::shared_ptr<archiving::archivable> > archivable_queue;
-typedef queue::base_queue<response> response_queue;
+typedef queue::base_queue<boost::shared_ptr<response> > response_queue;
 
 boost::shared_ptr<archiving::archivable> consume_archivable(
         const boost::shared_ptr<archivable_queue>& queue,
@@ -77,20 +80,20 @@ void produce_response_on_error(const boost::shared_ptr<response_queue>& queue,
                                const boost::shared_ptr<archiving::archivable>& archivable, const bool _ignored_)
 {
     boost::system::error_condition error;
-    queue->produce(
-            response(archivable->get_database_id(), boost::system::error_condition(error::http::internal_server_error)),
-            error);
+    queue->produce(boost::make_shared<response>(archivable->get_database_id(),
+                                                boost::system::error_condition(error::http::internal_server_error)),
+                   error);
     if (error) {
         LogError("Error scheduling response; " << error);
     }
 }
 
 void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
-                               const boost::shared_ptr<archiving::archivable>& archivable)
+                                 const boost::shared_ptr<archiving::archivable>& archivable)
 {
     boost::system::error_condition error;
-    queue->produce(
-            response(archivable->get_database_id(), boost::system::error_condition(error::http::no_content)), error);
+    queue->produce(boost::make_shared<response>(archivable->get_database_id(),
+                                                boost::system::error_condition(error::http::no_content)), error);
     if (error) {
         LogError("Error scheduling response; " << error);
     }
@@ -98,12 +101,12 @@ void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
 
 void dummy_remove_from_catalogue(const boost::shared_ptr<archiving::archivable>& archivable)
 {
-    (void)archivable;
+    (void) archivable;
 }
 
 bool dummy_save_to_database(const boost::shared_ptr<archiving::archivable>& archivable)
 {
-    (void)archivable;
+    (void) archivable;
     return true;
 }
 
