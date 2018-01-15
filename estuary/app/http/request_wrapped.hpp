@@ -42,7 +42,7 @@ struct request_wrapped
     inline
     std::string get_path() const
     {
-        return boost::network::uri::decoded_path(boost::network::uri::uri(req.destination));
+        return boost::network::uri::decoded_path(boost::network::uri::uri(boost::network::http::destination(req)));
     }
 
     const detail::path_info& get_path_vector() const
@@ -58,7 +58,7 @@ struct request_wrapped
     const detail::query_map& get_query_map() const
     {
         if (!query_map_) {
-            boost::network::uri::query_map(boost::network::uri::uri(req.destination), query_map);
+            boost::network::uri::query_map(boost::network::uri::uri(boost::network::http::destination(req)), query_map);
             query_map_ = true;
         }
 
