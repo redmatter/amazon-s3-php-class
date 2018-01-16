@@ -88,7 +88,7 @@ struct put_object_request
             creation_time(req.request.get_query_map().get_first_value_as<time_t>("time")),
             policy_id(req.request.get_query_map().get_first_value_as<app::policy::id_type>("policy")),
             pbx_hostname(req.request.get_query_map().get_first_value_as<std::string>("pbx")),
-            leg_uuid(req.request.get_query_map().get_first_value_as<boost::uuids::uuid>("leg-uuid")),
+            leg_uuid(req.request.get_query_map().get_first_value_as<boost::uuids::uuid>("legUuid")),
             user_id(req.request.get_query_map().get_first_value_as<archiving::user_id_t>("user")),
 
             content_length(req.request.get_first_header_value_as<size_t>("Content-Length")),
