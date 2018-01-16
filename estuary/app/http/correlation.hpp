@@ -10,6 +10,7 @@
 #define ARCHIVING_ESTUARY_APP_correlation_HPP
 
 #include <boost/optional.hpp>
+#include <boost/optional/optional_io.hpp>
 #include <boost/io/ios_state.hpp>
 
 #include <string>
@@ -38,15 +39,17 @@ std::ostream& operator<<(std::ostream& os, const correlation& rc)
 {
     boost::io::ios_flags_saver ifs(os);
 
-    os << std::hex << std::setfill('0') << std::setw(16) << rc.id;
+    os << '[' << std::hex << std::setfill('0') << std::setw(16) << rc.id << ']';
 
-    if (rc.request_id != boost::none) {
-        os << " [" << *rc.request_id << ']';
+    if (rc.request_id == boost::none) {
+        os << ' ';
     }
+    os << rc.request_id;
 
-    if (rc.correlation_id != boost::none) {
-        os << " [" << *rc.correlation_id << ']';
+    if (rc.correlation_id == boost::none) {
+        os << ' ';
     }
+    os << rc.correlation_id;
 
     return os;
 }
