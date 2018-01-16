@@ -35,6 +35,8 @@ struct put_object_request
     const boost::optional<time_t> creation_time;
     const boost::optional<app::policy::id_type> policy_id;
     const boost::optional<std::string> pbx_hostname;
+    const boost::optional<boost::uuids::uuid> leg_uuid;
+    const boost::optional<archiving::user_id_t> user_id;
 
     const boost::optional<size_t> content_length;
     const boost::optional<std::string> content_type;
@@ -85,6 +87,8 @@ struct put_object_request
             creation_time(req.request.get_query_map().get_first_value_as<time_t>("time")),
             policy_id(req.request.get_query_map().get_first_value_as<app::policy::id_type>("policy")),
             pbx_hostname(req.request.get_query_map().get_first_value_as<std::string>("pbx")),
+            leg_uuid(req.request.get_query_map().get_first_value_as<boost::uuids::uuid>("leg-uuid")),
+            user_id(req.request.get_query_map().get_first_value_as<archiving::user_id_t>("user")),
 
             content_length(req.request.get_first_header_value_as<size_t>("Content-Length")),
             content_type(req.request.get_first_header_value_as<std::string>("Content-Type")),
@@ -211,6 +215,17 @@ struct put_object_request
                         "" /* modified file path */,
                         *(content_md5),
                         archiving::archivable::state::collected));
+
+        if (leg_uuid != boost::none) {
+            archivable->set_leg_uuid(boost::lexical_cast<std::string>(*leg_uuid));
+        }
+
+        boost::shared_ptr<archiving::owner_info> owners = boost::make_shared<archiving::owner_info>(*org_id);
+        if (user_id != boost::none) {
+            owners->addUser(*user_id);
+        }
+
+        archivable->set_owners(*owners);
 
         enqueue_callback(archivable);
     }
