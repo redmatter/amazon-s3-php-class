@@ -374,17 +374,19 @@ struct archived_shim
                                << ' ' << pending_request->request.get_method()
                                << ' ' << pending_request->request.get_path() << " Handling request");
 
-            if (pending_request->request.expect_100_continue()) {
-                if (!pending_request->request.respond(error::http::continue_)) {
-                    LogMessage(pending_request->correlation << " Failed to send 'Continue'");
-                    return;
-                }
-            }
-
             pending_requests.add(pending_request);
 
             boost::shared_ptr<const put_object_request> put_request =
                     pending_request->make_shared_data_from_request<put_object_request>();
+
+            // https://stackoverflow.com/a/8880116/83005
+            if (pending_request->request.expect_100_continue()) {
+                if (!pending_request->request.respond(error::http::continue_)) {
+                    LogMessage(pending_request->correlation << " Failed to send 'Continue'");
+                    pending_requests.remove(pending_request);
+                    return;
+                }
+            }
 
             connection->read(
                     boost::bind(&archived_shim::read_request_body_to_stream, this, _1, _2, _3, _4,
