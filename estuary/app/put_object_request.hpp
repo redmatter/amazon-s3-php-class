@@ -202,7 +202,7 @@ struct put_object_request
         // prepare the archivable object
         boost::shared_ptr<archiving::archivable> archivable(
                 new archiving::archivable(
-                        boost::lexical_cast<std::string>(uuid),
+                        boost::lexical_cast<std::string>(*uuid),
                         "" /* originator uuid */,
                         *(creation_time),
                         fstream->get_filename(),
