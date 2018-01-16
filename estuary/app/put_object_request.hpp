@@ -93,119 +93,95 @@ struct put_object_request
 
             bytes_remaining(content_length != boost::none ? *content_length : 0)
     {
-        try {
-            if (req.request.get_method() != "PUT") {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception())
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::method_not_allowed)));
-            }
-
-            if (accept != boost::none &&
-                !boost::regex_search(*accept, boost::regex("(?:^|, )(?:application/json|\\*/\\*)(?=$|[;,])"))) {
-
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("JSON not acceptable"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::not_acceptable)));
-            }
-
-            if (file_type == boost::none || org_id == boost::none || uuid == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Unexpected path-info in request"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (content_length == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Length not given"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::length_required)));
-            }
-
-            if (content_length <= static_cast<size_t>(0)) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Length invalid"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (content_type == boost::none || (*content_type).empty()) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-Type invalid"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (content_md5 == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Content-MD5 invalid"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (policy_id == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Policy-ID not given"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            if (creation_time == boost::none) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception("Creation-Time not specified"))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::bad_request)));
-            }
-
-            try {
-                const std::string& path(
-                        boost::str(boost::format("%1%_%2%_%3%")
-                                   % archiving::file_type::to_string(*file_type) % *org_id % *uuid));
-                fstream = rml::utils::tmp_fstream::create(path, *content_length, "/tmp");
-            } catch (const rml::utils::tmp_fstream::error& e) {
-                if (std::strcmp("Failed to reserve space", e.what()) == 0) {
-                    boost::throw_exception(
-                            boost::enable_error_info(error::http_error_exception(e.what()))
-                                    << error::error_info_request_correlation(req.correlation)
-                                    << error::error_info_error_condition(
-                                            boost::system::error_condition(error::http::insufficient_storage)));
-                } else {
-                    throw;
-                }
-            }
-        } catch (const error::http_error_exception& e) {
-            throw;
-        } catch (const rml::utils::tmp_fstream::error& e) {
-            if (std::strcmp("Failed to reserve space", e.what()) == 0) {
-                boost::throw_exception(
-                        boost::enable_error_info(error::http_error_exception(e.what()))
-                                << error::error_info_request_correlation(req.correlation)
-                                << error::error_info_error_condition(
-                                        boost::system::error_condition(error::http::insufficient_storage)));
-            }
-        } catch (const boost::bad_lexical_cast& e) {
+        if (req.request.get_method() != "PUT") {
             boost::throw_exception(
-                    boost::enable_error_info(error::http_error_exception(e.what()))
+                    boost::enable_error_info(error::http_error_exception())
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::method_not_allowed)));
+        }
+
+        if (accept != boost::none &&
+            !boost::regex_search(*accept, boost::regex("(?:^|, )(?:application/json|\\*/\\*)(?=$|[;,])"))) {
+
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("JSON not acceptable"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::not_acceptable)));
+        }
+
+        if (file_type == boost::none || org_id == boost::none || uuid == boost::none) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Unexpected path-info in request"))
                             << error::error_info_request_correlation(req.correlation)
                             << error::error_info_error_condition(
                                     boost::system::error_condition(error::http::bad_request)));
-        } catch (const std::exception& e) {
+        }
+
+        if (content_length == boost::none) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Content-Length not given"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::length_required)));
+        }
+
+        if (content_length <= static_cast<size_t>(0)) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Content-Length invalid"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        }
+
+        if (content_type == boost::none || (*content_type).empty()) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Content-Type invalid"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        }
+
+        if (content_md5 == boost::none) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Content-MD5 invalid"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        }
+
+        if (policy_id == boost::none) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Policy-ID not given"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        }
+
+        if (creation_time == boost::none) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception("Creation-Time not specified"))
+                            << error::error_info_request_correlation(req.correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        }
+
+        try {
+            const std::string& path(
+                    boost::str(boost::format("%1%_%2%_%3%")
+                               % archiving::file_type::to_string(*file_type) % *org_id % *uuid));
+            fstream = rml::utils::tmp_fstream::create(path, *content_length, "/tmp");
+        } catch (const rml::utils::tmp_fstream::error& e) {
+            if (std::strcmp("Failed to reserve space", e.what()) != 0) {
+                throw;
+            }
+
             boost::throw_exception(
                     boost::enable_error_info(error::http_error_exception(e.what()))
                             << error::error_info_request_correlation(req.correlation)
                             << error::error_info_error_condition(
-                                    boost::system::error_condition(error::http::internal_server_error)));
+                                    boost::system::error_condition(error::http::insufficient_storage)));
         }
     }
 

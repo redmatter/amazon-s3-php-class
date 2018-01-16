@@ -43,9 +43,25 @@ struct pending_request
     template<typename T>
     boost::shared_ptr<const T> make_shared_data_from_request() const
     {
-        boost::shared_ptr<const T> d = boost::make_shared<T>(*this);
-        data = d;
-        return d;
+        try {
+            boost::shared_ptr<const T> d = boost::make_shared<T>(*this);
+            data = d;
+            return d;
+        } catch (const error::http_error_exception& e) {
+            throw;
+        } catch (const boost::bad_lexical_cast& e) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception(e.what()))
+                            << error::error_info_request_correlation(correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        } catch (const std::exception& e) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception(e.what()))
+                            << error::error_info_request_correlation(correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::internal_server_error)));
+        }
     }
 
     template<typename T>
