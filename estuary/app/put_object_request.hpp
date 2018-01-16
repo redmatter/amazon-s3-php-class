@@ -15,6 +15,7 @@
 #include "utils.hpp"
 #include "archivable_queue.hpp"
 #include "http/pending_request.hpp"
+#include "../../archived/types.hpp"
 
 #include <boost/shared_ptr.hpp>
 #include <boost/uuid/uuid.hpp>
@@ -207,7 +208,8 @@ struct put_object_request
                         *(creation_time),
                         fstream->get_filename(),
                         *(file_type),
-                        "json",
+                        app::types::data_sub_format::to_string(
+                                app::types::data_sub_format::from_mime_type(*content_type)),
                         get_pbx_hostname(),
                         *(policy_id),
                         false,

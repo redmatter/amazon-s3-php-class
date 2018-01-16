@@ -146,6 +146,24 @@ struct data_sub_format
 		return unknown;
 	}
 
+	static inline data_sub_format_t from_mime_type(const std::string& mime)
+	{
+		if(mime == "application/octet-stream")
+			return binary;
+		if(mime == "application/xml")
+			return xml;
+		if(mime == "audio/wav")
+			return wav;
+		if(mime == "audio/mpeg")
+			return mp3;
+		if(mime == "application/vnd.tcpdump.pcap")
+			return pcap;
+		if(mime == "message/rfc822")
+			return email;
+
+		return unknown;
+	}
+
 	static inline_ data_sub_format_t from_filename(const std::string& filename)
 	{
 		std::size_t pos = filename.rfind('.');
