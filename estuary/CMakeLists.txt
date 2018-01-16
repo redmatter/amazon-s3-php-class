@@ -53,6 +53,8 @@ add_definitions(
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
 
         -DARCHIVED_LISTEN_PORT="10100"
+
+        -DBOOST_NETWORK_HTTP_SERVER_CONNECTION_BUFFER_SIZE=4096
 )
 
 add_executable(rmestuary.bin main.cpp ${HEADER_FILES})

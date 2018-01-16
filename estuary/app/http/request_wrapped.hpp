@@ -42,7 +42,19 @@ struct request_wrapped
     inline
     std::string get_path() const
     {
-        return boost::network::http::destination(req);
+        const std::string destination(boost::network::http::destination(req));
+        return std::string(destination, 0, destination.find('?'));
+    }
+
+    inline std::string get_query() const
+    {
+        const std::string destination(boost::network::http::destination(req));
+        const std::string::size_type& query_pos(destination.find('?'));
+        if (query_pos == std::string::npos) {
+            return "";
+        }
+
+        return std::string(destination, query_pos + 1);
     }
 
     const detail::path_info& get_path_vector() const
@@ -58,7 +70,12 @@ struct request_wrapped
     const detail::query_map& get_query_map() const
     {
         if (!query_map_) {
-            boost::network::uri::query_map(boost::network::uri::uri(boost::network::http::destination(req)), query_map);
+            const boost::network::uri::uri uri("http://ignore-me" + std::string(boost::network::http::destination(req)));
+            if (uri.is_valid()) {
+                boost::network::uri::query_map(uri, query_map);
+            } else {
+                LogError("Invalid URI "<<std::string(boost::network::http::destination(req)));
+            }
             query_map_ = true;
         }
 
