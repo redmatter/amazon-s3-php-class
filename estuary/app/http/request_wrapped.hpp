@@ -42,7 +42,7 @@ struct request_wrapped
     inline
     std::string get_path() const
     {
-        return boost::network::uri::decoded_path(boost::network::uri::uri(boost::network::http::destination(req)));
+        return boost::network::http::destination(req);
     }
 
     const detail::path_info& get_path_vector() const
