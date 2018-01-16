@@ -76,11 +76,11 @@ struct request_wrapped
     const detail::query_map& get_query_map() const
     {
         if (!query_map_) {
-            const boost::network::uri::uri uri("http://ignore-me" + std::string(boost::network::http::destination(req)));
+            const boost::network::uri::uri uri("http://ignoreme" + std::string(boost::network::http::destination(req)));
             if (uri.is_valid()) {
                 boost::network::uri::query_map(uri, query_map);
             } else {
-                LogError("Invalid URI "<<std::string(boost::network::http::destination(req)));
+                LogError("Invalid URI " << std::string(boost::network::http::destination(req)));
             }
             query_map_ = true;
         }
@@ -148,9 +148,9 @@ struct request_wrapped
 
     inline
     bool respond(const error::http::enum_t status_code,
-                       const std::string& content_type = "application/json",
-                       const std::string& body = "",
-                       const response_header_list& headers = response_header_list()) const
+                 const std::string& content_type = "application/json",
+                 const std::string& body = "",
+                 const response_header_list& headers = response_header_list()) const
     {
         return send_response(connection, status_code, content_type, body, headers);
     }

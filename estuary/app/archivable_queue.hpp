@@ -42,9 +42,9 @@ private:
 
 std::ostream& operator<<(std::ostream& os, const response& r)
 {
-    os << r.upshot;
+    os << '"' << r.upshot.message() << '"';
     if (!r.message.empty()) {
-        os << " Message:" << r.message;
+        os << " Message: \"" << r.message << '"';
     }
 
     return os;

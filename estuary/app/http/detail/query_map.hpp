@@ -54,7 +54,7 @@ struct query_map : public base_map
         return get_first_value(header, found);
     }
 
-    template <typename T>
+    template<typename T>
     T get_first_value_as(const std::string& header, bool& found) const
     {
         const std::string& value(get_first_value(header, found));
@@ -65,11 +65,13 @@ struct query_map : public base_map
         return T();
     }
 
-    template <typename T>
+    template<typename T>
     boost::optional<T> get_first_value_as(const std::string& param) const
     {
         bool found(false);
         const std::string& value_str(get_first_value(param, found));
+
+        LogDebug("query-params - " << param << " = [" << value_str << ']');
 
         boost::optional<T> value;
         if (found) {
