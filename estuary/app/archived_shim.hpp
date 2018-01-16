@@ -372,7 +372,7 @@ struct archived_shim
         try {
             LogMessage(pending_request->correlation
                                << ' ' << pending_request->request.get_method()
-                               << ' ' << pending_request->request.get_path() << " Handling request");
+                               << ' ' << pending_request->request.get_destination() << " Handling request");
 
             pending_requests.add(pending_request);
 

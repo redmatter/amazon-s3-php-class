@@ -40,15 +40,21 @@ struct request_wrapped
     }
 
     inline
+    std::string get_destination() const
+    {
+        return boost::network::http::destination(req);
+    }
+
+    inline
     std::string get_path() const
     {
-        const std::string destination(boost::network::http::destination(req));
+        const std::string& destination(get_destination());
         return std::string(destination, 0, destination.find('?'));
     }
 
     inline std::string get_query() const
     {
-        const std::string destination(boost::network::http::destination(req));
+        const std::string& destination(get_destination());
         const std::string::size_type& query_pos(destination.find('?'));
         if (query_pos == std::string::npos) {
             return "";
