@@ -49,9 +49,15 @@ struct pending_request
             return d;
         } catch (const error::http_error_exception& e) {
             throw;
-        } catch (const boost::bad_lexical_cast& e) {
+        } catch (const error::bad_data_exception& e) {
             boost::throw_exception(
                     boost::enable_error_info(error::http_error_exception(e.what()))
+                            << error::error_info_request_correlation(correlation)
+                            << error::error_info_error_condition(
+                                    boost::system::error_condition(error::http::bad_request)));
+        } catch (const boost::bad_lexical_cast& e) {
+            boost::throw_exception(
+                    boost::enable_error_info(error::http_error_exception())
                             << error::error_info_request_correlation(correlation)
                             << error::error_info_error_condition(
                                     boost::system::error_condition(error::http::bad_request)));

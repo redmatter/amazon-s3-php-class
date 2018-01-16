@@ -27,7 +27,7 @@ set(HEADER_FILES
         app/handled_request.hpp
         app/put_object_request.hpp
         app/http/detail/path_info.hpp
-        app/http/detail/query_map.hpp app/http/pending_request_map.hpp app/http/pending_request.hpp)
+        app/http/detail/query_map.hpp app/http/pending_request_map.hpp app/http/pending_request.hpp app/http/lexical_cast.hpp)
 
 include_directories(
         /usr/include/cpp-netlib

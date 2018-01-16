@@ -66,14 +66,14 @@ struct query_map : public base_map
     }
 
     template <typename T>
-    boost::optional<T> get_first_value_as(const std::string& header) const
+    boost::optional<T> get_first_value_as(const std::string& param) const
     {
         bool found(false);
-        const std::string& value_str(get_first_value(header, found));
+        const std::string& value_str(get_first_value(param, found));
 
         boost::optional<T> value;
         if (found) {
-            value = boost::lexical_cast<T>(value_str);
+            value = lexical_cast<T>(value_str, param, "query-params");
         }
 
         return value;

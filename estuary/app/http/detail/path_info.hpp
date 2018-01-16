@@ -17,6 +17,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/bind.hpp>
+#include "../lexical_cast.hpp"
 
 namespace app
 {
@@ -34,6 +35,16 @@ struct path_info : public std::vector<std::string>
         }
 
         return boost::lexical_cast<T>(at(pos - 1));
+    }
+
+    template <typename T>
+    boost::optional<T> get_component(const unsigned pos, const std::string& what) const
+    {
+        if (pos > size() || pos == 0) {
+            return boost::none;
+        }
+
+        return lexical_cast<T>(at(pos - 1), what, "path-info");
     }
 
     path_info()

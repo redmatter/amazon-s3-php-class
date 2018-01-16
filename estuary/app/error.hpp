@@ -176,6 +176,13 @@ struct http_error_exception : public std::runtime_error
     {}
 };
 
+struct bad_data_exception : public std::runtime_error
+{
+    explicit bad_data_exception(const std::string& what, const std::string& where) :
+            runtime_error("Unknown or invalid " + what + " in " + where)
+    {}
+};
+
 struct internal_error_exception : public std::runtime_error
 {
     internal_error_exception() : runtime_error("Internal Error")

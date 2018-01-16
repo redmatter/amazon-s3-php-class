@@ -78,9 +78,9 @@ struct put_object_request
     }
 
     explicit put_object_request(const http::pending_request& req) :
-            file_type(req.request.get_path_vector().get_component<archiving::file_type::file_type_t>(1)),
-            org_id(req.request.get_path_vector().get_component<archiving::org_id_t>(2)),
-            uuid(req.request.get_path_vector().get_component<boost::uuids::uuid>(3)),
+            file_type(req.request.get_path_vector().get_component<archiving::file_type::file_type_t>(1, "file-type")),
+            org_id(req.request.get_path_vector().get_component<archiving::org_id_t>(2, "organisation-id")),
+            uuid(req.request.get_path_vector().get_component<boost::uuids::uuid>(3, "uuid")),
 
             creation_time(req.request.get_query_map().get_first_value_as<time_t>("time")),
             policy_id(req.request.get_query_map().get_first_value_as<app::policy::id_type>("policy")),
