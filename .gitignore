@@ -9,7 +9,9 @@
 
 # Project stuff
 /external/sqlite/
+/external/cpp-netlib/
 /collectd/collectd
+/archived/archived
 version_info
 tmp*-libc*/
 *.a

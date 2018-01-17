@@ -21,7 +21,6 @@ CPPFLAGS += -DBOOST_NETWORK_ENABLE_HTTPS
 FREESWITCH_DIR=/opt/freeswitch
 
 CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
-CXX_INCLUDES += -I/usr/include/cpp-netlib
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib -L../common/$(TMP)
 
@@ -44,7 +43,6 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri -lcppnetlib-client-connections \
 	-lcryptopp -lpugixml $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lcrypto -lssl
 
 CXX_SRCS += \
@@ -54,9 +52,12 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 $(TMP)/extract : $(TMP)/extract.o
 	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)
 
 extract : $(TMP)/extract
 	rm -f $@ && ln -s $< $@
+
+clean_extra: $(CLEAN_EXTRA)

@@ -23,7 +23,6 @@ TARGET=rmestuary
 TARGET_DEPS=
 
 CXX_INCLUDES += \
-	-I /usr/include/cpp-netlib \
 	-I /usr/include/threadpool \
 	-I ../cpp-common \
 	-I $(RML_UTILS_DIR) \
@@ -80,7 +79,6 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri -lcppnetlib-server-parsers \
 	-lcryptopp -lpugixml \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) \
 	-L ../common/$(TMP)/ -larchiving_common
@@ -94,6 +92,7 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 main.cpp: $(RML_UTILS_HPP) $(RML_QUEUE_HPP) $(RML_STATISTICS_HPP)
 
@@ -115,5 +114,5 @@ endif
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES
 
-clean_extra:
+clean_extra: $(CLEAN_EXTRA)
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES clean

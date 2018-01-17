@@ -4,11 +4,21 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++98")
 
 project(estuary)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+
+if (NOT EXISTS ../external/cpp-netlib)
+        execute_process(COMMAND make -C ../external cpp-netlib RESULT_VARIABLE res)
+        if (NOT res OR NOT EXISTS ../external/cpp-netlib)
+                message(FATAL_ERROR "Failed to setup cpp-netlib")
+        endif()
+endif()
+
+list(APPEND CMAKE_PREFIX_PATH ../external/cpp-netlib)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams regex REQUIRED)
 find_package(MySQL REQUIRED)
 find_package(MySQL++ REQUIRED)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 set(HEADER_FILES
         defines.h
@@ -21,16 +31,19 @@ set(HEADER_FILES
         app/queue/queue.hpp
         app/queue/error.hpp
         app/archivable_queue.hpp
-        app/http/correlation.hpp
-        app/http/request_wrapped.hpp
-        app/http/server.hpp
         app/handled_request.hpp
         app/put_object_request.hpp
+        app/http/server.hpp
+        app/http/correlation.hpp
+        app/http/request_wrapped.hpp
         app/http/detail/path_info.hpp
-        app/http/detail/query_map.hpp app/http/pending_request_map.hpp app/http/pending_request.hpp app/http/lexical_cast.hpp)
+        app/http/detail/query_map.hpp
+        app/http/pending_request_map.hpp
+        app/http/pending_request.hpp
+        app/http/lexical_cast.hpp)
 
 include_directories(
-        /usr/include/cpp-netlib
+        ${CPPNETLIB_INCLUDE_DIRS}
         /usr/include/threadpool
         ${MYSQL_INCLUDE_DIR}
         ${rml-utils_SOURCE_DIR}
@@ -71,9 +84,7 @@ target_link_libraries(rmestuary.bin
         rt
         Threads::Threads
         ${Boost_LIBRARIES}
-
-        cppnetlib-uri
-        cppnetlib-server-parsers
+        ${CPPNETLIB_LIBRARIES}
         )
 
 #add_subdirectory(tests)
