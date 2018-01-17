@@ -619,11 +619,17 @@ class importPhonero extends BaseApp
         $config->not_handled_dir .= '/'.$this->hAPILocName;
         $config->import_dir      .= '/'.$this->hAPILocName;
 
-        // count the files in the not-handled directory and abort if it's over the configured amount
+        // create directories with LocName if they don't exist
+        // need to do this as root
 
-        $fi = new FilesystemIterator(__DIR__, FilesystemIterator::SKIP_DOTS);
-        if ($config->max_not_handled <= iterator_count($fi))
-            throw new Exception('not-handled count '.iterator_count($fi)." exceeds $config->max_not_handled: Aborting");
+        foreach (array($config->download_dir, $config->queue_dir, $config->import_dir, $config->not_handled_dir) as $dir) {
+            if (!file_exists($dir)) {
+                if (!mkdir($dir, 0777, false))
+                    throw new Exception($this->log_php_error("mkdir($dir) failed"));
+                else
+                    LogMessage("mkdir($dir) succeeded");
+            }
+        }
 
         // set uid and gid to cdrmunch
 
@@ -635,16 +641,11 @@ class importPhonero extends BaseApp
             throw new Exception("posix_setuid($userinfo[uid]) failed: ".posix_strerror(posix_get_last_error()));
         LogDebug("Running as cdrmunch");
 
-        // create directories with LocName if they don't exist
+        // count the files in the not-handled directory and abort if it's over the configured amount
 
-        foreach (array($config->download_dir, $config->queue_dir, $config->import_dir, $config->not_handled_dir) as $dir) {
-            if (!file_exists($dir)) {
-                if (!mkdir($dir, 0777, false))
-                    throw new Exception($this->log_php_error("mkdir($dir) failed"));
-                else
-                    LogMessage("mkdir($dir) succeeded");
-            }
-        }
+        $fi = new FilesystemIterator($config->not_handled_dir, FilesystemIterator::SKIP_DOTS);
+        if ($config->max_not_handled <= iterator_count($fi))
+            throw new Exception('not-handled count '.iterator_count($fi)." exceeds $config->max_not_handled: Aborting");
 
         // download any new audio files from the SFTP server. This is a self contained process
 
