@@ -1,6 +1,8 @@
 #!/usr/bin/php
 <?php
 
+define('HPHP_LOAD_VERSION', '2,1');
+
 include 'vendor/autoload.php';
 include 'rmapp/class.HTTPStream.php';
 include 'rmapp/class.BaseApp.php';
@@ -284,7 +286,7 @@ class MP3File
 
 function getActiveLondonDC()
 {
-    $ActiveDC = shell_exec('dig +short gateway.redmatter.com');
+    $ActiveDC = trim(shell_exec('dig +short gateway.redmatter.com'));
     $S01 = "217.144.145.2";
     $S02 = "84.45.30.2";
     if ($ActiveDC == $S01)
