@@ -36,6 +36,8 @@ BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
 BuildRequires: cmake
+BuildRequires: openssl-devel
+BuildRequires: zlib-devel
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
