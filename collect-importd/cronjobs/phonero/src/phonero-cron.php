@@ -400,8 +400,11 @@ class importPhonero extends BaseApp
     {
         if (!chdir($config->queue_dir))
             throw new Exception('Could not CD locally to '.$config->queue_dir);
-        elseif (!($files = glob('*')))
-            throw new Exception('Error scanning '.$config->queue_dir);
+        elseif (!($files = glob('*'))) {
+            $err = error_get_last();
+            LogMessage("Unable to scan $config->queue_dir: $err[message]");
+            return;
+        }
 
         if (sizeof($files) > 0)
         {
