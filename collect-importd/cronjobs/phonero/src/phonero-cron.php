@@ -676,7 +676,7 @@ class importPhonero extends BaseApp
 
 $app = importPhonero::getInstance(PHONERO_CONFIG_FILE);
 
-$fp = fopen("/tmp/phonero-cron-lock", "r+");
+$fp = fopen("/tmp/phonero-cron-lock", "w+");
 if (flock($fp, LOCK_EX))
 {  // acquire an exclusive lock
     try
