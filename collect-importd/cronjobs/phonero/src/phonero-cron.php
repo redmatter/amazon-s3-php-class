@@ -282,6 +282,20 @@ class MP3File
     }
 }
 
+function getActiveLondonDC()
+{
+    $ActiveDC = shell_exec('dig +short gateway.redmatter.com');
+    $S01 = "217.144.145.2";
+    $S02 = "84.45.30.2";
+    if ($ActiveDC == $S01)
+        return 'S01';
+    elseif ($ActiveDC == $S02)
+        return 'S02';
+
+    LogError("Error determining active london DC: returned [$ActiveDC]");
+    return false;
+}
+
 class importPhonero extends BaseApp
 {
     public $coreApiUrl = null;
@@ -555,13 +569,29 @@ class importPhonero extends BaseApp
             'coreapi_url',
             'coreapi_creds',
             'hi_water_mark',
-            'skip_regex'
+            'max_not_handled'
         );
 
         $config = array();
 
         $hAPIHost = new HAPIHost();
         $inProduction = $hAPIHost->InProduction();
+
+        $this->hAPILocName = $hAPIHost->get('LocName');
+        $this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
+
+        // get the active london DC. Don't run if we can't get it
+
+        $activeDC = getActiveLondonDC();
+        if ($activeDC === false)
+            throw new Exception ("Unable to determine active DC! Aborting.");
+
+        // only run if we are not in production, or we are in the active DC
+
+        if ($inProduction && $this->hAPILocName != $activeDC)
+            throw new Exception ("Running in $this->hAPILocName, Active DC: $activeDC. Stopping.");
+
+        // build our configuration object
 
         foreach ($mandatory_config_items as $item) {
             $itemlabel = $item;
@@ -578,23 +608,20 @@ class importPhonero extends BaseApp
 
         $config = (object) $config;
 
-        // get hAPI stuff and transform config if necessary
+        // transform config if necessary
 
-        $this->hAPISearchDomain = $hAPIHost->get('SearchDomain');
-        $this->hAPILocName = $hAPIHost->get('LocName');
         $config->coreapi_url = str_replace('{hAPI:SearchDomain}', $this->hAPISearchDomain, $config->coreapi_url);
-        $config->import_dir .= '/'.$this->hAPILocName;
 
-        // decide whether it's our turn to run or not. A regex (skip_regex) is defined in the config. This
-        // is compared to a string with the <HAPI LocName>-<wallclock minutes>. If there is a match, the session
-        // aborts. This is to prevent more than one instance accessing the same SFTP site simultaneously
+        $config->download_dir    .= '/'.$this->hAPILocName;
+        $config->queue_dir       .= '/'.$this->hAPILocName;
+        $config->not_handled_dir .= '/'.$this->hAPILocName;
+        $config->import_dir      .= '/'.$this->hAPILocName;
 
-        $minutes = date('i'); // return current wallclock minutes (with leading zero)
-        $skip_regex_cmp = $this->hAPILocName.'-'.$minutes;
-        if (preg_match($config->skip_regex, $skip_regex_cmp)) {
-            LogMessage("Exiting process due to skip_regex match: $skip_regex_cmp");
-            return;
-        }
+        // count the files in the not-handled directory and abort if it's over the configured amount
+
+        $fi = new FilesystemIterator(__DIR__, FilesystemIterator::SKIP_DOTS);
+        if ($config->max_not_handled <= iterator_count($fi))
+            throw new Exception('not-handled count '.iterator_count($fi)." exceeds $config->max_not_handled: Aborting");
 
         // set uid and gid to cdrmunch
 
@@ -606,13 +633,15 @@ class importPhonero extends BaseApp
             throw new Exception("posix_setuid($userinfo[uid]) failed: ".posix_strerror(posix_get_last_error()));
         LogDebug("Running as cdrmunch");
 
-        // create import directory with LocName if it doesn't exist
+        // create directories with LocName if they don't exist
 
-        if (!file_exists ($config->import_dir)) {
-            if (!mkdir ($config->import_dir, 0777, false))
-                throw new Exception($this->log_php_error("mkdir($config->import_dir) failed"));
-            else
-                LogMessage("mkdir($config->import_dir) succeeded");
+        foreach (array($config->download_dir, $config->queue_dir, $config->import_dir, $config->not_handled_dir) as $dir) {
+            if (!file_exists($dir)) {
+                if (!mkdir($dir, 0777, false))
+                    throw new Exception($this->log_php_error("mkdir($dir) failed"));
+                else
+                    LogMessage("mkdir($dir) succeeded");
+            }
         }
 
         // download any new audio files from the SFTP server. This is a self contained process
@@ -646,4 +675,23 @@ class importPhonero extends BaseApp
 }
 
 $app = importPhonero::getInstance(PHONERO_CONFIG_FILE);
-$app->run();
+
+$fp = fopen("/tmp/phonero-cron-lock", "r+");
+if (flock($fp, LOCK_EX))
+{  // acquire an exclusive lock
+    try
+    {
+        $app->run();
+    }
+    catch (Exception $e)
+    {
+        LogError('Caught exception: '.$e->getMessage());
+    }
+    flock($fp, LOCK_UN);    // release the lock
+}
+else
+{
+    LogWarning("Couldn't get lock - aborting");
+}
+
+fclose($fp);
