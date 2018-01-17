@@ -35,6 +35,7 @@ BuildRequires: pugixml
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
+BuildRequires: cmake
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
