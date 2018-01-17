@@ -28,6 +28,8 @@ CLEAN_EXTRA += clean-cpp-netlib
 
 ifeq ($(CPP_NETLIB_USE_BUILTIN),YES)
 
+*.cpp: $(EXTERNAL_DIR)/cpp-netlib/include/boost/network.hpp
+
 $(EXTERNAL_DIR)/cpp-netlib/include/boost/network.hpp :
 	@$(MAKE) -C $(EXTERNAL_DIR) cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
 
