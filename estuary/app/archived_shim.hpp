@@ -110,7 +110,7 @@ struct archived_shim
 
             size_t& bytes_remaining,
             const boost::shared_ptr<std::iostream>& stream,
-            const http::correlation& correlation,
+            const http::request_correlation& correlation,
             const boost::function<void(bool)> completion_callback)
     try
     {
@@ -173,13 +173,13 @@ struct archived_shim
     inline
     bool respond(const std::exception& e)
     {
-        http::correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
+        http::request_correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
         if (!e_correlation) {
             LogError("Request-correlation NOT found in exception");
             return false;
         }
 
-        const http::correlation& correlation(*e_correlation);
+        const http::request_correlation& correlation(*e_correlation);
 
         LogError(correlation << " Exception: " << e.what());
 
@@ -320,13 +320,13 @@ struct archived_shim
     inline
     bool respond(const error::http_error_exception& e)
     {
-        http::correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
+        http::request_correlation const* e_correlation = boost::get_error_info<error::error_info_request_correlation>(e);
         if (!e_correlation) {
             LogError("Request-correlation NOT found in exception");
             return false;
         }
 
-        const http::correlation& correlation(*e_correlation);
+        const http::request_correlation& correlation(*e_correlation);
 
         std::string const* internal_error_message = boost::get_error_info<error::error_info_internal_error_message>(e);
         if (internal_error_message) {

@@ -23,19 +23,19 @@ namespace app
 {
 namespace http
 {
-struct correlation
+struct request_correlation
 {
     const uint64_t id;
     const boost::optional<std::string> request_id;
     const boost::optional<std::string> correlation_id;
 
-    explicit correlation(const uint64_t id, const boost::optional<std::string>& request_id,
+    explicit request_correlation(const uint64_t id, const boost::optional<std::string>& request_id,
                          const boost::optional<std::string>& correlation_id) :
             id(id), request_id(request_id), correlation_id(correlation_id)
     {}
 };
 
-std::ostream& operator<<(std::ostream& os, const correlation& rc)
+std::ostream& operator<<(std::ostream& os, const request_correlation& rc)
 {
     boost::io::ios_flags_saver ifs(os);
 

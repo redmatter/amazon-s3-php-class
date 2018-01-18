@@ -103,15 +103,6 @@ void shutdown_hook(bool& shutdown_flag)
     LogMessage("Shutting down...");
 }
 
-template<typename FlagType>
-void callback_set_flag(boost::atomic<FlagType>& flag, const FlagType& value, const char* message)
-{
-    flag = value;
-    if (message) {
-        LogMessage(message << " [value: " << value << "]");
-    }
-}
-
 /**
  * Signal handling via boost::asio
  *
@@ -172,7 +163,6 @@ void handle_signals(const boost::system::error_code& error, int signal, boost::a
  */
 int main(int argc, const char* argv[]) try
 {
-    bool shutdown_flag = false;
     shutdown_hooks_list_type shutdown_hooks;
 
     boost::system::error_code ec_ignore;
@@ -236,6 +226,8 @@ int main(int argc, const char* argv[]) try
 
     // TODO review logging levels and check if there are adequate logging for tracing purposes
     try {
+        bool shutdown_flag = false;
+
         boost::shared_ptr<boost::asio::io_service> p_io_service = boost::make_shared<boost::asio::io_service>();
         boost::shared_ptr<boost::asio::io_service::work> p_work = boost::make_shared<boost::asio::io_service::work>(
                 boost::ref(*p_io_service));
@@ -341,9 +333,9 @@ int main(int argc, const char* argv[]) try
         boost::atomic_bool task_loading_in_progress(false);
 
         while (!shutdown_flag) {
-            const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
+            // const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
 
-            boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
         }
 
         // ------------- tearing down from here! ------------- //

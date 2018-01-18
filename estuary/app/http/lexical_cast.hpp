@@ -25,7 +25,7 @@ inline Target lexical_cast(const Source& arg, const std::string& what, const std
     } catch (boost::bad_lexical_cast&) {
         throw error::bad_data_exception(what, where);
     }
-};
+}
 
 } // namespace http
 } // namespace app

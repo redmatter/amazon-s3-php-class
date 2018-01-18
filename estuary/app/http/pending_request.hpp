@@ -10,7 +10,7 @@
 #define ARCHIVING_PENDING_REQUEST_HPP
 
 #include "request_wrapped.hpp"
-#include "correlation.hpp"
+#include "request_correlation.hpp"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/any.hpp>
@@ -27,7 +27,7 @@ struct pending_request
 {
     const boost::chrono::steady_clock::time_point time;
     const http::request_wrapped request;
-    const http::correlation correlation;
+    const http::request_correlation correlation;
 
     mutable boost::any data;
 
@@ -71,9 +71,9 @@ struct pending_request
     }
 
     template<typename T>
-    T get_data() const
+    boost::shared_ptr<const T> get_data() const
     {
-        return boost::any_cast<T>(data);
+        return boost::any_cast<boost::shared_ptr<const T> >(data);
     }
 };
 } // namespace http

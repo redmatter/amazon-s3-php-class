@@ -9,7 +9,7 @@
 #ifndef ARCHIVING_ESTUARY_APP_ERRORS_HPP
 #define ARCHIVING_ESTUARY_APP_ERRORS_HPP
 
-#include "http/correlation.hpp"
+#include "http/request_correlation.hpp"
 
 #include <boost/type_traits/integral_constant.hpp>
 
@@ -81,7 +81,7 @@ inline error_condition make_error_condition(app::error::http::enum_t e) BOOST_NO
 } // namespace system
 } // namespace boost
 
-// Include here so that the compiler sees make_error_condition override; that way we dont need special
+// Include here so that the compiler sees make_error_condition override; that way we don't need special
 // functions to make error_condition instances.
 #include <boost/system/error_code.hpp>
 #include <boost/exception/error_info.hpp>
@@ -165,7 +165,7 @@ struct tag_internal_error_message;
 typedef boost::error_info<tag_internal_error_message, std::string> error_info_internal_error_message;
 
 struct tag_request_correlation;
-typedef boost::error_info<tag_request_correlation, const app::http::correlation> error_info_request_correlation;
+typedef boost::error_info<tag_request_correlation, const app::http::request_correlation> error_info_request_correlation;
 
 struct http_error_exception : public std::runtime_error
 {

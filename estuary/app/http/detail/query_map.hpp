@@ -48,23 +48,6 @@ struct query_map : public base_map
         return std::string();
     }
 
-    inline std::string get_first_value(const std::string& header) const
-    {
-        bool found;
-        return get_first_value(header, found);
-    }
-
-    template<typename T>
-    T get_first_value_as(const std::string& header, bool& found) const
-    {
-        const std::string& value(get_first_value(header, found));
-        if (found) {
-            return boost::lexical_cast<T>(value);
-        }
-
-        return T();
-    }
-
     template<typename T>
     boost::optional<T> get_first_value_as(const std::string& param) const
     {

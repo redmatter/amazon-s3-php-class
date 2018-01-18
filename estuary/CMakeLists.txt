@@ -24,17 +24,15 @@ set(HEADER_FILES
         defines.h
         app/config/common.hpp
         app/config/command_line.hpp
-        app/typedefs.hpp
         app/archived_shim.hpp
         app/utils.hpp
         app/error.hpp
         app/queue/queue.hpp
         app/queue/error.hpp
         app/archivable_queue.hpp
-        app/handled_request.hpp
         app/put_object_request.hpp
         app/http/server.hpp
-        app/http/correlation.hpp
+        app/http/request_correlation.hpp
         app/http/request_wrapped.hpp
         app/http/detail/path_info.hpp
         app/http/detail/query_map.hpp

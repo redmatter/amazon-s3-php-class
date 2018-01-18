@@ -28,16 +28,6 @@ namespace detail
 struct path_info : public std::vector<std::string>
 {
     template <typename T>
-    boost::optional<T> get_component(const unsigned pos) const
-    {
-        if (pos > size() || pos == 0) {
-            return boost::none;
-        }
-
-        return boost::lexical_cast<T>(at(pos - 1));
-    }
-
-    template <typename T>
     boost::optional<T> get_component(const unsigned pos, const std::string& what) const
     {
         if (pos > size() || pos == 0) {
