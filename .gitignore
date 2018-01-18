@@ -15,6 +15,7 @@
 version_info
 tmp*-libc*/
 *.a
+*.o
 
 /*/test*/*
 !/*/test*/*.cpp
@@ -34,3 +35,6 @@ tmp*-libc*/
 /estuary/rmestuary
 /CMakeLists.txt.user
 /archiving.kdev4
+/cli/convert-to-clear/convert-to-clear
+/cli/convert-to-archive/convert-to-archive
+/eml2a/mime/decoder
