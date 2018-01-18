@@ -440,19 +440,21 @@ class importPhonero extends BaseApp
                     if ($matches[1] == $matches[2]) {
                         $fromnumber = '47' . $matches[2];
                         $tonumber = $this->normalise($matches[3]);
+                        $direction = 'OUT';
                     }
                     elseif ($matches[1] == $matches[3]) {
                         $fromnumber = $this->normalise($matches[2]);
                         $tonumber = '47' . $matches[3];
+                        $direction = 'IN';
                     }
                     else {
                         LogWarning("Owner $matches[1] doesn't match A $matches[2] or B $matches[3] numbers, can't handle this call");
                         continue;
                     }
 
-                    $filexml[] = "<ImportedCall><AUUID>$auuid</AUUID><BUUID>$buuid</BUUID><Time>$epoch</Time><From_Number>$fromnumber</From_Number><To_Number>$tonumber</To_Number><Time_Talking>$duration</Time_Talking></ImportedCall>";
+                    $filexml[] = "<ImportedCall><AUUID>$auuid</AUUID><BUUID>$buuid</BUUID><Direction>$direction</Direction><Time>$epoch</Time><From_Number>$fromnumber</From_Number><To_Number>$tonumber</To_Number><Time_Talking>$duration</Time_Talking></ImportedCall>";
 
-                    $fileinfo[] = array('Name' => $file, 'AUUID' => $auuid, 'BUUID' => $buuid, 'Duration' => $duration, 'Epoch' => $epoch, 'From_Number' => $fromnumber, 'To_Number' => $tonumber);
+                    $fileinfo[] = array('Name' => $file, 'AUUID' => $auuid, 'BUUID' => $buuid, 'Duration' => $duration, 'Epoch' => $epoch, 'From_Number' => $fromnumber, 'To_Number' => $tonumber, 'Direction' => $direction);
 
                     $count++;
                 }
@@ -523,8 +525,9 @@ class importPhonero extends BaseApp
 
             foreach($fileinfo as $finfo)
             {
-                $foundA = key_exists($finfo['AUUID'], $logResults);
-                $foundB = key_exists($finfo['BUUID'], $logResults);
+                $foundA = ($finfo['Direction'] == 'OUT') ? key_exists($finfo['AUUID'], $logResults) : false;
+                $foundB = ($finfo['Direction'] == 'IN')  ? key_exists($finfo['BUUID'], $logResults) : false;
+
                 $copyops = array();
 
                 if ($foundA)
