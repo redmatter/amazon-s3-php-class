@@ -504,8 +504,6 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		/etc/init.d/rsyslog condrestart ||
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
-chown -R cdrmunch:cdrmunch /mnt/rmfs/phonero
-chown cdrmunch:cdrmunch /mnt/rmfs/archiving-import
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
@@ -674,13 +672,13 @@ fi
 /etc/archiving/rmcollect-importd.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
-%dir %attr(755,cdrmunch,cdrmunch) /mnt/rmfs/archiving-import
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/archiving-import
 /etc/logrotate.d/rmcollect-importd
 /etc/rsyslog.d/11-rmcollect-importd.conf
-%dir %attr(755,cdrmunch,cdrmunch) /mnt/rmfs/phonero
-%dir %attr(755,cdrmunch,cdrmunch) /mnt/rmfs/phonero/download
-%dir %attr(755,cdrmunch,cdrmunch) /mnt/rmfs/phonero/queue
-%dir %attr(755,cdrmunch,cdrmunch) /mnt/rmfs/phonero/not-handled
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/download
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/queue
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/not-handled
 /etc/archiving/phonero-cron.conf
 /usr/bin/phonero-cron.phar
 /etc/rsyslog.d/11-archiving-phonero-cron.conf
