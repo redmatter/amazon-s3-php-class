@@ -504,6 +504,8 @@ if [ "$1" -eq 1 ]; then # package just got installed ?
 		/etc/init.d/rsyslog condrestart ||
 		echo "**WARNING** rsyslog not found; consider installing it."
 fi
+chown -R cdrmunch:cdrmunch /mnt/rmfs/phonero
+chown cdrmunch:cdrmunch /mnt/rmfs/archiving-import
 
 #%post convert
 #/usr/bin/rmarchived-hAPI

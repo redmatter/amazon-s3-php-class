@@ -622,18 +622,6 @@ class importPhonero extends BaseApp
         $config->not_handled_dir .= '/'.$this->hAPILocName;
         $config->import_dir      .= '/'.$this->hAPILocName;
 
-        // create directories with LocName if they don't exist
-        // need to do this as root
-
-        foreach (array($config->download_dir, $config->queue_dir, $config->import_dir, $config->not_handled_dir) as $dir) {
-            if (!file_exists($dir)) {
-                if (!mkdir($dir, 0777, false))
-                    throw new Exception($this->log_php_error("mkdir($dir) failed"));
-                else
-                    LogMessage("mkdir($dir) succeeded");
-            }
-        }
-
         // set uid and gid to cdrmunch
 
         if (!is_array($userinfo = posix_getpwnam("cdrmunch")))
@@ -643,6 +631,21 @@ class importPhonero extends BaseApp
         elseif (!posix_setuid($userinfo['uid']))
             throw new Exception("posix_setuid($userinfo[uid]) failed: ".posix_strerror(posix_get_last_error()));
         LogDebug("Running as cdrmunch");
+
+        // create directories with LocName if they don't exist
+        // need to do this as root
+
+        foreach (array($config->download_dir, $config->queue_dir, $config->import_dir, $config->not_handled_dir) as $dir) {
+            if (!file_exists($dir)) {
+                $oldmask = umask(0);
+                $mkdirres = mkdir($dir, 0777, false);
+                umask($oldmask);
+                if (!$mkdirres)
+                    throw new Exception($this->log_php_error("mkdir($dir) failed"));
+                else
+                    LogMessage("mkdir($dir) succeeded");
+            }
+        }
 
         // count the files in the not-handled directory and abort if it's over the configured amount
 
