@@ -151,9 +151,9 @@ class PurgePolicyFixerApp extends BaseApp
 		$res = $retentionDb->query(
 			"SELECT OrgID ".
 			"  FROM ( ".
-			"    SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` ".
+			"    SELECT SUBSTRING(TABLE_NAME FROM 11) `OrgID` ".
 			"    FROM `information_schema`.TABLES ".
-			"    WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template' ".
+			"    WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template' ".
 			"  ) X ".
 			"WHERE ( $where ) AND ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset"
 		)->fetch_all();
