@@ -45,6 +45,15 @@ extern std::string hostname;
 
 namespace database {
 
+inline
+bool hourly_usage_table_exists(rml::MySQLConnection& conn, const archiving::org_id_t& org)
+{
+	mysqlpp::Query query = conn->query();
+	query << "SELECT COUNT(*) FROM `information_schema`.`TABLES`' "
+			"WHERE TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME = 'HourlyUsage_" << org << "'";
+	return query.use().fetch_row().at(0) == 1;
+}
+
 class retention : public basic_database< retention >
 {
 public:
@@ -442,7 +451,7 @@ public:
 
 			mysqlpp::Query query = conn->query();
 			query << "SELECT OrgID FROM ("
-					" SELECT SUBSTRING(TABLE_NAME FROM 7) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Usage_%' AND TABLE_NAME != 'Usage_Template'"
+					" SELECT SUBSTRING(TABLE_NAME FROM 11) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template'"
 					") X WHERE ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset";
 
 			__SQL_DEBUG(query.str());
@@ -479,20 +488,34 @@ public:
 			}
 
 			mysqlpp::Query query = conn->query();
-			query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
-					"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
-					" VALUES ("
-					<< " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
-					<< '\''<<filetype<<"', "
-					<< org<<", "
-					<< count<<", "
-					<< clear_usage<<", "
-					<< real_usage<<", "
-					<< endpoint_id
-					<< " ) "
-					<< "ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
-					;
-
+			if (hourly_usage_table_exists(conn, org)) {
+				query << "INSERT INTO `ArchivingRetention`.`HourlyUsage_"<<org<<"` \n"
+						"( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+						" VALUES ("
+					  << " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
+					  << static_cast<int>(filetype)<<", "
+					  << count<<", "
+					  << clear_usage<<", "
+					  << real_usage<<", "
+					  << endpoint_id
+					  << " ) "
+					  << "ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+						;
+			} else {
+				query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
+						"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+						" VALUES ("
+					  << " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
+					  << '\''<<filetype<<"', "
+					  << org<<", "
+					  << count<<", "
+					  << clear_usage<<", "
+					  << real_usage<<", "
+					  << endpoint_id
+					  << " ) "
+					  << "ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+						;
+			}
 			__SQL_DEBUG(query.str());
 			query.execute();
 
@@ -663,36 +686,68 @@ public:
 
 					const archiving::org_id_t& org(batch_itr->org);
 
-					mysqlpp::Query query = conn->query();
-					query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
-							"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
-							" VALUES ";
+					if (!hourly_usage_table_exists(conn, org)) {
+						mysqlpp::Query query = conn->query();
+						query << "INSERT INTO `ArchivingRetention`.`Usage_"<<org<<"` \n"
+								"( `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+								" VALUES ";
 
-					for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
-						char hour_res_date[255];
-						{
-							tm tm_;
-							gmtime_r(&itr->create_time, &tm_);
-							strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+						for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+							char hour_res_date[255];
+							{
+								tm tm_;
+								gmtime_r(&itr->create_time, &tm_);
+								strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+							}
+
+							query << (itr != batch_range.first? ',': '\n')
+								  <<"( "
+								  <<'\''<<hour_res_date<<"', "
+								  <<'\''<<itr->filetype<<"', "
+								  <<itr->org<<", "
+								  <<"1, "
+								  <<itr->clear_size<<", "
+								  <<itr->real_size<<", "
+								  <<itr->endpoint_id
+								  <<" )\n";
 						}
+						query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+								"\n";
 
-						query << (itr != batch_range.first? ',': '\n')
-								<<"( "
-								<<'\''<<hour_res_date<<"', "
-								<<'\''<<itr->filetype<<"', "
-								<<itr->org<<", "
-								<<"1, "
-								<<itr->clear_size<<", "
-								<<itr->real_size<<", "
-								<<itr->endpoint_id
-								<<" )\n";
+						SQL_DEBUG(query.str());
+
+						mysqlpp::SimpleResult res = query.execute();
+					} else {
+						mysqlpp::Query query = conn->query();
+						query << "INSERT INTO `ArchivingRetention`.`HourlyUsage_"<<org<<"` \n"
+								"( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+								" VALUES ";
+
+						for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+							char hour_res_date[255];
+							{
+								tm tm_;
+								gmtime_r(&itr->create_time, &tm_);
+								strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
+							}
+
+							query << (itr != batch_range.first? ',': '\n')
+								  <<"( "
+								  <<'\''<<hour_res_date<<"', "
+								  <<static_cast<int>(itr->filetype)<<", "
+								  <<"1, "
+								  <<itr->clear_size<<", "
+								  <<itr->real_size<<", "
+								  <<itr->endpoint_id
+								  <<" )\n";
+						}
+						query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
+								"\n";
+
+						SQL_DEBUG(query.str());
+
+						mysqlpp::SimpleResult res = query.execute();
 					}
-					query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
-							"\n";
-
-					SQL_DEBUG(query.str());
-
-					mysqlpp::SimpleResult res = query.execute();
 					LogVerbose("Usage data added for Org:"<<org);
 
 					batch_itr = batch_range.second;
