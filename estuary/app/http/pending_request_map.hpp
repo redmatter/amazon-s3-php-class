@@ -26,12 +26,14 @@ namespace http
 #pragma ide diagnostic ignored "TemplateArgumentsIssues"
 struct pending_request_map : public boost::unordered_map<uint64_t, boost::shared_ptr<const pending_request> >
 {
-    void add(const boost::shared_ptr<const pending_request>& p)
+    inline
+    void add(const boost::shared_ptr<const pending_request>& request)
     {
         boost::unique_lock<boost::mutex> lock(mutex);
-        insert(std::make_pair(p->correlation.id, p));
+        insert(std::make_pair(request->correlation.id, request));
     }
 
+    inline
     boost::shared_ptr<const pending_request> lookup(const uint64_t id) const
     {
         boost::unique_lock<boost::mutex> lock(mutex);
@@ -43,6 +45,7 @@ struct pending_request_map : public boost::unordered_map<uint64_t, boost::shared
         return itr->second;
     }
 
+    inline
     void remove(const uint64_t id)
     {
         boost::unique_lock<boost::mutex> lock(mutex);
@@ -52,9 +55,10 @@ struct pending_request_map : public boost::unordered_map<uint64_t, boost::shared
         }
     }
 
-    void remove(const boost::shared_ptr<const pending_request>& p)
+    inline
+    void remove(const boost::shared_ptr<const pending_request>& request)
     {
-        remove(p->correlation.id);
+        remove(request->correlation.id);
     }
 
 private:
