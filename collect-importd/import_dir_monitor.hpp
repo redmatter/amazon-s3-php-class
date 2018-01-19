@@ -83,10 +83,10 @@ namespace archiving
 					// Get the useful bit from the path.
 					std::string uuid = match[1].str();
 
-                    archivable *a = new archivable(uuid, "", 0, file_path, archiving::file_type::recording, "mp3", local_hostname_);
+                    archivable::pointer a(new archivable(uuid, "", 0, file_path, archiving::file_type::recording, "mp3", local_hostname_));
                     a->set_leg_uuid(uuid);
 
-					pc_produce(channel_, archivable::pointer(a));
+					pc_produce(channel_, a);
 
 					return true;
 				}
