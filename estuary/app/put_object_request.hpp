@@ -19,6 +19,7 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/optional.hpp>
 #include <boost/regex.hpp>
 

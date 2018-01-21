@@ -23,25 +23,12 @@
 #include <rml/utils/snowflake.hpp>
 #include <rml/utils.h>
 
-#include <boost/network/protocol/http/server.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/atomic.hpp>
-#include <boost/thread/mutex.hpp>
-#include <boost/optional.hpp>
-#include <boost/optional/optional_io.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/exception/all.hpp>
 #include <boost/throw_exception.hpp>
-#include <boost/regex.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include <boost/container/slist.hpp>
 #include <boost/range/iterator_range.hpp>
-
-#include <cstring>
-#include <boost/io/ios_state.hpp>
 
 namespace app
 {

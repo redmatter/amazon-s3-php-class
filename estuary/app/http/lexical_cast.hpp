@@ -22,7 +22,7 @@ inline Target lexical_cast(const Source& arg, const std::string& what, const std
 {
     try {
         return boost::lexical_cast<Target>(arg);
-    } catch (boost::bad_lexical_cast&) {
+    } catch (const boost::bad_lexical_cast&) {
         throw error::bad_data_exception(what, where);
     }
 }
