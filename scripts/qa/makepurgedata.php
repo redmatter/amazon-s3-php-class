@@ -64,6 +64,25 @@ class MakePurgeDataApp extends BaseApp
 		return array_unique($ret);
 	}
 
+	private static function _CheckHourlyUsageTableExists($org)
+    {
+        try
+        {
+            $dbc = MySQLiConnection::Get('retention_ro');
+            $res = $dbc->query(
+                'SELECT COUNT(*) Count FROM `information_schema`.`TABLES`' .
+                " WHERE TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME='HourlyUsage_{$org}'"
+            )->fetch_all();
+            return $res[0]->Count > 0;
+        }
+        catch(Exception $e)
+        {
+            LogWarning($e);
+        }
+
+        return false;
+    }
+
 	/**
 	 * Verify Org
 	 *
@@ -150,13 +169,29 @@ class MakePurgeDataApp extends BaseApp
 		if (!count($retention_array))
 			return;
 
+        $hourly_usage_table_exists = self::_CheckHourlyUsageTableExists($retention_array[0]->OrgID);
+
 		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` ( `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID`, `UserID` ) VALUES ";
-		$sql_usage = "INSERT INTO `Usage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `OrgID`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
+		if ($hourly_usage_table_exists)
+        {
+            $sql_usage = "INSERT INTO `HourlyUsage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
+        }
+        else
+        {
+            $sql_usage = "INSERT INTO `Usage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `OrgID`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
+        }
 		$first = true;
 		foreach ($retention_array as $retention)
 		{
 			$sql_retention .= sprintf("\n%s( UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, 0 )", $first? '': ', ', $retention->UUID, $retention->Format, Archiving::GetFileType($retention->Type), $retention->OrgID, $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID);
-			$sql_usage .= sprintf("\n%s( '%s', '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, $retention->Type, $retention->OrgID, $retention->EndpointID, 1, 0, $retention->RealUsage);
+            if ($hourly_usage_table_exists)
+            {
+                $sql_usage .= sprintf("\n%s( '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, Archiving::GetFileType($retention->Type), $retention->EndpointID, 1, 0, $retention->RealUsage);
+            }
+            else
+            {
+                $sql_usage .= sprintf("\n%s( '%s', '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, $retention->Type, $retention->OrgID, $retention->EndpointID, 1, 0, $retention->RealUsage);
+            }
 			$first = false;
 		}
 		// XXX FIXME Duplicates due to successive generation of UUIDs on the same host leading to random pool exhaustion
