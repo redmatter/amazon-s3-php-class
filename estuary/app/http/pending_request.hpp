@@ -75,6 +75,28 @@ struct pending_request
     {
         return boost::any_cast<boost::shared_ptr<const T> >(data);
     }
+
+    inline
+    bool respond(const error::http::enum_t status_code,
+                 const std::string& content_type = "application/json",
+                 const std::string& body = "",
+                 const response_header_list& headers = response_header_list()) const
+    {
+        response_header_list response_headers = headers;
+        response_headers.add(
+                    "RM-Server-ID",
+                    boost::str(boost::format("%1%")
+                               % boost::io::group(std::hex, std::setw(16), std::setfill('0'), correlation.id)));
+        if (correlation.request_id != boost::none) {
+            response_headers.add("X-Request-ID", *(correlation.request_id));
+        }
+
+        if (correlation.correlation_id != boost::none) {
+            response_headers.add("X-Correlation-ID", *(correlation.correlation_id));
+        }
+
+        return request.respond(status_code, content_type, body, response_headers);
+    }
 };
 } // namespace http
 } // namespace app

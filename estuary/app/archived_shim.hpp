@@ -296,8 +296,7 @@ struct archived_shim
                           const error::http::enum_t status_code,
                           const std::string& message)
     {
-        if (!pending_request->request.respond(status_code, "application/json", render_response(status_code, message))) {
-
+        if (!pending_request->respond(status_code, "application/json", render_response(status_code, message))) {
             LogError(pending_request->correlation << " Failed to send response");
         }
 
@@ -352,7 +351,7 @@ struct archived_shim
                 boost::make_shared<http::pending_request>(id, request, connection);
 
         if (shutting_down == true) {
-            pending_request->request.respond(error::http::service_unavailable);
+            pending_request->respond(error::http::service_unavailable);
             return;
         }
 
