@@ -307,26 +307,59 @@ class PcapRecordingImportApp extends BaseDaemonApp
                         $bigSql->query($sql);
 
                         // add usage record (batched)
-                        $sql = "INSERT INTO ArchivingRetention.Usage_{$csvMetadata->OrgID} (" .
-                            ' `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` ' .
-                            ') VALUES (' .
-                            'DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "' . implode(
-                                '", "',
-                                array(
-                                    Archiving::GetFileTypeStr($metadata['FileType']),
-                                    $metadata['OrgId'],
-                                    1,
-                                    $metadata['ClearSize'],
-                                    $metadata['RealSize'],
-                                    $metadata['Policy']->storageEndpointID
-                                )
-                            ) . '") ON DUPLICATE KEY UPDATE' .
-                            ' `Count`=`Count`+VALUES(`Count`),' .
-                            ' `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`),' .
-                            ' `RealUsage`=`RealUsage`+VALUES(`RealUsage`)';
-                        LogDebug($sql);
-                        $bigSql->query($sql);
 
+                        // check if HourlyUsage_XX is available; if so, use it. Otherwise fallback to Usage_XX
+                        $hourlyUsageExists = false;
+                        $bigSql->query(
+                            'SELECT COUNT(*) Count FROM `information_schema`.`TABLES`' .
+                            " WHERE TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME='HourlyUsage_{$metadata['OrgId']}'"
+                        )->for_each(function($row) use (&$hourlyUsageExists) {
+                            $hourlyUsageExists = $row->Count > 0;
+                        });
+
+                        if ($hourlyUsageExists)
+                        {
+                            $sql = "INSERT INTO `ArchivingRetention`.`HourlyUsage_{$csvMetadata->OrgID}` (" .
+                                ' `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` ' .
+                                ') VALUES (' .
+                                'DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "' . implode(
+                                    '", "',
+                                    array(
+                                        $metadata['FileType'],
+                                        1,
+                                        $metadata['ClearSize'],
+                                        $metadata['RealSize'],
+                                        $metadata['Policy']->storageEndpointID
+                                    )
+                                ) . '") ON DUPLICATE KEY UPDATE' .
+                                ' `Count`=`Count`+VALUES(`Count`),' .
+                                ' `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`),' .
+                                ' `RealUsage`=`RealUsage`+VALUES(`RealUsage`)';
+                            LogDebug($sql);
+                            $bigSql->query($sql);
+                        }
+                        else
+                        {
+                            $sql = "INSERT INTO `ArchivingRetention`.`Usage_{$csvMetadata->OrgID}` (" .
+                                ' `Hour`, `Type`, `OrgID`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` ' .
+                                ') VALUES (' .
+                                'DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "' . implode(
+                                    '", "',
+                                    array(
+                                        Archiving::GetFileTypeStr($metadata['FileType']),
+                                        $metadata['OrgId'],
+                                        1,
+                                        $metadata['ClearSize'],
+                                        $metadata['RealSize'],
+                                        $metadata['Policy']->storageEndpointID
+                                    )
+                                ) . '") ON DUPLICATE KEY UPDATE' .
+                                ' `Count`=`Count`+VALUES(`Count`),' .
+                                ' `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`),' .
+                                ' `RealUsage`=`RealUsage`+VALUES(`RealUsage`)';
+                            LogDebug($sql);
+                            $bigSql->query($sql);
+                        }
                         // Set the leg in Call-Logs to be recorded and update the Archive Policy ID
                         $archPolIdFromOrTo = ($metadata['Leg'] === 'A') ? 'From' : 'To';
                         if ($metadata['CallLogPolArchID'][$archPolIdFromOrTo] && $metadata['CallLogPolArchID'][$archPolIdFromOrTo] != $csv[$csvMetadata->ArchivePolicyIDField])

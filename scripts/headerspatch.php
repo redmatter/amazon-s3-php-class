@@ -79,12 +79,12 @@ class ArchivingHeadersPatchApp extends BaseApp
 		$dbc = MySQLiConnection::Get('retention_ro');
 		if (strtolower($str) == 'all')
 		{
-			$where = "TABLE_NAME LIKE 'Usage_%'";
+			$where = "TABLE_NAME LIKE 'Retention_%'";
 		}
 		else
 		{
 			$orgs = preg_split('/[,;] */', $str);
-			$where = sprintf("TABLE_NAME RLIKE 'Usage_(%s)$'", implode('|', $orgs));
+			$where = sprintf("TABLE_NAME RLIKE 'Retention_(%s)$'", implode('|', $orgs));
 		}
 
 		$dbc->query(
