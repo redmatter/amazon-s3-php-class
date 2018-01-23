@@ -221,15 +221,17 @@ struct archived_shim
             }
         }
 
+        LogMessage("Send queue empty; set finishing");
         send_queue->set_finishing();
 
         // we need to wait till all responses have been fired out. Otherwise, once set to finish, the queue will not
         // allow to consume.
         while (responder_queue->size()) {
-            LogMessage("Waiting for responder_queue to be empty");
+            LogMessage("Waiting for response queue to be empty");
             boost::this_thread::sleep_for(boost::chrono::seconds(1));
         }
 
+        LogMessage("Response queue empty; set finishing");
         responder_queue->set_finishing();
     }
 
