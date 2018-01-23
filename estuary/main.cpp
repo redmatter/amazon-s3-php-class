@@ -224,7 +224,6 @@ int main(int argc, const char* argv[]) try
         exit(rml::utils::exit_codes::initialization_error);
     }
 
-    // TODO review logging levels and check if there are adequate logging for tracing purposes
     try {
         bool shutdown_flag = false;
 
@@ -234,13 +233,13 @@ int main(int argc, const char* argv[]) try
 
         boost::thread_group io_service_threads;
         {
-            unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2);
+            unsigned int n_threads = std::max(config["common.io_service_threads"].as<unsigned>(),
+                                                        boost::thread::hardware_concurrency());
             while (0 < n_threads--) {
                 io_service_threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
             }
         }
 
-#ifndef GPERFTOOLS_PROFILE_CPU
         // set the signal handlers
         boost::asio::signal_set signals(*p_io_service);
         signals.add(SIGINT);
@@ -255,12 +254,6 @@ int main(int argc, const char* argv[]) try
         shutdown_hooks.push_back(boost::bind(shutdown_hook, boost::ref(shutdown_flag)));
 
         signals.async_wait(boost::bind(handle_signals, _1, _2, boost::ref(signals), boost::cref(shutdown_hooks)));
-#else
-        LogCoutIf(true,
-                  "While profiling, do not press Ctrl+C or use kill command to stop geoshim.\n"
-                          "Visit the URL below instead.\n"
-                          "    http://127.0.0.0:"<<app::confMap["api.proxy_listen_port"].as<std::string>()<<"/geoshim/stop");
-#endif // ifndef GPERFTOOLS_PROFILE_CPU
 
         rml::daemon::initialise(config, pid_file);
         app::config::common common_config(config);
@@ -271,15 +264,14 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<rml::utils::cached_resolver> resolver =
                 boost::make_shared<rml::utils::cached_resolver>(5, 5, 2);
 
-        const unsigned int archived_connections = std::max(config["estuary.archived_connections"].as<unsigned int>(), 2U);
+        const unsigned int archived_connections = std::max(
+                config["estuary.archived_connections"].as<unsigned int>(), 2U);
 
-        boost::shared_ptr<app::archivable_queue> archivable_queue = boost::make_shared<app::archivable_queue>(archived_connections * 2);
+        boost::shared_ptr<app::archivable_queue> archivable_queue =
+                boost::make_shared<app::archivable_queue>(archived_connections * 2);
         boost::shared_ptr<app::response_queue> response_queue = boost::make_shared<app::response_queue>(0);
 
         boost::shared_ptr<boost::thread_group> http_server_threads = boost::make_shared<boost::thread_group>();
-        boost::shared_ptr<boost::asio::io_service> http_server_io_service =
-                boost::make_shared<boost::asio::io_service>();
-
         app::archived_shim archived_shim(snowflake, archivable_queue, response_queue);
         boost::shared_ptr<app::http::server> http_server = boost::make_shared<app::http::server>(
                 app::http::server::options(archived_shim)
@@ -287,8 +279,8 @@ int main(int argc, const char* argv[]) try
                         .port(config["http_server.listen_port"].as<std::string>())
                         .thread_pool(
                                 boost::make_shared<boost::network::utils::thread_pool>(
-                                        std::max<unsigned>(boost::thread::hardware_concurrency() / 4, 2),
-                                        http_server_io_service, http_server_threads))
+                                        std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2),
+                                        p_io_service, http_server_threads))
                         .reuse_address(true));
 
         // responder thread; it only enqueues on to cpp-netlib's internal threadpool, so one thread should do
@@ -318,13 +310,6 @@ int main(int argc, const char* argv[]) try
             archived_clients.push_back(archived_client);
         }
 
-        {
-            unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 4, 2);
-            while (0 < n_threads--) {
-                http_server_threads->create_thread(boost::bind(&app::http::server::run, http_server));
-            }
-        }
-
         LogMessage("Initialisation complete");
 
         // ------------- stuff happens here! ------------- //
@@ -340,8 +325,6 @@ int main(int argc, const char* argv[]) try
         shutdown_hooks.clear();
 
         archived_shim.shutdown();
-
-        // todo review shutdown-procedure
 
         {
             std::list< app::archived_client::pointer >::iterator end = archived_clients.end();

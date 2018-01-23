@@ -13,6 +13,7 @@
 #include <boost/program_options/options_description.hpp>
 
 #include <string>
+#include <boost/thread.hpp>
 
 namespace app
 {
@@ -31,6 +32,9 @@ struct common
         using namespace boost::program_options;
 
         options_desc.add_options()
+                ("common.io_service_threads",
+                 value<unsigned>()->default_value(boost::thread::hardware_concurrency()),
+                 "Number of io_service threads")
                 ("common.cdrmunch-cache-dir",
                  value<std::string>()->default_value(std::string("/var/spool/cdrtmp/cdrmunch-cache")),
                  "cdrmunch shared cache folder (aka cdr-cache)");
