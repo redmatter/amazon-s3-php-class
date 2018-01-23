@@ -310,6 +310,8 @@ int main(int argc, const char* argv[]) try
             archived_clients.push_back(archived_client);
         }
 
+        http_server->listen();
+
         LogMessage("Initialisation complete");
 
         // ------------- stuff happens here! ------------- //
