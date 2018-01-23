@@ -416,8 +416,10 @@ class importPhonero extends BaseApp
             foreach($files as $file) {
 
                 $matches = array();
-                if (preg_match('/^\+?([0-9]+)_\+?([0-9]+)_\+?([0-9]+)_([0-9]+)_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{6})\.mp3$/', $file, $matches) == false)
+                if (preg_match($config->filename_regex, $file, $matches) == false) {
                     LogWarning("File doesn't match phonero regex: $file");
+                    rename($file, $config->not_handled_dir. '/' . $file);
+                }
                 else {
                     $mp3data = new MP3File($file);
                     LogMessage("$file length: {$mp3data->getDuration()} seconds");
