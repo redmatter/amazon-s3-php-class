@@ -329,16 +329,17 @@ int main(int argc, const char* argv[]) try
 
         // ------------- stuff happens here! ------------- //
 
-        boost::chrono::steady_clock::time_point task_loading_time(startup_time);
-        boost::atomic_bool task_loading_in_progress(false);
-
         while (!shutdown_flag) {
             // const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
 
             boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
         }
 
-        // ------------- tearing down from here! ------------- //
+        LogMessage("Shutting down");
+
+        shutdown_hooks.clear();
+
+        archived_shim.shutdown();
 
         // todo review shutdown-procedure
 
@@ -371,10 +372,6 @@ int main(int argc, const char* argv[]) try
         if (app::archived_client::get_instances_count()) {
             LogWarning("ArchiveD-clients did not finish while waiting; continuing with shutdown");
         }
-
-        archived_shim.shutdown();
-
-        shutdown_hooks.clear();
 
         p_work.reset();
         p_io_service->stop();
