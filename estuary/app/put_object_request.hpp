@@ -175,7 +175,7 @@ struct put_object_request
 
         try {
             const std::string& path(
-                    boost::str(boost::format("%1%_%2%_%3%_%4%")
+                    boost::str(boost::format("%1%_%2%_%3%_%4%_")
                                % boost::io::group(std::hex, std::setw(16), std::setfill('0'), req.correlation.id)
                                % archiving::file_type::to_string(*file_type) % *org_id % *uuid));
             fstream = rml::utils::tmp_fstream::create(path, *content_length, "/tmp");
