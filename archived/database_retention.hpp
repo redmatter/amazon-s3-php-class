@@ -51,7 +51,8 @@ bool hourly_usage_table_exists(rml::MySQLConnection& conn, const archiving::org_
 	mysqlpp::Query query = conn->query();
 	query << "SELECT COUNT(*) FROM `information_schema`.`TABLES` "
 			"WHERE TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME='HourlyUsage_" << org << "'";
-	return query.use().fetch_row().at(0) == 1;
+	const int table_count(query.use().fetch_row().at(0));
+	return table_count != 0;
 }
 
 class retention : public basic_database< retention >
