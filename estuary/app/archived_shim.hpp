@@ -263,6 +263,8 @@ struct archived_shim
                 LogError(e.what());
             }
         }
+
+        LogMessage("Responder thread finishing");
     }
 
     inline

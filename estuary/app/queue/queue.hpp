@@ -70,7 +70,14 @@ public:
     inline bool set_finishing()
     {
         bool expected = false;
-        return finishing.compare_exchange_strong(expected, true);
+        const bool changed(finishing.compare_exchange_strong(expected, true));
+        if (changed) {
+            // wake everyone up; time to give up!
+            not_full_condition.notify_all();
+            not_empty_condition.notify_all();
+        }
+
+        return changed;
     }
 
     inline unsigned long size()
@@ -90,21 +97,20 @@ public:
     {
         boost::mutex::scoped_lock lock(mutex);
 
-        if (!not_full_condition.wait_until(
+        if (not_full_condition.wait_until(
                 lock, wait_until, boost::bind(&base_queue::is_finishing_or_has_room, this->shared_from_this()))) {
 
             if (is_finishing()) {
                 ec = error::make_error_condition(error::runtime_errors::is_finishing);
             } else {
-                ec = error::make_error_condition(error::runtime_errors::is_full);
+                list.push_front(item);
+
+                lock.unlock();
+                not_empty_condition.notify_one();
             }
-            return;
+        } else {
+            ec = error::make_error_condition(error::runtime_errors::is_full);
         }
-
-        list.push_front(item);
-
-        lock.unlock();
-        not_empty_condition.notify_one();
     }
 
     void produce(const T& item, boost::system::error_condition& ec)
@@ -135,22 +141,21 @@ public:
     {
         boost::mutex::scoped_lock lock(mutex);
 
-        if (!not_full_condition.wait_until(
+        if (not_full_condition.wait_until(
                 lock, wait_until, boost::bind(&base_queue::is_finishing_or_any_consumable, this->shared_from_this()))) {
 
             if (is_finishing()) {
                 ec = error::make_error_condition(error::runtime_errors::is_finishing);
             } else {
-                ec = error::make_error_condition(error::runtime_errors::is_empty);
+                item = list.back();
+                list.pop_back();
+
+                lock.unlock();
+                not_full_condition.notify_one();
             }
-            return;
+        } else {
+            ec = error::make_error_condition(error::runtime_errors::is_empty);
         }
-
-        item = list.back();
-        list.pop_back();
-
-        lock.unlock();
-        not_full_condition.notify_one();
     }
 
     void consume(T& item, boost::system::error_condition& ec)

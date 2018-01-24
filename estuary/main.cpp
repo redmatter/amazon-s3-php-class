@@ -285,7 +285,8 @@ int main(int argc, const char* argv[]) try
                         .reuse_address(true));
 
         // responder thread; it only enqueues on to cpp-netlib's internal threadpool, so one thread should do
-        http_server_threads->create_thread(boost::bind(&app::archived_shim::run_responder, boost::ref(archived_shim)));
+        boost::shared_ptr<boost::thread> responder_thread(http_server_threads->create_thread(
+                boost::bind(&app::archived_shim::run_responder, boost::ref(archived_shim))));
 
         const common::collectd::fn_produce_type fn_error_callback =
                 boost::bind(app::produce_response_on_error, response_queue, _1, _2);
@@ -334,9 +335,9 @@ int main(int argc, const char* argv[]) try
         archived_shim.shutdown();
 
         {
-            std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
-            std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-            for(; itr != end; ++itr) {
+            std::list<app::archived_client::pointer>::iterator end = archived_clients.end();
+            std::list<app::archived_client::pointer>::iterator itr = archived_clients.begin();
+            for (; itr != end; ++itr) {
                 (*itr)->shutdown();
             }
         }
@@ -368,8 +369,9 @@ int main(int argc, const char* argv[]) try
 
         io_service_threads.join_all();
 
+        responder_thread->join();
+
         http_server->stop();
-        http_server_threads->join_all();
 
         LogMessage("Terminated normally");
 
