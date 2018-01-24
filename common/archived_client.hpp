@@ -935,7 +935,9 @@ private:
 			}
 
 			put_archivable_ptr_->hibernate();
-			run_statemachine(error, socket_serial);
+
+			io_service_.post(strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(), error, socket_serial)));
 
 			break;
 		}

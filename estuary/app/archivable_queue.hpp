@@ -73,6 +73,8 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
         }
     }
 
+    LogDebug(item << " sending to ArchiveD (if not NULL)");
+
     return item;
 }
 
@@ -80,6 +82,9 @@ void produce_response_on_error(const boost::shared_ptr<response_queue>& queue,
                                const boost::shared_ptr<archiving::archivable>& archivable, const bool _ignored_)
 {
     boost::system::error_condition error;
+
+    LogDebug(archivable << " .. there was an error; setting up response");
+
     queue->produce(boost::make_shared<response>(archivable->get_database_id(),
                                                 boost::system::error_condition(error::http::internal_server_error)),
                    error);
@@ -92,6 +97,9 @@ void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
                                  const boost::shared_ptr<archiving::archivable>& archivable)
 {
     boost::system::error_condition error;
+
+    LogDebug(archivable << " .. done; setting up response");
+
     queue->produce(boost::make_shared<response>(archivable->get_database_id(),
                                                 boost::system::error_condition(error::http::no_content)), error);
     if (error) {
