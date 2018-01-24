@@ -356,6 +356,8 @@ struct archived_shim
         boost::shared_ptr<http::pending_request> pending_request =
                 boost::make_shared<http::pending_request>(id, request, connection);
 
+        // TODO handle mid-flight requests; ones that are stuck in the sender queue if / when ArchiveD goes down
+
         if (shutting_down == true || app::archived_client::get_is_archived_ok() <= 0.0) {
             pending_request->respond(error::http::service_unavailable);
             return;
