@@ -461,7 +461,7 @@ class importPhonero extends BaseApp
                     $count++;
                 }
 
-                if ($count > $config->hi_water_mark) {
+                if ($count >= $config->hi_water_mark) {
                     LogMessage ("$count messages in the queue: that'll do for now");
                     break;
                 }
