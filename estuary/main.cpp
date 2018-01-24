@@ -232,12 +232,10 @@ int main(int argc, const char* argv[]) try
                 boost::ref(*p_io_service));
 
         boost::thread_group io_service_threads;
-        {
-            unsigned int n_threads = std::max(config["common.io_service_threads"].as<unsigned>(),
-                                                        boost::thread::hardware_concurrency());
-            while (0 < n_threads--) {
-                io_service_threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
-            }
+        for (unsigned int n_threads = std::max(config["common.io_service_threads"].as<unsigned>(),
+                                               boost::thread::hardware_concurrency()); n_threads > 0; n_threads--) {
+
+            io_service_threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
         }
 
         // set the signal handlers
@@ -272,6 +270,9 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<app::response_queue> response_queue = boost::make_shared<app::response_queue>(0);
 
         boost::shared_ptr<boost::thread_group> http_server_threads = boost::make_shared<boost::thread_group>();
+        boost::shared_ptr<boost::asio::io_service> http_server_io_service =
+                boost::make_shared<boost::asio::io_service>();
+
         app::archived_shim archived_shim(snowflake, archivable_queue, response_queue);
         boost::shared_ptr<app::http::server> http_server = boost::make_shared<app::http::server>(
                 app::http::server::options(archived_shim)
@@ -280,7 +281,7 @@ int main(int argc, const char* argv[]) try
                         .thread_pool(
                                 boost::make_shared<boost::network::utils::thread_pool>(
                                         std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2),
-                                        p_io_service, http_server_threads))
+                                        http_server_io_service, http_server_threads))
                         .reuse_address(true));
 
         // responder thread; it only enqueues on to cpp-netlib's internal threadpool, so one thread should do
@@ -310,7 +311,11 @@ int main(int argc, const char* argv[]) try
             archived_clients.push_back(archived_client);
         }
 
-        http_server->listen();
+        for (unsigned int n_threads = std::max<unsigned>(boost::thread::hardware_concurrency() / 2, 2);
+             n_threads > 0; n_threads--) {
+
+            http_server_threads->create_thread(boost::bind(&app::http::server::run, http_server));
+        }
 
         LogMessage("Initialisation complete");
 
