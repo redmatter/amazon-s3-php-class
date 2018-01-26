@@ -72,8 +72,16 @@ Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
-Provides: cdrpostd
-Conflicts: RM-cdrmunch-cdrpostd
+
+%package collect-importd
+Summary: Archiving CollectImportD
+Group: RedMatter/Archiving
+Requires: mysql++ >= 3.1.0-29693
+Requires: cryptopp
+Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-%{appname}-common = %{version}-%{release}
+BuildRequires: php-cli
+BuildRequires: php54-cli
 
 # %package migrationd
 # Summary: Archiving CollectD
@@ -158,6 +166,10 @@ CollectD Schema files
 
 %description collect-smsd
 Daemon that archives queued SMS messages from BES server via the callcontrol API.
+It also makes sense of archiving policy and passes that on to ArchiveD.
+
+%description collect-importd
+Daemon that archives audio recordings imported from elsewhere, e.g. Telia Phonero.
 It also makes sense of archiving policy and passes that on to ArchiveD.
 
 # %description migrationd
@@ -250,6 +262,24 @@ cp collect-smsd/rmcollect-smsd.supp %{buildroot}/usr/share/archiving/
 cp collect-smsd/rmcollect-smsd.conf %{buildroot}/etc/archiving/
 cp collect-smsd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-smsd
 cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
+
+# CollectImportD
+cp collect-importd/tmp-%{buildtype}-build/collect-importd %{buildroot}/usr/bin/rmcollect-importd.bin
+cp collect-importd/rmcollect-importd_safe %{buildroot}/usr/bin/
+cp collect-importd/rmcollect-importd %{buildroot}/etc/rc.d/init.d/
+cp collect-importd/rmcollect-importd.supp %{buildroot}/usr/share/archiving/
+cp collect-importd/rmcollect-importd.conf %{buildroot}/etc/archiving/
+cp collect-importd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-importd
+cp collect-importd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-importd.conf
+mkdir -p %{buildroot}/mnt/rmfs/archiving-import
+mkdir -p %{buildroot}/mnt/rmfs/phonero/download
+mkdir -p %{buildroot}/mnt/rmfs/phonero/queue
+mkdir -p %{buildroot}/mnt/rmfs/phonero/not-handled
+cp collect-importd/cronjobs/phonero/archiving-phonero-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-phonero-cron.conf
+cp collect-importd/cronjobs/phonero/phonero-cron.conf %{buildroot}/etc/archiving/phonero-cron.conf
+cp collect-importd/cronjobs/phonero/phonero-cron.phar %{buildroot}/usr/bin/
+mkdir -p %{buildroot}/etc/cron.1min
+ln -sf /usr/bin/phonero-cron.phar %{buildroot}/etc/cron.1min
 
 # # MigrationD
 # cp migrationd/tmp-%{buildtype}-build/migrationd %{buildroot}/usr/bin/rmmigrationd.bin
@@ -387,6 +417,17 @@ if ! /usr/bin/id cdrmunch &>/dev/null; then
 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 fi
 
+%pre collect-importd
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
+fi
+
 # %pre migrationd
 # if grep ^cdrmunch: /etc/group &>/dev/null; then
 # 	: # group already exists
@@ -448,6 +489,16 @@ fi
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
+
+%post collect-importd
+/usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
+/sbin/chkconfig --add rmcollect-importd
+/sbin/chkconfig rmcollect-importd on
 if [ "$1" -eq 1 ]; then # package just got installed ?
 	[ -x /etc/init.d/rsyslog ] &&
 		/etc/init.d/rsyslog condrestart ||
@@ -534,6 +585,13 @@ if [ "$1" -eq 0 ]; then
 		/bin/true
 fi
 
+%postun collect-importd
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
+
 %postun eml2a
 if [ "$1" -eq 0 ]; then
 	# update main.cf with the DEFAULT values for the settings we changed
@@ -604,6 +662,27 @@ fi
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
 /etc/logrotate.d/rmcollect-smsd
 /etc/rsyslog.d/11-rmcollect-smsd.conf
+
+%files collect-importd
+%defattr(-,root,root)
+/usr/bin/rmcollect-importd.bin
+/usr/bin/rmcollect-importd_safe
+/usr/share/archiving/rmcollect-importd.supp
+/etc/rc.d/init.d/rmcollect-importd
+/etc/archiving/rmcollect-importd.conf
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/archiving-import
+/etc/logrotate.d/rmcollect-importd
+/etc/rsyslog.d/11-rmcollect-importd.conf
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/download
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/queue
+%dir %attr(777,cdrmunch,cdrmunch) /mnt/rmfs/phonero/not-handled
+/etc/archiving/phonero-cron.conf
+/usr/bin/phonero-cron.phar
+/etc/rsyslog.d/11-archiving-phonero-cron.conf
+/etc/cron.1min/phonero-cron.phar
 
 # %files migrationd
 # %defattr(-,root,root)
