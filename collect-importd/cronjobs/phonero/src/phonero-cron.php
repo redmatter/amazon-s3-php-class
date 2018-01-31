@@ -530,29 +530,52 @@ class importPhonero extends BaseApp
                 $foundA = ($finfo['Direction'] == 'OUT') ? key_exists($finfo['AUUID'], $logResults) : false;
                 $foundB = ($finfo['Direction'] == 'IN')  ? key_exists($finfo['BUUID'], $logResults) : false;
 
-                $copyops = array();
+                $wlA = $foundA && $logResults[$finfo['AUUID']]['Direction'] == 'WHITELISTED';
+                $wlB = $foundB && $logResults[$finfo['BUUID']]['Direction'] == 'WHITELISTED';
 
-                if ($foundA)
-                    $fnameA = $this->insertUUIDDashes($finfo['AUUID'])."_{$logResults[$finfo['AUUID']]['OrgID']}_{$logResults[$finfo['AUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
-                if ($foundB)
-                    $fnameB = $this->insertUUIDDashes($finfo['BUUID'])."_{$logResults[$finfo['BUUID']]['OrgID']}_{$logResults[$finfo['BUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+                LogMessage("$finfo[Name]: MO: ".($wlA?'WL':($foundA?'COPY':'-'))." MT ".($wlA?'WL':($foundA?'COPY':'-')));
 
-                if ($foundA) {
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameA);
-                    if ($foundB)
-                        $copyops[] = array('op' => 'copy', 'src' => $config->import_dir . '/' . $fnameA, 'dst' => $config->import_dir . '/' . $fnameB);
-                }
-                else if ($foundB)
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameB);
-                else
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->not_handled_dir . '/' . $finfo['Name']);
-
-                foreach($copyops as $op) {
-                    $res = $op['op']($op['src'], $op['dst']);
+                if (($wlA && $wlB) || ($wlA && !$foundB) || ($wlB && !$foundA))
+                {
+                    // if we are here this call is completely whitelisted. Just delete the file
+                    $res = unlink($finfo['Name']);
                     if (!$res)
-                        LogError($this->log_php_error("$op[op]: $op[src] -> $op[dst]"));
+                        LogError($this->log_php_error("unlink: $finfo[Name]"));
                     else
-                        LogMessage("$op[op]: $op[src] -> $op[dst] OK");
+                        LogMessage("unlink: $finfo[Name] OK");
+                }
+                else
+                {
+                    // if we are here, there is some part of the call that has not been whitelisted
+
+                    if ($wlA && $foundB)
+                        $foundA = false;
+                    elseif ($wlB && $foundA)
+                        $foundB = false;
+
+                    if ($foundA)
+                        $fnameA = $this->insertUUIDDashes($finfo['AUUID']) . "_{$logResults[$finfo['AUUID']]['OrgID']}_{$logResults[$finfo['AUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+                    if ($foundB)
+                        $fnameB = $this->insertUUIDDashes($finfo['BUUID']) . "_{$logResults[$finfo['BUUID']]['OrgID']}_{$logResults[$finfo['BUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+
+                    $copyops = array();
+
+                    if ($foundA) {
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameA);
+                        if ($foundB)
+                            $copyops[] = array('op' => 'copy', 'src' => $config->import_dir . '/' . $fnameA, 'dst' => $config->import_dir . '/' . $fnameB);
+                    } else if ($foundB)
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameB);
+                    else
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->not_handled_dir . '/' . $finfo['Name']);
+
+                    foreach ($copyops as $op) {
+                        $res = $op['op']($op['src'], $op['dst']);
+                        if (!$res)
+                            LogError($this->log_php_error("$op[op]: $op[src] -> $op[dst]"));
+                        else
+                            LogMessage("$op[op]: $op[src] -> $op[dst] OK");
+                    }
                 }
             }
         }
