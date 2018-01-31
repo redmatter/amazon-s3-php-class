@@ -533,7 +533,7 @@ class importPhonero extends BaseApp
                 $wlA = $foundA && $logResults[$finfo['AUUID']]['Direction'] == 'WHITELISTED';
                 $wlB = $foundB && $logResults[$finfo['BUUID']]['Direction'] == 'WHITELISTED';
 
-                LogMessage("$finfo[Name]: MO: ".($wlA?'WL':($foundA?'COPY':'-'))." MT ".($wlA?'WL':($foundA?'COPY':'-')));
+                LogMessage("$finfo[Name]: MO: ".($wlA?'WL':($foundA?'OK':'-'))." MT: ".($wlB?'WL':($foundB?'OK':'-')));
 
                 if (($wlA && $wlB) || ($wlA && !$foundB) || ($wlB && !$foundA))
                 {
