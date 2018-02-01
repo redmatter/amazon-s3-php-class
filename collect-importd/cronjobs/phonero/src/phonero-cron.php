@@ -619,11 +619,6 @@ class importPhonero extends BaseApp
         if ($activeDC === false)
             throw new Exception ("Unable to determine active DC! Aborting.");
 
-        // only run if we are not in production, or we are in the active DC
-
-        if ($inProduction && $this->hAPILocName != $activeDC)
-            throw new Exception ("Running in $this->hAPILocName, Active DC: $activeDC. Stopping.");
-
         // build our configuration object
 
         foreach ($mandatory_config_items as $item) {
@@ -681,18 +676,25 @@ class importPhonero extends BaseApp
         if ($config->max_not_handled <= iterator_count($fi))
             throw new Exception('not-handled count '.iterator_count($fi)." exceeds $config->max_not_handled: Aborting");
 
-        // download any new audio files from the SFTP server. This is a self contained process
+        // only run if we are not in production, or we are in the active DC
 
-        LogMessage("Downloading phonero files via SFTP");
+        if (!$inProduction || $this->hAPILocName == $activeDC)
+        {
+            // download any new audio files from the SFTP server. This is a self contained process
 
-        try
-        {
-            $this->sftpDownload($config);
+            LogMessage("Downloading phonero files via SFTP");
+
+            try
+            {
+                $this->sftpDownload($config);
+            }
+            catch (Exception $e)
+            {
+                LogError("Exception while processing SFTP download: " . $e->getMessage());
+            }
         }
-        catch (Exception $e)
-        {
-            LogError("Exception while processing SFTP download: ".$e->getMessage());
-        }
+        else
+            LogMessage ("Not running in active DC $activeDC, skipping sftp download");
 
         // process items in the queue directory and place successful ones in the import directory
 
