@@ -10,7 +10,7 @@ RML_QUEUE_QUEUE_HPP=$(RML_QUEUE_DIR)/rml/queue/queue.hpp
 
 FREESWITCH_DIR=/opt/freeswitch
 
-CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
+CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
@@ -77,6 +77,7 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 main.cpp : $(RML_QUEUE_QUEUE_HPP)
 
@@ -91,7 +92,7 @@ endif
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES
 
-clean_extra:
+clean_extra: $(CLEAN_EXTRA)
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES clean
 	@$(MAKE) -C ../external clean
 

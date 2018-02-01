@@ -5,8 +5,6 @@ include Makefile.macros
 
 TARGET=libarchiving_common.a
 
-CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
-
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
 CPPFLAGS += -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
@@ -54,6 +52,7 @@ MKDIR=mkdir -p
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.lib_target
+include ../external/Makefile.cpp-netlib
 
 install: $(TMP)/$(TARGET)
 	$(MKDIR) $(DESTDIR_LIB) $(DESTDIR_INCLUDE) $(DESTDIR_DATA)

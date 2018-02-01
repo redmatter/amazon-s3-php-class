@@ -1,9 +1,10 @@
-/*
- * cdr_inspector.hpp
- *
- *  Created on: 25 Jan 2011
- *	  Author: dkorah
- */
+//
+// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 25/01/2011.
+//
 
 #ifndef CDR_INSPECTOR_HPP_
 #define CDR_INSPECTOR_HPP_
@@ -540,7 +541,7 @@ public:
 													archiving::file_type::buffered_recording, "wav", pbx_hostname_,
 													policy::pseudo_id::buffered_recording));
 									archivable_cbr->set_leg_uuid(archivable_cdr->get_uuid());
-                                    LogMessage(*archivable_cdr<<" - Call buffering found - "<<*archivable_cbr);
+									LogMessage(*archivable_cdr<<" - Call buffering found - "<<*archivable_cbr);
 								}
 								catch (const rml::utils::tmp_fstream::error& e) {
 									const std::string error(e.what());
@@ -621,7 +622,7 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 									archivable_cbr->hibernate();
- 									fn_out_queue_produce_(archivable_cbr, true);
+									fn_out_queue_produce_(archivable_cbr, true);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -660,6 +661,11 @@ public:
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
 									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
 
+									const unsigned int recording_call_analysis_count =
+											boost::lexical_cast<unsigned int>(get_xpath_single_value(
+													variables_node,
+													boost::str(boost::format("rmCallRecording_%1%_AnalysisRequestedCount/text()") % recording_count), "0"));
+
 									if(!recording_location.empty()) {
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
@@ -683,11 +689,28 @@ public:
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
-											if(recording_policy == policy::pseudo_id::do_not_archive ||
-													(recording_send_email &&
+											if (recording_policy == policy::pseudo_id::do_not_archive
+													|| (recording_send_email &&
 															((recording_send_email_to_recips && 0 < strlen(recording_send_email_to_recips)) ||
-																	(recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips)))))
+																	(recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips))))
+													|| recording_call_analysis_count > 0)
+											{
+												if (recording_policy == policy::pseudo_id::do_not_archive) {
+													LogVerbose(*archivable_recording<<" Found to have 'DO NOT ARCHIVE' policy set");
+												}
+												if (recording_send_email &&
+													((recording_send_email_to_recips && 0 < strlen(recording_send_email_to_recips)) ||
+													 (recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips))))
+												{
+													LogVerbose(*archivable_recording<<" Found to have SEND EMAIL task enabled");
+												}
+												if (recording_call_analysis_count > 0) {
+													LogVerbose(*archivable_recording<<" Found to have CALL ANALYSIS task enabled");
+												}
+
+												LogVerbose(*archivable_recording<<" Set to be added to CDRMunch cache");
 												archivable_recording->set_add_to_cdrmunch_cache(true);
+											}
 
 											archivable_recording->set_current_state(archiving::archivable::state::inspected);
 											{
@@ -739,7 +762,7 @@ public:
 													archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
 									archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
 
-                                    LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
+									LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
 									variables_node.append_child("rmCallRecordingUUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									modified = true;
