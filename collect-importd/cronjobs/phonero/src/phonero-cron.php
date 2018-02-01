@@ -525,15 +525,22 @@ class importPhonero extends BaseApp
             // go through the list matching inputs to the API results, and forward the successes
             // to rmcollect-importd and the failures to $config->not_handled_dir
 
+            $expectedNumbers = array();
+
             foreach($fileinfo as $finfo)
             {
                 $foundA = ($finfo['Direction'] == 'OUT') ? key_exists($finfo['AUUID'], $logResults) : false;
                 $foundB = ($finfo['Direction'] == 'IN')  ? key_exists($finfo['BUUID'], $logResults) : false;
 
+                if (!$foundA && ($finfo['Direction'] == 'OUT'))
+                    $expectedNumbers[$finfo['From_Number']] = $finfo['From_Number'];
+                if (!$foundB && ($finfo['Direction'] == 'IN'))
+                    $expectedNumbers[$finfo['To_Number']] = $finfo['To_Number'];
+
                 $wlA = $foundA && $logResults[$finfo['AUUID']]['Direction'] == 'WHITELISTED';
                 $wlB = $foundB && $logResults[$finfo['BUUID']]['Direction'] == 'WHITELISTED';
 
-                LogMessage("$finfo[Name]: MO: ".($wlA?'WL':($foundA?'OK':'-'))." MT: ".($wlB?'WL':($foundB?'OK':'-')));
+                LogMessage("$finfo[Name]: ".($wlA?'WL':($foundA?'OK':'-'))."/".($wlB?'WL':($foundB?'OK':'-')));
 
                 if (($wlA && $wlB) || ($wlA && !$foundB) || ($wlB && !$foundA))
                 {
@@ -578,6 +585,9 @@ class importPhonero extends BaseApp
                     }
                 }
             }
+
+            if (count($expectedNumbers) != 0)
+                LogMessage('Unprovisioned numbers: '.implode(',', $expectedNumbers));
         }
     }
 
