@@ -324,8 +324,8 @@
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
     <rmCallRecording_1_AnalysisRequestedCount>2</rmCallRecording_1_AnalysisRequestedCount>
-    <rmCallRecording_1_AnalysisRequested_1>transcription-watson</rmCallRecording_1_AnalysisRequested_1>
-    <rmCallRecording_1_AnalysisRequested_2>transcription-voicebase</rmCallRecording_1_AnalysisRequested_2>
+    <rmCallRecording_1_AnalysisRequested_1>transcription-voicebase</rmCallRecording_1_AnalysisRequested_1>
+    <rmCallRecording_1_AnalysisRequested_2>talk-time</rmCallRecording_1_AnalysisRequested_2>
   </variables>
   <app_log>
     <application app_name="set" app_data="rmOverrideCallerIdName=DDI Call" app_stamp="{{startEpoch}}484446" />
