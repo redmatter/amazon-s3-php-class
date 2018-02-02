@@ -324,7 +324,6 @@
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
     <rmArchivingEnabled>true</rmArchivingEnabled>
-    <rmCallRecordingUUID_1>{{aLeg_uuid}}</rmCallRecordingUUID_1>
   </variables>
   <app_log>
     <application app_name="set" app_data="rmOverrideCallerIdName=DDI Call" app_stamp="{{startEpoch}}484446" />

@@ -27,6 +27,20 @@ namespace detail
 {
 struct path_info : public std::vector<std::string>
 {
+    /**
+     * Get a component from path-info by position
+     *
+     * @tparam T type to lexical_cast to
+     *
+     * @param pos position of the component in the path; 1 for the first component, 2 for the second and so on
+     * @param what name the component (for error message)
+     *
+     * @throws error::bad_data_exception if the component at @p pos cannot be converted to @p T
+     *
+     * @example request->path_info.get_component<float>(2);
+     *
+     * @return
+     */
     template <typename T>
     boost::optional<T> get_component(const unsigned pos, const std::string& what) const
     {
@@ -40,6 +54,11 @@ struct path_info : public std::vector<std::string>
     path_info()
     {}
 
+    /**
+     * Construct from path string
+     *
+     * @param path
+     */
     explicit path_info(const std::string& path)
     {
         std::vector<std::string> tmp;
