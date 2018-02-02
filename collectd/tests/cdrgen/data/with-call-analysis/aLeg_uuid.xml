@@ -93,7 +93,7 @@
     <transfer_history>{{startEpoch}}%3A8b188c7f-b97a-4417-984a-c96b94c7b16a%3Abl_xfer%3AT00011581/1/XML</transfer_history>
     <rmAnalyticsItem_1>T00014083%20XML%201</rmAnalyticsItem_1>
     <rmAnalyticsItemOrig_1>Inbound%3A%20Natterbox%40T00014162%40Salesforce%201%20Demo%20Inbound</rmAnalyticsItemOrig_1>
-    <rmAnalyticsItems>2</rmAnalyticsItems>
+    <rmAnalyticsItems>0</rmAnalyticsItems>
     <rmAnalyticsItem_2>T00015836%20XML%201</rmAnalyticsItem_2>
     <rmAnalyticsItemOrig_2>Inbound%3A%20Natterbox%40T00016476%40AY%20Inbound%20v8.6</rmAnalyticsItemOrig_2>
     <rmvNonCallPolicy>T00015836%20XML%201</rmvNonCallPolicy>
