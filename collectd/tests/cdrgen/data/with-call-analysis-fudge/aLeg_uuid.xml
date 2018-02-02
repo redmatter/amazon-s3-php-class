@@ -1,0 +1,1763 @@
+<?xml version="1.0"?>
+<cdr core-uuid="77191ab5-ecb5-4137-936b-45057e6a70cf">
+  <channel_data>
+    <state>CS_REPORTING</state>
+    <direction>inbound</direction>
+    <state_number>11</state_number>
+    <flags>0=1;1=1;3=1;18=1;35=1;36=1;38=1;41=1;46=1;51=1;59=1</flags>
+    <caps>1=1;2=1;3=1;4=1;5=1;6=1</caps>
+  </channel_data>
+  <variables>
+    <direction>inbound</direction>
+    <uuid>{{aLeg_uuid}}</uuid>
+    <session_id>929957</session_id>
+    <sip_local_network_addr>84.45.30.132</sip_local_network_addr>
+    <sip_network_ip>84.45.30.2</sip_network_ip>
+    <sip_network_port>5080</sip_network_port>
+    <sip_received_ip>84.45.30.2</sip_received_ip>
+    <sip_received_port>5080</sip_received_port>
+    <sip_via_protocol>udp</sip_via_protocol>
+    <sip_from_user>4916097792975</sip_from_user>
+    <sip_from_uri>4916097792975%40voxbone.com</sip_from_uri>
+    <sip_from_host>voxbone.com</sip_from_host>
+    <sip_from_user_stripped>4916097792975</sip_from_user_stripped>
+    <sofia_profile_name>external1</sofia_profile_name>
+    <sip_req_user>493022957361</sip_req_user>
+    <sip_req_uri>493022957361%40gateway.redmatter.com</sip_req_uri>
+    <sip_req_host>gateway.redmatter.com</sip_req_host>
+    <sip_to_user>493022957361</sip_to_user>
+    <sip_to_uri>493022957361%40gateway.redmatter.com</sip_to_uri>
+    <sip_to_host>gateway.redmatter.com</sip_to_host>
+    <sip_contact_params>transport%3Dudp</sip_contact_params>
+    <sip_contact_user>4916097792975</sip_contact_user>
+    <sip_contact_port>5060</sip_contact_port>
+    <sip_contact_uri>4916097792975%4081.201.82.106%3A5060</sip_contact_uri>
+    <sip_contact_host>81.201.82.106</sip_contact_host>
+    <channel_name>sofia/external1/4916097792975%40voxbone.com</channel_name>
+    <sip_user_agent>Vox%20Callcontrol</sip_user_agent>
+    <sip_via_host>84.45.30.2</sip_via_host>
+    <sip_via_port>5080</sip_via_port>
+    <switch_r_sdp>v%3D0%0D%0Ao%3Droot%201050516234%201050516234%20IN%20IP4%2081.201.82.174%0D%0As%3Dsession%0D%0Ac%3DIN%20IP4%2081.201.82.174%0D%0At%3D0%200%0D%0Am%3Daudio%2010178%20RTP/AVP%208%200%2018%209%20101%0D%0Aa%3Drtpmap%3A8%20PCMA/8000%0D%0Aa%3Drtpmap%3A0%20PCMU/8000%0D%0Aa%3Drtpmap%3A18%20G729/8000%0D%0Aa%3Dfmtp%3A18%20annexb%3Dno%0D%0Aa%3Drtpmap%3A9%20G722/8000%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-16%0D%0Aa%3DsilenceSupp%3Aoff%20-%20-%20-%20-%0D%0Aa%3Dptime%3A20%0D%0A</switch_r_sdp>
+    <ep_codec_string>PCMA%408000h%4020i%4064000b,PCMU%408000h%4020i%4064000b,G722%408000h%4020i%4064000b</ep_codec_string>
+    <rmStartEpoch>{{startEpoch}}</rmStartEpoch>
+    <rmOverrideCallerIdName>DDI%20Call</rmOverrideCallerIdName>
+    <rmHCDCode>44</rmHCDCode>
+    <default_language>en</default_language>
+    <rmTTSVoice>brian</rmTTSVoice>
+    <rmLanguageLocale>uk</rmLanguageLocale>
+    <sound_prefix>/usr/share/freeswitch/sounds/en/uk/brian</sound_prefix>
+    <rmDumpCalls>RTP</rmDumpCalls>
+    <rmPolicyStartID>31</rmPolicyStartID>
+    <rmCallPolicyStartID>31</rmCallPolicyStartID>
+    <rmCallPolicyStartName>Inbound%3A%20Natterbox</rmCallPolicyStartName>
+    <rmCallComponentStartName>DDI</rmCallComponentStartName>
+    <rmCallComponentStartDN>DDI%40ModNumber_PublicDDI</rmCallComponentStartDN>
+    <rmCallCategory>COC</rmCallCategory>
+    <rmDialledNumberStripped>493022957361</rmDialledNumberStripped>
+    <rmDialledNumber>493022957361</rmDialledNumber>
+    <rmNumberNormalised>4916097792975</rmNumberNormalised>
+    <rmInSIPMaxForwards>67</rmInSIPMaxForwards>
+    <rmLCRNumberPolicy>block</rmLCRNumberPolicy>
+    <rmLCRACL>%5E%5B1-9%5D%5Cd*$</rmLCRACL>
+    <rmDDIUserID>82368</rmDDIUserID>
+    <rmvPlayBackToneLoops>0</rmvPlayBackToneLoops>
+    <rmvPlayBackTone>uk</rmvPlayBackTone>
+    <DP_MATCH>setRingBack_uk</DP_MATCH>
+    <DP_MATCH>uk</DP_MATCH>
+    <ringback>%25(400,200,400,450)%3B%25(400,2200,400,450))</ringback>
+    <outside_call>true</outside_call>
+    <rmOriginatedExternal>true</rmOriginatedExternal>
+    <rmOrgID>1</rmOrgID>
+    <rmUserID>0</rmUserID>
+    <rmDevID>0</rmDevID>
+    <rmExtension>2209</rmExtension>
+    <rmPolicyNumberType>DDI</rmPolicyNumberType>
+    <rmOrgThrottleLimitSet>true</rmOrgThrottleLimitSet>
+    <limit_usage_orgThrottle_1>5</limit_usage_orgThrottle_1>
+    <limit_rate_orgThrottle_1>1</limit_rate_orgThrottle_1>
+    <rmOrgChannelsMaxLimitSet>true</rmOrgChannelsMaxLimitSet>
+    <limit_usage>5</limit_usage>
+    <limit_usage_orgChannels_1>5</limit_usage_orgChannels_1>
+    <limit_rate>0</limit_rate>
+    <limit_rate_orgChannels_1>0</limit_rate_orgChannels_1>
+    <transfer_history>{{startEpoch}}%3Acab7b166-ab0d-4413-9df4-c6f120ad3fdd%3Abl_xfer%3AT00014161/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3A7d444ccc-9f91-4d15-ba58-16c28a54d1a3%3Abl_xfer%3AT00016475/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3Adda4dd69-9274-4b5a-aa9e-c928f939486f%3Abl_xfer%3AT00009726/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3A5a447e78-adc2-4459-8c0e-28b5176e0b3f%3Abl_xfer%3AT00017328/1/XML</transfer_history>
+    <transfer_history>1503390912%3A14add359-f19a-4966-a2da-7f7ccc99a2b5%3Abl_xfer%3AT00017334/1/XML</transfer_history>
+    <transfer_history>1503390912%3A7ec21429-22bf-47f4-8f73-8c2d88900a09%3Abl_xfer%3AT00009329/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3A02c5e98d-2e5c-4510-ad20-73a27b8e86ff%3Abl_xfer%3AT00013143/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3Ad637d08e-0637-450d-bd18-c25ba81ee9de%3Abl_xfer%3AT00013141/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3Ab0c10fe0-782e-4a2c-bc4c-cb47769d451b%3Abl_xfer%3AT00011580/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3A03415d90-eb90-4d83-a535-0ae7e592c2c7%3Abl_xfer%3AT00013136/1/XML</transfer_history>
+    <transfer_history>{{startEpoch}}%3A8b188c7f-b97a-4417-984a-c96b94c7b16a%3Abl_xfer%3AT00011581/1/XML</transfer_history>
+    <rmAnalyticsItem_1>T00014083%20XML%201</rmAnalyticsItem_1>
+    <rmAnalyticsItemOrig_1>Inbound%3A%20Natterbox%40T00014162%40Salesforce%201%20Demo%20Inbound</rmAnalyticsItemOrig_1>
+    <rmAnalyticsItems>2</rmAnalyticsItems>
+    <rmAnalyticsItem_2>T00015836%20XML%201</rmAnalyticsItem_2>
+    <rmAnalyticsItemOrig_2>Inbound%3A%20Natterbox%40T00016476%40AY%20Inbound%20v8.6</rmAnalyticsItemOrig_2>
+    <rmvNonCallPolicy>T00015836%20XML%201</rmvNonCallPolicy>
+    <rmRecordSendEmail_B>false</rmRecordSendEmail_B>
+    <rmDispRecordRetain_B>true</rmDispRecordRetain_B>
+    <rmRecordPolicy_B>9160</rmRecordPolicy_B>
+    <bridge_pre_execute_bleg_app>lua</bridge_pre_execute_bleg_app>
+    <bridge_pre_execute_bleg_data>applications/features/PreProcessBLeg.lua%20bridge_pre_execute_bleg</bridge_pre_execute_bleg_data>
+    <rmvRuleNumChkCallerMode>Match</rmvRuleNumChkCallerMode>
+    <rmvRuleNumChkCalledMode>Match</rmvRuleNumChkCalledMode>
+    <rmvRuleNumChkCalled>03331501004</rmvRuleNumChkCalled>
+    <rmvRuleNumChkCallerWithheld>false</rmvRuleNumChkCallerWithheld>
+    <rmvRuleNumChkTransfer>T00009603%20XML%201</rmvRuleNumChkTransfer>
+    <rmvRecordPolicy>2850</rmvRecordPolicy>
+    <rmDispRecordRetain>true</rmDispRecordRetain>
+    <rmRecordPauseAllowed>false</rmRecordPauseAllowed>
+    <rmLocalRecordLocation>/tmp/1_2017_08_22_{{aLeg_uuid}}.wav</rmLocalRecordLocation>
+    <RECORD_APPEND>true</RECORD_APPEND>
+    <RECORD_STEREO>true</RECORD_STEREO>
+    <RECORD_MIN_SEC>0</RECORD_MIN_SEC>
+    <RECORD_HANGUP_ON_ERROR>true</RECORD_HANGUP_ON_ERROR>
+    <media_bug_answer_req>yes</media_bug_answer_req>
+    <rmCallRecordingCount>1</rmCallRecordingCount>
+    <rmCallRecordingMainID>1</rmCallRecordingMainID>
+    <rmCallRecordingLoc_1>/tmp/1_2017_08_22_{{aLeg_uuid}}.wav</rmCallRecordingLoc_1>
+    <rmCallRecordingPolicy_1>0</rmCallRecordingPolicy_1>
+    <rmRecordBeep>off</rmRecordBeep>
+    <rmRecordToneStream>%25(100,15000,800)</rmRecordToneStream>
+    <bridge_pre_execute_aleg_app>lua</bridge_pre_execute_aleg_app>
+    <bridge_pre_execute_aleg_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</bridge_pre_execute_aleg_data>
+    <rmCurrentPolicyName>User%3A%20Holger</rmCurrentPolicyName>
+    <rmCurrentPolicyID>8338</rmCurrentPolicyID>
+    <rmDebugTechSupport>yes</rmDebugTechSupport>
+    <rmvGroupConfirmPhrase>DDI%20Call.</rmvGroupConfirmPhrase>
+    <rmvGroupConfirmPolicy>can</rmvGroupConfirmPolicy>
+    <rmvAnnounceForce>false</rmvAnnounceForce>
+    <rmvGroupConfirmKey>1</rmvGroupConfirmKey>
+    <rmvGroupConfirmAttempts>3</rmvGroupConfirmAttempts>
+    <rmvGroupConfirmTimeout>7</rmvGroupConfirmTimeout>
+    <max_forwards>39</max_forwards>
+    <transfer_source>{{startEpoch}}%3A8b188c7f-b97a-4417-984a-c96b94c7b16a%3Abl_xfer%3AT00011581/1/XML</transfer_source>
+    <rmvAnswerCall>false</rmvAnswerCall>
+    <call_uuid>{{aLeg_uuid}}</call_uuid>
+    <rmCurrentFeatureDN>T00011581%40ModConnect</rmCurrentFeatureDN>
+    <rmCurrentFeatureName>Connect</rmCurrentFeatureName>
+    <rmConnectFeatureIdent>T00011581</rmConnectFeatureIdent>
+    <rmCurrentComponentDN>T00011582</rmCurrentComponentDN>
+    <rmCurrentComponentName>holger</rmCurrentComponentName>
+    <rmvConnectComponentsActivated>_T00011582</rmvConnectComponentsActivated>
+    <rmvFollowMeDialString>((dialItem%253Duser%3A82368%2526dialItemLabel%253DDeskphone%2526dialStart%253D0%2526dialLength%253D30%2526screenCaller%253Dfalse)),((dialItem%253D07410698088%3AD%2526dialItemLabel%253DHolger%20Mob%2526dialStart%253D0%2526dialLength%253D30%2526screenCaller%253Dtrue))</rmvFollowMeDialString>
+    <hangup_after_bridge>true</hangup_after_bridge>
+    <continue_on_fail>true</continue_on_fail>
+    <sip_audio_recv_pt>8</sip_audio_recv_pt>
+    <sip_use_codec_name>PCMA</sip_use_codec_name>
+    <sip_use_codec_rate>8000</sip_use_codec_rate>
+    <sip_use_codec_ptime>20</sip_use_codec_ptime>
+    <write_codec>PCMA</write_codec>
+    <write_rate>8000</write_rate>
+    <local_media_ip>84.45.30.132</local_media_ip>
+    <local_media_port>25300</local_media_port>
+    <advertised_media_ip>84.45.30.132</advertised_media_ip>
+    <sip_use_pt>8</sip_use_pt>
+    <rtp_use_ssrc>2122170313</rtp_use_ssrc>
+    <sip_2833_send_payload>101</sip_2833_send_payload>
+    <sip_2833_recv_payload>101</sip_2833_recv_payload>
+    <remote_media_ip>81.201.82.174</remote_media_ip>
+    <remote_media_port>10178</remote_media_port>
+    <effective_caller_id_number>%2B4916097792975</effective_caller_id_number>
+    <effective_caller_id_name>DDI%20Call</effective_caller_id_name>
+    <sip_redirect_context>redirect</sip_redirect_context>
+    <domain_name>redm-000001.sip.redmatter.com</domain_name>
+    <rmLCRDialNumber>07410698088</rmLCRDialNumber>
+    <rmLCRCallType>dialdirect</rmLCRCallType>
+    <rmBridgeLRCRoute>false</rmBridgeLRCRoute>
+    <rmLCRUseDefaultGatewayOnFailure>true</rmLCRUseDefaultGatewayOnFailure>
+    <rmLCRPrivacyReqd>false</rmLCRPrivacyReqd>
+    <rmAdditionalLCRChannelVars>leg_delay_start%3D0,leg_timeout%3D30,rmvLegConfirm%3Dtrue,rmHCDCode%3D44,rmHCDExitCode%3D00,rmHCDTrunk%3D0,rmHCDTrunkOptional%3Dfalse,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447410698088</rmAdditionalLCRChannelVars>
+    <rmHangUpOnCallBar>false</rmHangUpOnCallBar>
+    <rmFallBackRoutesEnabled>true</rmFallBackRoutesEnabled>
+    <rmFallBackRoutesSimplify>true</rmFallBackRoutesSimplify>
+    <rmOriginatorUUID>{{aLeg_uuid}}</rmOriginatorUUID>
+    <sip_copy_custom_headers>false</sip_copy_custom_headers>
+    <rmOriginatorOrgId>1</rmOriginatorOrgId>
+    <rmMTRouteOriginalNumber>true</rmMTRouteOriginalNumber>
+    <rmMTRouteNumber>447410698088</rmMTRouteNumber>
+    <rmLCRRoute>%5Blcr_rate%3D'0',lcr_carrier%3D'lcrSimplify',lcr_carrierID%3D'0',lcr_carrierGatewayID%3D'0',privacyClass%3D'',connectCharge%3D'0',rateType%3D'Unknown',leg_delay_start%3D0,leg_timeout%3D30,rmvLegConfirm%3Dtrue,rmHCDCode%3D44,rmHCDExitCode%3D00,rmHCDTrunk%3D0,rmHCDTrunkOptional%3Dfalse,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447410698088,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'fm4',retailConnectCharge%3D0.0000000000000000,retailRate%3D0.0200000000000000,retailRateType%3Dday,retailCountryCode%3D44,retailCountry%3D'GBR',retailPrimaryBandType%3D'Mobile',retailSubBandType%3D'null',rmCallCategory%3DCTC,rmNumberRateable%3D447410698088,origination_caller_id_number%3D4916097792975,origination_caller_id_name%3D4916097792975,rmCLINormalised%3D4916097792975,rmMaxRoutes%3D1,rmRouteCounter%3D0,origination_uuid%3D{{bLeg_uuid}},sip_h_X-RMPrv-UUID%3D{{bLeg_uuid}},absolute_codec_string%3DPCMA,rtcp_audio_interval_msec%3D5000,sip_h_X-OSPath%3Dsip%3A80.231.93.45%3A5060,sip_cid_type%3Dnone,sip_invite_domain%3Dgateway.redmatter.com,sip_h_P-Asserted-Identity%3D'%224916097792975%22%20%3Csip%3A4916097792975%40redmatter.com%3E'%5Dsofia/trusted/siplcr_447410698088%40gateway.redmatter.com%3Bfs_path%3Dsip%3A$%7Bexternal_sip_ip%7D%3A$%7Bprivate_sip_port_1%7D</rmLCRRoute>
+    <rmBridgeString>%7Bgroup_confirm_key%3Dexec,group_confirm_file%3D'javascript%20applications/dialplan_connect/GroupConfirm.js%201%20can%20false',ignore_early_media%3Dtrue,outbound_redirect_fatal%3Dtrue,group_confirm_cancel_timeout%3Dtrue%7D%5BrmDevID%3D38694,rmOrgID%3D1,rmUserID%3D82368,rmHCDCode%3D44,rmCallCategory%3DSTC,rmGrpMembership%3D2209%3A3002%3A7805%3A2000%3A7864,rmBLF%3D40786330,leg_delay_start%3D0,leg_timeout%3D30,origination_caller_id_name%3D'DDI%20Call',rmHCDCode%3D44,rmHCDExitCode%3D00,rmHCDTrunk%3D0,rmHCDTrunkOptional%3Dfalse,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,sip_cid_type%3Dnone,rmRequestedExtension%3D2209,rmNumberNormalised%3D2209,rmCallCategory%3DSTC%5Dsofia/internal/12007%40redm-000001.sip.redmatter.com%3Bfs_path%3Dsip%3A84.45.30.2,%5Blcr_rate%3D'0',lcr_carrier%3D'lcrSimplify',lcr_carrierID%3D'0',lcr_carrierGatewayID%3D'0',privacyClass%3D'',connectCharge%3D'0',rateType%3D'Unknown',leg_delay_start%3D0,leg_timeout%3D30,rmvLegConfirm%3Dtrue,rmHCDCode%3D44,rmHCDExitCode%3D00,rmHCDTrunk%3D0,rmHCDTrunkOptional%3Dfalse,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447410698088,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'fm4',retailConnectCharge%3D0.0000000000000000,retailRate%3D0.0200000000000000,retailRateType%3Dday,retailCountryCode%3D44,retailCountry%3D'GBR',retailPrimaryBandType%3D'Mobile',retailSubBandType%3D'null',rmCallCategory%3DCTC,rmNumberRateable%3D447410698088,origination_caller_id_number%3D4916097792975,origination_caller_id_name%3D4916097792975,rmCLINormalised%3D4916097792975,rmMaxRoutes%3D1,rmRouteCounter%3D0,origination_uuid%3D{{bLeg_uuid}},sip_h_X-RMPrv-UUID%3D{{bLeg_uuid}},absolute_codec_string%3DPCMA,rtcp_audio_interval_msec%3D5000,sip_h_X-OSPath%3Dsip%3A80.231.93.45%3A5060,sip_cid_type%3Dnone,sip_invite_domain%3Dgateway.redmatter.com,sip_h_P-Asserted-Identity%3D'%224916097792975%22%20%3Csip%3A4916097792975%40redmatter.com%3E'%5Dsofia/trusted/siplcr_447410698088%40gateway.redmatter.com%3Bfs_path%3Dsip%3A$%7Bexternal_sip_ip%7D%3A$%7Bprivate_sip_port_1%7D</rmBridgeString>
+    <instant_ringback>true</instant_ringback>
+    <user_context>1</user_context>
+    <hold_music>shout%3A//pnj-01.stream101.com%3A9001</hold_music>
+    <rmCampCallerIdName>DDI%20Call</rmCampCallerIdName>
+    <rmCampCallerIdNumber>%2B4916097792975</rmCampCallerIdNumber>
+    <rmOriginatorContext>1</rmOriginatorContext>
+    <export_vars>default_language,rmTTSVoice,rmLanguageLocale,sound_prefix,rmDumpCalls,user_context,rmOriginatedExternal,rmRecordBeep,rmRecordToneStream,rmRecordPauseAllowed,rmRecordBeep,rmRecordToneStream,rmvGroupConfirmPhrase,sip_redirect_context,domain_name,sip_redirect_context,domain_name,user_context,rmOriginatorUUID,rmOriginatorOrgId,rmOriginatorContext,user_context,hold_music,rmOriginatorContext</export_vars>
+    <rmPickUpTarget_1_12007>true</rmPickUpTarget_1_12007>
+    <rmPickUpTarget_1_2209>true</rmPickUpTarget_1_2209>
+    <rmPickUpTarget_1_3002>true</rmPickUpTarget_1_3002>
+    <rmPickUpTarget_1_7805>true</rmPickUpTarget_1_7805>
+    <rmPickUpTarget_1_2000>true</rmPickUpTarget_1_2000>
+    <rmPickUpTarget_1_7864>true</rmPickUpTarget_1_7864>
+    <switch_m_sdp>v%3D0%0D%0Ao%3DRMServer%201503365800%201503365801%20IN%20IP4%2084.45.30.132%0D%0As%3DRMServer%0D%0Ac%3DIN%20IP4%2084.45.30.132%0D%0At%3D0%200%0D%0Am%3Daudio%2025132%20RTP/AVP%208%20101%2013%0D%0Aa%3Drtpmap%3A8%20PCMA/8000%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-16%0D%0Aa%3Drtpmap%3A13%20CN/8000%0D%0Aa%3Dptime%3A20%0D%0A</switch_m_sdp>
+    <rmBridgedToType>external</rmBridgedToType>
+    <rmBridgedToGroupUserPart>3002</rmBridgedToGroupUserPart>
+    <rmBridgedToFirstName>Holger</rmBridgedToFirstName>
+    <rmBridgedToEmailAddr>holger.sieradzinski%40natterbox.com</rmBridgedToEmailAddr>
+    <rmBridgedToUserAgent>RM%20Server</rmBridgedToUserAgent>
+    <rmBridgedToUserID>82368</rmBridgedToUserID>
+    <rmBridgedToChannelStartEpoch>1503390914</rmBridgedToChannelStartEpoch>
+    <rmBridgedToPrimaryGroupID>26</rmBridgedToPrimaryGroupID>
+    <rmBridgedToLastName>Sieradzinski</rmBridgedToLastName>
+    <read_codec>PCMA</read_codec>
+    <read_rate>8000</read_rate>
+    <sip_local_sdp_str>v%3D0%0Ao%3DRMServer%201503365613%201503365615%20IN%20IP4%2084.45.30.132%0As%3DRMServer%0Ac%3DIN%20IP4%2084.45.30.132%0At%3D0%200%0Am%3Daudio%2025300%20RTP/AVP%208%20101%0Aa%3Drtpmap%3A8%20PCMA/8000%0Aa%3Drtpmap%3A101%20telephone-event/8000%0Aa%3Dfmtp%3A101%200-16%0Aa%3DsilenceSupp%3Aoff%20-%20-%20-%20-%0Aa%3Dptime%3A20%0Aa%3Dsendrecv%0A</sip_local_sdp_str>
+    <endpoint_disposition>ANSWER</endpoint_disposition>
+    <rmAnswerState>answered</rmAnswerState>
+    <originate_disposition>SUCCESS</originate_disposition>
+    <DIALSTATUS>SUCCESS</DIALSTATUS>
+    <last_bridge_to>{{bLeg_uuid}}</last_bridge_to>
+    <bridge_channel>sofia/trusted1/siplcr_447410698088%40gateway.redmatter.com</bridge_channel>
+    <bridge_uuid>{{bLeg_uuid}}</bridge_uuid>
+    <signal_bond>{{bLeg_uuid}}</signal_bond>
+    <bridge_pre_execute_app>lua</bridge_pre_execute_app>
+    <bridge_pre_execute_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</bridge_pre_execute_data>
+    <rmOriginateDisposition>SUCCESS</rmOriginateDisposition>
+    <rmBridgeEpoch_5b451e56_1248_440a_8a7a_ba74879071cf>1503390937</rmBridgeEpoch_5b451e56_1248_440a_8a7a_ba74879071cf>
+    <rmLastBridge>{{bLeg_uuid}}</rmLastBridge>
+    <sip_to_tag>jQv1cD3aHKtHa</sip_to_tag>
+    <sip_from_tag>as5d432c0f</sip_from_tag>
+    <sip_cseq>102</sip_cseq>
+    <sip_call_id>MDTKBP3ULVFK5KZ6NR4SYETNGI%4081.201.82.106</sip_call_id>
+    <sip_invite_record_route>%3Csip%3A84.45.30.2%3A5080%3Blr%3Bftag%3Das5d432c0f%3E,%3Csip%3A81.201.82.45%3Blr%3Don%3E</sip_invite_record_route>
+    <sip_full_via>SIP/2.0/UDP%2084.45.30.2%3A5080%3Bbranch%3Dz9hG4bK8eac.bca0d706.2,SIP/2.0/UDP%2081.201.82.45%3Brport%3D5060%3Breceived%3D81.201.82.45%3Bbranch%3Dz9hG4bK8eac.3a7bfab75d783a5421f5d1e2ce4e9f25.0,SIP/2.0/UDP%2081.201.82.106%3A5060%3Bbranch%3Dz9hG4bK-333138-b0c43bb2283085f4d68ae4e4774d1a74</sip_full_via>
+    <sip_full_from>%3Csip%3A4916097792975%40voxbone.com%3E%3Btag%3Das5d432c0f</sip_full_from>
+    <sip_full_to>%3Csip%3A493022957361%40gateway.redmatter.com%3E%3Btag%3DjQv1cD3aHKtHa</sip_full_to>
+    <last_sent_callee_id_name>Outbound%20Call</last_sent_callee_id_name>
+    <last_sent_callee_id_number>siplcr_447410698088</last_sent_callee_id_number>
+    <rmBridgedToNumberNormalised>447410698088</rmBridgedToNumberNormalised>
+    <rmBridgedToCallCategory>CTC</rmBridgedToCallCategory>
+    <rmBridgeData_5b451e56_1248_440a_8a7a_ba74879071cf>%7B%20%22bridgedEpoch%22%3A%20%221503390938%22,%20%22rmBridgedToGroupUserPart%22%3A%20%22%22,%20%22rmBridgedToFirstName%22%3A%20%22%22,%20%22rmBridgedToNumberNormalised%22%3A%20%22447410698088%22,%20%22rmBridgedToDevID%22%3A%20%22%22,%20%22rmBridgedToEmailAddr%22%3A%20%22%22,%20%22rmBridgedToUserAgent%22%3A%20%22RM%20Server%22,%20%22rmBridgedToCallCategory%22%3A%20%22CTC%22,%20%22rmBridgedToUserID%22%3A%20%22%22,%20%22rmBridgedToChannelStartEpoch%22%3A%20%221503390914%22,%20%22rmBridgedToPrimaryGroupID%22%3A%20%22%22,%20%22rmBridgedToLastName%22%3A%20%22%22%20%7D</rmBridgeData_5b451e56_1248_440a_8a7a_ba74879071cf>
+    <rmPreALegBridgeHookCalled>true</rmPreALegBridgeHookCalled>
+    <rmCallRecordingActive_1>true</rmCallRecordingActive_1>
+    <current_application_data>/var/spool/rmrecordings/1_2017_08_22_{{aLeg_uuid}}.wav</current_application_data>
+    <current_application>record_session</current_application>
+    <rmBridgedToRecordingUUID>{{bLeg_uuid}}</rmBridgedToRecordingUUID>
+    <rmDispSessionRecorded>true</rmDispSessionRecorded>
+    <rmMainRecordingActive>yes</rmMainRecordingActive>
+    <rmBridgedToRecordingUUID_5b451e56_1248_440a_8a7a_ba74879071cf>{{bLeg_uuid}}</rmBridgedToRecordingUUID_5b451e56_1248_440a_8a7a_ba74879071cf>
+    <rmCallStatusTableUpdated>true</rmCallStatusTableUpdated>
+    <rmFSDestGrpPickup>cleared</rmFSDestGrpPickup>
+    <sip_reason>Q.850%3Bcause%3D16%3Btext%3D%22NORMAL_CLEARING%22</sip_reason>
+    <sip_hangup_phrase>OK</sip_hangup_phrase>
+    <last_bridge_hangup_cause>NORMAL_CLEARING</last_bridge_hangup_cause>
+    <last_bridge_proto_specific_hangup_cause>sip%3A200</last_bridge_proto_specific_hangup_cause>
+    <bridge_hangup_cause>NORMAL_CLEARING</bridge_hangup_cause>
+    <hangup_cause>NORMAL_CLEARING</hangup_cause>
+    <hangup_cause_q850>16</hangup_cause_q850>
+    <digits_dialed>none</digits_dialed>
+    <start_stamp>2017-08-22%2009%3A35%3A11</start_stamp>
+    <profile_start_stamp>2017-08-22%2009%3A35%3A13</profile_start_stamp>
+    <answer_stamp>2017-08-22%2009%3A35%3A37</answer_stamp>
+    <bridge_stamp>2017-08-22%2009%3A35%3A37</bridge_stamp>
+    <progress_stamp>2017-08-22%2009%3A35%3A14</progress_stamp>
+    <progress_media_stamp>2017-08-22%2009%3A35%3A13</progress_media_stamp>
+    <end_stamp>2017-08-22%2009%3A40%3A05</end_stamp>
+    <start_epoch>{{startEpoch}}</start_epoch>
+    <start_uepoch>{{startEpoch}}419351</start_uepoch>
+    <profile_start_epoch>{{startEpoch}}</profile_start_epoch>
+    <profile_start_uepoch>{{startEpoch}}469250</profile_start_uepoch>
+    <answer_epoch>1503390937</answer_epoch>
+    <answer_uepoch>1503390937798941</answer_uepoch>
+    <bridge_epoch>1503390937</bridge_epoch>
+    <bridge_uepoch>1503390937798941</bridge_uepoch>
+    <last_hold_epoch>0</last_hold_epoch>
+    <last_hold_uepoch>0</last_hold_uepoch>
+    <hold_accum_seconds>0</hold_accum_seconds>
+    <hold_accum_usec>0</hold_accum_usec>
+    <hold_accum_ms>0</hold_accum_ms>
+    <resurrect_epoch>0</resurrect_epoch>
+    <resurrect_uepoch>0</resurrect_uepoch>
+    <progress_epoch>1503390914</progress_epoch>
+    <progress_uepoch>1503390914309237</progress_uepoch>
+    <progress_media_epoch>{{startEpoch}}</progress_media_epoch>
+    <progress_media_uepoch>{{startEpoch}}609318</progress_media_uepoch>
+    <end_epoch>1503391205</end_epoch>
+    <end_uepoch>1503391205228462</end_uepoch>
+    <last_app>record_session</last_app>
+    <last_arg>/var/spool/rmrecordings/1_2017_08_22_{{aLeg_uuid}}.wav</last_arg>
+    <caller_id>%224916097792975%22%20%3C4916097792975%3E</caller_id>
+    <duration>294</duration>
+    <billsec>268</billsec>
+    <progresssec>3</progresssec>
+    <answersec>26</answersec>
+    <waitsec>26</waitsec>
+    <progress_mediasec>2</progress_mediasec>
+    <flow_billsec>294</flow_billsec>
+    <mduration>293809</mduration>
+    <billmsec>267430</billmsec>
+    <progressmsec>2890</progressmsec>
+    <answermsec>26379</answermsec>
+    <waitmsec>26379</waitmsec>
+    <progress_mediamsec>2190</progress_mediamsec>
+    <flow_billmsec>293809</flow_billmsec>
+    <uduration>293809111</uduration>
+    <billusec>267429521</billusec>
+    <progressusec>2889886</progressusec>
+    <answerusec>26379590</answerusec>
+    <waitusec>26379590</waitusec>
+    <progress_mediausec>2189967</progress_mediausec>
+    <flow_billusec>293809111</flow_billusec>
+    <sip_hangup_disposition>send_bye</sip_hangup_disposition>
+    <rtp_audio_in_raw_bytes>2498988</rtp_audio_in_raw_bytes>
+    <rtp_audio_in_media_bytes>2490732</rtp_audio_in_media_bytes>
+    <rtp_audio_in_packet_count>14529</rtp_audio_in_packet_count>
+    <rtp_audio_in_media_packet_count>14481</rtp_audio_in_media_packet_count>
+    <rtp_audio_in_skip_packet_count>51</rtp_audio_in_skip_packet_count>
+    <rtp_audio_in_jb_packet_count>0</rtp_audio_in_jb_packet_count>
+    <rtp_audio_in_dtmf_packet_count>0</rtp_audio_in_dtmf_packet_count>
+    <rtp_audio_in_cng_packet_count>0</rtp_audio_in_cng_packet_count>
+    <rtp_audio_in_flush_packet_count>48</rtp_audio_in_flush_packet_count>
+    <rtp_audio_in_largest_jb_size>0</rtp_audio_in_largest_jb_size>
+    <rtp_audio_out_raw_bytes>2488324</rtp_audio_out_raw_bytes>
+    <rtp_audio_out_media_bytes>2488324</rtp_audio_out_media_bytes>
+    <rtp_audio_out_packet_count>14467</rtp_audio_out_packet_count>
+    <rtp_audio_out_media_packet_count>14467</rtp_audio_out_media_packet_count>
+    <rtp_audio_out_skip_packet_count>0</rtp_audio_out_skip_packet_count>
+    <rtp_audio_out_dtmf_packet_count>0</rtp_audio_out_dtmf_packet_count>
+    <rtp_audio_out_cng_packet_count>0</rtp_audio_out_cng_packet_count>
+    <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
+    <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
+  </variables>
+  <app_log>
+    <application app_name="set" app_data="rmOverrideCallerIdName=DDI Call" app_stamp="{{startEpoch}}484446" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModNumber_Public,Ringtone=uk,DelayBeforeAnswering=0,PublicNumber=493022957361" app_stamp="{{startEpoch}}485030" />
+    <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=RTP,UUID={{aLeg_uuid}},SIP-Call-ID=MDTKBP3ULVFK5KZ6NR4SYETNGI@81.201.82.106" app_stamp="{{startEpoch}}485767" />
+    <application app_name="set" app_data="rmHCDCode=44" app_stamp="{{startEpoch}}486489" />
+    <application app_name="set" app_data="default_language=en-simon" app_stamp="{{startEpoch}}487008" />
+    <application app_name="set" app_data="hold_music=shout://pnj-01.stream101.com:9001" app_stamp="{{startEpoch}}487514" />
+    <application app_name="execute_extension" app_data="setLanguage-en-simon XML dpSupport" app_stamp="{{startEpoch}}488154" />
+    <application app_name="export" app_data="default_language=en" app_stamp="{{startEpoch}}489636" />
+    <application app_name="export" app_data="rmTTSVoice=brian" app_stamp="{{startEpoch}}490138" />
+    <application app_name="export" app_data="rmLanguageLocale=uk" app_stamp="{{startEpoch}}490717" />
+    <application app_name="export" app_data="sound_prefix=/usr/share/freeswitch/sounds/en/uk/brian" app_stamp="{{startEpoch}}491228" />
+    <application app_name="export" app_data="rmDumpCalls=RTP" app_stamp="{{startEpoch}}491950" />
+    <application app_name="set" app_data="bridge_pre_execute_aleg_app=execute_extension" app_stamp="{{startEpoch}}492509" />
+    <application app_name="set" app_data="bridge_pre_execute_aleg_data=ALegPreBridge XML dpSupport" app_stamp="{{startEpoch}}493124" />
+    <application app_name="set" app_data="rmPolicyStartID=31" app_stamp="{{startEpoch}}493667" />
+    <application app_name="set" app_data="rmCallPolicyStartID=31" app_stamp="{{startEpoch}}494185" />
+    <application app_name="set" app_data="rmCallPolicyStartName=Inbound: Natterbox" app_stamp="{{startEpoch}}494624" />
+    <application app_name="set" app_data="rmCallComponentStartName=DDI" app_stamp="{{startEpoch}}495193" />
+    <application app_name="set" app_data="rmCallComponentStartDN=DDI@ModNumber_PublicDDI" app_stamp="{{startEpoch}}495761" />
+    <application app_name="set" app_data="rmCurrentComponentDN=DDI@ModNumber_PublicDDI" app_stamp="{{startEpoch}}496458" />
+    <application app_name="set" app_data="rmCurrentComponentName=DDI" app_stamp="{{startEpoch}}496904" />
+    <application app_name="set" app_data="rmCurrentPolicyName=Inbound: Natterbox" app_stamp="{{startEpoch}}497449" />
+    <application app_name="set" app_data="rmCurrentPolicyID=31" app_stamp="{{startEpoch}}498168" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Policy Activation	@@Inbound: Natterbox	DDI	Activated" app_stamp="{{startEpoch}}498768" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component Activation	DDI@ModNumber_PublicDDI@DDI	DDI	Activated" app_stamp="{{startEpoch}}499474" />
+    <application app_name="set" app_data="rmCallCategory=COC" app_stamp="{{startEpoch}}500169" />
+    <application app_name="set" app_data="rmDialledNumberStripped=493022957361" app_stamp="{{startEpoch}}501145" />
+    <application app_name="set" app_data="rmDialledNumber=493022957361" app_stamp="{{startEpoch}}502441" />
+    <application app_name="set" app_data="rmNumberNormalised=4916097792975" app_stamp="{{startEpoch}}503436" />
+    <application app_name="set" app_data="rmInSIPMaxForwards=67" app_stamp="{{startEpoch}}504037" />
+    <application app_name="set" app_data="max_forwards=50" app_stamp="{{startEpoch}}504681" />
+    <application app_name="set" app_data="rmLCRNumberPolicy=block" app_stamp="{{startEpoch}}505380" />
+    <application app_name="set" app_data="rmLCRACL=^[1-9]\d*$" app_stamp="{{startEpoch}}506028" />
+    <application app_name="set" app_data="rmDDIUserID=82368" app_stamp="{{startEpoch}}506725" />
+    <application app_name="set" app_data="rmInboundDivert=" app_stamp="{{startEpoch}}507487" />
+    <application app_name="set" app_data="rmvPlayBackToneLoops=0" app_stamp="{{startEpoch}}508167" />
+    <application app_name="set" app_data="rmvPlayBackTone=uk" app_stamp="{{startEpoch}}508793" />
+    <application app_name="ring_ready" app_data="" app_stamp="{{startEpoch}}509630" />
+    <application app_name="execute_extension" app_data="setRingBack_uk XML dpSupport" app_stamp="{{startEpoch}}511196" />
+    <application app_name="set" app_data="ringback=%(400,200,400,450);%(400,2200,400,450)" app_stamp="{{startEpoch}}513001" />
+    <application app_name="set" app_data="ringback=%(400,200,400,450);%(400,2200,400,450))" app_stamp="{{startEpoch}}513576" />
+    <application app_name="set" app_data="outside_call=true" app_stamp="{{startEpoch}}514375" />
+    <application app_name="export" app_data="user_context=1" app_stamp="{{startEpoch}}514951" />
+    <application app_name="export" app_data="rmOriginatedExternal=true" app_stamp="{{startEpoch}}515744" />
+    <application app_name="set" app_data="rmOrgID=1" app_stamp="{{startEpoch}}516358" />
+    <application app_name="set" app_data="rmExtension=2209" app_stamp="{{startEpoch}}516870" />
+    <application app_name="set" app_data="rmPolicyNumberType=DDI" app_stamp="{{startEpoch}}517495" />
+    <application app_name="set" app_data="domain_name=redm-000001.sip.redmatter.com" app_stamp="{{startEpoch}}518137" />
+    <application app_name="lua" app_data="applications/dialplan_number/PlayBackTone.lua" app_stamp="{{startEpoch}}518733" />
+    <application app_name="set" app_data="rmOrgThrottleLimitSet=true" app_stamp="{{startEpoch}}520691" />
+    <application app_name="set" app_data="rmOrgThrottleLimitCheck=true" app_stamp="{{startEpoch}}521189" />
+    <application app_name="limit" app_data="hash orgThrottle 1 200/5 !SWITCH_CONGESTION" app_stamp="{{startEpoch}}521930" />
+    <application app_name="set" app_data="rmHangUpInfo=Channel rate limit exceeded" app_stamp="{{startEpoch}}522665" />
+    <application app_name="unset" app_data="rmOrgThrottleLimitCheck" app_stamp="{{startEpoch}}523328" />
+    <application app_name="unset" app_data="rmHangUpInfo" app_stamp="{{startEpoch}}523879" />
+    <application app_name="set" app_data="rmOrgChannelsMaxLimitSet=true" app_stamp="{{startEpoch}}524637" />
+    <application app_name="set" app_data="rmOrgChannelsMaxLimitCheck=true" app_stamp="{{startEpoch}}525369" />
+    <application app_name="set" app_data="rmHangUpInfo=Max channel limit exceeded" app_stamp="{{startEpoch}}526124" />
+    <application app_name="limit" app_data="hash orgChannels 1 500 !SWITCH_CONGESTION" app_stamp="{{startEpoch}}526997" />
+    <application app_name="unset" app_data="rmOrgChannelsMaxLimitCheck" app_stamp="{{startEpoch}}527900" />
+    <application app_name="unset" app_data="rmHangUpInfo" app_stamp="{{startEpoch}}528580" />
+    <application app_name="transfer" app_data="T00014161 XML 1" app_stamp="{{startEpoch}}529358" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00014161, DialPlanDestContext=1" app_stamp="{{startEpoch}}570275" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00014161@ModPolicy" app_stamp="{{startEpoch}}571364" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Policy" app_stamp="{{startEpoch}}571998" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00014161@ModPolicy	Policy	Activated" app_stamp="{{startEpoch}}572780" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModPolicy_ToNonCall" app_stamp="{{startEpoch}}573502" />
+    <application app_name="set" app_data="rmAnalyticsItems=1" app_stamp="{{startEpoch}}574536" />
+    <application app_name="set" app_data="rmAnalyticsItem_1=T00014083 XML 1" app_stamp="{{startEpoch}}575117" />
+    <application app_name="set" app_data="rmAnalyticsItemOrig_1=Inbound: Natterbox@T00014162@Salesforce 1 Demo Inbound" app_stamp="{{startEpoch}}575847" />
+    <application app_name="set" app_data="rmvNonCallPolicy=T00014083 XML 1" app_stamp="{{startEpoch}}576536" />
+    <application app_name="transfer" app_data="T00016475 XML 1" app_stamp="{{startEpoch}}577149" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00016475, DialPlanDestContext=1" app_stamp="{{startEpoch}}630025" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00016475@ModPolicy" app_stamp="{{startEpoch}}631195" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Policy" app_stamp="{{startEpoch}}631967" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00016475@ModPolicy	Policy	Activated" app_stamp="{{startEpoch}}632769" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModPolicy_ToNonCall" app_stamp="{{startEpoch}}633558" />
+    <application app_name="set" app_data="rmAnalyticsItems=2" app_stamp="{{startEpoch}}634779" />
+    <application app_name="set" app_data="rmAnalyticsItem_2=T00015836 XML 1" app_stamp="{{startEpoch}}635561" />
+    <application app_name="set" app_data="rmAnalyticsItemOrig_2=Inbound: Natterbox@T00016476@AY Inbound v8.6" app_stamp="{{startEpoch}}636354" />
+    <application app_name="set" app_data="rmvNonCallPolicy=T00015836 XML 1" app_stamp="{{startEpoch}}637083" />
+    <application app_name="transfer" app_data="T00009726 XML 1" app_stamp="{{startEpoch}}637753" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00009726, DialPlanDestContext=1" app_stamp="{{startEpoch}}688100" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009726@ModRule" app_stamp="{{startEpoch}}689295" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Rules" app_stamp="{{startEpoch}}690093" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00009726@ModRule	Rules	Activated" app_stamp="{{startEpoch}}690962" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=+12176623125,CheckCalledNumber=,CheckWithheld=false" app_stamp="{{startEpoch}}691705" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017025@ModRule_NumberCheck " app_stamp="{{startEpoch}}692831" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Block" app_stamp="{{startEpoch}}693558" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00017025@ModRule_NumberCheck 	Block	Activated" app_stamp="{{startEpoch}}694339" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" app_stamp="{{startEpoch}}695102" />
+    <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" app_stamp="{{startEpoch}}695802" />
+    <application app_name="set" app_data="rmvRuleNumChkCaller=+12176623125" app_stamp="{{startEpoch}}696483" />
+    <application app_name="set" app_data="rmvRuleNumChkCalled=" app_stamp="{{startEpoch}}697186" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" app_stamp="{{startEpoch}}697939" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" app_stamp="{{startEpoch}}698741" />
+    <application app_name="set" app_data="rmvRuleNumChkTransfer=T00015163 XML 1" app_stamp="{{startEpoch}}699432" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" app_stamp="{{startEpoch}}700164" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="{{startEpoch}}707836" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009727" app_stamp="{{startEpoch}}708877" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Neilh?" app_stamp="{{startEpoch}}709626" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00009727	Neilh?	Activated" app_stamp="{{startEpoch}}710598" />
+    <application app_name="set" app_data="rmvQueryData=%28%28val%3D15%26rule%3DInDialledUser%26match%3Deq%29%29" app_stamp="{{startEpoch}}711312" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="{{startEpoch}}712099" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00009730 XML 1" app_stamp="{{startEpoch}}712909" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="{{startEpoch}}713724" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}748236" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}749272" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}750064" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	ResultFail	T00009727	Neilh?	Query rule failed" app_stamp="{{startEpoch}}752456" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="{{startEpoch}}756248" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00012633" app_stamp="{{startEpoch}}757403" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Meeting Room" app_stamp="{{startEpoch}}758143" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00012633	Meeting Room	Activated" app_stamp="{{startEpoch}}758988" />
+    <application app_name="set" app_data="rmvQueryData=%28%28val%3D1535%26match%3Deq%26rule%3DInDialledUser%29%29" app_stamp="{{startEpoch}}759713" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="{{startEpoch}}760598" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00012634 XML 1" app_stamp="{{startEpoch}}761511" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="{{startEpoch}}762386" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}796470" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}797197" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}797893" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	ResultFail	T00012633	Meeting Room	Query rule failed" app_stamp="{{startEpoch}}800335" />
+    <application app_name="transfer" app_data="T00017328 XML 1" app_stamp="{{startEpoch}}804276" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00017328, DialPlanDestContext=1" app_stamp="{{startEpoch}}847370" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017328@ModRule" app_stamp="{{startEpoch}}848679" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Sales Recording" app_stamp="{{startEpoch}}849471" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00017328@ModRule	Sales Recording	Activated" app_stamp="{{startEpoch}}850329" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="{{startEpoch}}851111" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017331" app_stamp="{{startEpoch}}852472" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Telesales" app_stamp="{{startEpoch}}853367" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00017331	Telesales	Activated" app_stamp="{{startEpoch}}854194" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D36%26rule%3DInDialledGroup%29%29" app_stamp="{{startEpoch}}855001" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="{{startEpoch}}855773" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00017336 XML 1" app_stamp="{{startEpoch}}856642" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="{{startEpoch}}857428" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}891280" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}892119" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}892995" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	ResultFail	T00017331	Telesales	Query rule failed" app_stamp="1503390912001274" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912005895" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017330" app_stamp="1503390912006933" />
+    <application app_name="set" app_data="rmCurrentFeatureName=SMB" app_stamp="1503390912007661" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00017330	SMB	Activated" app_stamp="1503390912008515" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25342%26rule%3DInDialledGroup%29%29" app_stamp="1503390912009274" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912010063" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00017332 XML 1" app_stamp="1503390912010949" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912011808" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912050646" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912051474" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912052289" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00017330	SMB	Query rule failed" app_stamp="1503390912147486" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912152333" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017329" app_stamp="1503390912153432" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Enterprise" app_stamp="1503390912154161" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00017329	Enterprise	Activated" app_stamp="1503390912155211" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25340%26rule%3DInDialledGroup%29%29" app_stamp="1503390912155994" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912156737" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00017334 XML 1" app_stamp="1503390912157497" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912158301" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912192947" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912193757" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912194612" />
+    <application app_name="transfer" app_data="T00017334 XML 1" app_stamp="1503390912271289" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00017334, DialPlanDestContext=1" app_stamp="1503390912321589" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00017334@ModAction" app_stamp="1503390912322967" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Action" app_stamp="1503390912323773" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Feature	T00017334@ModAction	Action	Activated" app_stamp="1503390912325134" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Record,RecordEmailSend=false,RecordEmailToAddresses=,RecordEmailCCAddresses=,RecordSubject=Your email recording,RecordRetain=true,RecordReset=false" app_stamp="1503390912325999" />
+    <application app_name="set" app_data="rmCurrentComponentDN=T00017335@ModAction_Record" app_stamp="1503390912327446" />
+    <application app_name="set" app_data="rmCurrentComponentName=Record" app_stamp="1503390912328273" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component Activation	T00017335@ModAction_Record@Record	Record	Activated" app_stamp="1503390912329569" />
+    <application app_name="set" app_data="rmvRecordLeg=B" app_stamp="1503390912330424" />
+    <application app_name="set" app_data="rmvRecordSendEmail=false" app_stamp="1503390912331320" />
+    <application app_name="set" app_data="rmvRecordToRecips=" app_stamp="1503390912332225" />
+    <application app_name="set" app_data="rmvRecordCcRecips=" app_stamp="1503390912333186" />
+    <application app_name="set" app_data="rmvRecordSubject=Your email recording" app_stamp="1503390912334064" />
+    <application app_name="set" app_data="rmvRecordReset=false" app_stamp="1503390912334879" />
+    <application app_name="set" app_data="rmvRecordRetain=true" app_stamp="1503390912335727" />
+    <application app_name="set" app_data="rmvRecordPolicy=9160" app_stamp="1503390912336432" />
+    <application app_name="set" app_data="rmvRecordBeep=off" app_stamp="1503390912337422" />
+    <application app_name="set" app_data="rmvRecordToneStream=" app_stamp="1503390912338170" />
+    <application app_name="set" app_data="rmvRecordPauseAllowed=false" app_stamp="1503390912338970" />
+    <application app_name="set" app_data="media_bug_answer_req=true" app_stamp="1503390912339761" />
+    <application app_name="set" app_data="rmvRecordOnBridge=true" app_stamp="1503390912340656" />
+    <application app_name="javascript" app_data="common/ExpandMacrosInSessionVars.js rmvRecordSubject rmvRecordToRecips rmvRecordCcRecips rmvRecordToneStream" app_stamp="1503390912341423" />
+    <application app_name="lua" app_data="applications/dialplan_action/RecordLeg.lua" app_stamp="1503390912380293" />
+    <application app_name="export" app_data="rmRecordBeep=off" app_stamp="1503390912382674" />
+    <application app_name="export" app_data="rmRecordToneStream=%(100,15000,800)" app_stamp="1503390912383553" />
+    <application app_name="export" app_data="rmRecordPauseAllowed=false" app_stamp="1503390912384334" />
+    <application app_name="transfer" app_data="T00009329 XML 1" app_stamp="1503390912385793" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00009329, DialPlanDestContext=1" app_stamp="1503390912554180" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009329@ModRule" app_stamp="1503390912555558" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Rules" app_stamp="1503390912556431" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Feature	T00009329@ModRule	Rules	Activated" app_stamp="1503390912557362" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912558290" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00015348" app_stamp="1503390912559633" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Neil B" app_stamp="1503390912560556" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00015348	Neil B	Activated" app_stamp="1503390912561686" />
+    <application app_name="set" app_data="rmvQueryData=%28%28val%3D1%26match%3Deq%26rule%3DInDialledUser%29%29" app_stamp="1503390912562488" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912563453" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00015349 XML 1" app_stamp="1503390912564410" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912565178" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912605200" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912606309" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912607293" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00015348	Neil B	Query rule failed" app_stamp="1503390912610501" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=,CheckCalledNumber=03331502003,CheckWithheld=false" app_stamp="1503390912615576" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00010372@ModRule_NumberCheck " app_stamp="1503390912617169" />
+    <application app_name="set" app_data="rmCurrentFeatureName=James" app_stamp="1503390912618453" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00010372@ModRule_NumberCheck 	James	Activated" app_stamp="1503390912619837" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" app_stamp="1503390912620781" />
+    <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" app_stamp="1503390912622016" />
+    <application app_name="set" app_data="rmvRuleNumChkCaller=" app_stamp="1503390912622983" />
+    <application app_name="set" app_data="rmvRuleNumChkCalled=03331502003" app_stamp="1503390912623989" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" app_stamp="1503390912624909" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" app_stamp="1503390912625810" />
+    <application app_name="set" app_data="rmvRuleNumChkTransfer=T00010465 XML 1" app_stamp="1503390912627066" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" app_stamp="1503390912628146" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=,CheckCalledNumber=03331501004,CheckWithheld=false" app_stamp="1503390912636721" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009602@ModRule_NumberCheck " app_stamp="1503390912637765" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Ben" app_stamp="1503390912638512" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00009602@ModRule_NumberCheck 	Ben	Activated" app_stamp="1503390912639388" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" app_stamp="1503390912640303" />
+    <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" app_stamp="1503390912641137" />
+    <application app_name="set" app_data="rmvRuleNumChkCaller=" app_stamp="1503390912641923" />
+    <application app_name="set" app_data="rmvRuleNumChkCalled=03331501004" app_stamp="1503390912642632" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" app_stamp="1503390912643457" />
+    <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" app_stamp="1503390912644282" />
+    <application app_name="set" app_data="rmvRuleNumChkTransfer=T00009603 XML 1" app_stamp="1503390912645013" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" app_stamp="1503390912646075" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912655075" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009813" app_stamp="1503390912656222" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Tim" app_stamp="1503390912657244" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00009813	Tim	Activated" app_stamp="1503390912658367" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25%26rule%3DInDialledUser%29%29" app_stamp="1503390912659364" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912660238" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00009814 XML 1" app_stamp="1503390912661041" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912661979" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912696707" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912697648" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912698481" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00009813	Tim	Query rule failed" app_stamp="1503390912701596" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912705411" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011504" app_stamp="1503390912706584" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Alan" app_stamp="1503390912707402" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00011504	Alan	Activated" app_stamp="1503390912708361" />
+    <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26val%3D12326%26match%3Deq%29%29" app_stamp="1503390912709352" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912710192" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00015444 XML 1" app_stamp="1503390912711056" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912711990" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912749015" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912750078" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912751030" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00011504	Alan	Query rule failed" app_stamp="1503390912753982" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912759582" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011440" app_stamp="1503390912761097" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Pontus" app_stamp="1503390912762204" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00011440	Pontus	Activated" app_stamp="1503390912763282" />
+    <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D55518%29%29" app_stamp="1503390912764074" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912764881" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00014147 XML 1" app_stamp="1503390912765888" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912766719" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912803525" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912804348" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912805069" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00011440	Pontus	Query rule failed" app_stamp="1503390912807886" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912814490" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00009955" app_stamp="1503390912815718" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Charles" app_stamp="1503390912816767" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00009955	Charles	Activated" app_stamp="1503390912817651" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D2597%26rule%3DInDialledUser%29%29" app_stamp="1503390912818469" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912819495" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00013742 XML 1" app_stamp="1503390912820288" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912821108" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912857828" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912858743" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912859784" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00009955	Charles	Query rule failed" app_stamp="1503390912862744" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912868158" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00010957" app_stamp="1503390912869397" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Hans" app_stamp="1503390912870219" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00010957	Hans	Activated" app_stamp="1503390912871059" />
+    <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26rule%3DInDialledUser%26val%3D29006%29%29" app_stamp="1503390912871835" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912872599" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00010958 XML 1" app_stamp="1503390912873385" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912874204" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912913707" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912914606" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912915350" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00010957	Hans	Query rule failed" app_stamp="1503390912917575" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912923085" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00010436" app_stamp="1503390912924317" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Adrian" app_stamp="1503390912925244" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00010436	Adrian	Activated" app_stamp="1503390912926139" />
+    <application app_name="set" app_data="rmvQueryData=%28%28val%3D29822%26match%3Deq%26rule%3DInDialledUser%29%29" app_stamp="1503390912927414" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912928284" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00010437 XML 1" app_stamp="1503390912929109" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912929957" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="1503390912970829" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="1503390912971769" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="1503390912972624" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	ResultFail	T00010436	Adrian	Query rule failed" app_stamp="1503390912975693" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="1503390912980092" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011252" app_stamp="1503390912981598" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Greg" app_stamp="1503390912982457" />
+    <application app_name="rm_logactivity" app_data="1503390912	INFO	Component	T00011252	Greg	Activated" app_stamp="1503390912983447" />
+    <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D29782%29%29" app_stamp="1503390912987676" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="1503390912988793" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00011253 XML 1" app_stamp="1503390912989725" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="1503390912990639" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}029352" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}030449" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}031401" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	ResultFail	T00011252	Greg	Query rule failed" app_stamp="{{startEpoch}}034504" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="{{startEpoch}}039814" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011683" app_stamp="{{startEpoch}}041214" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Steve W" app_stamp="{{startEpoch}}042136" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00011683	Steve W	Activated" app_stamp="{{startEpoch}}043399" />
+    <application app_name="set" app_data="rmvQueryData=%28%28val%3D12186%26rule%3DInDialledUser%26match%3Deq%29%29" app_stamp="{{startEpoch}}044231" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="{{startEpoch}}045185" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00011684 XML 1" app_stamp="{{startEpoch}}046066" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="{{startEpoch}}046986" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}080608" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}081604" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}082415" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	ResultFail	T00011683	Steve W	Query rule failed" app_stamp="{{startEpoch}}084966" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" app_stamp="{{startEpoch}}089469" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00013140" app_stamp="{{startEpoch}}090797" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Holger" app_stamp="{{startEpoch}}091803" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00013140	Holger	Activated" app_stamp="{{startEpoch}}092837" />
+    <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D49795%252C82368%29%29" app_stamp="{{startEpoch}}093746" />
+    <application app_name="set" app_data="rmvQueryCallerIdName=" app_stamp="{{startEpoch}}094581" />
+    <application app_name="set" app_data="rmvQueryTransfer=T00013143 XML 1" app_stamp="{{startEpoch}}095430" />
+    <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" app_stamp="{{startEpoch}}096324" />
+    <application app_name="unset" app_data="rmvQueryCallerIdName" app_stamp="{{startEpoch}}130501" />
+    <application app_name="unset" app_data="rmvQueryData" app_stamp="{{startEpoch}}131537" />
+    <application app_name="unset" app_data="rmvQueryTransfer" app_stamp="{{startEpoch}}132396" />
+    <application app_name="transfer" app_data="T00013143 XML 1" app_stamp="{{startEpoch}}134833" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00013143, DialPlanDestContext=1" app_stamp="{{startEpoch}}232638" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00013143@ModAction" app_stamp="{{startEpoch}}234408" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Action" app_stamp="{{startEpoch}}235759" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00013143@ModAction	Action	Activated" app_stamp="{{startEpoch}}236778" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Record,RecordEmailSend=false,RecordEmailToAddresses=,RecordEmailCCAddresses=,RecordSubject=Your email recording,RecordRetain=true,RecordReset=false" app_stamp="{{startEpoch}}237747" />
+    <application app_name="set" app_data="rmCurrentComponentDN=T00013144@ModAction_Record" app_stamp="{{startEpoch}}239053" />
+    <application app_name="set" app_data="rmCurrentComponentName=Record" app_stamp="{{startEpoch}}240066" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component Activation	T00013144@ModAction_Record@Record	Record	Activated" app_stamp="{{startEpoch}}241800" />
+    <application app_name="set" app_data="rmvRecordLeg=A" app_stamp="{{startEpoch}}242738" />
+    <application app_name="set" app_data="rmvRecordSendEmail=false" app_stamp="{{startEpoch}}243833" />
+    <application app_name="set" app_data="rmvRecordToRecips=" app_stamp="{{startEpoch}}244899" />
+    <application app_name="set" app_data="rmvRecordCcRecips=" app_stamp="{{startEpoch}}245954" />
+    <application app_name="set" app_data="rmvRecordSubject=Your email recording" app_stamp="{{startEpoch}}246904" />
+    <application app_name="set" app_data="rmvRecordReset=false" app_stamp="{{startEpoch}}247937" />
+    <application app_name="set" app_data="rmvRecordRetain=true" app_stamp="{{startEpoch}}248857" />
+    <application app_name="set" app_data="rmvRecordPolicy=2850" app_stamp="{{startEpoch}}249743" />
+    <application app_name="set" app_data="rmvRecordBeep=off" app_stamp="{{startEpoch}}250633" />
+    <application app_name="set" app_data="rmvRecordToneStream=" app_stamp="{{startEpoch}}251923" />
+    <application app_name="set" app_data="rmvRecordPauseAllowed=false" app_stamp="{{startEpoch}}252842" />
+    <application app_name="set" app_data="media_bug_answer_req=true" app_stamp="{{startEpoch}}253931" />
+    <application app_name="set" app_data="rmvRecordOnBridge=true" app_stamp="{{startEpoch}}254805" />
+    <application app_name="javascript" app_data="common/ExpandMacrosInSessionVars.js rmvRecordSubject rmvRecordToRecips rmvRecordCcRecips rmvRecordToneStream" app_stamp="{{startEpoch}}255847" />
+    <application app_name="lua" app_data="applications/dialplan_action/RecordLeg.lua" app_stamp="{{startEpoch}}296028" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Action	T00013143@ModAction	Action	Recording initiated =&gt; Email Recipients=NO; Archive=YES " app_stamp="{{startEpoch}}298396" />
+    <application app_name="export" app_data="rmRecordBeep=off" app_stamp="{{startEpoch}}299684" />
+    <application app_name="export" app_data="rmRecordToneStream=%(100,15000,800)" app_stamp="{{startEpoch}}300689" />
+    <application app_name="transfer" app_data="T00013141 XML 1" app_stamp="{{startEpoch}}302476" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00013141, DialPlanDestContext=1" app_stamp="{{startEpoch}}358597" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00013141@ModPolicy" app_stamp="{{startEpoch}}360127" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Policy" app_stamp="{{startEpoch}}361097" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00013141@ModPolicy	Policy	Activated" app_stamp="{{startEpoch}}362171" />
+    <application app_name="transfer" app_data="T00011580 XML 1" app_stamp="{{startEpoch}}363074" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011580@ModFromPolicy" app_stamp="{{startEpoch}}397523" />
+    <application app_name="set" app_data="rmCurrentFeatureName=From Policy" app_stamp="{{startEpoch}}398798" />
+    <application app_name="set" app_data="rmCurrentPolicyName=User: Holger" app_stamp="{{startEpoch}}400034" />
+    <application app_name="set" app_data="rmCurrentPolicyID=8338" app_stamp="{{startEpoch}}400944" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModFromPolicy, DialPlanDest=T00011580, DialPlanDestContext=1" app_stamp="{{startEpoch}}402255" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Policy Activation	@@User: Holger	From Policy	Activated" app_stamp="{{startEpoch}}403668" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature Activation	T00011580@ModFromPolicy@From Policy	From Policy	Activated" app_stamp="{{startEpoch}}404883" />
+    <application app_name="set" app_data="rmDebugTechSupport=yes" app_stamp="{{startEpoch}}405968" />
+    <application app_name="transfer" app_data="T00013136 XML 1" app_stamp="{{startEpoch}}407021" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00013136, DialPlanDestContext=1" app_stamp="{{startEpoch}}462147" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00013136@ModAction" app_stamp="{{startEpoch}}464333" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Action" app_stamp="{{startEpoch}}465250" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00013136@ModAction	Action	Activated" app_stamp="{{startEpoch}}466358" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Announce,AnnouncePhrase=DDI Call.,AcceptKey=1,ConfirmPolicy=can,AnnounceForce=false" app_stamp="{{startEpoch}}467639" />
+    <application app_name="export" app_data="rmvGroupConfirmPhrase=DDI Call." app_stamp="{{startEpoch}}469386" />
+    <application app_name="set" app_data="rmvGroupConfirmPolicy=can" app_stamp="{{startEpoch}}470643" />
+    <application app_name="set" app_data="rmvAnnounceForce=false" app_stamp="{{startEpoch}}471741" />
+    <application app_name="set" app_data="rmvGroupConfirmKey=1" app_stamp="{{startEpoch}}472880" />
+    <application app_name="set" app_data="rmvGroupConfirmAttempts=3" app_stamp="{{startEpoch}}474163" />
+    <application app_name="set" app_data="rmvGroupConfirmTimeout=7" app_stamp="{{startEpoch}}475157" />
+    <application app_name="transfer" app_data="T00011581 XML 1" app_stamp="{{startEpoch}}476295" />
+    <application app_name="set" app_data="rmvAnswerCall=false" app_stamp="{{startEpoch}}536320" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModConnect, DialPlanDest=T00011581, DialPlanDestContext=1" app_stamp="{{startEpoch}}537914" />
+    <application app_name="set" app_data="rmCurrentFeatureDN=T00011581@ModConnect" app_stamp="{{startEpoch}}539425" />
+    <application app_name="set" app_data="rmCurrentFeatureName=Connect" app_stamp="{{startEpoch}}540451" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Feature	T00011581@ModConnect	Connect	Activated" app_stamp="{{startEpoch}}541570" />
+    <application app_name="set" app_data="rmConnectFeatureIdent=T00011581" app_stamp="{{startEpoch}}542711" />
+    <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,rmvFollowMeDialString=((dialItem%3Duser:82368%26dialItemLabel%3DDeskphone%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dfalse)),((dialItem%3D07410698088:D%26dialItemLabel%3DHolger Mob%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dtrue)),rmvVoiceMailBox=,Module=ModConnect_FollowMe" app_stamp="{{startEpoch}}543945" />
+    <application app_name="set" app_data="rmCurrentComponentDN=T00011582" app_stamp="{{startEpoch}}545577" />
+    <application app_name="set" app_data="rmCurrentComponentName=holger" app_stamp="{{startEpoch}}546645" />
+    <application app_name="rm_logactivity" app_data="{{startEpoch}}	INFO	Component	T00011582	holger	Activated" app_stamp="{{startEpoch}}548101" />
+    <application app_name="set" app_data="rmvConnectComponentsActivated=_T00011582" app_stamp="{{startEpoch}}549369" />
+    <application app_name="set" app_data="rmvFollowMeDialString=((dialItem%3Duser:82368%26dialItemLabel%3DDeskphone%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dfalse)),((dialItem%3D07410698088:D%26dialItemLabel%3DHolger Mob%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dtrue))" app_stamp="{{startEpoch}}550554" />
+    <application app_name="set" app_data="hangup_after_bridge=true" app_stamp="{{startEpoch}}551536" />
+    <application app_name="set" app_data="continue_on_fail=true" app_stamp="{{startEpoch}}552761" />
+    <application app_name="set" app_data="rmvFollowMeCallerIdName=" app_stamp="{{startEpoch}}553879" />
+    <application app_name="javascript" app_data="applications/dialplan_connect/FollowMe.js" app_stamp="{{startEpoch}}555183" />
+    <application app_name="export" app_data="sip_redirect_context=redirect" app_stamp="{{startEpoch}}767305" />
+    <application app_name="export" app_data="rmOriginatorUserId=" app_stamp="{{startEpoch}}768670" />
+    <application app_name="export" app_data="rmOriginatorDevId=" app_stamp="{{startEpoch}}769971" />
+    <application app_name="export" app_data="domain_name=redm-000001.sip.redmatter.com" app_stamp="{{startEpoch}}771373" />
+    <application app_name="unset" app_data="sip_h_X-OSPath" app_stamp="{{startEpoch}}772574" />
+    <application app_name="export" app_data="sip_redirect_context=redirect" app_stamp="{{startEpoch}}915435" />
+    <application app_name="export" app_data="rmOriginatorUserId=" app_stamp="{{startEpoch}}916755" />
+    <application app_name="export" app_data="rmOriginatorDevId=" app_stamp="{{startEpoch}}917866" />
+    <application app_name="export" app_data="domain_name=redm-000001.sip.redmatter.com" app_stamp="{{startEpoch}}919090" />
+    <application app_name="execute_extension" app_data="lcr XML features" app_stamp="{{startEpoch}}921347" />
+    <application app_name="export" app_data="user_context=1" app_stamp="{{startEpoch}}926277" />
+    <application app_name="export" app_data="rmOriginatorUUID={{aLeg_uuid}}" app_stamp="{{startEpoch}}927654" />
+    <application app_name="javascript" app_data="applications/lcr/lcr.js 07410698088" app_stamp="{{startEpoch}}929041" />
+    <application app_name="export" app_data="rmOriginatorOrgId=1" app_stamp="{{startEpoch}}962350" />
+    <application app_name="export" app_data="rmOriginatorContext=1" app_stamp="{{startEpoch}}964441" />
+    <application app_name="export" app_data="rmOriginatorUserId=" app_stamp="{{startEpoch}}965561" />
+    <application app_name="export" app_data="rmOriginatorDevId=" app_stamp="{{startEpoch}}967089" />
+    <application app_name="lua" app_data="hooks/hookPostDSTrunk.lua" app_stamp="1503390914062868" />
+    <application app_name="lua" app_data="hooks/hookPostLCR.lua" app_stamp="1503390914151401" />
+    <application app_name="set" app_data="instant_ringback=true" app_stamp="1503390914163579" />
+    <application app_name="execute_extension" app_data="featureMultiBridge XML features" app_stamp="1503390914165026" />
+    <application app_name="export" app_data="user_context=1" app_stamp="1503390914169979" />
+    <application app_name="export" app_data="hold_music=shout://pnj-01.stream101.com:9001" app_stamp="1503390914171374" />
+    <application app_name="set" app_data="rmCampCallerIdName=DDI Call" app_stamp="1503390914172582" />
+    <application app_name="set" app_data="rmCampCallerIdNumber=+4916097792975" app_stamp="1503390914173856" />
+    <application app_name="export" app_data="rmOriginatorContext=1" app_stamp="1503390914175384" />
+    <application app_name="unset" app_data="rmReferHandled" app_stamp="1503390914177135" />
+    <application app_name="bridge" app_data="{group_confirm_key=exec,group_confirm_file='javascript applications/dialplan_connect/GroupConfirm.js 1 can false',ignore_early_media=true,outbound_redirect_fatal=true,group_confirm_cancel_timeout=true}[rmDevID=38694,rmOrgID=1,rmUserID=82368,rmHCDCode=44,rmCallCategory=STC,rmGrpMembership=2209:3002:7805:2000:7864,rmBLF=40786330,leg_delay_start=0,leg_timeout=30,origination_caller_id_name='DDI Call',rmHCDCode=44,rmHCDExitCode=00,rmHCDTrunk=0,rmHCDTrunkOptional=false,rmOriginatorUUID={{aLeg_uuid}},'execute_on_ring=execute_extension executeOnRing XML dpSupport','execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer',rmOriginatorOrgId=1,sip_cid_type=none,rmRequestedExtension=2209,rmNumberNormalised=2209,rmCallCategory=STC]sofia/internal/12007@redm-000001.sip.redmatter.com;fs_path=sip:84.45.30.2,[lcr_rate='0',lcr_carrier='lcrSimplify',lcr_carrierID='0',lcr_carrierGatewayID='0',privacyClass='',connectCharge='0',rateType='Unknown',leg_delay_start=0,leg_timeout=30,rmvLegConfirm=true,rmHCDCode=44,rmHCDExitCode=00,rmHCDTrunk=0,rmHCDTrunkOptional=false,rmOriginatorUUID={{aLeg_uuid}},'execute_on_ring=execute_extension executeOnRing XML dpSupport','execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer',rmOriginatorOrgId=1,rmNumberNormalised=447410698088,rmOrgID=1,rmUserID=0,rmDevID=0,rmTargetType=pstn,retailChargeBand='fm4',retailConnectCharge=0.0000000000000000,retailRate=0.0200000000000000,retailRateType=day,retailCountryCode=44,retailCountry='GBR',retailPrimaryBandType='Mobile',retailSubBandType='null',rmCallCategory=CTC,rmNumberRateable=447410698088,origination_caller_id_number=4916097792975,origination_caller_id_name=4916097792975,rmCLINormalised=4916097792975,rmMaxRoutes=1,rmRouteCounter=0,origination_uuid={{bLeg_uuid}},sip_h_X-RMPrv-UUID={{bLeg_uuid}},absolute_codec_string=PCMA,rtcp_audio_interval_msec=5000,sip_h_X-OSPath=sip:80.231.93.45:5060,sip_cid_type=none,sip_invite_domain=gateway.redmatter.com,sip_h_P-Asserted-Identity='&quot;4916097792975&quot; &lt;sip:4916097792975@redmatter.com&gt;']sofia/trusted/siplcr_447410698088@gateway.redmatter.com;fs_path=sip:84.45.30.132:5070" app_stamp="1503390914178602" />
+    <application app_name="lua" app_data="applications/features/PreALegBridgeHook.lua bridge_pre_execute_aleg" app_stamp="1503390938066093" />
+    <application app_name="record_session" app_data="/var/spool/rmrecordings/1_2017_08_22_{{aLeg_uuid}}.wav" app_stamp="1503390938069269" />
+  </app_log>
+  <callflow dialplan="XML" unique-id="8b188c7f-b97a-4417-984a-c96b94c7b16a" clone-of="03415d90-eb90-4d83-a535-0ae7e592c2c7" profile_index="12">
+    <extension name="T00011581" number="T00011581" current_app="set">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModConnect, DialPlanDest=T00011581, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011581@ModConnect" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Connect" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00011581@ModConnect	Connect	Activated" />
+      <application app_name="set" app_data="rmConnectFeatureIdent=T00011581" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,rmvFollowMeDialString=((dialItem%3Duser:82368%26dialItemLabel%3DDeskphone%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dfalse)),((dialItem%3D07410698088:D%26dialItemLabel%3DHolger Mob%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dtrue)),rmvVoiceMailBox=,Module=ModConnect_FollowMe" />
+      <application app_name="set" app_data="rmCurrentComponentDN=T00011582" />
+      <application app_name="set" app_data="rmCurrentComponentName=holger" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011582	holger	Activated" />
+      <application app_name="set" app_data="rmvConnectComponentsActivated=${rmvConnectComponentsActivated}_T00011582" />
+      <application app_name="set" app_data="rmvFollowMeDialString=((dialItem%3Duser:82368%26dialItemLabel%3DDeskphone%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dfalse)),((dialItem%3D07410698088:D%26dialItemLabel%3DHolger Mob%26dialStart%3D0%26dialLength%3D30%26screenCaller%3Dtrue))" />
+      <application app_name="set" app_data="hangup_after_bridge=true" />
+      <application app_name="set" app_data="continue_on_fail=true" />
+      <application app_name="set" app_data="rmvFollowMeCallerIdName=" />
+      <application app_name="javascript" app_data="applications/dialplan_connect/FollowMe.js" />
+      <application app_name="set" app_data="instant_ringback=true" />
+      <application app_name="execute_extension" app_data="featureMultiBridge XML features" />
+      <application last_executed="true" app_name="set" app_data="rmvGroupConfirmKey=" />
+      <application app_name="unset" app_data="rmConnectFeatureIdent" />
+      <application app_name="unset" app_data="rmvConnectComponentsActivated" />
+      <application app_name="transfer" app_data="T00011583 XML 1" />
+      <sub_extensions>
+        <extension name="force_context" number="lcr" dialplan="XML">
+          <application app_name="export" app_data="user_context=${user_context}" />
+          <application app_name="export" app_data="rmOriginatorUUID=${uuid}" />
+          <application app_name="javascript" app_data="applications/lcr/lcr.js ${rmLCRDialNumber}" />
+          <sub_extensions>
+            <extension name="force_context" number="featureMultiBridge" dialplan="XML">
+              <application app_name="export" app_data="user_context=${user_context}" />
+              <application app_name="export" app_data="hold_music=${hold_music}" />
+              <application app_name="set" app_data="rmCampCallerIdName=${effective_caller_id_name}" />
+              <application app_name="set" app_data="rmCampCallerIdNumber=${effective_caller_id_number}" />
+              <application app_name="export" app_data="rmOriginatorContext=${user_context}" />
+              <application app_name="unset" app_data="rmReferHandled" />
+              <application app_name="bridge" app_data="${rmBridgeString}" />
+            </extension>
+          </sub_extensions>
+        </extension>
+      </sub_extensions>
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name>Outbound Call</callee_id_name>
+      <callee_id_number>siplcr_447410698088</callee_id_number>
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00013136</rdnis>
+      <destination_number>T00011581</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:8b188c7f-b97a-4417-984a-c96b94c7b16a:bl_xfer:T00011581/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+      <origination>
+        <origination_caller_profile>
+          <username>4916097792975</username>
+          <dialplan>XML</dialplan>
+          <caller_id_name>4916097792975</caller_id_name>
+          <caller_id_number>4916097792975</caller_id_number>
+          <callee_id_name>Outbound Call</callee_id_name>
+          <callee_id_number>siplcr_447410698088</callee_id_number>
+          <ani>4916097792975</ani>
+          <aniii />
+          <network_addr>84.45.30.2</network_addr>
+          <rdnis>T00013136</rdnis>
+          <destination_number>siplcr_447410698088</destination_number>
+          <uuid>{{bLeg_uuid}}</uuid>
+          <source>mod_sofia</source>
+          <context>features</context>
+          <chan_name>sofia/trusted1/siplcr_447410698088@gateway.redmatter.com</chan_name>
+        </origination_caller_profile>
+        <origination_caller_profile>
+          <username>4916097792975</username>
+          <dialplan>XML</dialplan>
+          <caller_id_name>DDI Call</caller_id_name>
+          <caller_id_number>+4916097792975</caller_id_number>
+          <callee_id_name>Outbound Call</callee_id_name>
+          <callee_id_number>12007</callee_id_number>
+          <ani>4916097792975</ani>
+          <aniii />
+          <network_addr>84.45.30.2</network_addr>
+          <rdnis>T00013136</rdnis>
+          <destination_number>12007</destination_number>
+          <uuid>5839e813-8d83-4d8b-875c-ef267a005ee2</uuid>
+          <source>mod_sofia</source>
+          <context>features</context>
+          <chan_name>sofia/internal1/12007@redm-000001.sip.redmatter.com</chan_name>
+        </origination_caller_profile>
+      </origination>
+      <originatee>
+        <originatee_caller_profile>
+          <username>4916097792975</username>
+          <dialplan>XML</dialplan>
+          <caller_id_name>4916097792975</caller_id_name>
+          <caller_id_number>4916097792975</caller_id_number>
+          <callee_id_name>Outbound Call</callee_id_name>
+          <callee_id_number>siplcr_447410698088</callee_id_number>
+          <ani>4916097792975</ani>
+          <aniii />
+          <network_addr>84.45.30.132</network_addr>
+          <rdnis>T00013136</rdnis>
+          <destination_number>siplcr_447410698088</destination_number>
+          <uuid>{{bLeg_uuid}}</uuid>
+          <source>mod_sofia</source>
+          <context>features</context>
+          <chan_name>sofia/trusted1/siplcr_447410698088@gateway.redmatter.com</chan_name>
+        </originatee_caller_profile>
+      </originatee>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}469250</profile_created_time>
+      <progress_time>1503390914309237</progress_time>
+      <progress_media_time>{{startEpoch}}609318</progress_media_time>
+      <answered_time>1503390937798941</answered_time>
+      <bridged_time>1503390937798941</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>1503391205228462</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>0</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="03415d90-eb90-4d83-a535-0ae7e592c2c7" clone-of="b0c10fe0-782e-4a2c-bc4c-cb47769d451b" profile_index="11">
+    <extension name="T00013136" number="T00013136">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00013136, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013136@ModAction" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Action" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00013136@ModAction	Action	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Announce,AnnouncePhrase=DDI Call.,AcceptKey=1,ConfirmPolicy=can,AnnounceForce=false" />
+      <application app_name="export" app_data="rmvGroupConfirmPhrase=DDI Call." />
+      <application app_name="set" app_data="rmvGroupConfirmPolicy=can" />
+      <application app_name="set" app_data="rmvAnnounceForce=false" />
+      <application app_name="set" app_data="rmvGroupConfirmKey=1" />
+      <application app_name="set" app_data="rmvGroupConfirmAttempts=3" />
+      <application app_name="set" app_data="rmvGroupConfirmTimeout=7" />
+      <application app_name="transfer" app_data="T00011581 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00011580</rdnis>
+      <destination_number>T00013136</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:03415d90-eb90-4d83-a535-0ae7e592c2c7:bl_xfer:T00013136/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}399245</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}469250</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="b0c10fe0-782e-4a2c-bc4c-cb47769d451b" clone-of="d637d08e-0637-450d-bd18-c25ba81ee9de" profile_index="10">
+    <extension name="T00011580" number="T00011580">
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011580@ModFromPolicy" />
+      <application app_name="set" app_data="rmCurrentFeatureName=From Policy" />
+      <application app_name="set" app_data="rmCurrentPolicyName=User: Holger" />
+      <application app_name="set" app_data="rmCurrentPolicyID=8338" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModFromPolicy, DialPlanDest=T00011580, DialPlanDestContext=1" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Policy Activation	@@User: Holger	From Policy	Activated" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature Activation	T00011580@ModFromPolicy@From Policy	From Policy	Activated" />
+      <application app_name="set" app_data="rmDebugTechSupport=yes" />
+      <application app_name="transfer" app_data="T00013136 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00013141</rdnis>
+      <destination_number>T00011580</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:b0c10fe0-782e-4a2c-bc4c-cb47769d451b:bl_xfer:T00011580/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}359248</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}399245</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="d637d08e-0637-450d-bd18-c25ba81ee9de" clone-of="02c5e98d-2e5c-4510-ad20-73a27b8e86ff" profile_index="9">
+    <extension name="T00013141" number="T00013141">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00013141, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013141@ModPolicy" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Policy" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00013141@ModPolicy	Policy	Activated" />
+      <application app_name="transfer" app_data="T00011580 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00013143</rdnis>
+      <destination_number>T00013141</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:d637d08e-0637-450d-bd18-c25ba81ee9de:bl_xfer:T00013141/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}299252</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}359248</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="02c5e98d-2e5c-4510-ad20-73a27b8e86ff" clone-of="7ec21429-22bf-47f4-8f73-8c2d88900a09" profile_index="8">
+    <extension name="T00013143" number="T00013143">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00013143, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013143@ModAction" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Action" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00013143@ModAction	Action	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Record,RecordEmailSend=false,RecordEmailToAddresses=,RecordEmailCCAddresses=,RecordSubject=Your email recording,RecordRetain=true,RecordReset=false" />
+      <application app_name="set" app_data="rmCurrentComponentDN=T00013144@ModAction_Record" />
+      <application app_name="set" app_data="rmCurrentComponentName=Record" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component Activation	T00013144@ModAction_Record@Record	Record	Activated" />
+      <application app_name="set" app_data="rmvRecordLeg=A" />
+      <application app_name="set" app_data="rmvRecordSendEmail=false" />
+      <application app_name="set" app_data="rmvRecordToRecips=" />
+      <application app_name="set" app_data="rmvRecordCcRecips=" />
+      <application app_name="set" app_data="rmvRecordSubject=Your email recording" />
+      <application app_name="set" app_data="rmvRecordReset=false" />
+      <application app_name="set" app_data="rmvRecordRetain=true" />
+      <application app_name="set" app_data="rmvRecordPolicy=2850" />
+      <application app_name="set" app_data="rmvRecordBeep=off" />
+      <application app_name="set" app_data="rmvRecordToneStream=" />
+      <application app_name="set" app_data="rmvRecordPauseAllowed=false" />
+      <application app_name="set" app_data="media_bug_answer_req=true" />
+      <application app_name="set" app_data="rmvRecordOnBridge=true" />
+      <application app_name="javascript" app_data="common/ExpandMacrosInSessionVars.js" />
+      <application app_name="lua" app_data="applications/dialplan_action/RecordLeg.lua" />
+      <application app_name="transfer" app_data="T00013141 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00009329</rdnis>
+      <destination_number>T00013143</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:02c5e98d-2e5c-4510-ad20-73a27b8e86ff:bl_xfer:T00013143/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}129237</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}299252</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="7ec21429-22bf-47f4-8f73-8c2d88900a09" clone-of="14add359-f19a-4966-a2da-7f7ccc99a2b5" profile_index="7">
+    <extension name="T00009329" number="T00009329" current_app="event">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00009329, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009329@ModRule" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Rules" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00009329@ModRule	Rules	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00015348" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Neil B" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00015348	Neil B	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D1%26match%3Deq%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00015349 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=,CheckCalledNumber=03331502003,CheckWithheld=false" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00010372@ModRule_NumberCheck " />
+      <application app_name="set" app_data="rmCurrentFeatureName=James" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00010372@ModRule_NumberCheck 	James	Activated" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCaller=" />
+      <application app_name="set" app_data="rmvRuleNumChkCalled=03331502003" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" />
+      <application app_name="set" app_data="rmvRuleNumChkTransfer=T00010465 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=,CheckCalledNumber=03331501004,CheckWithheld=false" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009602@ModRule_NumberCheck " />
+      <application app_name="set" app_data="rmCurrentFeatureName=Ben" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00009602@ModRule_NumberCheck 	Ben	Activated" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCaller=" />
+      <application app_name="set" app_data="rmvRuleNumChkCalled=03331501004" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" />
+      <application app_name="set" app_data="rmvRuleNumChkTransfer=T00009603 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009813" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Tim" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00009813	Tim	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00009814 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011504" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Alan" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011504	Alan	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26val%3D12326%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00015444 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011440" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Pontus" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011440	Pontus	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D55518%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00014147 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009955" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Charles" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00009955	Charles	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D2597%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013742 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00010957" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Hans" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00010957	Hans	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26rule%3DInDialledUser%26val%3D29006%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00010958 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00010436" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Adrian" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00010436	Adrian	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D29822%26match%3Deq%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00010437 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011252" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Greg" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011252	Greg	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D29782%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00011253 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011683" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Steve W" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011683	Steve W	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D12186%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00011684 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013140" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Holger" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00013140	Holger	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D49795%252C82368%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013143 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application last_executed="true" app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013218" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Simon" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00013218	Simon	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D51340%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013219 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00015671" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Sam L" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00015671	Sam L	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26rule%3DInDialledUser%26val%3D74482%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00011003 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011261" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Buse" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011261	Buse	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D51336%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013208 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013726" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Henry" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00013726	Henry	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D49757%26match%3Deq%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013727 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013790" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Pritha" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00013790	Pritha	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D53537%252C88871%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013794 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00016359" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Whitey" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00016359	Whitey	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26rule%3DInDialledUser%26val%3D81483%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00016360 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00016675" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Lee S" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00016675	Lee S	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D82364%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00016676 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00014208" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Chris K" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00014208	Chris K	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D54596%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00014209 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011585" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Lewis" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011585	Lewis	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26val%3D49763%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00015626 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00014278" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Sven" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00014278	Sven	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26val%3D31793%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00014279 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00016874" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Zsolt" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00016874	Zsolt	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D45897%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00016875 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00011441" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Lee M" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00011441	Lee M	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D2158%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00011444 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00013612" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Support User" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00013612	Support User	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26match%3Deq%26val%3D63881%252C63883%252C2158%252C56736%252C49767%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00013613 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017132" />
+      <application app_name="set" app_data="rmCurrentFeatureName=David" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017132	David	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D87407%26match%3Deq%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017133 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017236" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Ian Moyse" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017236	Ian Moyse	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D105306%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017237 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017465" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Juliana" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017465	Juliana	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D103829%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017466 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017496" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Rhys" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017496	Rhys	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D110456%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017497 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017504" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Warren" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017504	Warren	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D110458%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017505 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017671" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Marcela" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017671	Marcela	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28rule%3DInDialledUser%26val%3D99530%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017678 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="transfer" app_data="T00010446 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00017334</rdnis>
+      <destination_number>T00009329</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>1503390912:7ec21429-22bf-47f4-8f73-8c2d88900a09:bl_xfer:T00009329/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>1503390912379246</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}129237</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="14add359-f19a-4966-a2da-7f7ccc99a2b5" clone-of="5a447e78-adc2-4459-8c0e-28b5176e0b3f" profile_index="6">
+    <extension name="T00017334" number="T00017334">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModAction, DialPlanDest=T00017334, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017334@ModAction" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Action" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00017334@ModAction	Action	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModAction_Record,RecordEmailSend=false,RecordEmailToAddresses=,RecordEmailCCAddresses=,RecordSubject=Your email recording,RecordRetain=true,RecordReset=false" />
+      <application app_name="set" app_data="rmCurrentComponentDN=T00017335@ModAction_Record" />
+      <application app_name="set" app_data="rmCurrentComponentName=Record" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component Activation	T00017335@ModAction_Record@Record	Record	Activated" />
+      <application app_name="set" app_data="rmvRecordLeg=B" />
+      <application app_name="set" app_data="rmvRecordSendEmail=false" />
+      <application app_name="set" app_data="rmvRecordToRecips=" />
+      <application app_name="set" app_data="rmvRecordCcRecips=" />
+      <application app_name="set" app_data="rmvRecordSubject=Your email recording" />
+      <application app_name="set" app_data="rmvRecordReset=false" />
+      <application app_name="set" app_data="rmvRecordRetain=true" />
+      <application app_name="set" app_data="rmvRecordPolicy=9160" />
+      <application app_name="set" app_data="rmvRecordBeep=off" />
+      <application app_name="set" app_data="rmvRecordToneStream=" />
+      <application app_name="set" app_data="rmvRecordPauseAllowed=false" />
+      <application app_name="set" app_data="media_bug_answer_req=true" />
+      <application app_name="set" app_data="rmvRecordOnBridge=true" />
+      <application app_name="javascript" app_data="common/ExpandMacrosInSessionVars.js" />
+      <application app_name="lua" app_data="applications/dialplan_action/RecordLeg.lua" />
+      <application app_name="transfer" app_data="T00009329 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00017328</rdnis>
+      <destination_number>T00017334</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>1503390912:14add359-f19a-4966-a2da-7f7ccc99a2b5:bl_xfer:T00017334/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>1503390912269252</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>1503390912379246</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="5a447e78-adc2-4459-8c0e-28b5176e0b3f" clone-of="dda4dd69-9274-4b5a-aa9e-c928f939486f" profile_index="5">
+    <extension name="T00017328" number="T00017328" current_app="transfer">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00017328, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017328@ModRule" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Sales Recording" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00017328@ModRule	Sales Recording	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017331" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Telesales" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017331	Telesales	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D36%26rule%3DInDialledGroup%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017336 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017330" />
+      <application app_name="set" app_data="rmCurrentFeatureName=SMB" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017330	SMB	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25342%26rule%3DInDialledGroup%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017332 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017329" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Enterprise" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017329	Enterprise	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28match%3Deq%26val%3D25340%26rule%3DInDialledGroup%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00017334 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application last_executed="true" app_name="transfer" app_data="T00009329 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00009726</rdnis>
+      <destination_number>T00017328</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:5a447e78-adc2-4459-8c0e-28b5176e0b3f:bl_xfer:T00017328/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}799263</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>1503390912269252</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="dda4dd69-9274-4b5a-aa9e-c928f939486f" clone-of="7d444ccc-9f91-4d15-ba58-16c28a54d1a3" profile_index="4">
+    <extension name="T00009726" number="T00009726">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModRule, DialPlanDest=T00009726, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009726@ModRule" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Rules" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00009726@ModRule	Rules	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_NumberCheck,CheckCallerMode=Match,CheckCalledMode=Match,CheckCallerNumber=+12176623125,CheckCalledNumber=,CheckWithheld=false" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00017025@ModRule_NumberCheck " />
+      <application app_name="set" app_data="rmCurrentFeatureName=Block" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00017025@ModRule_NumberCheck 	Block	Activated" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCalledMode=Match" />
+      <application app_name="set" app_data="rmvRuleNumChkCaller=+12176623125" />
+      <application app_name="set" app_data="rmvRuleNumChkCalled=" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerWithheld=false" />
+      <application app_name="set" app_data="rmvRuleNumChkCallerIdName=" />
+      <application app_name="set" app_data="rmvRuleNumChkTransfer=T00015163 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/NumberCheck.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00009727" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Neilh?" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00009727	Neilh?	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D15%26rule%3DInDialledUser%26match%3Deq%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00009730 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModRule_Query" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00012633" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Meeting Room" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component	T00012633	Meeting Room	Activated" />
+      <application app_name="set" app_data="rmvQueryData=%28%28val%3D1535%26match%3Deq%26rule%3DInDialledUser%29%29" />
+      <application app_name="set" app_data="rmvQueryCallerIdName=" />
+      <application app_name="set" app_data="rmvQueryTransfer=T00012634 XML 1" />
+      <application app_name="javascript" app_data="applications/dialplan_rules/Query.js" />
+      <application app_name="transfer" app_data="T00017328 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00016475</rdnis>
+      <destination_number>T00009726</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:dda4dd69-9274-4b5a-aa9e-c928f939486f:bl_xfer:T00009726/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}629261</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}799263</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="7d444ccc-9f91-4d15-ba58-16c28a54d1a3" clone-of="cab7b166-ab0d-4413-9df4-c6f120ad3fdd" profile_index="3">
+    <extension name="T00016475" number="T00016475">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00016475, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00016475@ModPolicy" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Policy" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00016475@ModPolicy	Policy	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModPolicy_ToNonCall" />
+      <application app_name="set" app_data="rmAnalyticsItems=${expr(${rmAnalyticsItems}+1)}" />
+      <application app_name="set" app_data="rmAnalyticsItem_${rmAnalyticsItems}=T00015836 XML 1" />
+      <application app_name="set" app_data="rmAnalyticsItemOrig_${rmAnalyticsItems}=Inbound: Natterbox@T00016476@AY Inbound v8.6" />
+      <application app_name="set" app_data="rmvNonCallPolicy=T00015836 XML 1" />
+      <application app_name="transfer" app_data="T00009726 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>T00014161</rdnis>
+      <destination_number>T00016475</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:7d444ccc-9f91-4d15-ba58-16c28a54d1a3:bl_xfer:T00016475/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}569334</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}629261</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="cab7b166-ab0d-4413-9df4-c6f120ad3fdd" clone-of="0eaf6a05-2e03-4ba9-8eea-2bfb4bcc2063" profile_index="2">
+    <extension name="T00014161" number="T00014161">
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::moduleStart, Event-Name=CUSTOM, Module=ModPolicy, DialPlanDest=T00014161, DialPlanDestContext=1" />
+      <application app_name="set" app_data="rmCurrentFeatureDN=T00014161@ModPolicy" />
+      <application app_name="set" app_data="rmCurrentFeatureName=Policy" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Feature	T00014161@ModPolicy	Policy	Activated" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModPolicy_ToNonCall" />
+      <application app_name="set" app_data="rmAnalyticsItems=${expr(${rmAnalyticsItems}+1)}" />
+      <application app_name="set" app_data="rmAnalyticsItem_${rmAnalyticsItems}=T00014083 XML 1" />
+      <application app_name="set" app_data="rmAnalyticsItemOrig_${rmAnalyticsItems}=Inbound: Natterbox@T00014162@Salesforce 1 Demo Inbound" />
+      <application app_name="set" app_data="rmvNonCallPolicy=T00014083 XML 1" />
+      <application app_name="transfer" app_data="T00016475 XML 1" />
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis>493022957361</rdnis>
+      <destination_number>T00014161</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>{{startEpoch}}:cab7b166-ab0d-4413-9df4-c6f120ad3fdd:bl_xfer:T00014161/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}529343</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}569334</transfer_time>
+    </times>
+  </callflow>
+  <callflow dialplan="XML" unique-id="0eaf6a05-2e03-4ba9-8eea-2bfb4bcc2063" profile_index="1">
+    <extension name="493022957361" number="493022957361">
+      <application app_name="set" app_data="rmOverrideCallerIdName=DDI Call" />
+      <application app_name="event" app_data="Event-Subclass=rmDialPlanProgress::elementStart,Event-Name=CUSTOM,Module=ModNumber_Public,Ringtone=uk,DelayBeforeAnswering=0,PublicNumber=493022957361" />
+      <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=RTP,UUID=${uuid},SIP-Call-ID=${sip_call_id}" />
+      <application app_name="set" app_data="rmHCDCode=44" />
+      <application app_name="set" app_data="default_language=en-simon" />
+      <application app_name="set" app_data="hold_music=shout://pnj-01.stream101.com:9001" />
+      <application app_name="execute_extension" app_data="setLanguage-${default_language} XML dpSupport" />
+      <application app_name="export" app_data="rmDumpCalls=RTP" />
+      <application app_name="set" app_data="bridge_pre_execute_aleg_app=execute_extension" />
+      <application app_name="set" app_data="bridge_pre_execute_aleg_data=ALegPreBridge XML dpSupport" />
+      <application app_name="set" app_data="rmPolicyStartID=31" />
+      <application app_name="set" app_data="rmCallPolicyStartID=31" />
+      <application app_name="set" app_data="rmCallPolicyStartName=Inbound: Natterbox" />
+      <application app_name="set" app_data="rmCallComponentStartName=DDI" />
+      <application app_name="set" app_data="rmCallComponentStartDN=DDI@ModNumber_PublicDDI" />
+      <application app_name="set" app_data="rmCurrentComponentDN=DDI@ModNumber_PublicDDI" />
+      <application app_name="set" app_data="rmCurrentComponentName=DDI" />
+      <application app_name="set" app_data="rmCurrentPolicyName=Inbound: Natterbox" />
+      <application app_name="set" app_data="rmCurrentPolicyID=31" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Policy Activation	@@Inbound: Natterbox	DDI	Activated" />
+      <application app_name="rm_logActivity" app_data="${strepoch()}	INFO	Component Activation	DDI@ModNumber_PublicDDI@DDI	DDI	Activated" />
+      <application app_name="set" app_data="rmCallCategory=COC" />
+      <application app_name="set" app_data="rmDialledNumberStripped=${rm_normalise_number(${sip_to_user} DialRuleE164 CountryCode ${rmHCDCode})}" />
+      <application app_name="set" app_data="rmDialledNumber=${rm_normalise_number(${sip_to_user} DialRuleE164 CountryCode ${rmHCDCode})}" />
+      <application app_name="set" app_data="rmNumberNormalised=${rm_normalise_number(${caller_id_number} DialRuleE164 CountryCode ${rmHCDCode})}" />
+      <application app_name="set" app_data="rmInSIPMaxForwards=${max_forwards}" />
+      <application app_name="set" app_data="max_forwards=${rmpMaxForwards}" />
+      <application app_name="set" app_data="rmLCRNumberPolicy=block" />
+      <application app_name="set" app_data="rmLCRACL=^[1-9]\d*$" />
+      <application app_name="set" app_data="rmDDIUserID=82368" />
+      <application app_name="set" app_data="rmInboundDivert=" />
+      <application app_name="set" app_data="rmvPlayBackToneLoops=0" />
+      <application app_name="set" app_data="rmvPlayBackTone=uk" />
+      <application app_name="ring_ready" app_data="" />
+      <application app_name="execute_extension" app_data="${cond(uk == auto ? setRingBack_493022957361 XML dpSupport : setRingBack_uk XML dpSupport)}" />
+      <application app_name="set" app_data="outside_call=true" />
+      <application app_name="export" app_data="user_context=1" />
+      <application app_name="export" app_data="rmOriginatedExternal=true" />
+      <application app_name="set" app_data="rmOrgID=1" />
+      <application app_name="set" app_data="rmExtension=2209" />
+      <application app_name="set" app_data="rmPolicyNumberType=DDI" />
+      <application app_name="set" app_data="domain_name=redm-000001.sip.redmatter.com" />
+      <application app_name="lua" app_data="applications/dialplan_number/PlayBackTone.lua" />
+      <application app_name="set" app_data="rmOrgThrottleLimitSet=true" />
+      <application app_name="set" app_data="rmOrgThrottleLimitCheck=true" />
+      <application app_name="limit" app_data="hash orgThrottle 1 ${cond(${rmpOrgThrottle_1} == ? ${cond(${rmpOrgThrottle} == ? 200/10 : ${rmpOrgThrottle})} : ${rmpOrgThrottle_1})} !SWITCH_CONGESTION" />
+      <application app_name="set" app_data="rmHangUpInfo=Channel rate limit exceeded" />
+      <application app_name="unset" app_data="rmOrgThrottleLimitCheck" />
+      <application app_name="unset" app_data="rmHangUpInfo" />
+      <application app_name="set" app_data="rmOrgChannelsMaxLimitSet=true" />
+      <application app_name="set" app_data="rmOrgChannelsMaxLimitCheck=true" />
+      <application app_name="set" app_data="rmHangUpInfo=Max channel limit exceeded" />
+      <application app_name="limit" app_data="hash orgChannels 1 ${cond(${rmpOrgChannelsMax_1} == ? ${cond(${rmpOrgChannelsMax} == ? 500 : ${rmpOrgChannelsMax})} : ${rmpOrgChannelsMax_1})} !SWITCH_CONGESTION" />
+      <application app_name="unset" app_data="rmOrgChannelsMaxLimitCheck" />
+      <application app_name="unset" app_data="rmHangUpInfo" />
+      <application app_name="transfer" app_data="T00014161 XML 1" />
+      <sub_extensions>
+        <extension name="setLanguage" number="setLanguage-en-simon" dialplan="XML">
+          <application app_name="export" app_data="default_language=en" />
+          <application app_name="export" app_data="rmTTSVoice=brian" />
+          <application app_name="export" app_data="rmLanguageLocale=uk" />
+          <application app_name="export" app_data="sound_prefix=/usr/share/freeswitch/sounds/${default_language}/${rmLanguageLocale}/${rmTTSVoice}" />
+          <sub_extensions>
+            <extension name="setRingBack" number="setRingBack_uk" dialplan="XML" />
+          </sub_extensions>
+        </extension>
+      </sub_extensions>
+    </extension>
+    <caller_profile>
+      <username>4916097792975</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>4916097792975</caller_id_name>
+      <caller_id_number>4916097792975</caller_id_number>
+      <callee_id_name />
+      <callee_id_number />
+      <ani>4916097792975</ani>
+      <aniii />
+      <network_addr>84.45.30.2</network_addr>
+      <rdnis />
+      <destination_number>493022957361</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <context>public</context>
+      <chan_name>sofia/external1/4916097792975@voxbone.com</chan_name>
+    </caller_profile>
+    <times>
+      <created_time>{{startEpoch}}419351</created_time>
+      <profile_created_time>{{startEpoch}}419351</profile_created_time>
+      <progress_time>{{startEpoch}}509260</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>{{startEpoch}}529343</transfer_time>
+    </times>
+  </callflow>
+</cdr>

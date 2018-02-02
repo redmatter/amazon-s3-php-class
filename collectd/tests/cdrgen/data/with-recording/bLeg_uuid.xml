@@ -301,7 +301,6 @@
     <rtp_audio_out_cng_packet_count>0</rtp_audio_out_cng_packet_count>
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
-    <rmArchivingEnabled>true</rmArchivingEnabled>
   </variables>
   <app_log>
     <application app_name="lua" app_data="applications/features/PreProcessBLeg.lua execute_on_answer" app_stamp="1503390932235784" />
