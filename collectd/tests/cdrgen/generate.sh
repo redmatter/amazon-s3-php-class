@@ -12,7 +12,13 @@ fi
 : "${batch:=100}"
 dv_selected=(all)
 
-all_enabled_data_variations=(with-recording with-recording-10mins without-recording with-call-analysis)
+all_enabled_data_variations=(
+    with-recording
+    with-recording-10mins
+    without-recording
+    with-call-analysis
+    with-call-analysis-fudge
+)
 
 whitenoise_wav=()
 trap '{ [ ${#whitenoise_wav[@]} -gt 0 ] && rm "${whitenoise_wav[@]}"; }' EXIT

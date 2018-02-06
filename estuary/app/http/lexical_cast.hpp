@@ -17,6 +17,20 @@ namespace app
 namespace http
 {
 
+/**
+ * Wrapper function to add location information
+ *
+ * @tparam Target target type
+ * @tparam Source source type
+ *
+ * @param arg data to cast lexically
+ * @param what what the data is
+ * @param where where the data is from
+ *
+ * @throws error::bad_data_exception if lexical cast fails
+ *
+ * @return casted value
+ */
 template<typename Target, typename Source>
 inline Target lexical_cast(const Source& arg, const std::string& what, const std::string& where)
 {

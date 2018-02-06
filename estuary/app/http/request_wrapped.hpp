@@ -108,23 +108,6 @@ struct request_wrapped
         return std::string();
     }
 
-    inline std::string get_first_header_value(const std::string& header) const
-    {
-        bool found;
-        return get_first_header_value(header, found);
-    }
-
-    template<typename T>
-    T get_first_header_value_as(const std::string& header, bool& found) const
-    {
-        const std::string& value(get_first_header_value(header, found));
-        if (found) {
-            return boost::lexical_cast<T>(value);
-        }
-
-        return T();
-    }
-
     template<typename T>
     boost::optional<T> get_first_header_value_as(const std::string& header) const
     {

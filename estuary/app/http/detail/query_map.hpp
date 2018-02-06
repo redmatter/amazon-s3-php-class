@@ -36,23 +36,32 @@ typedef std::multimap<std::string, std::string, caseless_string_compare> base_ma
 
 struct query_map : public base_map
 {
-    std::string get_first_value(const std::string& var, bool& found) const
+    void get_first_value(const std::string& param, std::string& found_value, bool& found) const
     {
-        const std::pair<base_map::const_iterator, base_map::const_iterator>& range(equal_range(var));
-        if (range.first != range.second) {
-            found = true;
-            return range.first->second;
+        const std::pair<base_map::const_iterator, base_map::const_iterator>& range(equal_range(param));
+        found = range.first != range.second;
+        if (found) {
+            found_value = range.first->second;
         }
-
-        found = false;
-        return std::string();
     }
 
+    /**
+     * Get the first value of a query parameter by name
+     *
+     * @tparam T type to lexical_cast to
+     *
+     * @param param query-parameter name
+     *
+     * @throws error::bad_data_exception if the parameter @p param cannot be converted to @p T
+     *
+     * @return
+     */
     template<typename T>
     boost::optional<T> get_first_value_as(const std::string& param) const
     {
         bool found(false);
-        const std::string& value_str(get_first_value(param, found));
+        std::string value_str;
+        get_first_value(param, value_str, found);
 
         LogDebug("query-params - " << param << " = [" << value_str << ']');
 

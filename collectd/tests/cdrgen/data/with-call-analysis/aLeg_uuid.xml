@@ -93,7 +93,7 @@
     <transfer_history>{{startEpoch}}%3A8b188c7f-b97a-4417-984a-c96b94c7b16a%3Abl_xfer%3AT00011581/1/XML</transfer_history>
     <rmAnalyticsItem_1>T00014083%20XML%201</rmAnalyticsItem_1>
     <rmAnalyticsItemOrig_1>Inbound%3A%20Natterbox%40T00014162%40Salesforce%201%20Demo%20Inbound</rmAnalyticsItemOrig_1>
-    <rmAnalyticsItems>2</rmAnalyticsItems>
+    <rmAnalyticsItems>0</rmAnalyticsItems>
     <rmAnalyticsItem_2>T00015836%20XML%201</rmAnalyticsItem_2>
     <rmAnalyticsItemOrig_2>Inbound%3A%20Natterbox%40T00016476%40AY%20Inbound%20v8.6</rmAnalyticsItemOrig_2>
     <rmvNonCallPolicy>T00015836%20XML%201</rmvNonCallPolicy>
@@ -323,11 +323,9 @@
     <rtp_audio_out_cng_packet_count>0</rtp_audio_out_cng_packet_count>
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count>
-    <rmArchivingEnabled>true</rmArchivingEnabled>
-    <rmCallRecordingUUID_1>{{aLeg_uuid}}</rmCallRecordingUUID_1>
     <rmCallRecording_1_AnalysisRequestedCount>2</rmCallRecording_1_AnalysisRequestedCount>
-    <rmCallRecording_1_AnalysisRequested_1>transcription-watson</rmCallRecording_1_AnalysisRequested_1>
-    <rmCallRecording_1_AnalysisRequested_2>transcription-voicebase</rmCallRecording_1_AnalysisRequested_2>
+    <rmCallRecording_1_AnalysisRequested_1>transcription-voicebase</rmCallRecording_1_AnalysisRequested_1>
+    <rmCallRecording_1_AnalysisRequested_2>talk-time</rmCallRecording_1_AnalysisRequested_2>
   </variables>
   <app_log>
     <application app_name="set" app_data="rmOverrideCallerIdName=DDI Call" app_stamp="{{startEpoch}}484446" />

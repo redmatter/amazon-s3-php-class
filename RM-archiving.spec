@@ -138,6 +138,7 @@ Requires: RM-%{appname}-scripts
 Requires: RM-%{appname}-purge-verify
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: php-gd
+Requires: sox
 
 %package purge-verify
 Summary: Archiving Utility Scripts for Purge Verification
@@ -365,12 +366,13 @@ cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arch
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 
-# qacripts
+# qascripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
 cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
+cp -r collectd/tests/cdrgen %{buildroot}/usr/share/archiving/collectd-cdrgen
 
 # purge-verify
 cp scripts/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
@@ -811,6 +813,7 @@ fi
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
 %attr(755,root,root) /usr/bin/send-test-eml.php
 /usr/share/archiving/archiving-makepurgedata.conf.sample
+/usr/share/archiving/collectd-cdrgen/*
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
 
