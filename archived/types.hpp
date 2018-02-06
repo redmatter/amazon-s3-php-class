@@ -106,6 +106,7 @@ struct data_sub_format
 		mp3,    //= 0x04,
 		pcap,   //= 0x05,
 		email,  //= 0x06,
+		json,   //= 0x07,
 
 		n_data_sub_format
 	};
@@ -119,7 +120,8 @@ struct data_sub_format
 				"wav",
 				"mp3",
 				"pcap",
-				"email"
+				"email",
+				"json"
 		};
 
 		if(data_sub_format > unknown && data_sub_format < n_data_sub_format)
@@ -142,6 +144,28 @@ struct data_sub_format
 			return pcap;
 		if(str == "email")
 			return email;
+		if(str == "json")
+			return json;
+
+		return unknown;
+	}
+
+	static inline data_sub_format_t from_mime_type(const std::string& mime)
+	{
+		if(mime == "application/octet-stream")
+			return binary;
+		if(mime == "application/xml")
+			return xml;
+		if(mime == "audio/wav")
+			return wav;
+		if(mime == "audio/mpeg")
+			return mp3;
+		if(mime == "application/vnd.tcpdump.pcap")
+			return pcap;
+		if(mime == "message/rfc822")
+			return email;
+		if(mime == "application/json")
+			return json;
 
 		return unknown;
 	}
@@ -195,163 +219,128 @@ struct file_format
 		clear_mp3                    = ( data_format::clear << 8 ) | data_sub_format::mp3,
 		clear_pcap                   = ( data_format::clear << 8 ) | data_sub_format::pcap,
 		clear_email                  = ( data_format::clear << 8 ) | data_sub_format::email,
+		clear_json                   = ( data_format::clear << 8 ) | data_sub_format::json,
 
 		compressed_binary            = ( data_format::compressed << 8 ) | data_sub_format::binary,
 		compressed_xml               = ( data_format::compressed << 8 ) | data_sub_format::xml,
 		compressed_wav               = ( data_format::compressed << 8 ) | data_sub_format::wav,
 		compressed_pcap              = ( data_format::compressed << 8 ) | data_sub_format::pcap,
 		compressed_email             = ( data_format::compressed << 8 ) | data_sub_format::email,
+		compressed_json              = ( data_format::compressed << 8 ) | data_sub_format::json,
 
 		encrypted_compressed_binary  = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::binary,
 		encrypted_compressed_xml     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::xml,
 		encrypted_compressed_wav     = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::wav,
 		encrypted_compressed_pcap    = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::pcap,
 		encrypted_compressed_email   = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::email,
+		encrypted_compressed_json    = ((data_format::encrypted | data_format::compressed ) << 8 ) | data_sub_format::json,
 
 		encrypted_mp3                = ( data_format::encrypted << 8 ) | data_sub_format::mp3
 	};
 
 	static const char* to_string(const file_format_t& ff)
 	{
-		static const char* str[] = {
-			"unknown",
-
-			"clear_binary",
-			"clear_xml",
-			"clear_wav",
-			"clear_mp3",
-			"clear_pcap",
-			"clear_email",
-
-			"compressed_binary",
-			"compressed_xml",
-			"compressed_wav",
-			"compressed_pcap",
-			"compressed_email",
-
-			"encrypted_compressed_binary",
-			"encrypted_compressed_xml",
-			"encrypted_compressed_wav",
-			"encrypted_compressed_pcap",
-			"encrypted_compressed_email",
-
-			"encrypted_mp3"
-		};
-
 		switch(ff) {
 		case clear_binary:
-			return str[1];
+			return "clear_binary";
 		case clear_xml:
-			return str[2];
+			return "clear_xml";
 		case clear_wav:
-			return str[3];
+			return "clear_wav";
 		case clear_mp3:
-			return str[4];
+			return "clear_mp3";
 		case clear_pcap:
-			return str[5];
+			return "clear_pcap";
 		case clear_email:
-			return str[6];
+			return "clear_email";
+		case clear_json:
+			return "clear_json";
 
 		case compressed_binary:
-			return str[7];
+			return "compressed_binary";
 		case compressed_xml:
-			return str[8];
+			return "compressed_xml";
 		case compressed_wav:
-			return str[9];
+			return "compressed_wav";
 		case compressed_pcap:
-			return str[10];
+			return "compressed_pcap";
 		case compressed_email:
-			return str[11];
+			return "compressed_email";
+		case compressed_json:
+			return "compressed_json";
 
 		case encrypted_compressed_binary:
-			return str[12];
+			return "encrypted_compressed_binary";
 		case encrypted_compressed_xml:
-			return str[13];
+			return "encrypted_compressed_xml";
 		case encrypted_compressed_wav:
-			return str[14];
+			return "encrypted_compressed_wav";
 		case encrypted_compressed_pcap:
-			return str[15];
+			return "encrypted_compressed_pcap";
 		case encrypted_compressed_email:
-			return str[16];
+			return "encrypted_compressed_email";
+		case encrypted_compressed_json:
+			return "encrypted_compressed_json";
 
 		case encrypted_mp3:
-			return str[17];
+			return "encrypted_mp3";
 
 		case unknown:
 		default:
-			return str[0];
+			return "unknown";
 		}
 	}
 
 	static const char* to_extension(const file_format_t& ff)
 	{
-		static const char* str[] = {
-			"unk",
-
-			"blob",
-			"xml",
-			"wav",
-			"mp3",
-			"pcap",
-			"eml",
-
-			"blob.bz2",
-			"xml.bz2",
-			"wav.bz2",
-			"pcap.bz2",
-			"eml.bz2",
-
-			"blob.bz2.bf",
-			"xml.bz2.bf",
-			"wav.bz2.bf",
-			"pcap.bz2.bf",
-			"eml.bz2.bf",
-
-			"mp3.bf"
-		};
-
 		switch(ff) {
 		case clear_binary:
-			return str[1];
+			return "blob";
 		case clear_xml:
-			return str[2];
+			return "xml";
 		case clear_wav:
-			return str[3];
+			return "wav";
 		case clear_mp3:
-			return str[4];
+			return "mp3";
 		case clear_pcap:
-			return str[5];
+			return "pcap";
 		case clear_email:
-			return str[6];
+			return "eml";
+		case clear_json:
+			return "json";
 
 		case compressed_binary:
-			return str[7];
+			return "blob.bz2";
 		case compressed_xml:
-			return str[8];
+			return "xml.bz2";
 		case compressed_wav:
-			return str[9];
+			return "wav.bz2";
 		case compressed_pcap:
-			return str[10];
+			return "pcap.bz2";
 		case compressed_email:
-			return str[11];
+			return "eml.bz2";
+		case compressed_json:
+			return "json.bz2";
 
 		case encrypted_compressed_binary:
-			return str[12];
+			return "blob.bz2.bf";
 		case encrypted_compressed_xml:
-			return str[13];
+			return "xml.bz2.bf";
 		case encrypted_compressed_wav:
-			return str[14];
+			return "wav.bz2.bf";
 		case encrypted_compressed_pcap:
-			return str[15];
+			return "pcap.bz2.bf";
 		case encrypted_compressed_email:
-			return str[16];
+			return "eml.bz2.bf";
+		case encrypted_compressed_json:
+			return "json.bz2.bf";
 
 		case encrypted_mp3:
-			return str[17];
+			return "mp3.bf";
 
 		case unknown:
 		default:
-			return str[0];
+			return "unk";
 		}
 	}
 

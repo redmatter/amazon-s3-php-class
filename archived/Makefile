@@ -12,7 +12,7 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 # set RML_LOG_SOURCE_LOCATION=NO from make command line to disable source-location in log lines
 RML_LOG_SOURCE_LOCATION=YES
 
-CXX_INCLUDES += -isystem $(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib  -isystem $(DEV_LIBS_BASEDIR)/usr/include/threadpool
+CXX_INCLUDES += -isystem $(DEV_LIBS_BASEDIR)/usr/include/threadpool
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -48,8 +48,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/rm$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-CPPFLAGS += -isystem /usr/include/cpp-netlib
-
 LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
@@ -60,7 +58,7 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri -lcrypto -lrt\
+	-lcrypto -lrt\
 	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient
 
 CXX_SRCS += \
@@ -73,10 +71,11 @@ BUILD_MODE=DEBUG
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
 
-clean_extra:
+clean_extra: $(CLEAN_EXTRA)
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
 
