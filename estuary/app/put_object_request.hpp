@@ -225,7 +225,7 @@ struct put_object_request
         }
 
         boost::shared_ptr<archiving::owner_info> owners = boost::make_shared<archiving::owner_info>(*org_id);
-        if (user_id != boost::none) {
+        if (user_id != boost::none && *user_id > 0) {
             owners->addUser(*user_id);
         }
 
