@@ -118,8 +118,8 @@ public:
 			if (!p_eventlog) {
 				eventlog_finder_.forget(lookup);
 				audit_token = 0;
-			} else if ( // older than two minute or is not Archiving::FetchObject or does not have the identifier in message
-					p_eventlog->time < (time(0) - 120)
+			} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
+					p_eventlog->time < (time(0) - 3600)
 					|| p_eventlog->context == "Archiving" || p_eventlog->action == "FetchObject"
 					|| p_eventlog->message.find(boost::str(
 							boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
