@@ -9,8 +9,6 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
 RML_LOG_SOURCE_LOCATION=YES
 
-CXX_INCLUDES += -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
-
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
 	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
@@ -51,7 +49,6 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri-parsers \
 	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -ls3 -lmysqlclient_r
 
 CXX_SRCS += \
@@ -61,10 +58,11 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
 
-clean_extra:
+clean_extra: $(CLEAN_EXTRA)
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
 

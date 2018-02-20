@@ -7,7 +7,7 @@ include ../common/Makefile.macros
 
 FREESWITCH_DIR=/opt/freeswitch
 
-CXX_INCLUDES += -I$(FREESWITCH_DIR)/include -I$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
+CXX_INCLUDES += -I$(FREESWITCH_DIR)/include
 C_INCLUDES += -I$(FREESWITCH_DIR)/include
 LIBS += -L$(FREESWITCH_DIR)/lib \
 		-L../common/$(TMP)
@@ -62,7 +62,7 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lcppnetlib-uri -lmysqlclient
+	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmysqlclient
 
 # -lcrypt -luuid \
 
@@ -73,6 +73,7 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../external/Makefile.cpp-netlib
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
@@ -83,7 +84,8 @@ cronjobs/phonero/phonero-cron.phar:
 	php54 -d phar.readonly=0 -d date.timezone=UTC ../../phar-builder.phar -n package composer.json &&\
 	chmod +x ../phonero-cron.phar
 
-clean_extra:
+clean_extra: $(CLEAN_EXTRA)
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) clean
+	@$(MAKE) -C ../external clean
 
 all: cronjobs/phonero/phonero-cron.phar

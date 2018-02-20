@@ -18,7 +18,6 @@ CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
 CPPFLAGS += -DBOOST_NETWORK_ENABLE_HTTPS
 
-CXX_INCLUDES += -I/usr/include/cpp-netlib
 LIBS += -L../../common/$(TMP)
 
 DEFAULT_APP_NAME=$(TARGET)
@@ -37,7 +36,6 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcppnetlib-uri -lcppnetlib-client-connections \
 	-lcryptopp -lpugixml $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lcrypto -lssl
 
 CXX_SRCS += \
@@ -47,9 +45,12 @@ C_SRCS += \
 
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
+include ../../external/Makefile.cpp-netlib
 
 $(TMP)/extract : $(TMP)/extract.o
 	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)
 
 $(TARGET) : $(TMP)/$(TARGET)
 	rm -f $@ && ln -s $< $@
+
+clean_extra: $(CLEAN_EXTRA)

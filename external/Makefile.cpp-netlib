@@ -1,0 +1,38 @@
+EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+CPP_NETLIB_USE_BUILTIN=YES
+
+ifeq ($(CPP_NETLIB_USE_BUILTIN),YES)
+CPP_NETLIB_INCLUDE_DIR=$(EXTERNAL_DIR)/cpp-netlib/include
+CPP_NETLIB_LIB_DIR=$(EXTERNAL_DIR)/cpp-netlib/lib64
+else
+CPP_NETLIB_INCLUDE_DIR=$(DEV_LIBS_BASEDIR)/usr/include/cpp-netlib
+endif
+
+CXX_INCLUDES += -isystem $(CPP_NETLIB_INCLUDE_DIR)
+
+# cpp-netlib extra debug (for dev use only)
+BOOST_NETWORK_DEBUG=NO
+ifeq ($(BOOST_NETWORK_DEBUG),YES)
+CPPFLAGS += -DBOOST_NETWORK_DEBUG
+endif
+
+ifdef CPP_NETLIB_LIB_DIR
+LIBS += -L$(CPP_NETLIB_LIB_DIR)
+endif
+
+LIBS += -lcppnetlib-uri -lcppnetlib-server-parsers -lcppnetlib-client-connections
+
+CLEAN_EXTRA += clean-cpp-netlib
+
+ifeq ($(CPP_NETLIB_USE_BUILTIN),YES)
+
+*.cpp: $(EXTERNAL_DIR)/cpp-netlib/include/boost/network.hpp
+
+$(EXTERNAL_DIR)/cpp-netlib/include/boost/network.hpp :
+	@$(MAKE) -C $(EXTERNAL_DIR) cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
+
+endif
+
+clean-cpp-netlib:
+	@$(MAKE) -C $(EXTERNAL_DIR) clean

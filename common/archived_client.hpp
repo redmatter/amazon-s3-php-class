@@ -191,6 +191,7 @@ private:
 	const common::collectd::fn_consume_with_timeout_finishing_callback_type& fn_consume_;
 	const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue_;
 	const common::collectd::fn_save_to_database_type& fn_save_to_database_;
+	const common::collectd::fn_on_successful_put_type fn_on_successful_put_;
 
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
@@ -288,7 +289,8 @@ public:
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
-			const std::string& archived_port) :
+			const std::string& archived_port,
+            const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),
@@ -304,6 +306,7 @@ public:
 				fn_produce_(fn_produce), fn_consume_(fn_consume),
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
+				fn_on_successful_put_(fn_on_successful_put),
 				shutdown_flagged_(false)
 	{
 		n_instances_++;
@@ -924,10 +927,17 @@ private:
 				is.get(cr); is.get(lf);
 				LogMessage(*this<<" PUT OK; Get next for PUT");
 				current_state_ = state::put_sent_file_ack_ok;
+
+				if (!fn_on_successful_put_.empty()) {
+					io_service_.post(
+							boost::bind(boost::protect(fn_on_successful_put_), put_archivable_ptr_));
+				}
 			}
 
 			put_archivable_ptr_->hibernate();
-			run_statemachine(error, socket_serial);
+
+			io_service_.post(strand_.wrap(
+					boost::bind(&archived_client::run_statemachine, shared_from_this(), error, socket_serial)));
 
 			break;
 		}
