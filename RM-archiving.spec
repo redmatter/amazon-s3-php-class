@@ -24,10 +24,19 @@ Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 1.1.0
+%if 0%{?el5}
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
-BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
+BuildRequires: php54-cli
+%else
+%if 0%{?el7}
+BuildRequires: gcc
+BuildRequires: gcc-c++
+BuildRequires: mysql++-devel >= 3.1.0
+%endif
+%endif
+BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
@@ -84,7 +93,6 @@ Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
-BuildRequires: php54-cli
 
 # %package migrationd
 # Summary: Archiving CollectD
@@ -144,7 +152,13 @@ Requires: sox
 %package purge-verify
 Summary: Archiving Utility Scripts for Purge Verification
 Group: RedMatter/Archiving
+%if 0%{?el5}
 Requires: php54-cli
+%else
+%if 0%{?el7}
+Requires: php-cli
+%endif
+%endif
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
