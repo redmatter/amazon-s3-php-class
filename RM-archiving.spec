@@ -25,17 +25,15 @@ Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 1.1.0
 %if 0%{?el5}
-BuildRequires: gcc44
-BuildRequires: gcc44-c++
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: php54-cli
 %else
 %if 0%{?el7}
-BuildRequires: gcc
-BuildRequires: gcc-c++
 BuildRequires: mysql++-devel >= 3.1.0
 %endif
 %endif
+BuildRequires: gcc
+BuildRequires: gcc-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
 BuildRequires: libs3-devel >= 1.4-22774
@@ -235,7 +233,7 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
-CC=gcc44 CXX=g++44 make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/
