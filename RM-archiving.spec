@@ -27,9 +27,11 @@ Requires: RM-daemonscripts >= 1.1.0
 %if 0%{?el5}
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: php54-cli
+BuildRequires: pugixml
 %else
 %if 0%{?el7}
 BuildRequires: mysql++-devel >= 3.1.0
+BuildRequires: pugixml pugixml-devel
 %endif
 %endif
 BuildRequires: gcc
@@ -38,7 +40,6 @@ BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
-BuildRequires: pugixml pugixml-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
@@ -167,7 +168,13 @@ Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: RM-daemonscripts >= 1.1.0
 BuildRequires: sendmail-devel
+%if 0%{?el5}
+BuildRequires: pugixml
+%else
+%if 0%{?el7}
 BuildRequires: pugixml pugixml-devel
+%endif
+%endif
 BuildRequires: db4-devel
 
 # ------------ description---------------
