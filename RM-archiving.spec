@@ -38,7 +38,7 @@ BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
-BuildRequires: pugixml
+BuildRequires: pugixml pugixml-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
@@ -167,7 +167,7 @@ Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: RM-daemonscripts >= 1.1.0
 BuildRequires: sendmail-devel
-BuildRequires: pugixml
+BuildRequires: pugixml pugixml-devel
 BuildRequires: db4-devel
 
 # ------------ description---------------
