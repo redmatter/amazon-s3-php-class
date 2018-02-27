@@ -240,7 +240,24 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
+# For CentOS 7, if pugixml header is not located at /usr/include/pugixml/pugixml.hpp then create symlink to actual header
+%if 0%{?el5}
 CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+%else
+%if 0%{?el7}
+if [ -f /usr/include/pugixml/pugixml.hpp ]
+then
+echo Found pugixml header at expected location
+CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+else
+echo Did not find pugixml header at expected location, creating symlink
+mkdir /usr/include/pugixml
+ln -s /usr/include/pugixml.hpp /usr/include/pugixml/pugixml.hpp
+CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+rm -rf /usr/include/pugixml
+fi
+%endif
+%endif
 
 %install
 mkdir -p %{buildroot}/usr/bin/
