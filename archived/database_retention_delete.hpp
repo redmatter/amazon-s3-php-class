@@ -77,7 +77,7 @@ public:
             {
                 const archiving::archivable::identifier& id(extract_identifier(*itr));
                 if (!is_internal_filetype(id)) {
-                    LogError("identifier:"<<id<<" - A non-internl-filetype was found in the batch to delete from retention-database");
+                    LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
                     return false;
                 }
 
@@ -101,9 +101,9 @@ public:
                     __SQL_DEBUG(query.str());
                     query.execute();
                 }
-
-                transaction.commit();
             }
+
+            transaction.commit();
 
             return true;
         }
