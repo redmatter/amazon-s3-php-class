@@ -320,8 +320,8 @@ int main(int argc, char *argv[]) try
 		app::retention_record::fn_is_expired_t retention_record_is_expired(
 				boost::bind(app::retention_record::is_expired, boost::ref(cached_policy_finder), _1));
 
-//		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
-//				boost::bind(app::coreapi_eventlog::find, boost::ref(rml::coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
+		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
+				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
@@ -373,7 +373,7 @@ int main(int argc, char *argv[]) try
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
 				boost::ref(cached_retention_record_finder), boost::ref(retention_record_is_expired),
 				boost::ref(cached_policy_finder), boost::ref(cached_coreapi_user_finder),
-				boost::ref(cached_endpoint_finder), _1, _2));
+				boost::ref(cached_endpoint_finder), boost::ref(cached_coreapi_eventlog_finder), _1, _2));
 		
 		// todo add ondemand purge notification handler
 
