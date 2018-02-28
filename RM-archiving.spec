@@ -245,6 +245,7 @@ echo "BUILD_ID=%{release}" >> version_info
 CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 %else
 %if 0%{?el7}
+export PKG_CONFIG_PATH=/usr/lib64/mysql:$PKG_CONFIG_PATH
 if [ -f /usr/include/pugixml/pugixml.hpp ]
 then
 echo Found pugixml header at expected location
