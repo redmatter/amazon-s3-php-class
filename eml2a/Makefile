@@ -64,7 +64,15 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmysqlclient_r -lmimedecoder -ldb
+	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmimedecoder -ldb
+
+ifeq ($(CENTOS_VERSION),5)
+LIBS += -lmysqlclient
+endif
+
+ifeq ($(CENTOS_VERSION),7)
+LIBS += -L /usr/lib64/mysql -lmysqlclient
+endif
 
 # -lcrypt -luuid \
 

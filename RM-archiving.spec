@@ -17,6 +17,7 @@ BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
 Requires: mysql++ >= 3.1.0-29693
+%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -31,6 +32,8 @@ BuildRequires: pugixml
 %else
 %if 0%{?el7}
 BuildRequires: mysql++-devel >= 3.1.0
+BuildRequires: mariadb-devel
+BuildRequires: RM-legacy-php54-cli >= 1.0.1
 BuildRequires: pugixml pugixml-devel
 %endif
 %endif
@@ -64,6 +67,7 @@ Conflicts: RM-%{appname}-platform-config-redmatter
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
+%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -80,6 +84,7 @@ Requires: RM-%{appname}-collectd = %{version}-%{release}
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
+%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -88,16 +93,25 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
+%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
+%if 0%{?el5}
+BuildRequires: php54-cli
+%else
+%if 0%{?el7}
+BuildRequires: RM-legacy-php54-cli >= 1.0.1
+%endif
+%endif
 
 # %package migrationd
 # Summary: Archiving CollectD
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
 # Requires: mysql++ >= 3.1.0-29693
+# %{?el7:Requires: mariadb-libs}
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
@@ -122,6 +136,7 @@ Group: RedMatter/Archiving
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
+%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
 Requires: RM-%{appname}-common = %{version}-%{release}
@@ -155,7 +170,7 @@ Group: RedMatter/Archiving
 Requires: php54-cli
 %else
 %if 0%{?el7}
-Requires: php-cli
+Requires: RM-legacy-php54-cli >= 1.0.1
 %endif
 %endif
 Requires: RM-%{appname}-scripts
@@ -170,12 +185,13 @@ Requires: RM-daemonscripts >= 1.1.0
 BuildRequires: sendmail-devel
 %if 0%{?el5}
 BuildRequires: pugixml
+BuildRequires: db4-devel
 %else
 %if 0%{?el7}
 BuildRequires: pugixml pugixml-devel
+BuildRequires: libdb-devel
 %endif
 %endif
-BuildRequires: db4-devel
 
 # ------------ description---------------
 

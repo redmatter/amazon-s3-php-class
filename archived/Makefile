@@ -73,7 +73,15 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient
+	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi
+
+ifeq ($(CENTOS_VERSION),5)
+LIBS += -lmysqlclient
+endif
+
+ifeq ($(CENTOS_VERSION),7)
+LIBS += -L /usr/lib64/mysql -lmysqlclient
+endif
 
 CXX_SRCS += \
 	retention_purge.cpp \
