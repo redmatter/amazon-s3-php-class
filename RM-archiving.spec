@@ -19,7 +19,8 @@ License: Closed
 Requires: mysql++ >= 3.1.0-29693
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
-Requires: libs3 >= 1.4-22774
+%{?el5:Requires: libs3 >= 1.4-22774}
+%{?el7:Requires: libs3 = 1.4-26468.1.0.0.dc7}
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
@@ -41,7 +42,8 @@ BuildRequires: gcc
 BuildRequires: gcc-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
-BuildRequires: libs3-devel >= 1.4-22774
+%{?el5:BuildRequires: libs3-devel >= 1.4-22774}
+%{?el7:BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7}
 BuildRequires: cryptopp-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
