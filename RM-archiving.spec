@@ -49,6 +49,9 @@ BuildRequires: threadpool
 BuildRequires: cmake
 BuildRequires: openssl-devel
 BuildRequires: zlib-devel
+%if 0%{?el7}
+BuildRequires: libuuid-devel
+%endif
 BuildRequires: autoconf, libtool
 
 %package platform-config-redmatter
