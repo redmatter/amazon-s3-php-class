@@ -1,0 +1,13 @@
+[Unit]
+Description=Archive Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmarchived.pid
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
+ExecStart=/usr/bin/rmarchived.bin --hostname $( uname -n | cut -d. -f1 ) </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Archive PCAP Recording Import
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmarchpcapimport.pid
+ExecStart=/usr/bin/archiving-pcap-recording-import </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

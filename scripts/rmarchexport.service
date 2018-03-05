@@ -1,0 +1,12 @@
+[Unit]
+Description=Archive Export Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmarchexport.pid
+ExecStart=/usr/bin/archiving-export </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

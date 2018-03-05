@@ -1,0 +1,12 @@
+[Unit]
+Description=Archive Purge Policy Fixer Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmarchpolfix.pid
+ExecStart=/usr/bin/archiving-purge-policy-fixer </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

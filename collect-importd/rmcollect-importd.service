@@ -1,0 +1,13 @@
+[Unit]
+Description=Archiving Collect Import Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmcollect-importd.pid
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
+ExecStart=/usr/bin/rmcollect-importd.bin --hostname $( uname -n | cut -d. -f1 ) </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

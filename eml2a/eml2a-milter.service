@@ -1,0 +1,13 @@
+[Unit]
+Description=Archiving milter daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/eml2a/eml2a-milter.pid
+ExecStartPre=/bin/bash /usr/bin/eml2a-milter-hAPI &>/dev/null
+ExecStart=/usr/bin/eml2a-milter -p /var/lib/eml2a/eml2a-milter.sock </dev/null &>/dev/null
+Restart=on-abort
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target
