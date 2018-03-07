@@ -9,10 +9,13 @@
 
 # Project stuff
 /external/sqlite/
+/external/cpp-netlib/
 /collectd/collectd
+/archived/archived
 version_info
 tmp*-libc*/
 *.a
+*.o
 
 /*/test*/*
 !/*/test*/*.cpp
@@ -24,3 +27,14 @@ tmp*-libc*/
 !/*/tests/CMakeLists.txt
 !/collectd/test/cdrgen/
 !/collectd/tests/cdrgen/
+
+# KDevelop
+/.kdev4/
+# M$ VS Code
+/.vscode/
+/estuary/rmestuary
+/CMakeLists.txt.user
+/archiving.kdev4
+/cli/convert-to-clear/convert-to-clear
+/cli/convert-to-archive/convert-to-archive
+/eml2a/mime/decoder

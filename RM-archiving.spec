@@ -28,14 +28,16 @@ BuildRequires: gcc44
 BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 1.0
+BuildRequires: RM-librml-devel >= 1.3.1
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
-BuildRequires: cpp-netlib >= 0.10.1
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
+BuildRequires: cmake
+BuildRequires: openssl-devel
+BuildRequires: zlib-devel
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
@@ -108,6 +110,14 @@ Requires: cryptopp
 Summary: Archiving Common files
 Group: RedMatter/Archiving
 
+%package estuary
+Summary: Archiving Estuary
+Group: RedMatter/Archiving
+Requires: mysql++ >= 3.1.0-29693
+Requires: cryptopp
+Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-%{appname}-common = %{version}-%{release}
+
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
@@ -128,6 +138,7 @@ Requires: RM-%{appname}-scripts
 Requires: RM-%{appname}-purge-verify
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: php-gd
+Requires: sox
 
 %package purge-verify
 Summary: Archiving Utility Scripts for Purge Verification
@@ -183,6 +194,9 @@ Archiving CLI Tools; used by various scripts
 
 %description common
 Archiving common config files, etc.
+
+%description estuary
+HTTP PUT interface to ArchiveD for adding objects
 
 %description scripts
 Archiving Utility scripts for verification etc
@@ -307,6 +321,13 @@ cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/reten
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
+# Estuary
+cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
+cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
+cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
+cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
+cp estuary/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmestuary.conf
+
 # Scripts
 for file in $( find scripts/inc -type f -not \( -path "scripts/inc/JsonSchema/*" -o -path "scripts/inc/JsonMapper/*" \) ); do
 	install -m 644 -D ${file} %{buildroot}/usr/share/php/archiving/${file#scripts/inc/}
@@ -345,12 +366,13 @@ cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arch
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 
-# qacripts
+# qascripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
 cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
+cp -r collectd/tests/cdrgen %{buildroot}/usr/share/archiving/collectd-cdrgen
 
 # purge-verify
 cp scripts/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
@@ -439,6 +461,17 @@ fi
 # 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 # fi
 
+%pre estuary
+if grep ^cdrmunch: /etc/group &>/dev/null; then
+	: # group already exists
+else
+	/usr/sbin/groupadd -g 134 cdrmunch || exit
+fi
+
+if ! /usr/bin/id cdrmunch &>/dev/null; then
+	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
+fi
+
 %pre eml2a
 if grep ^cdrmunch: /etc/group &>/dev/null; then
 	: # group already exists
@@ -516,6 +549,15 @@ fi
 # 		/etc/init.d/rsyslog condrestart ||
 # 		echo "**WARNING** rsyslog not found; consider installing it."
 # fi
+
+%post estuary
+/sbin/chkconfig --add rmestuary
+/sbin/chkconfig rmestuary on
+if [ "$1" -eq 1 ]; then # package just got installed ?
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		echo "**WARNING** rsyslog not found; consider installing it."
+fi
 
 %post scripts
 /sbin/chkconfig --add rmarchpolfix
@@ -602,6 +644,12 @@ if [ "$1" -eq 0 ]; then
 	/sbin/service postfix condrestart &> /dev/null
 fi
 
+%postun estuary
+if [ "$1" -eq 0 ]; then
+	[ -x /etc/init.d/rsyslog ] &&
+		/etc/init.d/rsyslog condrestart ||
+		/bin/true
+fi
 
 # ----------
 
@@ -710,7 +758,16 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
-# /etc/archiving/conf.d/migration_database.conf
+
+%files estuary
+%defattr(-,root,root)
+/usr/bin/rmestuary.bin
+/etc/rc.d/init.d/rmestuary
+/etc/archiving/rmestuary.conf
+%dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
+%dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+/etc/logrotate.d/rmestuary
+/etc/rsyslog.d/11-rmestuary.conf
 
 %files scripts
 %defattr(-,root,root)
@@ -756,6 +813,7 @@ fi
 %attr(755,root,root) /usr/bin/archiving-makepurgedata
 %attr(755,root,root) /usr/bin/send-test-eml.php
 /usr/share/archiving/archiving-makepurgedata.conf.sample
+/usr/share/archiving/collectd-cdrgen/*
 /etc/rsyslog.d/11-archiving-makepurgedata.conf
 /etc/logrotate.d/archiving-makepurgedata
 

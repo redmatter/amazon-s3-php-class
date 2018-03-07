@@ -35,6 +35,8 @@ typedef boost::function1<bool, boost::shared_ptr<archiving::archivable> > fn_is_
 
 typedef boost::function1<bool, boost::shared_ptr<archiving::archivable> > fn_save_to_database_type;
 
+typedef boost::function1<void, boost::shared_ptr<archiving::archivable> > fn_on_successful_put_type;
+
 }
 }
 
