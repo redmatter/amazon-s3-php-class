@@ -507,7 +507,8 @@ class importPhonero extends BaseApp
                 else
                     LogMessage("Log API response: $logsResponse");
 
-                if (!$xml = @simplexml_load_string(trim($logsResponse)))
+                $xml = @simplexml_load_string(trim($logsResponse));
+                if ($xml === false)
                     throw new Exception("Invalid XML in api /logs response");
 
                 if ($xml->getName() != 'ImportedAudioLogs')
