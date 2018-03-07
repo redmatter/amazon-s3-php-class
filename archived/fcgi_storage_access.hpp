@@ -132,14 +132,6 @@ public:
 					|| p_eventlog->message.find(boost::str(
 							boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
 																std::string::npos) {
-
-                LogMessage("p_eventlog->time < (time(0) - 3600) : " << (p_eventlog->time < (time(0) - 3600)));
-                LogMessage("p_eventlog->context : [" << p_eventlog->context << ']');
-                LogMessage("p_eventlog->context != \"Archiving\" : " << (p_eventlog->context != "Archiving"));
-                LogMessage("p_eventlog->action != \"FetchObject\" : " << (p_eventlog->action != "FetchObject"));
-                LogMessage("p_eventlog->message.find(identifier) == npos : " << (p_eventlog->message.find(boost::str(
-                        boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
-                           std::string::npos));
 				audit_token = 0;
 				LogMessage(this_op<<"The given audit-token is invalid");
 			}
