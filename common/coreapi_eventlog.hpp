@@ -202,7 +202,7 @@ private:
 			const archiving::user_id_t& user = 0, const archiving::device_id_t& device = 0,
 			const std::string& extra_data="") :
 				id(id), time(time),
-				org(org), level(level), message(message), action(action), user(user), device(device),
+				org(org), level(level), message(message), context(context), action(action), user(user), device(device),
 				extra_data(extra_data)
 	{
 	}

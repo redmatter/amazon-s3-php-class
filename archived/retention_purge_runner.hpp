@@ -128,16 +128,16 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	enum
 	{
-		max_limit_object = 10240,
-		min_limit_object = 32,
+		max_limit_object = 20000,
+		min_limit_object = 500,
 
-		put_rate_cut_off = 1024,
-		put_rate_zero = 64,
+		put_rate_cut_off = 1600, // PUT rate at which no more objects are queued for purge
+		put_rate_zero = 200,     // PUT rate below which it is assumed to be zero
 
 		purge_batch_days = 7,
 		purge_batch_count = 1000,
 
-		purge_max_queue_size = 5000,
+		purge_max_queue_size = 30000,
 
 		purge_file_interval_seconds = 10,
 		purge_usage_interval_seconds = 15,
@@ -587,7 +587,7 @@ public:
 						boost::str(boost::format("`State`=%1% /* delete_file */") % state::delete_file)),
 				boost::bind(item::setup_update_by_ids_end, _1, _2,                          /* fn_setup_update_by_ids_end */
 						boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok)),
-				limit                                                                       /* select_limit */
+				static_cast<unsigned int>(limit)                                            /* select_limit */
 		);
 
 		// if none found, we need to continue only if require_approval == true
@@ -1034,44 +1034,58 @@ public:
 		put_rate_sample_size = 2
 	};
 
-	inline int get_average_put_rate()
+	inline double get_average_put_rate()
 	{
-		static std::list< size_t > samples;
+		static std::list<double> samples;
 
-		while(samples.size() >= put_rate_sample_size)
+		// remove older samples from the static list of samples
+		while (samples.size() >= put_rate_sample_size) {
 			samples.pop_back();
+		}
 
 		samples.push_front(monitor::get_counter().put);
 
-		if(samples.size() < put_rate_sample_size)
+		if (samples.size() < put_rate_sample_size) {
 			return -1;
+		}
 
-		size_t sum = 0;
-		for(std::list< size_t >::const_iterator i = samples.begin(); i != samples.end(); ++i)
+		double sum = 0;
+		for (std::list<double>::const_iterator i = samples.begin(); i != samples.end(); ++i) {
 			sum += *i;
+		}
 
-		return static_cast<int>(sum / put_rate_sample_size);
+		return sum / static_cast<double>(put_rate_sample_size);
 	}
 
 	inline int get_limit()
 	{
-		int average_put_rate_5mins = get_average_put_rate();
-		if(average_put_rate_5mins < 0) {
-			LogMessage("Not enough samples for purge rate-limiting; continuing to wait...");
+		double average_put_rate_5mins = get_average_put_rate();
+		if (average_put_rate_5mins < 0) {
+			LogMessage("Purge rate-limiting: Not enough samples; continuing to wait...");
 			return -1;
 		}
 
-		if(average_put_rate_5mins >= put_rate_cut_off) {
-			LogMessage("Purge rate-limiting: average PUT rate (5mins) found above cut-off rate [ "<<average_put_rate_5mins<<" >= "<<put_rate_cut_off<<" ]");
+		if (average_put_rate_5mins >= put_rate_cut_off) {
+			LogMessage("Purge rate-limiting: average PUT rate (5mins) found above cut-off rate [ "
+							   << average_put_rate_5mins << " >= " << put_rate_cut_off << " ]");
 			return -1;
 		}
 
+		double limit;
 		// compute the limit based on put rate from statistics
-		return (average_put_rate_5mins > put_rate_zero)?
-						( min_limit_object + (
-								(max_limit_object - min_limit_object) * (
-										(average_put_rate_5mins - put_rate_zero) / (put_rate_cut_off - put_rate_zero))) )
-						: max_limit_object;
+		if (average_put_rate_5mins > put_rate_zero) {
+			limit = static_cast<double>(min_limit_object) +
+					(static_cast<double>(max_limit_object - min_limit_object) *
+						((average_put_rate_5mins - put_rate_zero) /
+							static_cast<double>(put_rate_cut_off - put_rate_zero)));
+		} else {
+			limit = max_limit_object;
+		}
+
+		LogMessage("Purge rate-limiting: limit calculated : " << limit << "[ average PUT rate (5mins) : "
+															  << average_put_rate_5mins << " ]");
+
+		return static_cast<int>(limit);
 	}
 
 	/**
@@ -1208,7 +1222,7 @@ public:
 					p_purge_def = retention_db_.get_orgs_for_purge();
 				}
 
-				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, limit, confMap_["retention_purge.enabled_orgs"].as<std::string>());
+				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, static_cast<unsigned int>(limit), confMap_["retention_purge.enabled_orgs"].as<std::string>());
 				if(!p_purge_def) {
 					LogVerbose("Failed to update and get purge definition; skipping attempt");
 					continue;
