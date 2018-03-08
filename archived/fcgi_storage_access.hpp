@@ -110,6 +110,13 @@ public:
 					p_request->pathinfo.at< archiving::org_id_t >(1), uuid);
 		}
 
+		std::string this_op;
+		{
+			std::ostringstream ostr;
+			ostr << rml::fcgi::http_method::to_string(p_request->method)<<' '<<identifier<<" - ";
+			this_op = ostr.str();
+		}
+
 		audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
 		if (audit_token) {
 			const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
@@ -118,25 +125,22 @@ public:
 			if (!p_eventlog) {
 				eventlog_finder_.forget(lookup);
 				audit_token = 0;
+				LogMessage(this_op<<"The given audit-token could not be verified");
 			} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
 					p_eventlog->time < (time(0) - 3600)
-					|| p_eventlog->context == "Archiving" || p_eventlog->action == "FetchObject"
+					|| p_eventlog->context != "Archiving" || p_eventlog->action != "FetchObject"
 					|| p_eventlog->message.find(boost::str(
 							boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
 																std::string::npos) {
 				audit_token = 0;
+				LogMessage(this_op<<"The given audit-token is invalid");
 			}
+		} else {
+			LogMessage(this_op<<"No audit-token was provided");
 		}
 
 		if (!audit_token) {
 			throw rml::fcgi::http_exception(400, "Request not audited");
-		}
-
-		std::string this_op;
-		{
-			std::ostringstream ostr;
-			ostr << rml::fcgi::http_method::to_string(p_request->method)<<' '<<identifier<<" - ";
-			this_op = ostr.str();
 		}
 
 		Timing(this_op<<"request verified");
