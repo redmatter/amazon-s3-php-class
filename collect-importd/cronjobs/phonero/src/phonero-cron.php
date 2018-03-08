@@ -613,7 +613,8 @@ class importPhonero extends BaseApp
             'coreapi_url',
             'coreapi_creds',
             'hi_water_mark',
-            'max_not_handled'
+            'max_not_handled',
+            'disable_sftp'
         );
 
         $config = array();
@@ -689,7 +690,7 @@ class importPhonero extends BaseApp
 
         // only run if we are not in production, or we are in the active DC
 
-        if (!$inProduction || $this->hAPILocName == $activeDC)
+        if (($config->disable_sftp == 'no') && (!$inProduction || $this->hAPILocName == $activeDC))
         {
             // download any new audio files from the SFTP server. This is a self contained process
 
