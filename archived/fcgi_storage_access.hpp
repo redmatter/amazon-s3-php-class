@@ -1,9 +1,10 @@
-/*
- * fcgi_storage_access.hpp
- *
- *  Created on: 12/11/2012
- *      Author: dkorah
- */
+//
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 12/11/2012.
+//
 
 #ifndef FCGI_STORAGE_ACCESS_HPP_
 #define FCGI_STORAGE_ACCESS_HPP_
@@ -35,8 +36,9 @@ class storage_access_handler : public rml::fcgi::request::handler
 	const policy::cached_finder_t& cached_policy_finder_;
 	const coreapi_user::cached_finder_t& coreapi_user_finder_;
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
+	const coreapi_eventlog::cached_finder_t& eventlog_finder_;
 
-	uint64_t audit_token;
+	coreapi_eventlog::id_t audit_token;
 	operation_data::pointer opdata;
 	storage::string_map_t props;
 	types::file_format::file_format_t file_format;
@@ -50,11 +52,13 @@ public:
 			const policy::cached_finder_t& cached_policy_finder,
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
+			const coreapi_eventlog::cached_finder_t& eventlog_finder,
 			rml::fcgi::request::pointer p_request, const std::string& routed_path)
 	{
 		return boost::static_pointer_cast<rml::fcgi::request::handler>(
 				boost::make_shared< storage_access_handler >(
-						retention_record_cached_finder, retention_record_is_expired, cached_policy_finder, coreapi_user_finder, storage_endpoint_finder, p_request, routed_path));
+						retention_record_cached_finder, retention_record_is_expired, cached_policy_finder,
+						coreapi_user_finder, storage_endpoint_finder, eventlog_finder, p_request, routed_path));
 	}
 
 	explicit storage_access_handler(
@@ -63,6 +67,7 @@ public:
 			const policy::cached_finder_t& cached_policy_finder,
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
+			const coreapi_eventlog::cached_finder_t& eventlog_finder,
 			rml::fcgi::request::pointer p_request, const std::string& routed_path) :
 
 			rml::fcgi::request::handler(p_request, routed_path),
@@ -72,6 +77,7 @@ public:
 			cached_policy_finder_(cached_policy_finder),
 			coreapi_user_finder_(coreapi_user_finder),
 			storage_endpoint_finder_(storage_endpoint_finder),
+			eventlog_finder_(eventlog_finder),
 
 			audit_token(0),
 			file_format(types::file_format::unknown)
@@ -91,9 +97,6 @@ public:
 		const std::string& authorization((authprization_header && authprization_header[0])? authprization_header: p_request->querystring.get_first("authorization"));
 		const std::string& remote_ip((ip_header && ip_header[0])? ip_header: p_request->querystring.get_first("remote-ip"));
 
-		// todo verify audit_token !!!
-		audit_token = p_request->querystring.get_first_as< uint64_t >("audit-token");
-
 		archiving::archivable::identifier identifier;
 		{
 			std::string uuid(p_request->pathinfo.at< std::string >(2));
@@ -112,6 +115,32 @@ public:
 			std::ostringstream ostr;
 			ostr << rml::fcgi::http_method::to_string(p_request->method)<<' '<<identifier<<" - ";
 			this_op = ostr.str();
+		}
+
+		audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
+		if (audit_token) {
+			const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
+					std::make_pair(identifier.org, audit_token));
+			coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
+			if (!p_eventlog) {
+				eventlog_finder_.forget(lookup);
+				audit_token = 0;
+				LogMessage(this_op<<"The given audit-token could not be verified");
+			} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
+					p_eventlog->time < (time(0) - 3600)
+					|| p_eventlog->context != "Archiving" || p_eventlog->action != "FetchObject"
+					|| p_eventlog->message.find(boost::str(
+							boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
+																std::string::npos) {
+				audit_token = 0;
+				LogMessage(this_op<<"The given audit-token is invalid");
+			}
+		} else {
+			LogMessage(this_op<<"No audit-token was provided");
+		}
+
+		if (!audit_token) {
+			throw rml::fcgi::http_exception(400, "Request not audited");
 		}
 
 		Timing(this_op<<"request verified");

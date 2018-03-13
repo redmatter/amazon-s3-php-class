@@ -78,9 +78,12 @@ include ../external/Makefile.cpp-netlib
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
 
-cronjobs/phonero/phonero-cron.phar:
+cronjobs/phonero/src/vendor:
 	cd cronjobs/phonero/src && \
-	php54 ../../composer.phar -vv update && \
+	php54 ../../composer.phar -vv update
+
+cronjobs/phonero/phonero-cron.phar: cronjobs/phonero/src/vendor
+	cd cronjobs/phonero/src && \
 	php54 -d phar.readonly=0 -d date.timezone=UTC ../../phar-builder.phar -n package composer.json &&\
 	chmod +x ../phonero-cron.phar
 
