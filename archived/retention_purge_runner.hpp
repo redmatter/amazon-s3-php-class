@@ -128,16 +128,16 @@ class runner : public boost::enable_shared_from_this<runner>
 
 	enum
 	{
-		max_limit_object = 20000,
-		min_limit_object = 500,
+		max_limit_object = 10240,
+		min_limit_object = 32,
 
-		put_rate_cut_off = 1600, // PUT rate at which no more objects are queued for purge
-		put_rate_zero = 200,     // PUT rate below which it is assumed to be zero
+		put_rate_cut_off = 1024,
+		put_rate_zero = 64,
 
 		purge_batch_days = 7,
 		purge_batch_count = 1000,
 
-		purge_max_queue_size = 30000,
+		purge_max_queue_size = 5000,
 
 		purge_file_interval_seconds = 10,
 		purge_usage_interval_seconds = 15,
