@@ -38,3 +38,8 @@ tmp*-libc*/
 /cli/convert-to-clear/convert-to-clear
 /cli/convert-to-archive/convert-to-archive
 /eml2a/mime/decoder
+eml2a/cmake-build-debug
+eml2a/.idea
+modules.xml
+collect-importd/cronjobs/phonero/.idea
+CMakeLists.txt
