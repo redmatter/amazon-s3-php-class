@@ -507,7 +507,8 @@ class importPhonero extends BaseApp
                 else
                     LogMessage("Log API response: $logsResponse");
 
-                if (!$xml = @simplexml_load_string(trim($logsResponse)))
+                $xml = @simplexml_load_string(trim($logsResponse));
+                if ($xml === false)
                     throw new Exception("Invalid XML in api /logs response");
 
                 if ($xml->getName() != 'ImportedAudioLogs')
@@ -525,36 +526,69 @@ class importPhonero extends BaseApp
             // go through the list matching inputs to the API results, and forward the successes
             // to rmcollect-importd and the failures to $config->not_handled_dir
 
+            $expectedNumbers = array();
+
             foreach($fileinfo as $finfo)
             {
                 $foundA = ($finfo['Direction'] == 'OUT') ? key_exists($finfo['AUUID'], $logResults) : false;
                 $foundB = ($finfo['Direction'] == 'IN')  ? key_exists($finfo['BUUID'], $logResults) : false;
 
-                $copyops = array();
+                if (!$foundA && ($finfo['Direction'] == 'OUT'))
+                    $expectedNumbers[$finfo['From_Number']] = $finfo['From_Number'];
+                if (!$foundB && ($finfo['Direction'] == 'IN'))
+                    $expectedNumbers[$finfo['To_Number']] = $finfo['To_Number'];
 
-                if ($foundA)
-                    $fnameA = $this->insertUUIDDashes($finfo['AUUID'])."_{$logResults[$finfo['AUUID']]['OrgID']}_{$logResults[$finfo['AUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
-                if ($foundB)
-                    $fnameB = $this->insertUUIDDashes($finfo['BUUID'])."_{$logResults[$finfo['BUUID']]['OrgID']}_{$logResults[$finfo['BUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+                $wlA = $foundA && $logResults[$finfo['AUUID']]['Direction'] == 'WHITELISTED';
+                $wlB = $foundB && $logResults[$finfo['BUUID']]['Direction'] == 'WHITELISTED';
 
-                if ($foundA) {
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameA);
-                    if ($foundB)
-                        $copyops[] = array('op' => 'copy', 'src' => $config->import_dir . '/' . $fnameA, 'dst' => $config->import_dir . '/' . $fnameB);
-                }
-                else if ($foundB)
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameB);
-                else
-                    $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->not_handled_dir . '/' . $finfo['Name']);
+                LogMessage("$finfo[Name]: ".($wlA?'WL':($foundA?'OK':'-'))."/".($wlB?'WL':($foundB?'OK':'-')));
 
-                foreach($copyops as $op) {
-                    $res = $op['op']($op['src'], $op['dst']);
+                if (($wlA && $wlB) || ($wlA && !$foundB) || ($wlB && !$foundA))
+                {
+                    // if we are here this call is completely whitelisted. Just delete the file
+                    $res = unlink($finfo['Name']);
                     if (!$res)
-                        LogError($this->log_php_error("$op[op]: $op[src] -> $op[dst]"));
+                        LogError($this->log_php_error("unlink: $finfo[Name]"));
                     else
-                        LogMessage("$op[op]: $op[src] -> $op[dst] OK");
+                        LogMessage("unlink: $finfo[Name] OK");
+                }
+                else
+                {
+                    // if we are here, there is some part of the call that has not been whitelisted
+
+                    if ($wlA && $foundB)
+                        $foundA = false;
+                    elseif ($wlB && $foundA)
+                        $foundB = false;
+
+                    if ($foundA)
+                        $fnameA = $this->insertUUIDDashes($finfo['AUUID']) . "_{$logResults[$finfo['AUUID']]['OrgID']}_{$logResults[$finfo['AUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+                    if ($foundB)
+                        $fnameB = $this->insertUUIDDashes($finfo['BUUID']) . "_{$logResults[$finfo['BUUID']]['OrgID']}_{$logResults[$finfo['BUUID']]['UserID']}_{$finfo['Epoch']}_phonero.mp3";
+
+                    $copyops = array();
+
+                    if ($foundA) {
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameA);
+                        if ($foundB)
+                            $copyops[] = array('op' => 'copy', 'src' => $config->import_dir . '/' . $fnameA, 'dst' => $config->import_dir . '/' . $fnameB);
+                    } else if ($foundB)
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->import_dir . '/' . $fnameB);
+                    else
+                        $copyops[] = array('op' => 'rename', 'src' => $finfo['Name'], 'dst' => $config->not_handled_dir . '/' . $finfo['Name']);
+
+                    foreach ($copyops as $op) {
+                        $res = $op['op']($op['src'], $op['dst']);
+                        if (!$res)
+                            LogError($this->log_php_error("$op[op]: $op[src] -> $op[dst]"));
+                        else
+                            LogMessage("$op[op]: $op[src] -> $op[dst] OK");
+                    }
                 }
             }
+
+            if (count($expectedNumbers) != 0)
+                LogMessage('Unprovisioned numbers: '.implode(',', $expectedNumbers));
         }
     }
 
@@ -579,7 +613,8 @@ class importPhonero extends BaseApp
             'coreapi_url',
             'coreapi_creds',
             'hi_water_mark',
-            'max_not_handled'
+            'max_not_handled',
+            'disable_sftp'
         );
 
         $config = array();
@@ -595,11 +630,6 @@ class importPhonero extends BaseApp
         $activeDC = getActiveLondonDC();
         if ($activeDC === false)
             throw new Exception ("Unable to determine active DC! Aborting.");
-
-        // only run if we are not in production, or we are in the active DC
-
-        if ($inProduction && $this->hAPILocName != $activeDC)
-            throw new Exception ("Running in $this->hAPILocName, Active DC: $activeDC. Stopping.");
 
         // build our configuration object
 
@@ -658,18 +688,25 @@ class importPhonero extends BaseApp
         if ($config->max_not_handled <= iterator_count($fi))
             throw new Exception('not-handled count '.iterator_count($fi)." exceeds $config->max_not_handled: Aborting");
 
-        // download any new audio files from the SFTP server. This is a self contained process
+        // only run if we are not in production, or we are in the active DC
 
-        LogMessage("Downloading phonero files via SFTP");
+        if (($config->disable_sftp == 'no') && (!$inProduction || $this->hAPILocName == $activeDC))
+        {
+            // download any new audio files from the SFTP server. This is a self contained process
 
-        try
-        {
-            $this->sftpDownload($config);
+            LogMessage("Downloading phonero files via SFTP");
+
+            try
+            {
+                $this->sftpDownload($config);
+            }
+            catch (Exception $e)
+            {
+                LogError("Exception while processing SFTP download: " . $e->getMessage());
+            }
         }
-        catch (Exception $e)
-        {
-            LogError("Exception while processing SFTP download: ".$e->getMessage());
-        }
+        else
+            LogMessage ("Not running in active DC $activeDC, skipping sftp download");
 
         // process items in the queue directory and place successful ones in the import directory
 
