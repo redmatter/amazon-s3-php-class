@@ -651,6 +651,10 @@ public:
 
 								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
+								const unsigned int recording_call_analysis_count =
+										boost::lexical_cast<unsigned int>(get_xpath_single_value(
+												variables_node, "rmAnalysisRequestedCount/text()", "0"));
+
 								std::set<std::string> recording_uuids; // to de-duplicate recordings
 								for(; session_recorded && recording_count; recording_count--) {
 
@@ -660,11 +664,6 @@ public:
 									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
 									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
-
-									const unsigned int recording_call_analysis_count =
-											boost::lexical_cast<unsigned int>(get_xpath_single_value(
-													variables_node,
-													boost::str(boost::format("rmCallRecording_%1%_AnalysisRequestedCount/text()") % recording_count), "0"));
 
 									if(!recording_location.empty()) {
 										try {
