@@ -651,9 +651,6 @@ public:
 
 								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
-								// TODO remove this once we have other ways of detecting Call Analysis
-								const bool& is_stereo_recording(std::string("true") == get_xpath_single_value(variables_node, "RECORD_STEREO/text()", "false"));
-
 								std::set<std::string> recording_uuids; // to de-duplicate recordings
 								for(; session_recorded && recording_count; recording_count--) {
 
@@ -696,8 +693,7 @@ public:
 													|| (recording_send_email &&
 															((recording_send_email_to_recips && 0 < strlen(recording_send_email_to_recips)) ||
 																	(recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips))))
-													|| recording_call_analysis_count > 0
-													|| is_stereo_recording)
+													|| recording_call_analysis_count > 0)
 											{
 												if (recording_policy == policy::pseudo_id::do_not_archive) {
 													LogVerbose(*archivable_recording<<" Found to have 'DO NOT ARCHIVE' policy set");
@@ -708,7 +704,7 @@ public:
 												{
 													LogVerbose(*archivable_recording<<" Found to have SEND EMAIL task enabled");
 												}
-												if (recording_call_analysis_count > 0 || is_stereo_recording) {
+												if (recording_call_analysis_count > 0) {
 													LogVerbose(*archivable_recording<<" Found to have CALL ANALYSIS task enabled");
 												}
 
