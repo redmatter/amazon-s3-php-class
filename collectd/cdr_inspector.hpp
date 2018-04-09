@@ -651,8 +651,9 @@ public:
 
 								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
 
-								// TODO remove this once we have other ways of detecting Call Analysis
-								const bool& is_stereo_recording(std::string("true") == get_xpath_single_value(variables_node, "RECORD_STEREO/text()", "false"));
+								const unsigned int recording_call_analysis_count =
+										boost::lexical_cast<unsigned int>(get_xpath_single_value(
+												variables_node, "rmAnalysisRequestedCount/text()", "0"));
 
 								std::set<std::string> recording_uuids; // to de-duplicate recordings
 								for(; session_recorded && recording_count; recording_count--) {
@@ -663,11 +664,6 @@ public:
 									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
 									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
 									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
-
-									const unsigned int recording_call_analysis_count =
-											boost::lexical_cast<unsigned int>(get_xpath_single_value(
-													variables_node,
-													boost::str(boost::format("rmCallRecording_%1%_AnalysisRequestedCount/text()") % recording_count), "0"));
 
 									if(!recording_location.empty()) {
 										try {
@@ -696,8 +692,7 @@ public:
 													|| (recording_send_email &&
 															((recording_send_email_to_recips && 0 < strlen(recording_send_email_to_recips)) ||
 																	(recording_send_email_cc_recips && 0 < strlen(recording_send_email_cc_recips))))
-													|| recording_call_analysis_count > 0
-													|| is_stereo_recording)
+													|| recording_call_analysis_count > 0)
 											{
 												if (recording_policy == policy::pseudo_id::do_not_archive) {
 													LogVerbose(*archivable_recording<<" Found to have 'DO NOT ARCHIVE' policy set");
@@ -708,7 +703,7 @@ public:
 												{
 													LogVerbose(*archivable_recording<<" Found to have SEND EMAIL task enabled");
 												}
-												if (recording_call_analysis_count > 0 || is_stereo_recording) {
+												if (recording_call_analysis_count > 0) {
 													LogVerbose(*archivable_recording<<" Found to have CALL ANALYSIS task enabled");
 												}
 
