@@ -42,6 +42,8 @@ class App extends \BaseDaemonApp
     {
         $config = $this->getConf();
 
+        $assocTypes = \Archiving::GetFileTypesAssociationMap();
+
         $coreapi = $config->get('api.base_url', 'http://api');
         \API::Init($coreapi, new \ArrayStorage(), APP_NAME_.':1.0');
 
@@ -84,38 +86,54 @@ class App extends \BaseDaemonApp
 
         foreach ($orgIds as $orgId)
         {
+            // list of auto-approval enabled policy-ids
+            // [p1, p2]
             $autoApprovePolicies = [];
+            // an array of array with user-id as key and array policy-ids he/she is a custodian of
+            // [ u1 => [p1, p2], ... ]
+            $policyCustodians = [];
             /** @var \XPath $xpath */
             $xpath = \API::Get("/archiving/policy/{$orgId}/all");
             /** @var \DOMNodeList $policyNodes */
             $policyNodes = $xpath('/Archiving/Policies/Policy', true);
             foreach ($policyNodes as $policyNode)
             {
+                $policyId = (int)$xpath('ID', false, $policyNode);
+
                 if ('yes' === $xpath('AutoApproveDataSubjectRequest', false, $policyNode))
                 {
-                    $autoApprovePolicies[] = (int)$xpath('ID', false, $policyNode);
+                    $autoApprovePolicies[] = $policyId;
+                }
+
+                $custodians = $xpath('DataCustodians/DataCustodian/@UserID', true, $policyNode);
+                if ($custodians !== null)
+                {
+                    $policyCustodians[$policyId] = [];
+                    /** @var \DOMNodeList $custodians */
+                    foreach ($custodians as $userId)
+                    {
+                        $userId = (int)$userId;
+
+                        if (!isset($policyCustodians[$userId]))
+                        {
+                            $policyCustodians[$userId] = [];
+                        }
+
+                        $policyCustodians[$userId][] = $policyId;
+                    }
                 }
             }
 
-            if (!count($autoApprovePolicies))
-            {
-                continue;
-            }
-
-            $autoApprovePoliciesStr = implode(', ', $autoApprovePolicies);
-            $assocTypes = \Archiving::GetFileTypesAssociationMap();
-
-            $dsdrIds = [];
-            $retentionDb->query(
-                'SELECT `ID` ' .
+            $dsdrs = $retentionDb->query(
+                'SELECT `ID`, `UserID` ' .
                 "FROM `ArchivingRetention`.`DeleteRequest_{$orgId}` " .
                 "WHERE `State` = 'Pending' LIMIT 10"
-            )->for_each(function ($row) {
-                $dsdrIds[] = (int)$row->ID;
-                return true;
-            });
+            )->fetch_all();
 
-            foreach ($dsdrIds as $dsdrId) {
+            foreach ($dsdrs as $dsdr) {
+
+                $dsdrId = (int)$dsdr->ID;
+                $dsdrUserId = (int)$dsdr->UserID;
 
                 // ------------- add-associated filetypes ------------
 
@@ -139,6 +157,25 @@ class App extends \BaseDaemonApp
 
                 // ------------- auto-approve items ------------
 
+                if (!isset($policyCustodians[$dsdrUserId]) && !count($autoApprovePolicies))
+                {
+                    // we have nothing to auto-approve
+                    continue;
+                }
+
+                if (isset($policyCustodians[$dsdrUserId]))
+                {
+                    // if the user who made the request is a data-custodian, and the request contains items archived
+                    // under one of the policies that he/she is a data-custodian of, then those items should be
+                    // auto-approved
+                    $autoApprovePoliciesStr = implode(', ', array_unique(array_merge($autoApprovePolicies, $policyCustodians[$dsdrUserId])));
+                }
+                else
+                {
+                    // otherwise auto-approve only the ones under policies with auto-approval enabled
+                    $autoApprovePoliciesStr = implode(', ', $autoApprovePolicies);
+                }
+
                 $retentionDb->query(
                     "UPDATE `ArchivingRetention`.`DeleteRequestItems_{$orgId}` i " .
                     "JOIN `ArchivingRetention`.`Retention_{$orgId}` r " .
@@ -155,14 +192,13 @@ class App extends \BaseDaemonApp
                     "WHERE i.`State` = 'Pending'" .
                     " AND i.`DeleteRequestID` = {$dsdrId}"
                 )->fetch_all();
-                if (!$counts[0]->Count)
-                {
-                    $retentionDb->query(
-                        "UPDATE `ArchivingRetention`.`DeleteRequest_{$orgId}` dr " .
-                        "SET dr.`State` = 'ReadyForPurge' " .
-                        "WHERE dr.`ID` = {$dsdrId}"
-                    );
-                }
+
+                $newState = $counts[0]->Count? 'ReadyForApproval': 'ReadyForPurge';
+                $retentionDb->query(
+                    "UPDATE `ArchivingRetention`.`DeleteRequest_{$orgId}` dr " .
+                    "SET dr.`State` = '{$newState}' " .
+                    "WHERE dr.`ID` = {$dsdrId}"
+                );
             }
         }
 

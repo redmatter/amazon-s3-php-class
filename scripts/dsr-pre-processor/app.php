@@ -108,7 +108,7 @@ try
                 'runasGid' => $conf->get('app.run_as_group', 'cdrmunch'),
                 'pidfilePath' => $conf->get('app.pid_file', '/var/run/archiving/rmarchdsrpreproc.pid'),
                 'signalHandlers' => $signalHandlers,
-                'sleepInterval' => array(5 /*seconds and*/, 0 /* micro second */),
+                'sleepInterval' => array(30 /*seconds and*/, 0 /* micro second */),
                 'runnableFunction' => array($app, 'run')
             )
         );
