@@ -365,6 +365,13 @@ cp scripts/pcap-recording-import-init.sh %{buildroot}/etc/rc.d/init.d/rmarchpcap
 cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
+# dsr-pre-processor
+cp scripts/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
+cp scripts/dsr-pre-processor/app.conf %{buildroot}/etc/archiving/dsr-preproc.conf
+cp scripts/dsr-pre-processor/autoload.php %{buildroot}/usr/share/php/archiving/archdsrpreproc_autoload.php
+cp scripts/dsr-pre-processor/init.sh %{buildroot}/etc/rc.d/init.d/rmarchdsrpreproc
+cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
+cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
 
 # qascripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
@@ -572,6 +579,11 @@ fi
 
 /sbin/chkconfig --add rmarchpcapimport
 /sbin/chkconfig rmarchpcapimport on
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."
+
+/sbin/chkconfig --add rmarchdsrpreproc
+/sbin/chkconfig rmarchdsrpreproc on
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
@@ -807,6 +819,12 @@ fi
 /etc/rc.d/init.d/rmarchpcapimport
 /etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 /etc/logrotate.d/archiving-pcap-recording-import
+/usr/bin/archiving-dsr-pre-processor
+/etc/archiving/dsr-preproc.conf
+/usr/share/php/archiving/archdsrpreproc_autoload.php
+/etc/rc.d/init.d/rmarchdsrpreproc
+/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
+/etc/logrotate.d/archiving-dsr-pre-processor
 
 %files qascripts
 %defattr(-,root,root)
