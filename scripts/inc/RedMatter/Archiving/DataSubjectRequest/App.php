@@ -29,6 +29,8 @@ class App extends \BaseDaemonApp
 {
     const CONFIG_PATH = '/etc/archiving/dsr-preproc.conf';
 
+    private $_timeOfNextLastLegalHoldCacheRun = 0;
+
     /**
      * Run what you like!
      * The return value is used as the exit code
@@ -199,6 +201,33 @@ class App extends \BaseDaemonApp
                     "SET dr.`State` = '{$newState}' " .
                     "WHERE dr.`ID` = {$dsdrId}"
                 );
+            }
+
+            $now = time();
+            if ($this->_timeOfNextLastLegalHoldCacheRun < $now)
+            {
+                $internalDb = \MySQLiTransactional::Get('internal');
+
+                $internalDb->StartTransaction();
+                $retentionDb->query('SELECT li.`RetentionID` RetentionID, ' .
+                    'SUM(li.`LegalHoldID` IN (' .
+                    " SELECT `ID` FROM `ArchivingRetention`.`LegalHold_{$orgId}` WHERE `ExpiryDate` > CURDATE()" .
+                    ')) LegalHoldCount' .
+                    "FROM `LegalHoldItems_{$orgId}` li " .
+                    'GROUP BY li.`RetentionID`'
+                )->for_each_batch(function ($rows) use ($orgId, $internalDb) {
+                    $sql = 'INSERT INTO `ArchivingInternal`.`LegalHoldCache` (`RetentionID`, `OrgID`, `LegalHoldCount`)' .
+                        ' VALUES ' .
+                        implode(', ', array_map(function ($row) use ($orgId) {
+                                return "({$row->RetentionID}, {$orgId}, {$row->LegalHoldCount})";
+                            }, $rows)
+                        ) .
+                    ' ON DUPLICATE KEY UPDATE `LegalHoldCount`=VALUES(`LegalHoldCount`)';
+                    $internalDb->query($sql);
+                }, 1000);
+                $internalDb->CommitTransaction();
+
+                $this->_timeOfNextLastLegalHoldCacheRun = $now + $config->get('legal_hold.cache_update_interval_minutes', 10) * 60;
             }
         }
 
