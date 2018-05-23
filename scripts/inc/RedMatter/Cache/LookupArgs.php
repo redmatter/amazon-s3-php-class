@@ -47,7 +47,7 @@ class LookupArgs
         if ($this->key === null)
         {
             $this->key = (count($this->args) === 1 && (is_int($this->args[0]) || is_string($this->args[0]))) ?
-                $this->args[0] : sha1(json_encode($this->args), true);
+                $this->args[0] : sha1(serialize($this->args), true);
         }
 
         return $this->key;

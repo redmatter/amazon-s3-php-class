@@ -280,8 +280,6 @@ class App extends \BaseDaemonApp
             }
         );
 
-        $retentionDb = \MySQLiTransactional::Get('retention');
-
         $orgIds = $this->_getOrgIds();
 
         foreach ($orgIds as $orgId)
@@ -296,6 +294,7 @@ class App extends \BaseDaemonApp
             if ($this->_timeOfNextLastLegalHoldCacheRun < $now)
             {
                 $internalDb = \MySQLiTransactional::Get('internal');
+                $retentionDb = \MySQLiTransactional::Get('retention');
 
                 $internalDb->StartTransaction();
                 $retentionDb->query('SELECT li.`RetentionID` RetentionID, ' .
