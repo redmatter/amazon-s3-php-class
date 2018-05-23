@@ -300,7 +300,7 @@ class App extends \BaseDaemonApp
                 $retentionDb->query('SELECT li.`RetentionID` RetentionID, ' .
                     'SUM(li.`LegalHoldID` IN (' .
                     " SELECT `ID` FROM `ArchivingRetention`.`LegalHold_{$orgId}` WHERE `ExpiryDate` > CURDATE()" .
-                    ')) LegalHoldCount' .
+                    ')) LegalHoldCount ' .
                     "FROM `LegalHoldItems_{$orgId}` li " .
                     'GROUP BY li.`RetentionID`'
                 )->for_each_batch(function ($rows) use ($orgId, $internalDb) {
