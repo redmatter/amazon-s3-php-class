@@ -16,6 +16,9 @@
 namespace RedMatter\Archiving\DataSubjectRequest;
 
 use RedMatter\Cache\Cache;
+use RedMatter\Services\DGAPI;
+
+/** @noinspection SingletonFactoryPatternViolationInspection */
 
 /**
  * @category  Library
@@ -28,8 +31,10 @@ use RedMatter\Cache\Cache;
 class App extends \BaseDaemonApp
 {
     const CONFIG_PATH = '/etc/archiving/dsr-preproc.conf';
+    const DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS = 30;
 
     private $_timeOfNextLastLegalHoldCacheRun = 0;
+    private $_timeOfNextNotificationRun = 0;
 
     private $_cachedPolicies;
 
@@ -257,14 +262,11 @@ class App extends \BaseDaemonApp
         $config = $this->getConf();
 
         $coreapi = $config->get('api.base_url', 'http://api');
-        \API::Init($coreapi, new \ArrayStorage(), APP_NAME_.':1.0');
+        \API::Init($coreapi, new \ArrayStorage(), APP_NAME_ . ':1.0');
 
-        if ($authCreds = $config->get('api.authorization_creds', false))
-        {
+        if ($authCreds = $config->get('api.authorization_creds', false)) {
             \API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);
-        }
-        else
-        {
+        } else {
             /** @noinspection ExceptionsAnnotatingAndHandlingInspection */
             throw new \RuntimeException('No authorization creds specified in config');
         }
@@ -273,28 +275,27 @@ class App extends \BaseDaemonApp
         /** @noinspection PhpUnusedLocalVariableInspection */
         /** @noinspection OnlyWritesOnParameterInspection */
         $authorizationSentry = new \ScopeSentry(
-            function() use (&$api)
-            {
+            function () use (&$api) {
                 unset($api);
                 \API::LogOut();
             }
         );
 
+        $dgapi = new DGAPI($config->get('dgapi.base_url', 'http://dgapi'), \API::GetToken(true)->Token);
+
         $orgIds = $this->_getOrgIds();
 
-        foreach ($orgIds as $orgId)
-        {
+        foreach ($orgIds as $orgId) {
             $this->_processDeleteRequests($orgId);
             $this->_processLegalHoldRequests($orgId);
 
-            $now = time();
+            $retentionDb = \MySQLiTransactional::Get('retention');
 
             // ------------- Cache status of legal-hold for individual items ------------
 
-            if ($this->_timeOfNextLastLegalHoldCacheRun < $now)
-            {
+            $now = time();
+            if ($this->_timeOfNextLastLegalHoldCacheRun < $now) {
                 $internalDb = \MySQLiTransactional::Get('internal');
-                $retentionDb = \MySQLiTransactional::Get('retention');
 
                 $internalDb->StartTransaction();
                 $retentionDb->query('SELECT li.`RetentionID` RetentionID, ' .
@@ -304,18 +305,180 @@ class App extends \BaseDaemonApp
                     "FROM `LegalHoldItems_{$orgId}` li " .
                     'GROUP BY li.`RetentionID`'
                 )->for_each_batch(function ($rows) use ($orgId, $internalDb) {
-                    $sql = 'INSERT INTO `ArchivingInternal`.`LegalHoldCache` (`RetentionID`, `OrgID`, `LegalHoldCount`)' .
+                    $sql = 'INSERT INTO `ArchivingInternal`.`LegalHoldCache` ' .
+                        '(`RetentionID`, `OrgID`, `LegalHoldCount`)' .
                         ' VALUES ' .
                         implode(', ', array_map(function ($row) use ($orgId) {
                                 return "({$row->RetentionID}, {$orgId}, {$row->LegalHoldCount})";
                             }, $rows)
                         ) .
-                    ' ON DUPLICATE KEY UPDATE `LegalHoldCount`=VALUES(`LegalHoldCount`)';
+                        ' ON DUPLICATE KEY UPDATE `LegalHoldCount`=VALUES(`LegalHoldCount`)';
                     $internalDb->query($sql);
                 }, 1000);
                 $internalDb->CommitTransaction();
 
-                $this->_timeOfNextLastLegalHoldCacheRun = $now + $config->get('legal_hold.cache_update_interval_minutes', 10) * 60;
+                $this->_timeOfNextLastLegalHoldCacheRun =
+                    $now + $config->get('legal_hold.cache_update_interval_minutes', 10) * 60;
+            }
+
+            // ------------- find and notify delete-request ------------
+
+            $now = time();
+            if ($this->_timeOfNextNotificationRun < $now) {
+
+                $notificationTypesUnion = Notification::GetTypesSqlUnion(DsrType::DELETE_REQUEST);
+                $requests = $retentionDb->query(
+                    'SELECT dr.`ID` ID, dr.`UserID` UserID, dr.`State` State, dr.`Time`,' .
+                    ' dr.`ExternalReference` ExtRef, ' .
+                    ' SUM(i.`State` = "Pending") PendingCount, ' .
+                    ' SUM(i.`State` = "Approved") ApprovedCount, ' .
+                    ' SUM(i.`State` = "Rejected") RejectedCount ' .
+                    "FROM `ArchivingRetention`.`DeleteRequest_{$orgId}` dr " .
+                    "JOIN `ArchivingRetention`.`DeleteRequestItems_{$orgId}` i " .
+                    ' ON dr.`ID` = i.`DeleteRequestID` ' .
+                    'WHERE dr.`State` != "Finalised" ' .
+                    'GROUP BY ID'
+                )->fetch_all();
+                foreach ($requests as $request)
+                {
+                    /** @var Notification[] $notificationSent */
+                    $notificationSent = [];
+                    $retentionDb->query(
+                        'SELECT c.`Type` Type, UNIX_TIMESTAMP(n.`Time`) Time ' .
+                        "FROM ({$notificationTypesUnion}) AS c " .
+                        "LEFT JOIN `ArchivingRetention`.`DsrNotification_{$orgId}` n" .
+                        ' ON c.`Type` = n.`Type` ' .
+                        'WHERE n.`DsrType` = ' . DsrType::DELETE_REQUEST .
+                        " AND n.`ID` = {$request->ID}"
+                    )->for_each(function ($row) use ($request, &$notificationSent) {
+                        $notificationType = (int)$row->Type;
+                        $notification = new Notification($notificationType, $row->Time);
+                        $notificationSent[$notificationType] = $notification;
+                    });
+
+                    $requestTime = new \DateTime("@{$request->Time}", new \DateTimeZone('UTC'));
+                    $daysSinceRequest = abs($requestTime->diff(new \DateTime('now', new \DateTimeZone('UTC')))->days);
+
+                    $custodianText = [];
+                    $requesterText = [];
+
+                    if ($daysSinceRequest > (self::DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS - 7)
+                        && $request->State !== 'Done'
+                        && !$notificationSent[Notification::TYPE_DELAYED_REQUESTER]->isSent())
+                    {
+                        $requesterText[Notification::TYPE_DELAYED_REQUESTER] = sprintf(
+                            '<font color="#ff0000">The above delete-request might not finish by the %d days statutory deadline; ' .
+                            'please contact your administrator.</font>', self::DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS);
+                    }
+
+                    switch ($request->State)
+                    {
+                        case 'Done':
+                            if (!$notificationSent[Notification::TYPE_DONE_REQUESTER]->isSent())
+                            {
+                                $requesterText[Notification::TYPE_DONE_REQUESTER] =
+                                    'Your delete-request has been completed.';
+                            }
+                            break;
+
+                        case 'ReadyForPurge':
+                        case 'ReadyForApproval':
+                            if ($request->State === 'ReadyForApproval'
+                                && (!$notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->isSent()
+                                    || $notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->getDaysSince() > 7))
+                            {
+                                $custodianText[Notification::TYPE_PENDING_CUSTODIAN] =
+                                    'The above delete-request is waiting for review.';
+                            }
+
+                            if ((!$notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->isSent() && $daysSinceRequest > 7)
+                                || $notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->getDaysSince() > 7)
+                            {
+                                $requesterText[Notification::TYPE_PROGRESS_REQUESTER] =
+                                    'Your delete-request is being reviewed.';
+                            }
+                            break;
+
+                        case 'Pending':
+                            if (!$notificationSent[Notification::TYPE_CREATED_REQUESTER]->isSent())
+                            {
+                                $requesterText[Notification::TYPE_CREATED_REQUESTER] =
+                                    'Your delete-request has been received.';
+                            }
+
+                            if (!$notificationSent[Notification::TYPE_CREATED_CUSTODIAN]->isSent())
+                            {
+                                $custodianText[Notification::TYPE_CREATED_CUSTODIAN] =
+                                    'The above delete-request was received.';
+                            }
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    $requestDesc = sprintf(
+                        '%s' .
+                        'ID: %d<br>' .
+                        'Time: %s<br>' .
+                        'Status: %s<br>',
+                        $request->ExtRef? "Reference: {$request->ExtRef}<br>": '',
+                        $request->ID,
+                        $requestTime->format('l, d F y H:i:s T'),
+                        ($request->Status === 'Done') ? '<font color="#00ff00">DONE</font>' : 'PENDING'
+                    );
+
+                    $subject = sprintf('Data Delete Request - %sID:%d', $request->ExtRef? "Ref:{$request->ExtRef} ": '', $request->ID);
+
+                    if ($requesterText)
+                    {
+                        ksort($requesterText);
+                        $text = sprintf(
+                            '<p>%s</p>' .
+                            '<ul>%s%s</ul>' .
+                            '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                            $requestDesc,
+                            '<li>'.implode('</li><li>', $requesterText).'</li>',
+                            ($request->RejectedCount > 0)? '<li>Some items were rejected during review.</li>': '',
+                            $orgId,
+                            $request->ID
+                        );
+
+                        $dgapi->SendEmail($orgId, [], $subject, $text, 'Data Delete Request', null, null, true);
+                    }
+
+                    if ($custodianText)
+                    {
+                        ksort($custodianText);
+                        $text = sprintf(
+                            '<p>%s</p>' .
+                            '<ul>%s</ul>' .
+                            '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                            $requestDesc, '<li>'.implode('</li><li>', $custodianText).'</li>', $orgId, $request->ID
+                        );
+
+                        $dgapi->SendEmail($orgId, [], $subject, $text, 'Data Delete Request', null, null, true);
+                    }
+
+                    if ($request->State === 'Done')
+                    {
+                        $retentionDb->query(
+                            "UPDATE `ArchivingRetention`.`DeleteRequest_{$orgId}` " .
+                            "SET `State` = 'Finalised' " .
+                            "WHERE `ID` = {$request->ID}"
+                        );
+                    }
+
+                    $notificationTypesSent = array_unique(array_merge(array_keys($custodianText), array_keys($requesterText)));
+                    $sqlValues = implode('), (', array_map(function ($type) use ($request) {
+                        return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}";
+                    }, $notificationTypesSent));
+                    $retentionDb->query("INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type)" .
+                        " VALUES ({$sqlValues}) ON DUPLICATE KEY UPDATE `Time`=CURRENT_TIMESTAMP()");
+                }
+
+                $this->_timeOfNextNotificationRun =
+                    $now + $config->get('dsr_notifications.check_interval_minutes', 10) * 60;
             }
         }
 
