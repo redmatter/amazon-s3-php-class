@@ -822,7 +822,7 @@ fi
 /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
 /usr/share/php/archiving/archdsrpreproc_autoload.php
-/etc/rc.d/init.d/rmarchdsrpreproc
+%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
 

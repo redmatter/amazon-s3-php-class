@@ -13,21 +13,24 @@
  * @link      http://www.redmatter.com
  */
 
-//define('NS_CSV_DEFINITION', 'RedMatter\Archiving\PurgeVerificationCsv\Definition');
-//define('PATH_CSV_DEFINITION', ARCHIVING_INC_DIR.'/RedMatter/Archiving/PurgeVerificationCsv/Definition');
-//define('NS_HELPERS', 'RedMatter\Archiving\PurgeVerificationCsv\Helpers');
-//define('PATH_HELPERS', ARCHIVING_INC_DIR.'/RedMatter/Archiving/PurgeVerificationCsv/Helpers');
+define('NS_DATA_SUBJECT_REQUEST', 'RedMatter\Archiving\DataSubjectRequest');
+define('PATH_DATA_SUBJECT_REQUEST', ARCHIVING_INC_DIR.'/RedMatter/Archiving/DataSubjectRequest');
+define('NS_CACHE', 'RedMatter\Cache');
+define('PATH_CACHE', ARCHIVING_INC_DIR.'/RedMatter/Cache');
+define('NS_SERVICES', 'RedMatter\Services');
+define('PATH_SERVICES', ARCHIVING_INC_DIR.'/RedMatter/Services');
 
 $map = [
-    //NS_HELPERS.'\Adaptors\DateRange' => PATH_HELPERS.'/Adaptors/DateRange.php',
-    //NS_HELPERS.'\DateRangeIterator' => PATH_HELPERS.'/DateRangeIterator.php',
-    //NS_CSV_DEFINITION.'\Dataset\Selection\Criterion' => PATH_CSV_DEFINITION.'/Dataset/Selection/Criterion.php',
-    //NS_CSV_DEFINITION.'\Dataset\Selection\Criterion\ValueRange' => PATH_CSV_DEFINITION.'/Dataset/Selection/Criterion/ValueRange.php',
-    //NS_CSV_DEFINITION.'\Dataset\Randomisation\Criterion' => PATH_CSV_DEFINITION.'/Dataset/Randomisation/Criterion.php',
-    //NS_CSV_DEFINITION.'\Dataset' => PATH_CSV_DEFINITION.'/Dataset.php',
-    //NS_CSV_DEFINITION => PATH_CSV_DEFINITION.'.php',
+    NS_DATA_SUBJECT_REQUEST.'\App' => PATH_DATA_SUBJECT_REQUEST.'/App.php',
+    NS_DATA_SUBJECT_REQUEST.'\AutoApprovedPolicies' => PATH_DATA_SUBJECT_REQUEST.'/AutoApprovedPolicies.php',
+    NS_DATA_SUBJECT_REQUEST.'\DsrType' => PATH_DATA_SUBJECT_REQUEST.'/DsrType.php',
+    NS_DATA_SUBJECT_REQUEST.'\Notification' => PATH_DATA_SUBJECT_REQUEST.'/Notification.php',
 
-    'RedMatter\Archiving\DataSubjectRequest\App' => ARCHIVING_INC_DIR.'/RedMatter/Archiving/DataSubjectRequest/App.php',
+    NS_CACHE.'\Cache' => PATH_CACHE.'/Cache.php',
+    NS_CACHE.'\CachedValue' => PATH_CACHE.'/CachedValue.php',
+    NS_CACHE.'\LookupArgs' => PATH_CACHE.'/LookupArgs.php',
+
+    NS_SERVICES.'\DGAPI' => PATH_SERVICES.'/DGAPI.php',
 ];
 
 spl_autoload_register(
