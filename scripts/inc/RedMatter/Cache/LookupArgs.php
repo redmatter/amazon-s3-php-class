@@ -25,16 +25,11 @@ class LookupArgs
     /**
      * LookupArgs constructor.
      *
-     * @throws \InvalidArgumentException if no arguments are given
+     * @param array $args
      */
-    public function __construct()
+    public function __construct(array $args)
     {
-        if (func_num_args() < 1)
-        {
-            throw new \InvalidArgumentException('At least one argument needed for cache lookup');
-        }
-
-        $this->args = func_get_args();
+        $this->args = $args;
     }
 
     /**
