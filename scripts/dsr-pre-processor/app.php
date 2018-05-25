@@ -25,6 +25,8 @@ date_default_timezone_set('Europe/London');
 
 /** @noinspection UntrustedInclusionInspection */
 require_once 'rmapp/class.BaseApp.php';
+/** @noinspection UntrustedInclusionInspection */
+require_once 'rmdaemonscripts/DaemonScripts.php';
 
 define('ARCHIVING_INC_DIR', is_dir(__DIR__.'/../inc')? (__DIR__.'/../inc'): 'archiving');
 if (file_exists(__DIR__.'/autoload.php'))
@@ -108,7 +110,7 @@ try
                 'runasGid' => $conf->get('app.run_as_group', 'cdrmunch'),
                 'pidfilePath' => $conf->get('app.pid_file', '/var/run/archiving/rmarchdsrpreproc.pid'),
                 'signalHandlers' => $signalHandlers,
-                'sleepInterval' => array(30 /*seconds and*/, 0 /* micro second */),
+                'sleepInterval' => array(5 /*seconds and*/, 0 /* micro second */),
                 'runnableFunction' => array($app, 'run')
             )
         );

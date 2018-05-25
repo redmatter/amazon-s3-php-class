@@ -28,7 +28,7 @@ use RedMatter\Services\DGAPI;
  * @license   http://www.redmatter.com/license private
  * @link      http://www.redmatter.com
  */
-class App extends \BaseDaemonApp
+class App extends \BaseApp
 {
     const CONFIG_PATH = '/etc/archiving/dsr-preproc.conf';
     const DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS = 30;
@@ -37,6 +37,7 @@ class App extends \BaseDaemonApp
     private $_timeOfNextNotificationRun = 0;
 
     private $_cachedPolicies;
+    private $_nextRunTime = 0;
 
     /**
      * App constructor.
@@ -257,6 +258,14 @@ class App extends \BaseDaemonApp
      */
     public function run()
     {
+        $now = time();
+        if ($this->_nextRunTime > $now)
+        {
+            return 0;
+        }
+
+        $this->_nextRunTime = $now + 300;
+
         $this->_cachedPolicies->prune();
 
         $config = $this->getConf();
@@ -286,6 +295,12 @@ class App extends \BaseDaemonApp
         $orgIds = $this->_getOrgIds();
 
         foreach ($orgIds as $orgId) {
+            if (\DaemonScripts::DispatchAndSleep() && true === \DaemonScripts::Terminate())
+            {
+                // Exit if Terminate was flagged
+                return 0;
+            }
+
             $this->_processDeleteRequests($orgId);
             $this->_processLegalHoldRequests($orgId);
 
