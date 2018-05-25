@@ -18,7 +18,7 @@ namespace RedMatter\Cache;
 class Cache
 {
     /** @var CachedValue[] */
-    protected $cache;
+    protected $cache = [];
     /** @var callable */
     protected $callable;
     /** @var int seconds to keep an item in cache */
