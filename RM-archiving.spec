@@ -819,7 +819,7 @@ fi
 /etc/rc.d/init.d/rmarchpcapimport
 /etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 /etc/logrotate.d/archiving-pcap-recording-import
-/usr/bin/archiving-dsr-pre-processor
+%attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
 /usr/share/php/archiving/archdsrpreproc_autoload.php
 %attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
