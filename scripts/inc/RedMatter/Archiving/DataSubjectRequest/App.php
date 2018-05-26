@@ -440,7 +440,7 @@ class App extends \BaseApp
                         $request->ExtRef? "Reference: {$request->ExtRef}<br>": '',
                         $request->ID,
                         $requestTime->format('l, d F y H:i:s T'),
-                        ($request->Status === 'Done') ? '<font color="#00ff00">DONE</font>' : 'PENDING'
+                        ($request->State === 'Done') ? '<font color="#00ff00">DONE</font>' : 'PENDING'
                     );
 
                     $subject = sprintf('Data Delete Request - %sID:%d', $request->ExtRef? "Ref:{$request->ExtRef} ": '', $request->ID);
