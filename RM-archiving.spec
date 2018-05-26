@@ -93,7 +93,7 @@ BuildRequires: php54-cli
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
-# Requires: RM-php-rmapp >= 0.0.1-22590
+# Requires: RM-php-rmapp >= 0.0.5
 # Requires: RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
@@ -121,7 +121,7 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: RM-php-rmapp >= 0.0.1-35101
+Requires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}

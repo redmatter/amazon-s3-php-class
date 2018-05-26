@@ -362,8 +362,8 @@ class App extends \BaseApp
                         'SELECT c.`Type` Type, UNIX_TIMESTAMP(n.`Time`) Time ' .
                         "FROM ({$notificationTypesUnion}) AS c " .
                         "LEFT JOIN `ArchivingRetention`.`DsrNotification_{$orgId}` n" .
-                        ' ON c.`Type` = n.`Type` ' .
-                        'WHERE n.`DsrType` = ' . DsrType::DELETE_REQUEST .
+                        ' ON c.`Type` = n.`Type`' .
+                        ' AND n.`DsrType` = ' . DsrType::DELETE_REQUEST .
                         " AND n.`ID` = {$request->ID}"
                     )->for_each(function ($row) use ($request, &$notificationSent) {
                         $notificationType = (int)$row->Type;
