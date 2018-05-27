@@ -135,7 +135,7 @@ class Notification
      */
     public function isSent()
     {
-        return null === $this->sentTime;
+        return null !== $this->sentTime;
     }
 
     /**

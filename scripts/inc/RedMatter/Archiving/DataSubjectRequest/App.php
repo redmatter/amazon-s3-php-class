@@ -382,7 +382,7 @@ class App extends \BaseApp
                         && !$notificationSent[Notification::TYPE_DELAYED_REQUESTER]->isSent())
                     {
                         $requesterText[Notification::TYPE_DELAYED_REQUESTER] = sprintf(
-                            '<font color="#ff0000">The above delete-request might not finish by the %d days statutory deadline; ' .
+                            '<font color="#ff0000">Your delete-request might not finish by the %d days statutory deadline; ' .
                             'please contact your administrator.</font>', self::DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS);
                     }
 
@@ -397,6 +397,7 @@ class App extends \BaseApp
                             break;
 
                         case 'ReadyForPurge':
+                        /** @noinspection PhpMissingBreakStatementInspection */
                         case 'ReadyForApproval':
                             if ($request->State === 'ReadyForApproval'
                                 && (!$notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->isSent()
@@ -410,9 +411,8 @@ class App extends \BaseApp
                                 || $notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->getDaysSince() > 7)
                             {
                                 $requesterText[Notification::TYPE_PROGRESS_REQUESTER] =
-                                    'Your delete-request is being reviewed.';
+                                    'Your delete-request is in progress.';
                             }
-                            break;
 
                         case 'Pending':
                             if (!$notificationSent[Notification::TYPE_CREATED_REQUESTER]->isSent())
@@ -484,12 +484,17 @@ class App extends \BaseApp
                         );
                     }
 
-                    $notificationTypesSent = array_unique(array_merge(array_keys($custodianText), array_keys($requesterText)));
-                    $sqlValues = implode('), (', array_map(function ($type) use ($request) {
-                        return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}";
-                    }, $notificationTypesSent));
-                    $retentionDb->query("INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type)" .
-                        " VALUES ({$sqlValues}) ON DUPLICATE KEY UPDATE `Time`=CURRENT_TIMESTAMP()");
+                    if ($custodianText || $requesterText)
+                    {
+                        $notificationTypesSent = array_unique(array_merge(array_keys($custodianText), array_keys($requesterText)));
+                        $sqlValues = implode('), (', array_map(function ($type) use ($request) {
+                            return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}";
+                        }, $notificationTypesSent));
+                        $retentionDb->query(
+                            "INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type)" .
+                            " VALUES ({$sqlValues}) ON DUPLICATE KEY UPDATE `Time`=CURRENT_TIMESTAMP()"
+                        );
+                    }
                 }
 
                 $this->_timeOfNextNotificationRun =
