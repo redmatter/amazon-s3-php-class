@@ -466,7 +466,7 @@ class App extends \BaseApp
                         );
 
                         $userDetails = call_user_func($this->_cachedUsers, $request->UserID);
-                        $dgapi->SendEmail($orgId, [$userDetails->Name, $userDetails->UserName], $subject, $text, 'Data Delete Request', null, null, true);
+                        $dgapi->SendEmail($orgId, [[$userDetails->Name, $userDetails->UserName]], $subject, $text, 'Data Delete Request', null, null, true);
                     }
 
                     $custodianRecipients = [];
