@@ -27,10 +27,15 @@ class AutoApprovedPolicies
     // [ u1 => [p1, p2], ... ]
     private $_policyCustodians;
 
-    public function __construct($autoApprovePolicies, $policyCustodians)
+    // an array that maps policy-id to custodians
+    // [ p1 => [u1, u2], ...]
+    private $_custodianPolicies;
+
+    public function __construct($autoApprovePolicies, $policyCustodians, $custodianPolicies)
     {
         $this->_autoApprovePolicies = $autoApprovePolicies;
         $this->_policyCustodians = $policyCustodians;
+        $this->_custodianPolicies = $custodianPolicies;
     }
 
     public function getPoliciesByUserId($userId)
@@ -40,10 +45,23 @@ class AutoApprovedPolicies
             $this->_autoApprovePolicies;
     }
 
+    public function getCustodians($policies)
+    {
+        $custodians = [];
+        foreach ($policies as $policy) {
+            if (isset($this->_custodianPolicies[$policy])) {
+                $custodians = array_merge($custodians, $this->_custodianPolicies[$policy]);
+            }
+        }
+
+        return array_unique($custodians);
+    }
+
     public static function Create($orgId)
     {
         $autoApprovePolicies = [];
         $policyCustodians = [];
+        $custodianPolicies = [];
 
         /** @var \XPath $xpath */
         $xpath = \API::Get("/archiving/policy/{$orgId}/all");
@@ -61,7 +79,7 @@ class AutoApprovedPolicies
             $custodians = $xpath('DataCustodians/DataCustodian/@UserID', true, $policyNode);
             if ($custodians !== null)
             {
-                $policyCustodians[$policyId] = [];
+                $custodianPolicies[$policyId] = [];
                 /** @var \DOMNodeList $custodians */
                 foreach ($custodians as $userId)
                 {
@@ -73,10 +91,11 @@ class AutoApprovedPolicies
                     }
 
                     $policyCustodians[$userId][] = $policyId;
+                    $custodianPolicies[$policyId][] = $userId;
                 }
             }
         }
 
-        return new self($autoApprovePolicies, $policyCustodians);
+        return new self($autoApprovePolicies, $policyCustodians, $custodianPolicies);
     }
 }

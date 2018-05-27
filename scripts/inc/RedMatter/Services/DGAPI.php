@@ -73,7 +73,7 @@ class DGAPI
         $responseCode = (int)$stream->httpCode;
 
         if (($responseCode < 200) || ($responseCode > 300)) {
-            throw new \RuntimeException('Request to DGAPI failed');
+            throw new \RuntimeException('Request to DGAPI failed', $responseCode);
         }
     }
 

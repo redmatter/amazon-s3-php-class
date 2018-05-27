@@ -469,6 +469,7 @@ class App extends \BaseApp
                         $dgapi->SendEmail($orgId, [$userDetails->Name, $userDetails->UserName], $subject, $text, 'Data Delete Request', null, null, true);
                     }
 
+                    $custodianRecipients = [];
                     if ($custodianText)
                     {
                         ksort($custodianText);
@@ -479,7 +480,27 @@ class App extends \BaseApp
                             $requestDesc, '<li>'.implode('</li><li>', $custodianText).'</li>', $orgId, $request->ID
                         );
 
-                        $dgapi->SendEmail($orgId, [], $subject, $text, 'Data Delete Request', null, null, true);
+                        /** @var AutoApprovedPolicies $orgPolicies */
+                        $orgPolicies = call_user_func($this->_cachedPolicies, $orgId);
+
+                        $dsrPolicies = array_map(function ($row) {
+                            return (int)$row->PolicyID;
+                        }, $retentionDb->query(
+                            'SELECT DISTINCT r.`PolicyID` PolicyID ' .
+                            "FROM `ArchivingRetention`.`DeleteRequestItems_{$orgId}` i" .
+                            " JOIN `ArchivingRetention`.`Retention_{$orgId}` r " .
+                            '  ON i.`RetentionID`=r.`ID` ' .
+                            "WHERE i.`DeleteRequestID`={$request->ID}"
+                        )->fetch_all());
+
+                        $custodianRecipients = $orgPolicies->getCustodians($dsrPolicies);
+
+                        $notificationRecipients = array_map(function ($custodianUserId) {
+                            $userDetails = call_user_func($this->_cachedUsers, $custodianUserId);
+                            return [$userDetails->Name, $userDetails->UserName];
+                        }, $custodianRecipients);
+
+                        $dgapi->SendEmail($orgId, $notificationRecipients, $subject, $text, 'Data Delete Request', null, null, true);
                     }
 
                     if ($request->State === 'Done')
@@ -494,10 +515,14 @@ class App extends \BaseApp
                     if ($custodianText || $requesterText)
                     {
                         $notificationTypesSent = array_unique(array_merge(array_keys($custodianText), array_keys($requesterText)));
-                        $sqlValues = implode('), (', array_map(function ($type) use ($request) {
-                            // todo fill-in recipients into Data field
-                            return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}, ''";
+                        $sqlValues = implode('), (', array_map(function ($type) use ($request, $retentionDb, $orgId, $custodianRecipients) {
+                            $notificationRecipientsStr = $retentionDb->real_escape_string(json_encode(
+                                // type > 200, then notification is for requester otherwise custodians
+                                ($type > 200) ? [$request->UserID] : $custodianRecipients
+                            ));
+                            return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}, '{$notificationRecipientsStr}'";
                         }, $notificationTypesSent));
+
                         $retentionDb->query(
                             "INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type, Data)" .
                             " VALUES ({$sqlValues}) ON DUPLICATE KEY UPDATE `Time`=CURRENT_TIMESTAMP()"
