@@ -31,6 +31,7 @@ $map = [
     NS_CACHE.'\LookupArgs' => PATH_CACHE.'/LookupArgs.php',
 
     NS_SERVICES.'\DGAPI' => PATH_SERVICES.'/DGAPI.php',
+    NS_SERVICES.'\CoreAPI' => PATH_SERVICES.'/CoreAPI.php',
 ];
 
 spl_autoload_register(

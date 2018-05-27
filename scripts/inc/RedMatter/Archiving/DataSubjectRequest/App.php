@@ -16,6 +16,7 @@
 namespace RedMatter\Archiving\DataSubjectRequest;
 
 use RedMatter\Cache\Cache;
+use RedMatter\Services\CoreAPI;
 use RedMatter\Services\DGAPI;
 
 /** @noinspection SingletonFactoryPatternViolationInspection */
@@ -37,6 +38,7 @@ class App extends \BaseApp
     private $_timeOfNextNotificationRun = 0;
 
     private $_cachedPolicies;
+    private $_cachedUsers;
     private $_nextRunTime = 0;
 
     /**
@@ -53,6 +55,10 @@ class App extends \BaseApp
         $this->_cachedPolicies = new Cache(function ($orgId) {
             return AutoApprovedPolicies::Create($orgId);
         }, $this->getConf()->get('cache.auto_approved_policies_ttl_seconds', 600));
+
+        $this->_cachedUsers = new Cache(function ($userId) {
+            return CoreAPI::GetUserDetails($userId);
+        }, $this->getConf()->get('cache.user_details_ttl_seconds', 600));
     }
 
     /**
@@ -459,7 +465,8 @@ class App extends \BaseApp
                             $request->ID
                         );
 
-                        $dgapi->SendEmail($orgId, [], $subject, $text, 'Data Delete Request', null, null, true);
+                        $userDetails = call_user_func($this->_cachedUsers, $request->UserID);
+                        $dgapi->SendEmail($orgId, [$userDetails->Name, $userDetails->UserName], $subject, $text, 'Data Delete Request', null, null, true);
                     }
 
                     if ($custodianText)
@@ -488,10 +495,11 @@ class App extends \BaseApp
                     {
                         $notificationTypesSent = array_unique(array_merge(array_keys($custodianText), array_keys($requesterText)));
                         $sqlValues = implode('), (', array_map(function ($type) use ($request) {
-                            return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}";
+                            // todo fill-in recipients into Data field
+                            return DsrType::DELETE_REQUEST . ", {$request->ID}, {$type}, ''";
                         }, $notificationTypesSent));
                         $retentionDb->query(
-                            "INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type)" .
+                            "INSERT INTO `ArchivingRetention`.`DsrNotification_{$orgId}` (DsrType, ID, Type, Data)" .
                             " VALUES ({$sqlValues}) ON DUPLICATE KEY UPDATE `Time`=CURRENT_TIMESTAMP()"
                         );
                     }
