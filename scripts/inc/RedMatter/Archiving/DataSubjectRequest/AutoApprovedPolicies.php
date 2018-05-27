@@ -65,7 +65,7 @@ class AutoApprovedPolicies
                 /** @var \DOMNodeList $custodians */
                 foreach ($custodians as $userId)
                 {
-                    $userId = (int)$userId;
+                    $userId = (int)$userId->value;
 
                     if (!isset($policyCustodians[$userId]))
                     {
