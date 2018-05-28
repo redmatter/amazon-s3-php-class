@@ -134,8 +134,10 @@ class DGAPI
             $dom->nodeCreate('Subject', $subject);
             // $dom->nodeCreate('TemplateTheme', $tplDef[0]);
             $dom->nodeCreate('EmailTemplate', $tplDef[1]);
-            $dom->nodeCreate('FromName', $from[0]);
-            $dom->nodeCreate('FromAddress', $from[1]);
+            if ($from && is_array($from) && count($from) > 2) {
+                $dom->nodeCreate('FromName', $from[0]);
+                $dom->nodeCreate('FromAddress', $from[1]);
+            }
 
             if ($cc) {
                 $dom->nodeCreate('CcAddress', $cc);
