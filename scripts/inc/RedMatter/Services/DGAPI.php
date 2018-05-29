@@ -29,18 +29,20 @@ namespace RedMatter\Services;
 class DGAPI
 {
     private $_baseUrl;
-    private $_authToken;
+    private $_authTokenCallback;
+
+    public $error;
 
     /**
      * DGAPI constructor.
      *
-     * @param $baseUrl
-     * @param $authToken
+     * @param string   $baseUrl base-url
+     * @param callback $authTokenCallback callable to get the token
      */
-    public function __construct($baseUrl, $authToken)
+    public function __construct($baseUrl, $authTokenCallback)
     {
         $this->_baseUrl = $baseUrl;
-        $this->_authToken = $authToken;
+        $this->_authTokenCallback = $authTokenCallback;
     }
 
     /**
@@ -48,10 +50,12 @@ class DGAPI
      *
      * @param string $uri uri
      * @param string $xml xml
+     *
+     * @return bool
      */
     public function RawSend($uri, $xml)
     {
-        $this->_send($uri, $xml);
+        return $this->_send($uri, $xml);
     }
 
     /**
@@ -60,21 +64,34 @@ class DGAPI
      * @param string $uri uri
      * @param string $xml xml
      *
-     * @throws \RuntimeException
+     * @return bool
      */
     private function _send($uri, $xml)
     {
-        $stream = \HTTPStream::Make('PUT', "{$this->_baseUrl}{$uri}", $xml,
-            array('Authorization' => $this->_authToken, 'Content-Type' => 'application/xml'));
+        $this->error = null;
+
+        $token = call_user_func($this->_authTokenCallback);
+        if (!$token) {
+            $this->error = ['Authorization unavailable', 0];
+            return false;
+        }
+
+        $stream = \HTTPStream::Make(
+            'PUT', "{$this->_baseUrl}{$uri}", $xml,
+            array('Authorization' => $token, 'Content-Type' => 'application/xml'));
+
         if ($stream && !$stream->httpCode) {
-            throw new \RuntimeException('Connection failed to DGAPI');
+            $this->error = ['Connection failed to DGAPI', 0];
+            return false;
         }
 
         $responseCode = (int)$stream->httpCode;
-
         if (($responseCode < 200) || ($responseCode > 300)) {
-            throw new \RuntimeException('Request to DGAPI failed', $responseCode);
+            $this->error = ['Request to DGAPI failed', $responseCode];
+            return false;
         }
+
+        return true;
     }
 
     /**
@@ -85,23 +102,46 @@ class DGAPI
      * @param string $text       sms
      * @param string $fromNumber from name
      *
-     * @throws \Exception
+     * @return array|bool
      */
     public function SendSMS($orgID, $recipients, $text, $fromNumber = null)
     {
+        $result = [];
         foreach ($recipients as $recipient) {
-            $dom = new \DOMMaker('sms');
-            if ($fromNumber) {
-                $dom->nodeCreate('FromNumber', $fromNumber);
+
+            $result[$recipient[1]] = null;
+
+            try {
+                $dom = new \DOMMaker('sms');
+                if ($fromNumber) {
+                    $dom->nodeCreate('FromNumber', $fromNumber);
+                }
+
+                $dom->nodeCreate('ToNumber', $recipient[1]);
+                $dom->nodeCreate('rmOrgID', $orgID);
+                $dom->nodeCreate('SMSText',
+                    \Template::Expand($text, array('ToName' => $recipient[0], 'ToNumber' => $recipient[1])));
+
+                if (!$this->_send('/sms', $dom->getDOMDocument()->saveXML())) {
+                    $result[$recipient[1]] = $this->error;
+                    break;
+                }
+
+                $result[$recipient[1]] = true;
+
+            } catch (\Exception $e) {
+                LogWarning($e);
+                $result[$recipient[1]] = $e;
+                break;
             }
-
-            $dom->nodeCreate('ToNumber', $recipient[1]);
-            $dom->nodeCreate('rmOrgID', $orgID);
-            $dom->nodeCreate('SMSText',
-                \Template::Expand($text, array('ToName' => $recipient[0], 'ToNumber' => $recipient[1])));
-
-            $this->_send('/sms', $dom->getDOMDocument()->saveXML());
         }
+
+        // true if all of them went well
+        if (count($recipients) === count(array_filter($result, function ($res) { return $res === true; }))) {
+            return true;
+        }
+
+        return $result;
     }
 
     /**
@@ -109,14 +149,14 @@ class DGAPI
      *
      * @param mixed  $tplDef     EmailTemplate / Array(TemplateTheme,EmailTemplate)
      * @param int    $orgID      Org
-     * @param array  $recipients array(ToName, ToAddress) / array(array(ToName1, ToAddress1), array(ToName2,
+     * @param array  $recipients array(array(ToName1, ToAddress1), array(ToName2,
      *                           ToAddress2), ...)
      * @param string $subject    Subject
      * @param array  $vars       array(Var1 => Val1, Var2 => Val2, ...)
      * @param array  $from       Null / array(FromName, FromAddress)
      * @param mixed  $cc         Null / array(ccAddress1, ccAddress2, ... )
      *
-     * @throws \Exception
+     * @return array|bool
      */
     public function SendTemplateEmail($tplDef, $orgID, $recipients, $subject, $vars, $from = null, $cc = null)
     {
@@ -128,39 +168,60 @@ class DGAPI
             $tplDef = array('natterbox', $tplDef);
         }
 
+        $result = [];
         foreach ($recipients as $recipient) {
-            $dom = new \DOMMaker('email');
-            $dom->nodeCreate('rmOrgID', $orgID);
-            $dom->nodeCreate('Subject', $subject);
-            // $dom->nodeCreate('TemplateTheme', $tplDef[0]);
-            $dom->nodeCreate('EmailTemplate', $tplDef[1]);
-            if ($from && is_array($from) && count($from) > 2) {
-                $dom->nodeCreate('FromName', $from[0]);
-                $dom->nodeCreate('FromAddress', $from[1]);
+            $result[$recipient[1]] = null;
+
+            try {
+                $dom = new \DOMMaker('email');
+                $dom->nodeCreate('rmOrgID', $orgID);
+                $dom->nodeCreate('Subject', $subject);
+                // $dom->nodeCreate('TemplateTheme', $tplDef[0]);
+                $dom->nodeCreate('EmailTemplate', $tplDef[1]);
+                if ($from && is_array($from) && count($from) > 2) {
+                    $dom->nodeCreate('FromName', $from[0]);
+                    $dom->nodeCreate('FromAddress', $from[1]);
+                }
+
+                if ($cc) {
+                    $dom->nodeCreate('CcAddress', $cc);
+                }
+
+                foreach ($vars as $varName => $varValue) {
+                    $dom->nodeCreate($varName,
+                        \Template::Expand($varValue, array('ToName' => $recipient[0], 'ToAddress' => $recipient[1])));
+                }
+
+                $dom->nodeCreate('ToName', $recipient[0]);
+                $dom->nodeCreate('ToAddress', $recipient[1]);
+
+                if (!$this->_send('/email', $dom->getDOMDocument()->saveXML())) {
+                    $result[$recipient[1]] = $this->error;
+                    break;
+                }
+
+                $result[$recipient[1]] = true;
+
+            } catch (\Exception $e) {
+                LogWarning($e);
+                $result[$recipient[1]] = $e;
+                break;
             }
-
-            if ($cc) {
-                $dom->nodeCreate('CcAddress', $cc);
-            }
-
-            foreach ($vars as $varName => $varValue) {
-                $dom->nodeCreate($varName,
-                    \Template::Expand($varValue, array('ToName' => $recipient[0], 'ToAddress' => $recipient[1])));
-            }
-
-            $dom->nodeCreate('ToName', $recipient[0]);
-            $dom->nodeCreate('ToAddress', $recipient[1]);
-
-            $this->_send('/email', $dom->getDOMDocument()->saveXML());
         }
+
+        // true if all of them went well
+        if (count($recipients) === count(array_filter($result, function ($res) { return $res === true; }))) {
+            return true;
+        }
+
+        return $result;
     }
 
     /**
      * Send Email using the Blank Template
      *
      * @param int    $orgID      Org
-     * @param array  $recipients array(ToName, ToAddress) / array(array(ToName1, ToAddress1), array(ToName2,
-     *                           ToAddress2), ...)
+     * @param array  $recipients array(array(ToName1, ToAddress1), array(ToName2, ToAddress2), ...)
      * @param string $subject    Subject
      * @param mixed  $body       array("Text" => "Message; Text formatted", HTML => "Message; HTML formatted") / Text
      *                           Message (string)
@@ -169,7 +230,7 @@ class DGAPI
      * @param mixed  $cc         Null / array(ccAddress1, ccAddress2, ... )
      * @param bool   $htmlOnly   html only?
      *
-     * @throws \Exception
+     * @return array|bool
      */
     public function SendEmail(
         $orgID,
@@ -196,7 +257,7 @@ class DGAPI
                 );
         }
 
-        $this->SendTemplateEmail('Blank', $orgID, $recipients, $subject,
+        return $this->SendTemplateEmail('Blank', $orgID, $recipients, $subject,
             array('MessageText' => $body['Text'], 'MessageHTML' => $body['HTML'], 'Heading' => $heading), $from, $cc);
     }
 }
