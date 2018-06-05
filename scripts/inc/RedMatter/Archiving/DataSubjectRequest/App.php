@@ -616,17 +616,19 @@ class App extends \BaseApp
                 $daysSinceRequest = $requestTime->diff(new \DateTime('now', new \DateTimeZone('UTC')))->days;
 
                 $expiryDate = new \DateTime("@{$request->ExpiryDate}", new \DateTimeZone('UTC'));
-                $daysToExpiry = $expiryDate->diff(new \DateTime('now', new \DateTimeZone('UTC')))->days * -1;
+                $daysToExpiry = $expiryDate->diff(new \DateTime('today', new \DateTimeZone('UTC')))->days * -1;
 
                 $custodianText = [];
                 $requesterText = [];
 
                 if ($daysToExpiry < (self::LEGAL_HOLD_EXPIRY_NOTICE_DAYS + 1)
                     && $request->State !== 'Done' && !$request->ExpiryNotified
-                    && !$notificationSent[Notification::TYPE_EXPIRY_REQUESTER]->isSent()) {
+                    && (!$notificationSent[Notification::TYPE_EXPIRY_REQUESTER]->isSent()
+                        || !$notificationSent[Notification::TYPE_EXPIRY_REQUESTER]->getDaysSince() > $daysToExpiry)) {
+
                     $requesterText[Notification::TYPE_EXPIRY_REQUESTER] = sprintf(
                         '<font color="#ff0000">Your hold-request is set to expire by %s. ' .
-                        'Should you wish to extend it, please contact your administrator.</font>',
+                        'Should you wish to extend it, please <a href="#org-%d-req-%d">click here</a>.</font>',
                         $expiryDate->format('l, d F y (T)'));
                 }
 
