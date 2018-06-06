@@ -1,5 +1,10 @@
 VERSION_FILE=../version_info
 include /usr/share/librml/Makefile.macros
+
+RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-utils
+RML_DATABASE_MYSQL_DIR=../$(RML_DATABASE_MYSQL_GIT_SUBMODULE)
+RML_DATABASE_MYSQL_HPP=$(RML_DATABASE_MYSQL_DIR)/rml/database/mysql/connection.hpp
+
 include ../common/Makefile.macros
 
 LIBS += -L../common/$(TMP)
@@ -12,11 +17,12 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 # set RML_LOG_SOURCE_LOCATION=NO from make command line to disable source-location in log lines
 RML_LOG_SOURCE_LOCATION=YES
 
-CXX_INCLUDES += -isystem $(DEV_LIBS_BASEDIR)/usr/include/threadpool
+CXX_INCLUDES += -isystem /usr/include/threadpool \
+	-I $(RML_DATABASE_MYSQL_DIR) \
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
-	CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
+CPPFLAGS += -DMYSQLPP_MYSQL_HEADERS_BURIED
 endif
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
@@ -72,6 +78,13 @@ BUILD_MODE=DEBUG
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+
+main.cpp: $(RML_DATABASE_MYSQL_HPP)
+
+ifeq ($(RML_DATABASE_MYSQL_DIR),../$(RML_DATABASE_MYSQL_GIT_SUBMODULE))
+$(RML_DATABASE_MYSQL_HPP):
+	@cd .. && git submodule update --init --recursive $(RML_DATABASE_MYSQL_GIT_SUBMODULE)
+endif
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
