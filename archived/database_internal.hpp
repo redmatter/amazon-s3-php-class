@@ -656,7 +656,7 @@ public:
 	}
 
 	template< typename Item, typename ItemWeakSetType >
-	void batch_save_run() try
+	void batch_save_run(const boost::posix_time::ptime& run_till) try
 	{
 		typedef ItemWeakSetType item_set;
 		typedef typename ItemWeakSetType::const_iterator item_set_iterator;
@@ -666,60 +666,82 @@ public:
 		if(Item::save_db_set.begin() == Item::save_db_set.end()) // empty?
 			return;
 
-		bool any_found(false);
 		rml::MySQLConnection conn(*p_pool_);
 		mysqlpp::Transaction txn(*conn, false);
 
-		mysqlpp::Query query = conn->query();
-		mysqlpp::SQLQueryParms qp;
-
-		Item::save_db_begin(query, qp);
-
-		bool first(true);
-
 		item_set_iterator begin = Item::save_db_set.begin();
 		item_set_iterator end = Item::save_db_set.end();
-		for(item_set_iterator itr = begin; itr != end; ++itr) {
-			if(typename Item::pointer p_item = itr->lock()) {
-
-				// in case we hit finished before we got to saving it
-				if(!Item::is_save_pending(p_item))
-					continue;
-
-				query << (first? ' ': ','); first = false;
-				Item::save_db(p_item, query, qp, hostname);
-				any_found = true;
+		item_set_iterator processed_end;
+		for (item_set_iterator itr = begin; itr != end;) {
+			if (boost::posix_time::microsec_clock::universal_time() > run_till) {
+				LogDWarning("Allowed time has run out; giving up", "IGNO");
+				break;
 			}
-			else
-				LogDebug("Item expired; ignoring!");
+
+			item_set_iterator batch_begin = itr;
+			item_set_iterator batch_end = end;
+			if (std::distance(batch_begin, batch_end) > 1000) {
+				batch_end = batch_begin;
+				std::advance(batch_end, 1000);
+			}
+
+			mysqlpp::Query query = conn->query();
+			mysqlpp::SQLQueryParms qp;
+
+			Item::save_db_begin(query, qp);
+
+			bool first(true);
+			bool any_found(false);
+
+			for (; itr != batch_end; ++itr) {
+				if(typename Item::pointer p_item = itr->lock()) {
+
+					// in case we hit finished before we got to saving it
+					if(!Item::is_save_pending(p_item))
+						continue;
+
+					query << (first? ' ': ','); first = false;
+					Item::save_db(p_item, query, qp, hostname);
+					any_found = true;
+				}
+				else
+					LogDebug("Item expired; ignoring!");
+			}
+
+			if(any_found) {
+				Item::save_db_end(query, qp);
+
+				if(!qp.empty()) {
+					query.parse();
+					__SQL_DEBUG(query.str(qp));
+					query.execute(qp);
+				}
+				else {
+					__SQL_DEBUG(query.str());
+					query.execute();
+				}
+			}
+
+			processed_end = batch_end;
 		}
 
-		if(any_found) {
-			Item::save_db_end(query, qp);
+		txn.commit();
 
-			if(!qp.empty()) {
-				query.parse();
-				__SQL_DEBUG(query.str(qp));
-				query.execute(qp);
-			}
-			else {
-				__SQL_DEBUG(query.str());
-				query.execute();
-			}
-
-			txn.commit();
-
-			// mark all as saved!
-			for(item_set_iterator itr = Item::save_db_set.begin(); itr != Item::save_db_set.end(); ++itr) {
-				typename Item::pointer p_item(itr->lock());
-				if(p_item)
-					Item::set_save_pending(p_item, false);
-			}
+		// mark all as saved!
+		for(item_set_iterator itr = begin; itr != processed_end; ++itr) {
+			typename Item::pointer p_item(itr->lock());
+			if(p_item)
+				Item::set_save_pending(p_item, false);
 		}
 
-		// empty the set!
-		item_set empty_set;
-		std::swap(empty_set, Item::save_db_set);
+		if (processed_end == end) {
+			// empty the set!
+			item_set empty_set;
+			std::swap(empty_set, Item::save_db_set);
+		} else {
+			// otherwise erase those we are done with
+			Item::save_db_set.erase(begin, processed_end);
+		}
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
@@ -744,18 +766,13 @@ public:
 			rml::MySQLConnection conn(*p_pool_);
 			mysqlpp::Transaction txn(*conn, false);
 
-			mysqlpp::Query query = conn->query();
+			std::list<uint64_t> ids_list;
 
-			bool list_first(true);
-
-			query << "DELETE FROM `ArchivingInternal`.`"<<table_name<<"` WHERE `"<<field_name<<"` IN (";
 			for(Iter itr = begin; itr != end; ++itr) {
-				uint64_t id(
-						extract_id(*itr));
+				uint64_t id = extract_id(*itr);
 
 				if(id) {
-					query << (list_first? ' ': ',') << id;
-					list_first = false;
+					ids_list.push_back(id);
 				}
 				else {
 					const archiving::archivable::identifier& identifier(
@@ -777,12 +794,28 @@ public:
 					query.execute();
 				}
 			}
-			query << " )";
 
-			// if we encountered any ID, we can use the more optimised SQL
-			if(!list_first) {
-				__SQL_DEBUG(query.str());
-				query.execute();
+			if (!ids_list.empty()) {
+				std::list<uint64_t>::iterator ids_begin = ids_list.begin();
+				std::list<uint64_t>::iterator ids_end = ids_list.end();
+
+				std::list<uint64_t>::iterator ids_itr = begin;
+				while (ids_itr != ids_end) {
+					bool batch_first = true;
+
+					mysqlpp::Query ids_query = conn->query();
+					ids_query << "DELETE FROM `ArchivingInternal`.`"<<table_name<<"` WHERE `"<<field_name<<"` IN (";
+
+					for (int i = 0; i < 1000 && ids_itr != ids_end; i++, ++ids_itr) {
+						ids_query << (batch_first? ' ': ',') << *ids_itr;
+						batch_first = false;
+					}
+
+					ids_query << " )";
+
+					__SQL_DEBUG(ids_query.str());
+					ids_query.execute();
+				}
 			}
 
 			txn.commit();

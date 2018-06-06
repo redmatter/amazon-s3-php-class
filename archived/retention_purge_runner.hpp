@@ -253,7 +253,9 @@ public:
 		LogMessage("Saving and terminating retention purge module");
 
 		// save items
-		internal_db_.batch_save_run< item, item::weak_set_t >();
+		const boost::posix_time::ptime& batch_save_run_till(
+				boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(30));
+		internal_db_.batch_save_run< item, item::weak_set_t >(batch_save_run_till);
 
 		// consume everything from finished_channel and DELETE them
 		finished_channel_.set_finishing();
