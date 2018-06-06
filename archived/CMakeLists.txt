@@ -37,7 +37,7 @@ set(HEADER_FILES
         suppress_headers_check.hpp
         types.hpp
         whisper_client.hpp
-        )
+        macros.h)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)
