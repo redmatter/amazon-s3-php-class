@@ -788,7 +788,7 @@ public:
 					std::string uuid_hex(identifier.uuid);
 					boost::algorithm::erase_all(uuid_hex, "-");
 
-					query << "DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue`"
+                    query << "DELETE FROM `ArchivingInternal`.`" << table_name << "`"
 							" WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=0x"<<uuid_hex<<" /* "<< identifier.uuid <<" */";
 					__SQL_DEBUG(query.str());
 					query.execute();
@@ -799,7 +799,7 @@ public:
 				std::list<uint64_t>::iterator ids_begin = ids_list.begin();
 				std::list<uint64_t>::iterator ids_end = ids_list.end();
 
-				std::list<uint64_t>::iterator ids_itr = begin;
+				std::list<uint64_t>::iterator ids_itr = ids_begin;
 				while (ids_itr != ids_end) {
 					bool batch_first = true;
 
