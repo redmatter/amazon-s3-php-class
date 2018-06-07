@@ -12,12 +12,14 @@
 #include "operation_data.hpp"
 #include "types.hpp"
 #include "retention_record.hpp"
+#include "macros.h"
 
 #include "../common/policy.hpp"
 #include "../common/basic_database.hpp"
 #include "../common/coreapi_eventlog.hpp"
 
-#include <rml/DBConnectionPool.h>
+#include <rml/database/mysql/basic_database.hpp>
+#include <rml/database/mysql/errors.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
 
@@ -46,16 +48,18 @@ extern std::string hostname;
 
 namespace database {
 
-class retention_delete : public basic_database< retention_delete >
+namespace rmldb = rml::database::mysql;
+
+class retention_delete : public rmldb::basic_database<retention_delete>
 {
 public:
     static inline const char* get_identifier()
     {
-        static const char* identifier = "retention_delete";
-        return identifier;
+        return "retention_delete";
     }
 
-    explicit retention_delete(const boost::program_options::variables_map &confMap) : basic_database<retention_delete>(confMap)
+    explicit retention_delete(const boost::program_options::variables_map& confMap) :
+            rmldb::basic_database<retention_delete>(confMap)
     {}
 
     template<typename Iter, typename ExtractIdentifier, typename IsInternalFiletype>
@@ -70,42 +74,53 @@ public:
 
         try
         {
-            rml::MySQLConnection conn(*p_pool_);
+            boost::shared_ptr<rmldb::connection> conn = pool_->grab();
             mysqlpp::Transaction transaction(*conn, false);
 
-            for(Iter itr = begin; itr != end; ++itr)
-            {
-                const archiving::archivable::identifier& id(extract_identifier(*itr));
-                if (!is_internal_filetype(id)) {
-                    LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
-                    return false;
+            try {
+                for(Iter itr = begin; itr != end; ++itr)
+                {
+                    const archiving::archivable::identifier& id(extract_identifier(*itr));
+                    if (!is_internal_filetype(id)) {
+                        LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
+                        return false;
+                    }
+
+                    std::string uuid_hex(id.uuid);
+                    boost::algorithm::erase_all(uuid_hex, "-");
+
+                    {
+                        mysqlpp::Query query = conn->query();
+                        query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                                                                                                                        " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                        SqlDebug(conn, query.str());
+                        query.execute();
+                    }
+
+                    {
+                        mysqlpp::Query query = conn->query();
+                        query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                                                                                                                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                        SqlDebug(conn, query.str());
+                        query.execute();
+                    }
                 }
 
-                std::string uuid_hex(id.uuid);
-                boost::algorithm::erase_all(uuid_hex, "-");
+                transaction.commit();
 
-                {
-                    mysqlpp::Query query = conn->query();
-                    query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                    __SQL_DEBUG(query.str());
-                    query.execute();
-                }
-
-                {
-                    mysqlpp::Query query = conn->query();
-                    query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                    __SQL_DEBUG(query.str());
-                    query.execute();
+                return true;
+            }
+            catch (const mysqlpp::BadQuery& e) {
+                LogError("MySQL Error: "<<e.what());
+                if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
+                    conn->disable_exceptions();
+                    transaction.rollback();
+                    conn->disconnect();
+                    pool_->release_faulty(conn);
                 }
             }
-
-            transaction.commit();
-
-            return true;
         }
         catch(const std::exception& e) {
             LogWarning("Failed to delete from retention-database - err:"<<e.what());
