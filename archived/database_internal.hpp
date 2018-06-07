@@ -33,6 +33,7 @@
 
 #include <time.h>
 #include <mysql++/row.h>
+#include <mysql++/sql_types.h>
 
 #define distribute_org_id " ( `OrgID` % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset "
 
