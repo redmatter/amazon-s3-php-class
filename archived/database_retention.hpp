@@ -331,7 +331,7 @@ public:
 			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
 			const bool& org_had_legacy_ondemand_purge,
 			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
-	{
+	try {
 		uint64_t new_max_retention_id = max_retention_id;
 		retention_record::set_t retention_set;
 
@@ -423,11 +423,20 @@ public:
 				pool_->release_faulty(conn);
 			}
 		}
-		catch (const mysqlpp::BadQuery& e) {
-			LogError("Exception: "<<e.what());
-		}
 
 		return new_max_retention_id;
+	}
+	catch(const mysqlpp::Exception& e) {
+		LogError("MySQL Exception: "<<e.what());
+		return max_retention_id;
+	}
+	catch(const std::exception& e) {
+		LogError("Exception: "<<e.what());
+		return max_retention_id;
+	}
+	catch(...) {
+		LogError("Unknown Exception");
+		return max_retention_id;
 	}
 
 	retention_record::pointer get_retention(const archiving::archivable::identifier& identifier)
