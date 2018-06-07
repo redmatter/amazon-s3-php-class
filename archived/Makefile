@@ -1,7 +1,7 @@
 VERSION_FILE=../version_info
 include /usr/share/librml/Makefile.macros
 
-RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-utils
+RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-database-mysql
 RML_DATABASE_MYSQL_DIR=../$(RML_DATABASE_MYSQL_GIT_SUBMODULE)
 RML_DATABASE_MYSQL_HPP=$(RML_DATABASE_MYSQL_DIR)/rml/database/mysql/connection.hpp
 
