@@ -443,8 +443,12 @@ int main(int argc, char *argv[]) try
 				more_to_reload = p_retention_purge_runner->reload_from_database();
 
 			// occasionally save items to DB
-			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>()))
-				internal_db.batch_save_run< app::retention_purge::item, app::retention_purge::item::weak_set_t >();
+			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>())) {
+				const boost::posix_time::ptime& batch_save_run_till(
+						boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(15));
+				internal_db.batch_save_run<app::retention_purge::item, app::retention_purge::item::weak_set_t>(
+						batch_save_run_till);
+			}
 
 			if(monitor_pending || !(ticker % 60)) {
 				boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(50);
