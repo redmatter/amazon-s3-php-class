@@ -74,7 +74,7 @@ public:
 
         try
         {
-            boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+            boost::shared_ptr<rmldb::connection> conn = get_connection();
             mysqlpp::Transaction transaction(*conn, false);
 
             try {
@@ -114,12 +114,7 @@ public:
             }
             catch (const mysqlpp::BadQuery& e) {
                 LogError("MySQL Error: "<<e.what());
-                if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-                    conn->disable_exceptions();
-                    transaction.rollback();
-                    conn->disconnect();
-                    pool_->release_faulty(conn);
-                }
+                abandon_connection_if_faulty(conn, transaction, e);
             }
         }
         catch(const std::exception& e) {

@@ -61,7 +61,7 @@ public:
 	bool save(operation_data::pointer& opdata)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction transaction(*conn, false);
 
 			const operation_data::detail& opdetail(*(opdata->p_detail));
@@ -194,13 +194,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: " << e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					// just in case we get the error classification wrong!
-					// make sure we dont get another exception from any of the operations below
-					conn->disable_exceptions();
-					transaction.rollback();
-					conn->disconnect();
-					pool_->release_faulty(conn);
+				if (abandon_connection_if_faulty(conn, transaction, e)) {
 					return false;
 				}
 			}
@@ -243,7 +237,7 @@ public:
 		static uint64_t max_id = 0;
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			try {
 				if(first) {
 					mysqlpp::Query query = conn->query();
@@ -316,7 +310,7 @@ public:
 
 							files_map_t files_map;
 							{
-								boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+								boost::shared_ptr<rmldb::connection> conn = get_connection();
 								mysqlpp::Query query = conn->query();
 								query << "SELECT FileFormat, Path FROM ArchivingInternal.ArchiveDQueueFiles WHERE ArchiveDQueueID=%0:ID";
 								query.parse();
@@ -362,13 +356,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: " << e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					// just in case we get the error classification wrong!
-					// make sure we dont get another exception from any of the operations below
-					conn->disable_exceptions();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, e);
 			}
 			catch(const mysqlpp::Exception& e) {
 				LogError("MySQL Error: "<<e.what());
@@ -391,7 +379,7 @@ public:
 	bool purge(const std::set< operation_data::pointer >& purgeables)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction trans(*conn);
 
 			try {
@@ -416,13 +404,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					// just in case we get the error classification wrong!
-					// make sure we dont get another exception from any of the operations below
-					conn->disable_exceptions();
-					trans.rollback();
-					conn->disconnect();
-					pool_->release_faulty(conn);
+				if (abandon_connection_if_faulty(conn, trans, e)) {
 					return false;
 				}
 			}
@@ -453,7 +435,7 @@ public:
 	{
 		std::string path;
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction trans(*conn);
 
 			try {
@@ -498,14 +480,7 @@ public:
 				}
 
 				LogError("Bad Query: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					// just in case we get the error classification wrong!
-					// make sure we dont get another exception from any of the operations below
-					conn->disable_exceptions();
-					trans.rollback();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, trans, e);
 
 				throw;
 			}
@@ -524,7 +499,7 @@ public:
 			const bool is_hardlink=true)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			try {
 				mysqlpp::Query query = conn->query();
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDClearCache` "
@@ -556,10 +531,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					conn->disable_exceptions();
-					conn->disconnect();
-					pool_->release_faulty(conn);
+				if (abandon_connection_if_faulty(conn, e)) {
 					return false;
 				}
 			}
@@ -600,7 +572,7 @@ public:
 		try {
 			types::purge_def::pointer p_ret(new types::purge_def());
 
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 
 			try {
 				if(!previous->set.empty())
@@ -680,11 +652,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					conn->disable_exceptions();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, e);
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -703,7 +671,7 @@ public:
 	long get_purge_queue_size(const int& purge_max_queue_size, const std::string& enabled_orgs, const std::string& state_filter)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			try {
 				mysqlpp::Query query = conn->query();
 
@@ -727,11 +695,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					conn->disable_exceptions();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, e);
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -772,7 +736,7 @@ public:
 		if(Item::save_db_set.begin() == Item::save_db_set.end()) // empty?
 			return;
 
-		boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+		boost::shared_ptr<rmldb::connection> conn = get_connection();
 		mysqlpp::Transaction txn(*conn, false);
 
 		try {
@@ -852,13 +816,7 @@ public:
 		}
 		catch (const mysqlpp::BadQuery& e) {
 			LogError("MySQL Error: "<<e.what());
-			if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-				conn->disable_exceptions();
-				txn.rollback();
-				conn->disconnect();
-				pool_->release_faulty(conn);
-			}
-
+			abandon_connection_if_faulty(conn, txn, e);
 			throw;
 		}
 	}
@@ -882,7 +840,7 @@ public:
 			static ExtractID extract_id;
 			static ExtractIdentifier extract_identifier;
 
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction txn(*conn, false);
 
 			try {
@@ -944,12 +902,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					conn->disable_exceptions();
-					txn.rollback();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, txn, e);
 			}
 		}
 		catch(const mysqlpp::Exception& e) {
@@ -972,7 +925,7 @@ public:
 	 */
 	inline uint64_t get_purge_queue_max_id() try
 	{
-		boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+		boost::shared_ptr<rmldb::connection> conn = get_connection();
 		try {
 			mysqlpp::Query query = conn->query();
 
@@ -986,11 +939,7 @@ public:
 		}
 		catch (const mysqlpp::BadQuery& e) {
 			LogError("MySQL Error: "<<e.what());
-			if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-				conn->disable_exceptions();
-				conn->disconnect();
-				pool_->release_faulty(conn);
-			}
+			abandon_connection_if_faulty(conn, e);
 		}
 
 		return 0;
@@ -1020,7 +969,7 @@ public:
 		try {
 			ExtractID extract_id;
 
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction txn(*conn, false);
 
 			try {
@@ -1092,12 +1041,7 @@ public:
 			}
 			catch (const mysqlpp::BadQuery& e) {
 				LogError("MySQL Error: "<<e.what());
-				if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-					conn->disable_exceptions();
-					txn.rollback();
-					conn->disconnect();
-					pool_->release_faulty(conn);
-				}
+				abandon_connection_if_faulty(conn, txn, e);
 			}
 		}
 		catch(const mysqlpp::Exception& e) {

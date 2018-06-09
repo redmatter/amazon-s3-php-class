@@ -14,14 +14,8 @@
 
 #include <rml/database/mysql/basic_database.hpp>
 #include <rml/database/mysql/errors.hpp>
-
-#include "../common/basic_database.hpp"
-
-#include <rml/DBConnectionPool.h>
 #include <rml/exception.h>
 #include <rml/logger.h>
-
-#include <mysql/mysqld_error.h>
 
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
@@ -53,7 +47,7 @@ public:
 	bool save(whisper::pointer p_whisper)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = pool_->grab();
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
             try {
                 mysqlpp::Query query = conn->query();
                 query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
@@ -71,13 +65,7 @@ public:
             }
             catch (const mysqlpp::BadQuery& e) {
                 LogError("MySQL Error: "<<e.what());
-                if (rml::database::mysql::errors::is_connection_invalidated_by_exception(e)) {
-                    // just in case we get the error classification wrong!
-                    // make sure we dont get another exception from any of the operations below
-                    conn->disable_exceptions();
-                    conn->disconnect();
-                    pool_->release_faulty(conn);
-                }
+                abandon_connection_if_faulty(conn, e);
             }
 		}
 		catch(const mysqlpp::Exception& e) {
