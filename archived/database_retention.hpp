@@ -441,8 +441,8 @@ public:
 				query << "SELECT"
 					  << retention_select_fields() <<
 					  "FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
-																			   "WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
-																																															 "LIMIT 1";
+					  "WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
+					  "LIMIT 1";
 
 				SqlDebug(conn, query.str());
 
@@ -603,18 +603,17 @@ public:
 			boost::shared_ptr<rmldb::connection> conn = get_connection();
 			mysqlpp::Transaction transaction(*conn, false);
 			try {
-				mysqlpp::Query query = conn->query();
-				query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+				for(Iter itr = begin; itr != end; ) {
+					mysqlpp::Query query = conn->query();
+					query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+					for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
+						query << ((!i)?' ':',')<<extract_id(*itr);
+					}
+					query << " )";
 
-				bool first_one = true;
-				for(Iter itr = begin; itr != end; ++itr) {
-					query << (first_one?' ':',')<<extract_id(*itr);
-					first_one = false;
+					PURGE_SQL_DEBUG(conn, query.str());
+					query.execute();
 				}
-				query << " )";
-
-				PURGE_SQL_DEBUG(conn, query.str());
-				query.execute();
 				transaction.commit();
 
 				return true;
