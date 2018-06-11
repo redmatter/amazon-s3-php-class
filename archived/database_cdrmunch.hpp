@@ -1,22 +1,21 @@
-/*
- * database.hpp
- *
- *  Created on: 7 Mar 2011
- *      Author: dkorah
- */
+//
+// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 07/03/2011.
+//
 
 #ifndef CDRMUNCH_DATABASE_HPP_
 #define CDRMUNCH_DATABASE_HPP_
 
 #include "whisper_client.hpp"
+#include "macros.h"
 
-#include "../common/basic_database.hpp"
-
-#include <rml/DBConnectionPool.h>
+#include <rml/database/mysql/basic_database.hpp>
+#include <rml/database/mysql/errors.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
-
-#include <mysql/mysqld_error.h>
 
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
@@ -30,38 +29,44 @@ namespace app {
 
 namespace database {
 
-class cdrmunch : public basic_database< cdrmunch >
+namespace rmldb = rml::database::mysql;
+
+class cdrmunch : public rmldb::basic_database<cdrmunch>
 {
 public:
-	static inline_ const char* get_identifier()
+	static inline const char* get_identifier()
 	{
-		static const char* identifier = "cdrmunch";
-		return identifier;
+		return "cdrmunch";
 	}
 
-	cdrmunch(const boost::program_options::variables_map& confMap) :
-		basic_database< cdrmunch >(confMap)
+	explicit cdrmunch(const boost::program_options::variables_map& confMap) :
+		rmldb::basic_database<cdrmunch>(confMap)
 	{
 	}
 
 	bool save(whisper::pointer p_whisper)
 	{
 		try {
-			rml::MySQLConnection conn(*p_pool_); // scoped connection
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			try {
+				mysqlpp::Query query = conn->query();
+				query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
+						 " VALUES "
+						 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
+				query.parse();
 
-			mysqlpp::Query query = conn->query();
-			query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
-					 " VALUES "
-					 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
-			query.parse();
+				mysqlpp::SQLQueryParms qp;
+				qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-			mysqlpp::SQLQueryParms qp;
-			qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
+				SqlDebug(conn, query.str(qp));
+				query.execute(qp);
 
-			SQL_DEBUG(query.str(qp));
-			query.execute(qp);
-
-			return true;
+				return true;
+			}
+			catch (const mysqlpp::BadQuery& e) {
+				LogError("MySQL Error: "<<e.what());
+				abandon_connection_if_faulty(conn, e);
+			}
 		}
 		catch(const mysqlpp::Exception& e) {
 			LogError("MySQL Exception: "<<e.what());
