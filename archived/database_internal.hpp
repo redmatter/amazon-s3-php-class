@@ -383,21 +383,23 @@ public:
 			mysqlpp::Transaction trans(*conn);
 
 			try {
-				mysqlpp::Query query = conn->query();
+				const std::set<operation_data::pointer>::const_iterator& end(purgeables.end());
+				for(std::set< operation_data::pointer >::const_iterator itr = purgeables.begin(); itr != end; ) {
+					mysqlpp::Query query = conn->query();
+					query << "DELETE FROM ArchivingInternal.ArchiveDQueue WHERE ID IN (";
 
-				query << "DELETE FROM ArchivingInternal.ArchiveDQueue WHERE ID IN (";
+					for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
+						if(!i) {
+							query << ',';
+						}
+						query << '\n'<<(*itr)->p_detail->database_id << " /*"<<(*itr)->p_detail->identifier<<"*/";
+					}
+					query << ')';
 
-				for(std::set< operation_data::pointer >::const_iterator itr = purgeables.begin(); itr != purgeables.end(); ++itr) {
-					if(itr != purgeables.begin())
-						query << ',';
-					query << '\n'<<(*itr)->p_detail->database_id << " /*"<<(*itr)->p_detail->identifier<<"*/";
+					SqlDebug(conn, query.str());
+					query.execute();
 				}
 
-				query << ')';
-
-				SqlDebug(conn, query.str());
-
-				query.execute();
 				trans.commit();
 
 				return true;
@@ -443,7 +445,9 @@ public:
 				{
 					mysqlpp::Query query = conn->query();
 					query << "SELECT ID, Path FROM `ArchivingInternal`.`ArchiveDClearCache` "
-							 "WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', '')) AND FileFormat=%2:FileFormat AND HostName=%3q:HostName "
+							 "WHERE OrgID=%0:OrgID AND UUID=UNHEX(REPLACE(%1q:Identifier, '-', ''))"
+							 " AND FileFormat=%2:FileFormat"
+							 " AND HostName=%3q:HostName "
 							 "FOR UPDATE";
 					query.parse();
 
@@ -868,7 +872,7 @@ public:
 
 						query << "DELETE FROM `ArchivingInternal`.`" << table_name << "`"
 																					  " WHERE `OrgID` = " << identifier.org << " AND `FileType` = "<< (int)(identifier.filetype) <<" AND `UUID`=0x"<<uuid_hex<<" /* "<< identifier.uuid <<" */";
-                        SqlDebug(conn, query.str());
+						SqlDebug(conn, query.str());
 						query.execute();
 					}
 				}
