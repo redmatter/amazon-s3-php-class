@@ -23,8 +23,6 @@
 #include <rml/exception.h>
 #include <rml/logger.h>
 
-#include <mysql/mysqld_error.h>
-
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -33,14 +31,6 @@
 #include <set>
 
 #include <time.h>
-
-#ifdef RETENTION_PURGE_SQL_DEBUG
-#define __SQL_DEBUG(line) \
-    SQL_DEBUG_IF(true, line)
-#else
-#define __SQL_DEBUG(line) \
-    SQL_DEBUG(line)
-#endif
 
 namespace app {
 
@@ -78,33 +68,36 @@ public:
             mysqlpp::Transaction transaction(*conn, false);
 
             try {
-                for(Iter itr = begin; itr != end; ++itr)
-                {
-                    const archiving::archivable::identifier& id(extract_identifier(*itr));
-                    if (!is_internal_filetype(id)) {
-                        LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
-                        return false;
-                    }
+                for(Iter itr = begin; itr != end; ) {
+                    for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
 
-                    std::string uuid_hex(id.uuid);
-                    boost::algorithm::erase_all(uuid_hex, "-");
+                        const archiving::archivable::identifier& id(extract_identifier(*itr));
+                        if (!is_internal_filetype(id)) {
+                            LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
+                            return false;
+                        }
 
-                    {
-                        mysqlpp::Query query = conn->query();
-                        query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                                                                                                                        " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                        SqlDebug(conn, query.str());
-                        query.execute();
-                    }
+                        std::string uuid_hex(id.uuid);
+                        boost::algorithm::erase_all(uuid_hex, "-");
 
-                    {
-                        mysqlpp::Query query = conn->query();
-                        query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                                                                                                                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                        SqlDebug(conn, query.str());
-                        query.execute();
+                        {
+                            mysqlpp::Query query = conn->query();
+                            query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
+                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                            PURGE_SQL_DEBUG(conn, query.str());
+                            query.execute();
+                        }
+
+                        {
+                            mysqlpp::Query query = conn->query();
+                            query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
+                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                            PURGE_SQL_DEBUG(conn, query.str());
+                            query.execute();
+                        }
+
                     }
                 }
 
