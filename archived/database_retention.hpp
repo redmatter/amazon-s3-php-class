@@ -1,9 +1,10 @@
-/*
- * database.hpp
- *
- *  Created on: 7 Mar 2011
- *      Author: dkorah
- */
+//
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 07/03/2011.
+//
 
 #ifndef DATABASE_RETENTION_HPP_
 #define DATABASE_RETENTION_HPP_
@@ -607,7 +608,7 @@ public:
 					mysqlpp::Query query = conn->query();
 					query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
 					for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-						query << ((!i)?' ':',')<<extract_id(*itr);
+						query << (i ? ',' : ' ')<<extract_id(*itr);
 					}
 					query << " )";
 
