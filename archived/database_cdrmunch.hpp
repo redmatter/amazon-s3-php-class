@@ -48,25 +48,25 @@ public:
 	{
 		try {
 			boost::shared_ptr<rmldb::connection> conn = get_connection();
-            try {
-                mysqlpp::Query query = conn->query();
-                query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
-                         " VALUES "
-                         "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
-                query.parse();
+			try {
+				mysqlpp::Query query = conn->query();
+				query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
+						 " VALUES "
+						 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
+				query.parse();
 
-                mysqlpp::SQLQueryParms qp;
-                qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
+				mysqlpp::SQLQueryParms qp;
+				qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-                SqlDebug(conn, query.str(qp));
-                query.execute(qp);
+				SqlDebug(conn, query.str(qp));
+				query.execute(qp);
 
-                return true;
-            }
-            catch (const mysqlpp::BadQuery& e) {
-                LogError("MySQL Error: "<<e.what());
-                abandon_connection_if_faulty(conn, e);
-            }
+				return true;
+			}
+			catch (const mysqlpp::BadQuery& e) {
+				LogError("MySQL Error: "<<e.what());
+				abandon_connection_if_faulty(conn, e);
+			}
 		}
 		catch(const mysqlpp::Exception& e) {
 			LogError("MySQL Exception: "<<e.what());
