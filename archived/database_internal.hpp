@@ -14,6 +14,7 @@
 
 #include "../common/policy.hpp"
 #include "macros.h"
+#include "legal_hold/status.hpp"
 
 #include <rml/database/mysql/basic_database.hpp>
 #include <rml/database/mysql/errors.hpp>
@@ -1057,6 +1058,43 @@ public:
 		catch(...) {
 			LogError("Unknown Exception");
 		}
+	}
+
+	inline legal_hold_status get_legal_hold_status(const archiving::org_id_t org_id, const uint64_t retention_id)
+	{
+		try
+		{
+			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			try {
+				mysqlpp::Query query = conn->query();
+
+				query << "SELECT `LegalHoldCount`, `RestrictAccessCount` "
+						 "FROM `ArchivingInternal`.`LegalHoldCache` "
+						 "WHERE `OrgID` = %1:OrgID AND `RetentionID` = %2:RetentionID "
+						 "LIMIT 1";
+				query.parse();
+
+				mysqlpp::SQLQueryParms qp;
+				qp << org_id << retention_id;
+
+				SqlDebug(conn, query.str(qp));
+
+				mysqlpp::StoreQueryResult res = query.store();
+				if (!res.empty()) {
+					const mysqlpp::Row& row(res[0]);
+					return legal_hold_status(static_cast<int>(row[0]) > 0, static_cast<int>(row[1]) > 0);
+				}
+			}
+			catch (const mysqlpp::BadQuery& e) {
+				abandon_connection_if_faulty(conn, e);
+				throw;
+			}
+		}
+		catch(const std::exception& e) {
+			LogError("Exception: "<<e.what());
+		}
+
+		return legal_hold_status();
 	}
 };
 

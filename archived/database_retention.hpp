@@ -205,9 +205,10 @@ public:
 
 	int get_retention_for_purge_ondemand(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
-			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
+			const boost::function< bool(retention_record::pointer) >& is_purgeable,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
-			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables,
+			const boost::function<bool(retention_record::pointer)>& fn_is_purge_restricted_by_legal_hold)
 	{
 		int count(0);
 
@@ -258,9 +259,15 @@ public:
 
 						mysqlpp::UseQueryResult res = query.use();
 						while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
-							if(!is_purgeaple(rec)) {
+							if(!is_purgeable(rec)) {
 								not_purgeable_items++;
 								LogVerbose(rec->identifier<<" : Not yet purgeable");
+								continue;
+							}
+
+							if (fn_is_purge_restricted_by_legal_hold(rec)) {
+								not_purgeable_items++;
+								LogVerbose(rec->identifier<<" : Not allowed due to legal-hold");
 								continue;
 							}
 
@@ -321,11 +328,12 @@ public:
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
 			const std::string& where_configured_restrictions,
-			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
+			const boost::function< bool(retention_record::pointer) >& is_purgeable,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
 			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
 			const bool& org_had_legacy_ondemand_purge,
-			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables,
+			const boost::function<bool(retention_record::pointer)>& fn_is_purge_restricted_by_legal_hold)
 	try {
 		uint64_t new_max_retention_id = max_retention_id;
 		retention_record::set_t retention_set;
@@ -354,7 +362,7 @@ public:
 
 				mysqlpp::UseQueryResult res = query.use();
 				while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
-					if(is_purgeaple(rec)) {
+					if(is_purgeable(rec) && !fn_is_purge_restricted_by_legal_hold(rec)) {
 						limit_remaining--;
 						retention_set.insert(rec);
 					}
