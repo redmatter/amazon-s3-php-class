@@ -78,14 +78,6 @@ class App extends \BaseApp
             throw new \RuntimeException('No authorization creds specified in config');
         }
 
-        /** @noinspection PhpUnusedLocalVariableInspection */
-        /** @noinspection OnlyWritesOnParameterInspection */
-        $authorizationSentry = new \ScopeSentry(
-            function () {
-                \API::LogOut();
-            }
-        );
-
         $this->_dgapi = new DGAPI(
             $config->get('dgapi.base_url', 'http://dgapi'),
             function () {
@@ -99,6 +91,11 @@ class App extends \BaseApp
                 return null;
             }
         );
+    }
+
+    public function __destruct()
+    {
+        \API::LogOut();
     }
 
     /**
