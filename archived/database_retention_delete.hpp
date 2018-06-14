@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
 // Unauthorized copying of this file, via any medium is strictly prohibited
 // Proprietary and confidential
 //
@@ -62,42 +62,37 @@ public:
             return true;
         }
 
-        try
-        {
+        try {
             boost::shared_ptr<rmldb::connection> conn = get_connection();
             mysqlpp::Transaction transaction(*conn, false);
 
             try {
-                for(Iter itr = begin; itr != end; ) {
-                    for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
+                for(Iter itr = begin; itr != end; ++itr) {
+                    const archiving::archivable::identifier& id(extract_identifier(*itr));
+                    if (!is_internal_filetype(id)) {
+                        LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
+                        return false;
+                    }
 
-                        const archiving::archivable::identifier& id(extract_identifier(*itr));
-                        if (!is_internal_filetype(id)) {
-                            LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
-                            return false;
-                        }
+                    std::string uuid_hex(id.uuid);
+                    boost::algorithm::erase_all(uuid_hex, "-");
 
-                        std::string uuid_hex(id.uuid);
-                        boost::algorithm::erase_all(uuid_hex, "-");
+                    {
+                        mysqlpp::Query query = conn->query();
+                        query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                                                                                                                        " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                        PURGE_SQL_DEBUG(conn, query.str());
+                        query.execute();
+                    }
 
-                        {
-                            mysqlpp::Query query = conn->query();
-                            query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
-                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                            PURGE_SQL_DEBUG(conn, query.str());
-                            query.execute();
-                        }
-
-                        {
-                            mysqlpp::Query query = conn->query();
-                            query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                            PURGE_SQL_DEBUG(conn, query.str());
-                            query.execute();
-                        }
-
+                    {
+                        mysqlpp::Query query = conn->query();
+                        query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
+                            "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                                                                                                                                            " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
+                        PURGE_SQL_DEBUG(conn, query.str());
+                        query.execute();
                     }
                 }
 

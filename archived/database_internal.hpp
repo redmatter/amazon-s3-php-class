@@ -1,9 +1,10 @@
-/*
- * database.hpp
- *
- *  Created on: 7 Mar 2011
- *      Author: dkorah
- */
+//
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 07/03/2011.
+//
 
 #ifndef DATABASE_INTERNAL_HPP_
 #define DATABASE_INTERNAL_HPP_
@@ -389,10 +390,8 @@ public:
 					query << "DELETE FROM ArchivingInternal.ArchiveDQueue WHERE ID IN (";
 
 					for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-						if(!i) {
-							query << ',';
-						}
-						query << '\n'<<(*itr)->p_detail->database_id << " /*"<<(*itr)->p_detail->identifier<<"*/";
+						query << (i ? ',' : ' ') << (*itr)->p_detail->database_id
+							  << " /*"<<(*itr)->p_detail->identifier<<"*/";
 					}
 					query << ')';
 
@@ -883,14 +882,11 @@ public:
 
 					std::list<uint64_t>::iterator ids_itr = ids_begin;
 					while (ids_itr != ids_end) {
-						bool batch_first = true;
-
 						mysqlpp::Query ids_query = conn->query();
 						ids_query << "DELETE FROM `ArchivingInternal`.`"<<table_name<<"` WHERE `"<<field_name<<"` IN (";
 
 						for (int i = 0; i < 1000 && ids_itr != ids_end; i++, ++ids_itr) {
-							ids_query << (batch_first? ' ': ',') << *ids_itr;
-							batch_first = false;
+							ids_query << (i ? ',' : ' ') << *ids_itr;
 						}
 
 						ids_query << " )";

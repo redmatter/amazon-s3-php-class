@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
 // Unauthorized copying of this file, via any medium is strictly prohibited
 // Proprietary and confidential
 //
