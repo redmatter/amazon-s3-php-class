@@ -14,3 +14,6 @@
 [submodule "libs/rml-statistics"]
 	path = libs/rml-statistics
 	url = ssh://git@bitbucket.redmatter.com/lib/rml-statistics.git
+[submodule "libs/rml-database-mysql"]
+	path = libs/rml-database-mysql
+	url = ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git

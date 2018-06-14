@@ -42,4 +42,3 @@ eml2a/cmake-build-debug
 eml2a/.idea
 modules.xml
 collect-importd/cronjobs/phonero/.idea
-CMakeLists.txt
