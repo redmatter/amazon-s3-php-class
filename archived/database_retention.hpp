@@ -262,7 +262,7 @@ public:
 						boost::shared_ptr<rmldb::connection> conn = get_connection();
 
 						// if we go beyond @@group_concat_max_len we need to safely ignore any broken IDs, and capture them in the next iteration
-						std::string ids(row[0].c_str());
+						std::string ids(row[2].c_str());
 						if (ids.length() > (MYSQL_GROUP_CONCAT_BUF_LENGTH - 15)) {
 							not_purgeable_items = 1; // so that the purge-request wouldn't get marked as Done
 							const std::string::size_type sep_pos(ids.rfind(','));
