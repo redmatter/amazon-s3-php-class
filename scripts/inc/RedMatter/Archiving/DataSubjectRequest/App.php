@@ -13,6 +13,9 @@
  * @link      http://www.redmatter.com
  */
 
+// Workaround for documentation bug in SysLogger
+/** @noinspection StaticInvocationViaThisInspection */
+
 namespace RedMatter\Archiving\DataSubjectRequest;
 
 use RedMatter\Cache\Cache;
@@ -144,10 +147,14 @@ class App extends \BaseApp
 
         foreach ($requests as $request)
         {
+            $logContext = new \SysLogContext("Org:{$orgId} Delete-request:{$request->ID}");
+
             try
             {
                 $requestId = (int)$request->ID;
                 $requestUserId = (int)$request->UserID;
+
+                $logContext->LogVerbose("User:{$requestUserId} - Processing ...");
 
                 $retentionDb->StartTransaction();
 
@@ -169,6 +176,10 @@ class App extends \BaseApp
                         " AND r.`Type` = {$type} " .
                         " AND r_.`Type` IN ($assocStr)"
                     );
+                    $assocAddedCount = $retentionDb->affected_rows;
+                    if ($assocAddedCount) {
+                        $logContext->LogMessage("{$assocAddedCount} associated objects (" . \Archiving::GetFileTypeStr($type) . ') added');
+                    }
                 }
 
                 // ------------- auto-approve items ------------
@@ -191,6 +202,10 @@ class App extends \BaseApp
                         " AND i.`State` = 'Pending' " .
                         " AND r.`PolicyID` IN ({$autoApproveUserPoliciesStr})"
                     );
+                    $autoApprovedCount = $retentionDb->affected_rows;
+                    if ($autoApprovedCount > 0) {
+                        $logContext->LogMessage("{$autoApprovedCount} objects auto-approved");
+                    }
 
                     $counts = $retentionDb->query(
                         'SELECT COUNT(*) Count ' .
@@ -201,6 +216,7 @@ class App extends \BaseApp
 
                     if (!$counts[0]->Count)
                     {
+                        $logContext->LogMessage("No items require approval; moving on to 'ReadyForPurge' state");
                         $newState = 'ReadyForPurge';
                     }
                 }
@@ -208,15 +224,20 @@ class App extends \BaseApp
                 $retentionDb->query(
                     "UPDATE `ArchivingRetention`.`DeleteRequest_{$orgId}` " .
                     "SET `State` = '{$newState}' " .
-                    "WHERE `ID` = {$requestId}"
+                    "WHERE `ID` = {$requestId}" .
+                    " AND `State` = 'Pending'"
                 );
+                if ($retentionDb->affected_rows) {
+                    $logContext->LogMessage("Updated with State='{$newState}'");
+                }
 
                 $retentionDb->CommitTransaction();
+                $logContext->LogVerbose('Updates committed');
             }
             catch (\Exception $e)
             {
                 $retentionDb->RollbackTransaction();
-                LogWarning($e);
+                $logContext->LogWarning($e, 'Updates rolled-back');
                 continue;
             }
         }
@@ -242,10 +263,14 @@ class App extends \BaseApp
 
         foreach ($requests as $request)
         {
+            $logContext = new \SysLogContext("Org:{$orgId} Delete-request:{$request->ID}");
+
             try
             {
                 $requestId = (int)$request->ID;
                 $requestUserId = (int)$request->UserID;
+
+                $logContext->LogVerbose("User:{$requestUserId} - Processing...");
 
                 $retentionDb->StartTransaction();
 
@@ -258,15 +283,19 @@ class App extends \BaseApp
                         ' (`LegalHoldID`, `RetentionID`) ' .
                         "SELECT {$requestId}, {$orgId}, r_.`ID`" .
                         ' FROM ' .
-                        "`ArchivingRetention`.`LegalHoldIItems_{$orgId}` i " .
+                        "`ArchivingRetention`.`LegalHoldItems_{$orgId}` i " .
                         "JOIN `ArchivingRetention`.`Retention_{$orgId}` r " .
                         ' ON i.`RetentionID` = r.`ID` ' .
                         "JOIN `ArchivingRetention`.`Retention_{$orgId}` r_ " .
                         ' ON r.`UUID` = r_.`LegUUID` ' .
-                        "WHERE i.`LegalHoldIID` = {$requestId} " .
+                        "WHERE i.`LegalHoldID` = {$requestId} " .
                         " AND r.`Type` = {$type} " .
                         " AND r_.`Type` IN ($assocStr)"
                     );
+                    $assocAddedCount = $retentionDb->affected_rows;
+                    if ($assocAddedCount) {
+                        $logContext->LogMessage("{$assocAddedCount} associated objects (" . \Archiving::GetFileTypeStr($type) . ') added');
+                    }
                 }
 
                 // ------------- auto-approve items ------------
@@ -281,25 +310,30 @@ class App extends \BaseApp
                     $autoApproveUserPoliciesStr = implode(', ', $autoApproveUserPolicies);
 
                     $retentionDb->query(
-                        "UPDATE `ArchivingRetention`.`LegalHoldIItems_{$orgId}` i " .
+                        "UPDATE `ArchivingRetention`.`LegalHoldItems_{$orgId}` i " .
                         "JOIN `ArchivingRetention`.`Retention_{$orgId}` r " .
                         ' ON i.`RetentionID` = r.`ID` ' .
                         "SET i.`State` = 'Approved' " .
-                        "WHERE i.`LegalHoldIID` = {$requestId} " .
+                        "WHERE i.`LegalHoldID` = {$requestId} " .
                         " AND i.`State` = 'Pending' " .
                         " AND r.`PolicyID` IN ({$autoApproveUserPoliciesStr})"
                     );
+                    $autoApprovedCount = $retentionDb->affected_rows;
+                    if ($autoApprovedCount > 0) {
+                        $logContext->LogMessage("{$autoApprovedCount} objects auto-approved");
+                    }
 
                     $counts = $retentionDb->query(
                         'SELECT COUNT(*) Count ' .
-                        "FROM `ArchivingRetention`.`LegalHoldIItems_{$orgId}` i " .
+                        "FROM `ArchivingRetention`.`LegalHoldItems_{$orgId}` i " .
                         "WHERE i.`State` = 'Pending'" .
-                        " AND i.`LegalHoldIID` = {$requestId}"
+                        " AND i.`LegalHoldID` = {$requestId}"
                     )->fetch_all();
 
                     if (!$counts[0]->Count)
                     {
-                        $newState = 'ReadyForPurge';
+                        $logContext->LogMessage("No items require approval; moving on to 'Ready' state");
+                        $newState = 'Ready';
                     }
                 }
 
@@ -308,13 +342,17 @@ class App extends \BaseApp
                     "SET `State` = '{$newState}' " .
                     "WHERE `ID` = {$requestId}"
                 );
+                if ($retentionDb->affected_rows) {
+                    $logContext->LogMessage("Updated with State='{$newState}'");
+                }
 
                 $retentionDb->CommitTransaction();
+                $logContext->LogVerbose('Updates committed');
             }
             catch (\Exception $e)
             {
                 $retentionDb->RollbackTransaction();
-                LogWarning($e);
+                $logContext->LogWarning($e, 'Updates rolled-back');
                 continue;
             }
         }
@@ -866,12 +904,17 @@ class App extends \BaseApp
     private function _expireLegalHold($orgId)
     {
         try {
-            \MySQLiTransactional::Get('retention')->query(
+            $dbc = \MySQLiTransactional::Get('retention');
+            $dbc->query(
                 "UPDATE `ArchivingRetention`.`LegalHold_{$orgId}` " .
                 'SET `State` = "Done" ' .
                 'WHERE `ExpiryDate` <= CURDATE()' .
                 ' AND `State` = "Ready"'
             );
+            $numberOfUpdates = $dbc->affected_rows;
+            if ($numberOfUpdates > 0) {
+                LogMessage("Org: {$orgId} - {$numberOfUpdates} legal-holds set as 'Done'");
+            }
         } catch (\Exception $e) {
             LogWarning($e);
         }

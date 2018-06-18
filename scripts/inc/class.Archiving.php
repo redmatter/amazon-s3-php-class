@@ -245,6 +245,8 @@ class Archiving
 				return self::FILE_TYPE_INT_INFO;
 			case self::FILE_TYPE_STR_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_INT_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_STR_CALL_ANALYSIS:
+				return self::FILE_TYPE_INT_CALL_ANALYSIS;
 
 			default:
 				return self::FILE_TYPE_INT_UNKNOWN;
@@ -276,6 +278,8 @@ class Archiving
 				return self::FILE_TYPE_STR_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_STR_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_INT_CALL_ANALYSIS:
+				return self::FILE_TYPE_STR_CALL_ANALYSIS;
 
 			default:
 				return 'unknown';
@@ -307,6 +311,8 @@ class Archiving
 				return self::FILE_TYPE_EXTENSION_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_EXTENSION_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_INT_CALL_ANALYSIS:
+				return self::FILE_TYPE_EXTENSION_CALL_ANALYSIS;
 			default:
 				return self::FILE_TYPE_EXTENSION_UNKNOWN;
 		}
@@ -331,6 +337,8 @@ class Archiving
 				return self::SUBFORMAT_WAV;
 			case self::SUBFORMAT_STR_MP3:
 				return self::SUBFORMAT_MP3;
+			case self::SUBFORMAT_STR_JSON:
+				return self::SUBFORMAT_JSON;
 			default:
 				return self::SUBFORMAT_UNKNOWN;
 		}
@@ -355,6 +363,8 @@ class Archiving
 				return self::SUBFORMAT_STR_WAV;
 			case self::SUBFORMAT_MP3:
 				return self::SUBFORMAT_STR_MP3;
+			case self::SUBFORMAT_JSON:
+				return self::SUBFORMAT_STR_JSON;
 			default:
 				return self::SUBFORMAT_STR_UNKNOWN;
 		}
