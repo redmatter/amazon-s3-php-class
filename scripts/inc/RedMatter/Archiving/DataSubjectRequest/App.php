@@ -943,7 +943,9 @@ class App extends \BaseApp
 
             foreach ($orgIds as $orgId)
             {
-                if (\DaemonScripts::DispatchAndSleep() && true === \DaemonScripts::Terminate())
+                /** @noinspection DisconnectedForeachInstructionInspection */
+                \DaemonScripts::DispatchAndSleep();
+                if (true === \DaemonScripts::Terminate())
                 {
                     // Exit if Terminate was flagged
                     return 0;
@@ -969,31 +971,33 @@ class App extends \BaseApp
             LogWarning($e);
         }
 
-        $this->_updateTiming();
+        $this->_updateTiming($now);
 
         return 0;
     }
 
     /**
      * Update timing variables
+     *
+     * @param int $fromWhen
      */
-    private function _updateTiming()
+    private function _updateTiming($fromWhen)
     {
         $now = time();
         $config = $this->getConf();
 
-        if ($this->_nextRunTime <= $now)
+        if ($this->_nextRunTime <= $fromWhen)
         {
             $this->_nextRunTime = $now + $config->get('app.run_interval_seconds', 60);
         }
 
-        if ($this->_timeOfNextLastLegalHoldCacheRun <= $now)
+        if ($this->_timeOfNextLastLegalHoldCacheRun <= $fromWhen)
         {
             $this->_timeOfNextLastLegalHoldCacheRun =
                 $now + $config->get('legal_hold.cache_update_interval_seconds', 600);
         }
 
-        if ($this->_timeOfNextNotificationRun <= $now)
+        if ($this->_timeOfNextNotificationRun <= $fromWhen)
         {
             $this->_timeOfNextNotificationRun =
                 $now + $config->get('dsr_notifications.check_interval_seconds', 300);
