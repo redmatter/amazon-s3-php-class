@@ -124,6 +124,9 @@ class App extends \BaseApp
             return true;
         });
 
+        // randomise the array of OrgIDs so that no org gets special treatment
+        @shuffle($orgIds);
+
         return $orgIds;
     }
 
@@ -384,8 +387,11 @@ class App extends \BaseApp
         );
 
         foreach ($requestIds as $requestId) {
+            $logContext = new \SysLogContext("Org:{$orgId} Delete-request:{$requestId}");
+
             try
             {
+                $logContext->LogMessage('Processing notifications ...');
                 $requests = $retentionDb->query(
                     'SELECT dr.`ID` ID, dr.`UserID` UserID, dr.`State` State, dr.`Time`,' .
                     ' dr.`ExternalReference` ExtRef, ' .
@@ -424,6 +430,8 @@ class App extends \BaseApp
                 if ($daysSinceRequest > (self::DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS - 7)
                     && $request->State !== 'Done'
                     && !$notificationSent[Notification::TYPE_DELAYED_REQUESTER]->isSent()) {
+
+                    $logContext->LogVerbose('Requester: Adding delay notification');
                     $requesterText[Notification::TYPE_DELAYED_REQUESTER] = sprintf(
                         '<font color="#ff0000">Your delete-request might not finish by the %d days statutory deadline; ' .
                         'please contact your administrator.</font>', self::DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS);
@@ -432,6 +440,7 @@ class App extends \BaseApp
                 switch ($request->State) {
                     case 'Done':
                         if (!$notificationSent[Notification::TYPE_DONE_REQUESTER]->isSent()) {
+                            $logContext->LogVerbose('Requester: Adding completion notification');
                             $requesterText[Notification::TYPE_DONE_REQUESTER] =
                                 'Your delete-request has been completed.';
                         }
@@ -443,23 +452,27 @@ class App extends \BaseApp
                         if ($request->State === 'ReadyForApproval'
                             && (!$notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->isSent()
                                 || $notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->getDaysSince() > 7)) {
+                            $logContext->LogVerbose('Custodian: Adding pending notification');
                             $custodianText[Notification::TYPE_PENDING_CUSTODIAN] =
                                 'The above delete-request is waiting for review.';
                         }
 
                         if ((!$notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->isSent() && $daysSinceRequest > 7)
                             || $notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->getDaysSince() > 7) {
+                            $logContext->LogVerbose('Requester: Adding in-progress notification');
                             $requesterText[Notification::TYPE_PROGRESS_REQUESTER] =
                                 'Your delete-request is in progress.';
                         }
 
                     case 'Pending':
                         if (!$notificationSent[Notification::TYPE_CREATED_REQUESTER]->isSent()) {
+                            $logContext->LogVerbose('Requester: Adding has-received notification');
                             $requesterText[Notification::TYPE_CREATED_REQUESTER] =
                                 'Your delete-request has been received.';
                         }
 
                         if (!$notificationSent[Notification::TYPE_CREATED_CUSTODIAN]->isSent()) {
+                            $logContext->LogVerbose('Custodian: Adding has-received notification');
                             $custodianText[Notification::TYPE_CREATED_CUSTODIAN] =
                                 'The above delete-request was received.';
                         }
@@ -551,6 +564,7 @@ class App extends \BaseApp
                 $retentionDb->StartTransaction();
 
                 if ($request->State === 'Done') {
+                    $logContext->LogMessage("Update State='Finalised'");
                     $retentionDb->query(
                         "UPDATE `ArchivingRetention`.`DeleteRequest_{$orgId}` " .
                         "SET `State` = 'Finalised' " .
@@ -581,6 +595,7 @@ class App extends \BaseApp
             }
             catch (\Exception $e)
             {
+                $logContext->LogMessage('Error; rolled-back');
                 $retentionDb->RollbackTransaction();
                 LogWarning($e);
                 continue;
@@ -615,8 +630,11 @@ class App extends \BaseApp
         );
 
         foreach ($requestIds as $requestId) {
+            $logContext = new \SysLogContext("Org:{$orgId} Legal-hold:{$requestId}");
+
             try
             {
+                $logContext->LogMessage('Processing notifications ...');
                 $requests = $retentionDb->query(
                     'SELECT lh.`ID` ID, lh.`UserID` UserID, lh.`State` State, lh.`Time`,' .
                     ' lh.`ExternalReference` ExtRef,' .
@@ -661,6 +679,7 @@ class App extends \BaseApp
                     && (!$notificationSent[Notification::TYPE_EXPIRY_REQUESTER]->isSent()
                         || !$notificationSent[Notification::TYPE_EXPIRY_REQUESTER]->getDaysSince() > $daysToExpiry)) {
 
+                    $logContext->LogVerbose('Requester: Adding expiry notification');
                     $requesterText[Notification::TYPE_EXPIRY_REQUESTER] = sprintf(
                         '<font color="#ff0000">Your hold-request is set to expire by %s. ' .
                         'Should you wish to extend it, please <a href="#org-%d-req-%d">click here</a>.</font>',
@@ -670,6 +689,7 @@ class App extends \BaseApp
                 switch ($request->State) {
                     case 'Done':
                         if (!$notificationSent[Notification::TYPE_DONE_REQUESTER]->isSent()) {
+                            $logContext->LogVerbose('Requester: Adding completion notification');
                             $requesterText[Notification::TYPE_DONE_REQUESTER] =
                                 'Your hold-request has now expired.';
                         }
@@ -681,23 +701,27 @@ class App extends \BaseApp
                         if ($request->State === 'ReadyForApproval'
                             && (!$notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->isSent()
                                 || $notificationSent[Notification::TYPE_PENDING_CUSTODIAN]->getDaysSince() > 7)) {
+                            $logContext->LogVerbose('Custodian: Adding pending notification');
                             $custodianText[Notification::TYPE_PENDING_CUSTODIAN] =
                                 'The above hold-request is waiting for review.';
                         }
 
                         if ((!$notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->isSent() && $daysSinceRequest > 7)
                             || $notificationSent[Notification::TYPE_PROGRESS_REQUESTER]->getDaysSince() > 7) {
+                            $logContext->LogVerbose('Requester: Adding in-progress notification');
                             $requesterText[Notification::TYPE_PROGRESS_REQUESTER] =
                                 'Your hold-request is in progress.';
                         }
 
                     case 'Pending':
                         if (!$notificationSent[Notification::TYPE_CREATED_REQUESTER]->isSent()) {
+                            $logContext->LogVerbose('Requester: Adding has-received notification');
                             $requesterText[Notification::TYPE_CREATED_REQUESTER] =
                                 'Your hold-request has been received.';
                         }
 
                         if (!$notificationSent[Notification::TYPE_CREATED_CUSTODIAN]->isSent()) {
+                            $logContext->LogVerbose('Custodian: Adding has-received notification');
                             $custodianText[Notification::TYPE_CREATED_CUSTODIAN] =
                                 'The above hold-request was received.';
                         }
@@ -789,12 +813,14 @@ class App extends \BaseApp
                 $retentionDb->StartTransaction();
 
                 if ($request->State === 'Done') {
+                    $logContext->LogMessage("Update State='Finalised'");
                     $retentionDb->query(
                         "UPDATE `ArchivingRetention`.`LegalHold_{$orgId}` " .
                         "SET `State` = 'Finalised' " .
                         "WHERE `ID` = {$request->ID}"
                     );
                 } else if (array_key_exists(Notification::TYPE_EXPIRY_REQUESTER, $requesterText)) {
+                    $logContext->LogMessage('Update ExpiryNotified=1');
                     $retentionDb->query(
                         "UPDATE `ArchivingRetention`.`LegalHold_{$orgId}` " .
                         'SET `ExpiryNotified` = 1 ' .
@@ -825,6 +851,7 @@ class App extends \BaseApp
             }
             catch (\Exception $e)
             {
+                $logContext->LogMessage('Error; rolled-back');
                 $retentionDb->RollbackTransaction();
                 LogWarning($e);
                 continue;
@@ -842,6 +869,8 @@ class App extends \BaseApp
         $retentionDb = \MySQLiTransactional::Get('retention');
 
         $internalDb = \MySQLiTransactional::Get('internal');
+
+        LogMessage("Updating legal-hold cache for Org:{$orgId}");
 
         try
         {
@@ -937,6 +966,7 @@ class App extends \BaseApp
 
         try
         {
+            LogVerbose('Pruning cached archiving policy maps');
             $this->_cachedPolicies->prune();
 
             $orgIds = $this->_getOrgIds();
@@ -951,6 +981,8 @@ class App extends \BaseApp
                     return 0;
                 }
 
+                LogMessage("Processing Org:{$orgId} ...");
+
                 $this->_expireLegalHold($orgId);
 
                 $this->_processDeleteRequests($orgId);
@@ -964,6 +996,8 @@ class App extends \BaseApp
                 if ($this->_timeOfNextLastLegalHoldCacheRun <= $now) {
                     $this->_updateLegalHoldCache($orgId);
                 }
+
+                LogMessage("Processing Org:{$orgId} ... done");
             }
         }
         catch (\Exception $e)
