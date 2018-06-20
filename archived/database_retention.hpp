@@ -236,6 +236,7 @@ public:
 						"FROM `DeleteRequest_"<<org_id<<"` `dr` "
 						"LEFT JOIN `DeleteRequestItems_"<<org_id<<"` `dri` ON `dr`.`ID` = `dri`.`DeleteRequestID` "
 						"WHERE `dr`.`State`='ReadyForPurge' AND `dri`.`State`='Approved' "
+						"GROUP BY `dr`.`ID` "
 						"FOR UPDATE";
 				PURGE_SQL_DEBUG(conn, query.str());
 				mysqlpp::StoreQueryResult res = query.store();
