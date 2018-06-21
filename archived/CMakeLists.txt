@@ -63,6 +63,8 @@ add_definitions(
         -DARCHIVED_LISTEN_PORT="10100"
 
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+
+        -DRML_DATABASE_MYSQL_DEBUG_ENABLED
 )
 
 add_executable(rmarchived.bin main.cpp ${HEADER_FILES})
