@@ -983,18 +983,25 @@ class App extends \BaseApp
 
                 LogMessage("Processing Org:{$orgId} ...");
 
-                $this->_expireLegalHold($orgId);
+                try
+                {
+                    $this->_expireLegalHold($orgId);
 
-                $this->_processDeleteRequests($orgId);
-                $this->_processLegalHoldRequests($orgId);
+                    $this->_processDeleteRequests($orgId);
+                    $this->_processLegalHoldRequests($orgId);
 
-                if ($this->_timeOfNextNotificationRun <= $now) {
-                    $this->_sendDeleteRequestNotifications($orgId);
-                    $this->_sendLegalHoldNotifications($orgId);
+                    if ($this->_timeOfNextNotificationRun <= $now) {
+                        $this->_sendDeleteRequestNotifications($orgId);
+                        $this->_sendLegalHoldNotifications($orgId);
+                    }
+
+                    if ($this->_timeOfNextLastLegalHoldCacheRun <= $now) {
+                        $this->_updateLegalHoldCache($orgId);
+                    }
                 }
-
-                if ($this->_timeOfNextLastLegalHoldCacheRun <= $now) {
-                    $this->_updateLegalHoldCache($orgId);
+                catch (\Exception $e)
+                {
+                    LogWarning($e, "Exception while processing Org:{$orgId}");
                 }
 
                 LogMessage("Processing Org:{$orgId} ... done");
