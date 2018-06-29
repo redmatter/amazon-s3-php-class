@@ -542,7 +542,7 @@ class App extends \BaseApp
                         "WHERE i.`DeleteRequestID`={$request->ID}"
                     )->fetch_all());
 
-                    $custodianRecipients = $orgPolicies->getCustodians($dsrPolicies);
+                    $custodianRecipients = $orgPolicies->getCustodiansForEmail($dsrPolicies);
 
                     // convert custodians user-id list into recipient list
                     // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
@@ -791,7 +791,7 @@ class App extends \BaseApp
                         "WHERE i.`LegalHoldID`={$request->ID}"
                     )->fetch_all());
 
-                    $custodianRecipients = $orgPolicies->getCustodians($dsrPolicies);
+                    $custodianRecipients = $orgPolicies->getCustodiansForEmail($dsrPolicies);
 
                     // convert custodians user-id list into recipient list
                     // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
