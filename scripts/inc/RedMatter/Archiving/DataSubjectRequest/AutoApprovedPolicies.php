@@ -93,7 +93,7 @@ class AutoApprovedPolicies
                 }
             }
 
-            $custodiansWithEmail = $xpath('DataCustodians/DataCustodian[@SendEmail="yes"]/@UserID', true, $policyNode);
+            $custodiansWithEmail = $xpath('DataCustodians[@Notify="yes"]/DataCustodian[@SendEmail="yes"]/@UserID', true, $policyNode);
             if ($custodiansWithEmail !== null)
             {
                 $custodianPoliciesEmail[$policyId] = [];
