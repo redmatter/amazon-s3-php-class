@@ -560,6 +560,9 @@ class App extends \BaseApp
                             // reset the flags so that they wouldn't get saved to db which will cause a later retry
                             $custodianText = [];
                         }
+                    } else {
+                        $logContext->LogWarning('No data custodians with email enabled were found - Policies:' .
+                            json_encode(array_values($dsrPolicies)));
                     }
                 }
 
@@ -811,6 +814,9 @@ class App extends \BaseApp
                             // reset the flags so that they wouldn't get saved to db which will cause a later retry
                             $custodianText = [];
                         }
+                    } else {
+                        $logContext->LogWarning('No data custodians with email enabled were found - Policies:' .
+                            json_encode(array_values($dsrPolicies)));
                     }
                 }
 
