@@ -33,6 +33,7 @@
 #include <rml/config.h>
 #include <rml/siginit.h>
 #include <rml/daemon.h>
+#include <rml/utils/enabled_disabled_list.hpp>
 
 #include <fcgio.h>
 
@@ -332,7 +333,14 @@ int main(int argc, char *argv[]) try
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
-		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
+
+        const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
+                app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
+        boost::function<bool(archiving::org_id_t)> is_aes_enabled_callback = boost::bind(
+                &rml::utils::enabled_list<archiving::org_id_t>::is_enabled, boost::cref(aes_enabled_orgs_list), _1);
+
+		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit,
+                                 is_aes_enabled_callback);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
 
@@ -419,7 +427,7 @@ int main(int argc, char *argv[]) try
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
 		threads.create_thread(boost::bind(
 				app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder),
-				boost::ref(cbr_channel), app::quit));
+				boost::ref(cbr_channel), app::quit, is_aes_enabled_callback));
 		threads.create_thread(boost::bind(&app::retention_purge::runner::feed_purge_queue, p_retention_purge_runner));
 
 		put_server.start();

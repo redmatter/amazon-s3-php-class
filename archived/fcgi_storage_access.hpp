@@ -248,7 +248,8 @@ public:
 
 				{
 					app::crypto crypto;
-					if(!app::converter::convert(opdata, crypto)) {
+					// is_aes_enabled - always ON for GET as it depends on the file-format got from storage
+					if(!app::converter::convert(opdata, crypto, true)) {
 						LogWarning("Failed to convert "<<identifier<<"; possibly corruption or a newer file-format");
 						throw rml::fcgi::http_exception(500, "Internal error");
 					}

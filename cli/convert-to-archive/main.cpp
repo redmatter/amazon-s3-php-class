@@ -125,10 +125,9 @@ int main(int argc, char* argv[])
 
 		{
 			char header[6];
-			app::types::header_encrypted eh;
 
 			p_source->read(&header[0], sizeof(header));
-			if(0 == memcmp(&header[0], eh.magic, sizeof(header))) {
+			if(0 == memcmp(&header[0], archiving::archived::file_format::crypto_header_magic_string(), sizeof(header))) {
 				LogMessage("File is already in archive format; RMA-CE header was found");
 				exit(rml::utils::exit_codes::failure);
 			}
@@ -150,7 +149,7 @@ int main(int argc, char* argv[])
 							new CryptoPP::ArraySink(&enc_key[0], app::storage::basic_endpoint::encryption_key_t::static_size)));
 
 			app::crypto crypto;
-			crypto.encrypt(*p_tmp, *p_output, enc_key);
+			crypto.encrypt_aes(*p_tmp, *p_output, enc_key);
 		}
 	}
 	catch(const std::exception& e) {

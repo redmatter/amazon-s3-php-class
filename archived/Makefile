@@ -5,6 +5,10 @@ RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-database-mysql
 RML_DATABASE_MYSQL_DIR=../$(RML_DATABASE_MYSQL_GIT_SUBMODULE)
 RML_DATABASE_MYSQL_HPP=$(RML_DATABASE_MYSQL_DIR)/rml/database/mysql/connection.hpp
 
+RML_UTILS_GIT_SUBMODULE=libs/rml-utils
+RML_UTILS_DIR=../$(RML_UTILS_GIT_SUBMODULE)
+RML_UTILS_HPP=$(RML_UTILS_DIR)/rml/utils/enabled_disabled_list.hpp
+
 include ../common/Makefile.macros
 
 LIBS += -L../common/$(TMP)
@@ -19,6 +23,7 @@ RML_LOG_SOURCE_LOCATION=YES
 
 CXX_INCLUDES += -isystem /usr/include/threadpool \
 	-I $(RML_DATABASE_MYSQL_DIR) \
+	-I $(RML_UTILS_DIR) \
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -82,11 +87,16 @@ include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 
-main.cpp: $(RML_DATABASE_MYSQL_HPP)
+main.cpp: $(RML_DATABASE_MYSQL_HPP) $(RML_UTILS_HPP)
 
 ifeq ($(RML_DATABASE_MYSQL_DIR),../$(RML_DATABASE_MYSQL_GIT_SUBMODULE))
 $(RML_DATABASE_MYSQL_HPP):
 	@cd .. && git submodule update --init --recursive $(RML_DATABASE_MYSQL_GIT_SUBMODULE)
+endif
+
+ifeq ($(RML_UTILS_DIR),../$(RML_UTILS_GIT_SUBMODULE))
+$(RML_UTILS_HPP):
+	@cd .. && git submodule update --init --recursive $(RML_UTILS_GIT_SUBMODULE)
 endif
 
 ../common/$(TMP)/libarchiving_common.a :

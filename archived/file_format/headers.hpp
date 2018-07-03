@@ -25,6 +25,11 @@ namespace archived
 namespace file_format
 {
 
+static inline const char *crypto_header_magic_string()
+{
+	return "RMA-CE";
+}
+
 namespace detail
 {
 
@@ -82,17 +87,31 @@ union crypto_header_union
 #pragma pack(pop)
 
 template <typename Version>
-void initialise_crypto_header(crypto_header<Version>& header, const int scm_version[4], unsigned int version_minor = 0U)
+void initialise_crypto_header(crypto_header<Version>& header, const int scm_version[4])
 {
     typedef crypto_header<Version> crypto_header_type;
 
-    std::memcpy(header.magic, "RMA-CE", 6);
+    std::memcpy(header.magic, crypto_header_magic_string(), size(header.magic));
     header.archived_version_major = (uint8_t) scm_version[0];
     header.archived_version_minor = (uint8_t) scm_version[1];
     header.archived_version_patch = (uint8_t) scm_version[2];
     header.format_version_major = crypto_header_type::version_specified;
-    header.format_version_minor = (uint8_t) version_minor;
+    header.format_version_minor = (uint8_t) 0U;
     std::memcpy(header.padding, detail::base_padding_string(), sizeof(crypto_header_type::padding));
+}
+
+template <typename Version>
+bool check_crypto_header_sanity(const crypto_header<Version>& header)
+{
+    typedef crypto_header<Version> crypto_header_type;
+
+    const int ignored_version[4] = {0, 0, 0, 0};
+
+    crypto_header_type blank;
+    initialise_crypto_header(blank, ignored_version);
+    return std::memcmp(header.magic, blank.magic, 6) == 0 &&
+            header.format_version_major == blank.format_version_major &&
+            std::memcmp(header.padding, blank.padding, sizeof(crypto_header_type::padding)) == 0;
 }
 
 } // namespace file_format
