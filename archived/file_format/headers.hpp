@@ -91,7 +91,7 @@ void initialise_crypto_header(crypto_header<Version>& header, const int scm_vers
 {
     typedef crypto_header<Version> crypto_header_type;
 
-    std::memcpy(header.magic, crypto_header_magic_string(), size(header.magic));
+    std::memcpy(header.magic, crypto_header_magic_string(), sizeof(crypto_header_type::magic));
     header.archived_version_major = (uint8_t) scm_version[0];
     header.archived_version_minor = (uint8_t) scm_version[1];
     header.archived_version_patch = (uint8_t) scm_version[2];
