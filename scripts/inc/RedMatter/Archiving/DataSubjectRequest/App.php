@@ -542,22 +542,27 @@ class App extends \BaseApp
                         "WHERE i.`DeleteRequestID`={$request->ID}"
                     )->fetch_all());
 
-                    $custodianRecipients = $orgPolicies->getCustodians($dsrPolicies);
-
-                    // convert custodians user-id list into recipient list
-                    // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
-                    $notificationRecipients = array_map(function ($custodianUserId) {
-                        $userDetails = call_user_func($this->_cachedUsers, $custodianUserId);
-
-                        return [$userDetails->Name, $userDetails->UserName];
-                    }, $custodianRecipients);
-
-                    if (true !== $this->_dgapi->SendEmail(
-                            $orgId, $notificationRecipients, $subject, $text,
-                            'Data Delete Request', null, null, true))
+                    $custodianRecipients = $orgPolicies->getCustodiansForEmail($dsrPolicies);
+                    if (!empty($custodianRecipients))
                     {
-                        // reset the flags so that they wouldn't get saved to db which will cause a later retry
-                        $custodianText = [];
+                        // convert custodians user-id list into recipient list
+                        // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
+                        $notificationRecipients = array_map(function ($custodianUserId) {
+                            $userDetails = call_user_func($this->_cachedUsers, $custodianUserId);
+
+                            return [$userDetails->Name, $userDetails->UserName];
+                        }, $custodianRecipients);
+
+                        if (true !== $this->_dgapi->SendEmail(
+                                $orgId, $notificationRecipients, $subject, $text,
+                                'Data Delete Request', null, null, true))
+                        {
+                            // reset the flags so that they wouldn't get saved to db which will cause a later retry
+                            $custodianText = [];
+                        }
+                    } else {
+                        $logContext->LogWarning('No data custodians with email enabled were found - Policies:' .
+                            json_encode(array_values($dsrPolicies)));
                     }
                 }
 
@@ -791,22 +796,27 @@ class App extends \BaseApp
                         "WHERE i.`LegalHoldID`={$request->ID}"
                     )->fetch_all());
 
-                    $custodianRecipients = $orgPolicies->getCustodians($dsrPolicies);
-
-                    // convert custodians user-id list into recipient list
-                    // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
-                    $notificationRecipients = array_map(function ($custodianUserId) {
-                        $userDetails = call_user_func($this->_cachedUsers, $custodianUserId);
-
-                        return [$userDetails->Name, $userDetails->UserName];
-                    }, $custodianRecipients);
-
-                    if (true !== $this->_dgapi->SendEmail(
-                            $orgId, $notificationRecipients, $subject, $text,
-                            'Data Hold Request', null, null, true))
+                    $custodianRecipients = $orgPolicies->getCustodiansForEmail($dsrPolicies);
+                    if (!empty($custodianRecipients))
                     {
-                        // reset the flags so that they wouldn't get saved to db which will cause a later retry
-                        $custodianText = [];
+                        // convert custodians user-id list into recipient list
+                        // i.e [ui, u2] to [[u1-name, u1-email], [u2-name, u2-email]]
+                        $notificationRecipients = array_map(function ($custodianUserId) {
+                            $userDetails = call_user_func($this->_cachedUsers, $custodianUserId);
+
+                            return [$userDetails->Name, $userDetails->UserName];
+                        }, $custodianRecipients);
+
+                        if (true !== $this->_dgapi->SendEmail(
+                                $orgId, $notificationRecipients, $subject, $text,
+                                'Data Hold Request', null, null, true))
+                        {
+                            // reset the flags so that they wouldn't get saved to db which will cause a later retry
+                            $custodianText = [];
+                        }
+                    } else {
+                        $logContext->LogWarning('No data custodians with email enabled were found - Policies:' .
+                            json_encode(array_values($dsrPolicies)));
                     }
                 }
 

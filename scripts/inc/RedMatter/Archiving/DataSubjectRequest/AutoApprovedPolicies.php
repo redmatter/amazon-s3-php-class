@@ -27,15 +27,15 @@ class AutoApprovedPolicies
     // [ u1 => [p1, p2], ... ]
     private $_policyCustodians;
 
-    // an array that maps policy-id to custodians
+    // an array that maps policy-id to custodians who has email enabled
     // [ p1 => [u1, u2], ...]
-    private $_custodianPolicies;
+    private $_custodianPoliciesEmail;
 
-    public function __construct($autoApprovePolicies, $policyCustodians, $custodianPolicies)
+    public function __construct($autoApprovePolicies, $policyCustodians, $custodianPoliciesEmail)
     {
         $this->_autoApprovePolicies = $autoApprovePolicies;
         $this->_policyCustodians = $policyCustodians;
-        $this->_custodianPolicies = $custodianPolicies;
+        $this->_custodianPoliciesEmail = $custodianPoliciesEmail;
     }
 
     public function getPoliciesByUserId($userId)
@@ -45,12 +45,12 @@ class AutoApprovedPolicies
             $this->_autoApprovePolicies;
     }
 
-    public function getCustodians($policies)
+    public function getCustodiansForEmail($policies)
     {
         $custodians = [];
         foreach ($policies as $policy) {
-            if (isset($this->_custodianPolicies[$policy])) {
-                $custodians = array_merge($custodians, $this->_custodianPolicies[$policy]);
+            if (isset($this->_custodianPoliciesEmail[$policy])) {
+                $custodians = array_merge($custodians, $this->_custodianPoliciesEmail[$policy]);
             }
         }
 
@@ -61,7 +61,7 @@ class AutoApprovedPolicies
     {
         $autoApprovePolicies = [];
         $policyCustodians = [];
-        $custodianPolicies = [];
+        $custodianPoliciesEmail = [];
 
         /** @var \XPath $xpath */
         $xpath = \API::Get("/archiving/policy/{$orgId}/all");
@@ -79,7 +79,6 @@ class AutoApprovedPolicies
             $custodians = $xpath('DataCustodians/DataCustodian/@UserID', true, $policyNode);
             if ($custodians !== null)
             {
-                $custodianPolicies[$policyId] = [];
                 /** @var \DOMNodeList $custodians */
                 foreach ($custodians as $userId)
                 {
@@ -91,11 +90,21 @@ class AutoApprovedPolicies
                     }
 
                     $policyCustodians[$userId][] = $policyId;
-                    $custodianPolicies[$policyId][] = $userId;
+                }
+            }
+
+            $custodiansWithEmail = $xpath('DataCustodians[@Notify="yes"]/DataCustodian[@SendEmail="yes"]/@UserID', true, $policyNode);
+            if ($custodiansWithEmail !== null)
+            {
+                $custodianPoliciesEmail[$policyId] = [];
+                /** @var \DOMNodeList $custodiansWithEmail */
+                foreach ($custodiansWithEmail as $userId)
+                {
+                    $custodianPoliciesEmail[$policyId][] = (int)$userId->value;
                 }
             }
         }
 
-        return new self($autoApprovePolicies, $policyCustodians, $custodianPolicies);
+        return new self($autoApprovePolicies, $policyCustodians, $custodianPoliciesEmail);
     }
 }
