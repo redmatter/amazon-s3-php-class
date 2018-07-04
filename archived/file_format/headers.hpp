@@ -17,6 +17,10 @@
 #include <boost/mpl/int.hpp>
 #include <boost/mpl/plus.hpp>
 #include <boost/parameter/parameters.hpp>
+#include <boost/preprocessor/repetition/repeat.hpp>
+
+#define STRING_GEN(ignore1, ignore2, text)  text
+#define STRING_REPEAT(str, n) BOOST_PP_REPEAT(n, STRING_GEN, str)
 
 namespace archiving
 {
@@ -35,7 +39,7 @@ namespace detail
 
 static inline const char *base_padding_string()
 {
-    return "RedMatterRedMatterRedMatterRedMatterRedMatterRedMatterRedMatter";
+    return STRING_REPEAT("RedMatter", 7);
 }
 
 typedef boost::parameter::parameters<
