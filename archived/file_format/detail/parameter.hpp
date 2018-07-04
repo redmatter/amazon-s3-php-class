@@ -17,6 +17,7 @@
 #include <boost/mpl/minus.hpp>
 #include <cryptopp/aes.h>
 #include <cryptopp/blowfish.h>
+#include <cryptopp/modes.h>
 
 namespace archiving
 {
@@ -61,14 +62,21 @@ struct encryption_algorithm
             typename mpl::if_<
                     mpl::equal_to<mpl::int_<MajorVersion>, mpl::int_<2> >, CryptoPP::AES,
                     void>::type
-    >::type type;
+    >::type cipher;
+
+    typedef typename mpl::if_<
+            mpl::equal_to<mpl::int_<MajorVersion>, mpl::int_<1> >, CryptoPP::CBC_Mode<cipher>,
+            typename mpl::if_<
+                    mpl::equal_to<mpl::int_<MajorVersion>, mpl::int_<2> >, CryptoPP::CFB_Mode<cipher>,
+                    void>::type
+    >::type cipher_mode;
 
     typedef mpl::max<
             mpl::int_<CryptoPP::Blowfish::BLOCKSIZE>,
             mpl::int_<CryptoPP::AES::BLOCKSIZE>
     >::type max_iv_length;
 
-    typedef mpl::int_<type::BLOCKSIZE> iv_length;
+    typedef mpl::int_<cipher::BLOCKSIZE> iv_length;
     typedef boost::mpl::minus< max_iv_length, iv_length > pad_length;
 };
 

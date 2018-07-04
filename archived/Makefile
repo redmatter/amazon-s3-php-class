@@ -86,6 +86,7 @@ BUILD_MODE=DEBUG
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+# include ../external/Makefile.cryptopp
 
 main.cpp: $(RML_DATABASE_MYSQL_HPP) $(RML_UTILS_HPP)
 

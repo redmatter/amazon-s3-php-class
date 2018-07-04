@@ -1,0 +1,32 @@
+EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+CRYPTOPP_USE_BUILTIN=YES
+
+ifeq ($(CRYPTOPP_USE_BUILTIN),YES)
+CRYPTOPP_INCLUDE_DIR=$(EXTERNAL_DIR)/cryptopp/usr/local/include
+CRYPTOPP_LIB_DIR=$(EXTERNAL_DIR)/cryptopp/usr/local/lib
+else
+CRYPTOPP_INCLUDE_DIR=$(DEV_LIBS_BASEDIR)/usr/include/cryptopp
+endif
+
+CXX_INCLUDES += -isystem $(CRYPTOPP_INCLUDE_DIR)
+
+ifdef CRYPTOPP_LIB_DIR
+LIBS += -L$(CRYPTOPP_LIB_DIR)
+endif
+
+LIBS += -lcryptopp
+
+CLEAN_EXTRA += clean-cryptopp
+
+ifeq ($(CRYPTOPP_USE_BUILTIN),YES)
+
+*.cpp: $(CRYPTOPP_INCLUDE_DIR)/cryptopp/config.h
+
+$(CRYPTOPP_INCLUDE_DIR)/cryptopp/config.h :
+	@$(MAKE) -C $(EXTERNAL_DIR) cryptopp
+
+endif
+
+clean-cryptopp:
+	@$(MAKE) -C $(EXTERNAL_DIR) clean

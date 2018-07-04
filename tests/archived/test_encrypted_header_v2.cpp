@@ -21,14 +21,16 @@ TEST(FileFormatDetailParameter, Basics)
 
     {
         typedef ns::encryption_algorithm<1> enc_alg;
-        BOOST_MPL_ASSERT((boost::is_same<enc_alg::type, CryptoPP::Blowfish>));
+        BOOST_MPL_ASSERT((boost::is_same<enc_alg::cipher, CryptoPP::Blowfish>));
+        BOOST_MPL_ASSERT((boost::is_same<enc_alg::cipher_mode, CryptoPP::CBC_Mode<CryptoPP::Blowfish> >));
         BOOST_MPL_ASSERT_RELATION(enc_alg::iv_length::value, ==, CryptoPP::Blowfish::BLOCKSIZE);
         BOOST_MPL_ASSERT_RELATION(enc_alg::pad_length::value, ==, 8);
     }
 
     {
         typedef ns::encryption_algorithm<2> enc_alg;
-        BOOST_MPL_ASSERT((boost::is_same<enc_alg::type, CryptoPP::AES>));
+        BOOST_MPL_ASSERT((boost::is_same<enc_alg::cipher, CryptoPP::AES>));
+        BOOST_MPL_ASSERT((boost::is_same<enc_alg::cipher_mode, CryptoPP::CFB_Mode<CryptoPP::AES> >));
         BOOST_MPL_ASSERT_RELATION(enc_alg::iv_length::value, ==, CryptoPP::AES::BLOCKSIZE);
         BOOST_MPL_ASSERT_RELATION(enc_alg::pad_length::value, ==, 0);
     }
