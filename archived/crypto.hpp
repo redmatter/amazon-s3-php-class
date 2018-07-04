@@ -117,8 +117,7 @@ public:
 
 			CryptoPP::FileSource(
 					istr, true, new CryptoPP::StreamTransformationFilter(
-							encryption, new CryptoPP::FileSink(ostr),
-							CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+							encryption, new CryptoPP::FileSink(ostr)));
 		}
 		catch(const CryptoPP::Exception& e) {
 			THROW_RML_EXCEPTION("encrypt_aes - CryptoPP::Exception: "<<e.what());
@@ -175,8 +174,7 @@ public:
 											true,
 											new CryptoPP::StreamTransformationFilter(
 													decryption,
-													new CryptoPP::FileSink(ostr),
-													CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+													new CryptoPP::FileSink(ostr)));
 				break;
 			}
 			default:
