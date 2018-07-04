@@ -169,7 +169,7 @@ public:
 
 				cipher_mode::Decryption decryption;
 
-				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv, sizeof(header.v1.iv));
+				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v2.iv, sizeof(header.v2.iv));
 				CryptoPP::FileSource source(istr,
 											true,
 											new CryptoPP::StreamTransformationFilter(
