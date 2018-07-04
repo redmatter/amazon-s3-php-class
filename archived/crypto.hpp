@@ -107,11 +107,11 @@ public:
 
 			crypto_header_type crypto_header;
 			initialise_crypto_header(crypto_header, version_number);
-			rng_.GenerateBlock(crypto_header.iv, sizeof(crypto_header.iv));
+			rng_.GenerateBlock(crypto_header.iv, crypto_header_type::iv_length::value);
 
             cipher_mode::Encryption encryption;
 			encryption.SetKeyWithIV(&encryption_key[0], storage::basic_endpoint::encryption_key_t::static_size,
-								   crypto_header.iv, sizeof(crypto_header.iv));
+								   crypto_header.iv, crypto_header_type::iv_length::value);
 
 			ostr.write(reinterpret_cast<char*>(&crypto_header), sizeof(crypto_header_type));
 
@@ -139,10 +139,10 @@ public:
 			crypto_header_union header;
 			istr.read((char*)&header, sizeof(crypto_header_union));
 
-            switch (header.format_version.major) {
-            case 1: {
-                typedef crypto_header<version<1> > crypto_header_type;
-                typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
+			switch (header.format_version.major) {
+			case 1: {
+				typedef crypto_header<version<1> > crypto_header_type;
+				typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
 
 				if (!check_crypto_header_sanity(header.v1)) {
 					throw rml::exception("Invalid v1 header found");
@@ -150,7 +150,8 @@ public:
 
 				cipher_mode::Decryption decryption;
 
-                decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv, sizeof(header.v1.iv));
+                decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv,
+										crypto_header_type::iv_length::value);
                 CryptoPP::FileSource source(istr,
                                             true,
                                             new CryptoPP::StreamTransformationFilter(
@@ -169,7 +170,8 @@ public:
 
 				cipher_mode::Decryption decryption;
 
-				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v2.iv, sizeof(header.v2.iv));
+				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v2.iv,
+										crypto_header_type::iv_length::value);
 				CryptoPP::FileSource source(istr,
 											true,
 											new CryptoPP::StreamTransformationFilter(

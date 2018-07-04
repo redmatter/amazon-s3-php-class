@@ -15,6 +15,7 @@
 #include <boost/mpl/equal_to.hpp>
 #include <boost/mpl/min_max.hpp>
 #include <boost/mpl/minus.hpp>
+#include <boost/mpl/size_t.hpp>
 #include <cryptopp/aes.h>
 #include <cryptopp/blowfish.h>
 #include <cryptopp/modes.h>
@@ -76,7 +77,7 @@ struct encryption_algorithm
             mpl::int_<CryptoPP::AES::BLOCKSIZE>
     >::type max_iv_length;
 
-    typedef mpl::int_<cipher::BLOCKSIZE> iv_length;
+    typedef mpl::size_t<cipher::BLOCKSIZE> iv_length;
     typedef boost::mpl::minus< max_iv_length, iv_length > pad_length;
 };
 

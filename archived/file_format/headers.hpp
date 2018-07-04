@@ -54,6 +54,7 @@ struct crypto_header
     typedef typename detail::crypto_header_signature::bind<Version>::type bound_args;
     static const unsigned int version_specified = detail::extract_version<bound_args>::value;
     typedef typename detail::encryption_algorithm<version_specified> encryption_algorithm_type;
+    typedef typename encryption_algorithm_type::iv_length iv_length;
 
     typedef boost::mpl::int_<13> reserved_bytes;
     typedef boost::mpl::plus<reserved_bytes, typename encryption_algorithm_type::pad_length> padding_length;
@@ -67,7 +68,7 @@ struct crypto_header
     uint8_t format_version_major;
     uint8_t format_version_minor;
 
-    uint8_t iv[encryption_algorithm_type::iv_length::value];
+    uint8_t iv[iv_length::value];
     uint8_t padding[padding_length::value];
 };
 
