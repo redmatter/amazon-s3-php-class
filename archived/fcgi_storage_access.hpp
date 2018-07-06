@@ -249,7 +249,7 @@ public:
 				{
 					app::crypto crypto;
 					if(!app::converter::convert(opdata, crypto)) {
-						LogCritical("Failed to convert "<<identifier<<"; possibly corruption");
+						LogWarning("Failed to convert "<<identifier<<"; possibly corruption or a newer file-format");
 						throw rml::fcgi::http_exception(500, "Internal error");
 					}
 				}
