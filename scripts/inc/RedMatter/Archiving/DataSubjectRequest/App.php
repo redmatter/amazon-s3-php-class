@@ -500,8 +500,7 @@ class App extends \BaseApp
                     ksort($requesterText);
                     $text = sprintf(
                         '<p>%s</p>' .
-                        '<ul>%s%s</ul>' .
-                        '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                        '<ul>%s%s</ul>',
                         $requestDesc,
                         '<li>' . implode('</li><li>', $requesterText) . '</li>',
                         ($request->RejectedCount > 0) ? '<li>Some items were rejected during review.</li>' : '',
@@ -524,8 +523,7 @@ class App extends \BaseApp
                     ksort($custodianText);
                     $text = sprintf(
                         '<p>%s</p>' .
-                        '<ul>%s</ul>' .
-                        '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                        '<ul>%s</ul>',
                         $requestDesc, '<li>' . implode('</li><li>', $custodianText) . '</li>', $orgId, $request->ID
                     );
 
@@ -687,8 +685,7 @@ class App extends \BaseApp
 
                     $logContext->LogVerbose('Requester: Adding expiry notification');
                     $requesterText[Notification::TYPE_EXPIRY_REQUESTER] = sprintf(
-                        '<font color="#ff0000">Your hold-request is set to expire by %s. ' .
-                        'Should you wish to extend it, please <a href="#org-%d-req-%d">click here</a>.</font>',
+                        '<font color="#ff0000">Your hold-request is set to expire by %s.',
                         $expiryDate->format('l, d F y (T)'));
                 }
 
@@ -755,8 +752,7 @@ class App extends \BaseApp
                     ksort($requesterText);
                     $text = sprintf(
                         '<p>%s</p>' .
-                        '<ul>%s%s</ul>' .
-                        '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                        '<ul>%s%s</ul>',
                         $requestDesc,
                         '<li>' . implode('</li><li>', $requesterText) . '</li>',
                         ($request->RejectedCount > 0) ? '<li>Some items were rejected during review.</li>' : '',
@@ -779,8 +775,7 @@ class App extends \BaseApp
                     ksort($custodianText);
                     $text = sprintf(
                         '<p>%s</p>' .
-                        '<ul>%s</ul>' .
-                        '<p>Please <a href="#org-%d-req-%d">click here</a> to take a detailed look.</p>',
+                        '<ul>%s</ul>',
                         $requestDesc, '<li>' . implode('</li><li>', $custodianText) . '</li>', $orgId, $request->ID
                     );
 
