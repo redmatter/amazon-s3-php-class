@@ -33,6 +33,8 @@
 
 #include <time.h>
 
+#define MYSQL_GROUP_CONCAT_BUF_LENGTH 102400
+
 namespace app {
 
 extern std::string hostname;
@@ -224,10 +226,17 @@ public:
 
 			{
 				mysqlpp::Query query = conn->query();
+				query << "SET @@group_concat_max_len = " << MYSQL_GROUP_CONCAT_BUF_LENGTH;
+				query.execute();
+			}
+
+			{
+				mysqlpp::Query query = conn->query();
 				query << "SELECT `dr`.`ID`, `dr`.`AuditLogID`, GROUP_CONCAT( `dri`.`RetentionID` SEPARATOR ',' ) "
 						"FROM `DeleteRequest_"<<org_id<<"` `dr` "
 						"LEFT JOIN `DeleteRequestItems_"<<org_id<<"` `dri` ON `dr`.`ID` = `dri`.`DeleteRequestID` "
-						"WHERE `dr`.`State`='Pending' "
+						"WHERE `dr`.`State`='ReadyForPurge' AND `dri`.`State`='Approved' "
+						"GROUP BY `dr`.`ID` "
 						"FOR UPDATE";
 				PURGE_SQL_DEBUG(conn, query.str());
 				mysqlpp::StoreQueryResult res = query.store();
@@ -253,8 +262,19 @@ public:
 					{
 						boost::shared_ptr<rmldb::connection> conn = get_connection();
 
+						// if we go beyond @@group_concat_max_len we need to safely ignore any broken IDs, and capture them in the next iteration
+						std::string ids(row[2].c_str());
+						if (ids.length() > (MYSQL_GROUP_CONCAT_BUF_LENGTH - 15)) {
+							not_purgeable_items = 1; // so that the purge-request wouldn't get marked as Done
+							const std::string::size_type sep_pos(ids.rfind(','));
+							if (sep_pos != std::string::npos) {
+								ids.erase(sep_pos);
+							}
+						}
+
 						mysqlpp::Query query = conn->query();
-						query << "SELECT "<<retention_select_fields()<<" FROM Retention_"<<org_id<<" WHERE ID IN ( "<<row[0].c_str()<<" ) AND `State`='Available'";
+						query << "SELECT "<<retention_select_fields()<<" FROM Retention_"<<org_id
+							  << " WHERE ID IN ( "<<ids<<" ) AND `State`='Available'";
 						PURGE_SQL_DEBUG(conn, query.str());
 
 						mysqlpp::UseQueryResult res = query.use();
