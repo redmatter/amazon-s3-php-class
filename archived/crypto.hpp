@@ -28,6 +28,16 @@
 
 namespace app {
 
+struct unknown_file_format_exception : rml::exception
+{
+	unknown_file_format_exception(const int current_version_major, const int current_version_minor,
+								  const int found_version_major, const int found_version_minor) :
+			rml::exception(boost::str(
+					boost::format("Unknown file-format found; current-version: v%1%.%2% found-version: v%3%.%4%") %
+					current_version_major % current_version_minor % found_version_major % found_version_minor))
+	{}
+};
+
 class crypto
 {
 	CryptoPP::AutoSeededRandomPool rng_;
@@ -104,8 +114,13 @@ public:
 				throw rml::exception("header found corrupt; padding pattern did not match");
 
 			// TODO change this to handle future version differences, rather than checking for equality
-			if((header.format_version_major != app::types::file_format_version::major) || (header.format_version_minor != app::types::file_format_version::minor))
-				throw rml::exception("header found corrupt; Invalid file format version");
+			if((header.format_version_major != app::types::file_format_version::major)
+			   || (header.format_version_minor != app::types::file_format_version::minor))
+			{
+				throw unknown_file_format_exception(
+						app::types::file_format_version::major, app::types::file_format_version::minor,
+						header.format_version_major, header.format_version_minor);
+			}
 
 			blowfish_dec.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.iv, CryptoPP::Blowfish::BLOCKSIZE);
 			CryptoPP::FileSource source(istr,
