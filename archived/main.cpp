@@ -151,14 +151,22 @@ inline void shutdown()
     OS_ShutdownPending();
 }
 
+inline void LogBuildInfo()
+{
+	LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
+	LogAlways("built on "<<version_date<<' '<<build_host);
+}
+
 void sigint(int s) {
     LogMessage("SIGINT: Trying a clean exit");
     shutdown();
 }
 
 void sighup(int s) {
-    LogMessage("SIGHUPed");
+    LogVerbose("SIGHUPed");
     wasHUPed = true;
+
+	LogBuildInfo();
 }
 
 void sigterm(int s) {
@@ -252,9 +260,7 @@ int main(int argc, char *argv[]) try
 			// configure the logger
 			rml::logger::configure(app::confMap, SYSLOG_APP_NAME);
 
-			// a new day is a gift!
-			LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
-			LogAlways("built on "<<version_date<<' '<<build_host);
+			app::LogBuildInfo();
 
 			// set the signal handlers
             rml::siginit(4,
