@@ -44,6 +44,10 @@ class Archiving
 	const FILE_TYPE_INFO                   = self::FILE_TYPE_INT_INFO;
 	const FILE_TYPE_INT_PCAP_SIP_ONLY      = 7;
 	const FILE_TYPE_PCAP_SIP_ONLY          = self::FILE_TYPE_INT_PCAP_SIP_ONLY;
+	const FILE_TYPE_INT_EXPORT             = 8;
+	const FILE_TYPE_EXPORT                 = self::FILE_TYPE_INT_EXPORT;
+	const FILE_TYPE_INT_CALL_ANALYSIS      = 9;
+	const FILE_TYPE_CALL_ANALYSIS          = self::FILE_TYPE_INT_CALL_ANALYSIS;
 
 	const FILE_TYPE_STR_UNKNOWN            = 'unknown';
 	const FILE_TYPE_STR_CDR                = 'cdr';
@@ -53,6 +57,8 @@ class Archiving
 	const FILE_TYPE_STR_PCAP               = 'pcap';
 	const FILE_TYPE_STR_INFO               = 'info';
 	const FILE_TYPE_STR_PCAP_SIP_ONLY      = 'pcap-sip-only';
+	const FILE_TYPE_STR_EXPORT             = 'export';
+	const FILE_TYPE_STR_CALL_ANALYSIS      = 'call-analysis';
 
 	const FILE_TYPE_EXTENSION_UNKNOWN            = '.bin';
 	const FILE_TYPE_EXTENSION_CDR                = '.cdr.xml';
@@ -62,6 +68,8 @@ class Archiving
 	const FILE_TYPE_EXTENSION_PCAP               = '.pcap';
 	const FILE_TYPE_EXTENSION_INFO               = '.info.xml';
 	const FILE_TYPE_EXTENSION_PCAP_SIP_ONLY      = '.sip.pcap';
+	const FILE_TYPE_EXTENSION_EXPORT             = '';
+	const FILE_TYPE_EXTENSION_CALL_ANALYSIS      = '.json';
 
 	const FORMAT_CLEAR      = 0x00;
 	const FORMAT_COMPRESSED = 0x01;
@@ -76,12 +84,17 @@ class Archiving
 	const SUBFORMAT_WAV                    = 3;
 	const SUBFORMAT_MP3                    = 4;
 	const SUBFORMAT_PCAP                   = 5;
+	const SUBFORMAT_EMAIL                  = 6;
+	const SUBFORMAT_JSON                   = 7;
 
 	const SUBFORMAT_STR_UNKNOWN            = 'unknown'; // flags errors
 	const SUBFORMAT_STR_BINARY             = 'binary';  // BLOB ( catchall for any unrecognized data )
 	const SUBFORMAT_STR_XML                = 'xml';
 	const SUBFORMAT_STR_WAV                = 'wav';
 	const SUBFORMAT_STR_MP3                = 'mp3';
+	const SUBFORMAT_STR_PCAP               = 'pcap';
+	const SUBFORMAT_STR_EMAIL              = 'email';
+	const SUBFORMAT_STR_JSON               = 'json';
 
 	public static $OperationalDataFileTypes = array(
 		self::FILE_TYPE_INT_CDR,
@@ -105,7 +118,37 @@ class Archiving
 	);
 
 	const CONFIG_FILE_RMARCHIVED = '/etc/archiving/rmarchived.conf';
-    const CONFIG_FILE_RMARCHIVED_RETENTION_PURGE = '/etc/archiving/rmarchived-retention-purge.conf';
+	const CONFIG_FILE_RMARCHIVED_RETENTION_PURGE = '/etc/archiving/rmarchived-retention-purge.conf';
+
+	/**
+	 * Get associated file-type for use in on-demand-purge
+	 *
+	 * @param int $type
+	 *
+	 * @return int[]
+	 */
+	public static function GetAssociatedFileTypes($type)
+	{
+		$map = self::GetFileTypesAssociationMap();
+		if (!isset($map[$type]))
+		{
+			return array();
+		}
+
+		return $map[$type];
+	}
+
+	/**
+	 * Get associated filetypes mapping
+	 *
+	 * @return array
+	 */
+	public static function GetFileTypesAssociationMap()
+	{
+		return array(
+			self::FILE_TYPE_RECORDING => array(self::FILE_TYPE_CALL_ANALYSIS)
+		);
+	}
 
 	/**
 	 * Get all defined file-types
@@ -202,6 +245,8 @@ class Archiving
 				return self::FILE_TYPE_INT_INFO;
 			case self::FILE_TYPE_STR_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_INT_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_STR_CALL_ANALYSIS:
+				return self::FILE_TYPE_INT_CALL_ANALYSIS;
 
 			default:
 				return self::FILE_TYPE_INT_UNKNOWN;
@@ -233,6 +278,8 @@ class Archiving
 				return self::FILE_TYPE_STR_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_STR_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_INT_CALL_ANALYSIS:
+				return self::FILE_TYPE_STR_CALL_ANALYSIS;
 
 			default:
 				return 'unknown';
@@ -264,6 +311,8 @@ class Archiving
 				return self::FILE_TYPE_EXTENSION_INFO;
 			case self::FILE_TYPE_INT_PCAP_SIP_ONLY:
 				return self::FILE_TYPE_EXTENSION_PCAP_SIP_ONLY;
+			case self::FILE_TYPE_INT_CALL_ANALYSIS:
+				return self::FILE_TYPE_EXTENSION_CALL_ANALYSIS;
 			default:
 				return self::FILE_TYPE_EXTENSION_UNKNOWN;
 		}
@@ -288,6 +337,8 @@ class Archiving
 				return self::SUBFORMAT_WAV;
 			case self::SUBFORMAT_STR_MP3:
 				return self::SUBFORMAT_MP3;
+			case self::SUBFORMAT_STR_JSON:
+				return self::SUBFORMAT_JSON;
 			default:
 				return self::SUBFORMAT_UNKNOWN;
 		}
@@ -312,6 +363,8 @@ class Archiving
 				return self::SUBFORMAT_STR_WAV;
 			case self::SUBFORMAT_MP3:
 				return self::SUBFORMAT_STR_MP3;
+			case self::SUBFORMAT_JSON:
+				return self::SUBFORMAT_STR_JSON;
 			default:
 				return self::SUBFORMAT_STR_UNKNOWN;
 		}
@@ -353,7 +406,7 @@ class Archiving
 			self::$_purge_states['delete_retention_error'] = self::$_purge_states['delete_retention'] | 0x02;
 
 			self::$_purge_states['finished']               = 0x0f << 4;
-            self::$_purge_states['finished_error']         = self::$_purge_states['finished'] | 0x02;
+			self::$_purge_states['finished_error']         = self::$_purge_states['finished'] | 0x02;
 		}
 	}
 
