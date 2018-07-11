@@ -503,7 +503,7 @@ int main(int argc, char *argv[]) try
 
 		LogMessage("Quit flagged ... stopping channels");
 
-		LogMessage("PUT server stopping").
+		LogMessage("PUT server stopping");
 		(void)put_server.stop();
 
 		LogMessage("Setting all channels as finishing");
