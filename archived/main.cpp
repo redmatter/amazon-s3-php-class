@@ -503,8 +503,10 @@ int main(int argc, char *argv[]) try
 
 		LogMessage("Quit flagged ... stopping channels");
 
+		LogMessage("PUT server stopping").
 		(void)put_server.stop();
-		
+
+		LogMessage("Setting all channels as finishing");
 		convert_channel.set_finishing();
 		convert_done_channel.set_finishing();
 		storage_operation_channel.set_finishing();
@@ -513,15 +515,19 @@ int main(int argc, char *argv[]) try
 		whisper_channel.set_finishing();
 		cbr_channel.set_finishing();
 
+		LogMessage("Stopping purge");
 		p_purge_state_reactor.reset();
 		p_retention_purge_runner->shutdown();
 
 		coreapi.logout();
 
+		LogMessage("Shutting down io scheduler");
 		p_io_service->stop();
 
+		LogMessage("Stopping FastCGI server");
 		fcgi_server.stop();
 
+		LogMessage("Waiting for all threads to finish");
 		threads.join_all();
 
 		LogAlways("terminated normally");
