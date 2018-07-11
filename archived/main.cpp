@@ -433,6 +433,7 @@ int main(int argc, char *argv[]) try
 				LogDebug(((ticker%2) ? "tik": "tok"));
 
 			if(0 == (ticker % 20)) {
+				LogMessage("Clearing internal caches");
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
 				cached_org_policy_versions_finder.clear_unused(10);
@@ -440,17 +441,23 @@ int main(int argc, char *argv[]) try
 				cached_coreapi_user_finder.clear_unused(10);
 			}
 
-			if(have_more_to_load && (0 == (ticker % 20)))
+			if(have_more_to_load && (0 == (ticker % 20))) {
+				LogMessage("Loading more items from ArchiveDQueue");
 				internal_db.find_retriables(app::hostname, cached_policy_finder,
-						boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1),
-						cached_endpoint_finder, convert_channel, have_more_to_load);
+											boost::bind(&app::operation_data_dedup::is_loaded,
+														boost::ref(operation_data_dedup), _1),
+											cached_endpoint_finder, convert_channel, have_more_to_load);
+			}
 
 			// load approved purge items occasionally
-			if(more_to_reload && (0 == (ticker % std::min<unsigned int>(180, app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60))))
+			if(more_to_reload && (0 == (ticker % std::min<unsigned int>(180, app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60)))) {
+				LogMessage("Loading more purge items from ArchiveDPurgeQueue");
 				more_to_reload = p_retention_purge_runner->reload_from_database();
+			}
 
 			// occasionally save items to DB
 			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>())) {
+				LogMessage("Saving progress of purge items");
 				const boost::posix_time::ptime& batch_save_run_till(
 						boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(15));
 				internal_db.batch_save_run<app::retention_purge::item, app::retention_purge::item::weak_set_t>(
@@ -458,10 +465,12 @@ int main(int argc, char *argv[]) try
 			}
 
 			if(monitor_pending || !(ticker % 60)) {
+				LogMessage("Preparing statistics for the past minute");
 				boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(50);
 				boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(monitor_data->mutex, till);
 				
 				if(lock) {
+					LogMessage("Adding statistics for the past minute");
 					app::monitor::monitor_t::item_t item;
 					time(&item.sample_time);
 					item.convert_waiting = convert_channel.count();
@@ -481,8 +490,10 @@ int main(int argc, char *argv[]) try
 					
 					monitor_pending = false;
 				}
-				else
+				else {
+					LogMessage("Could not add statistics for the past minute [failed to lock]. Trying again in a second");
 					monitor_pending = true;
+				}
 			}
 
 			ticker++;
