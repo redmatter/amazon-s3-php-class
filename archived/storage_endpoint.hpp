@@ -79,6 +79,7 @@ struct basic_endpoint
 
 	const bool is_encrypted;
 	const bool is_compressed;
+	const bool is_retention_managed;
 
 	encryption_key_t encryption_key;
 
@@ -89,16 +90,17 @@ struct basic_endpoint
 			const std::string& name,
 			const bool is_encrypted,
 			const bool is_compressed,
+			const bool is_retention_managed,
 			const encryption_key_t& encryption_key) :
 		id(identifier), type(type), org(org), name(name),
-		is_encrypted(is_encrypted), is_compressed(is_compressed),
+		is_encrypted(is_encrypted), is_compressed(is_compressed), is_retention_managed(is_retention_managed),
 		encryption_key(encryption_key)
 	{
 		//ctor
 	}
 
 	basic_endpoint(const basic_endpoint& t) :
-		id(t.id), type(t.type), org(t.org), name(t.name), is_encrypted(t.is_encrypted), is_compressed(t.is_compressed), encryption_key(t.encryption_key)
+		id(t.id), type(t.type), org(t.org), name(t.name), is_encrypted(t.is_encrypted), is_compressed(t.is_compressed), is_retention_managed(t.is_retention_managed), encryption_key(t.encryption_key)
 	{
 		//ctor
 	}
@@ -131,12 +133,13 @@ struct endpoint : public basic_endpoint
 			const uint64_t& id,
 			const archiving::org_id_t& org,
 			const std::string& name,
-			const bool& is_encrypted,
-			const bool& is_compressed,
+			const bool is_encrypted,
+			const bool is_compressed,
+			const bool is_retention_managed,
 			const encryption_key_t& encryption_key,
 			const std::string& base_path,
 			const bool& is_slow_medium) :
-		basic_endpoint(endpoint_type::s3, id, org, name, is_encrypted, is_compressed, encryption_key),
+		basic_endpoint(endpoint_type::s3, id, org, name, is_encrypted, is_compressed, is_retention_managed, encryption_key),
 		is_slow_medium(is_slow_medium), base_path(base_path)
 	{
 	}
@@ -176,13 +179,14 @@ struct endpoint : public basic_endpoint
 			const uint64_t& id,
 			const archiving::org_id_t& org,
 			const std::string& name,
-			const bool& is_encrypted,
-			const bool& is_compressed,
+			const bool is_encrypted,
+			const bool is_compressed,
+			const bool is_retention_managed,
 			const encryption_key_t& encryption_key,
 			const std::string& access_key,
 			const std::string& secret_key,
 			const std::string& bucket) :
-		basic_endpoint(endpoint_type::s3, id, org, name, is_encrypted, is_compressed, encryption_key),
+		basic_endpoint(endpoint_type::s3, id, org, name, is_encrypted, is_compressed, is_retention_managed, encryption_key),
 		access_key(access_key), secret_key(secret_key), bucket(bucket)
 	{
 	}
@@ -229,13 +233,14 @@ struct endpoint : public basic_endpoint
 			const std::string& name,
 			const bool is_encrypted,
 			const bool is_compressed,
+			const bool is_retention_managed,
 			const encryption_key_t& encryption_key,
 			const std::string& access_key,
 			const std::string& secret_key,
 			const std::string& bucket,
 			const std::string& host,
 			const std::string& service_uri) :
-				basic_endpoint(endpoint_type::s3_compatible, id, org, name, is_encrypted, is_compressed, encryption_key),
+				basic_endpoint(endpoint_type::s3_compatible, id, org, name, is_encrypted, is_compressed, is_retention_managed, encryption_key),
 				access_key(access_key), secret_key(secret_key), bucket(bucket),
 				host(host), service_uri(service_uri)
 	{
@@ -305,6 +310,7 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 	const char* is_encrypted_str = endpoint_node.select_single_node("Encrypted/text()").node().value();
 	const char* is_compressed_str = endpoint_node.select_single_node("Compressed/text()").node().value();
 
+	const char* is_retention_managed_str = endpoint_node.select_single_node("RetentionManaged/text()").node().value();
 
 	basic_endpoint::encryption_key_t enc_key;
 	const char* encryption_key = endpoint_node.select_single_node("EncryptionKey/text()").node().value();
@@ -334,6 +340,7 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				name_str,
 				0==strcmp(is_encrypted_str, "yes"),
 				0==strcmp(is_compressed_str, "yes"),
+				0==strcmp(is_retention_managed_str, "yes"),
 				enc_key,
 				access_key,
 				secret_key,
@@ -353,6 +360,7 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				name_str,
 				0==strcmp(is_encrypted_str, "yes"),
 				0==strcmp(is_compressed_str, "yes"),
+				0==strcmp(is_retention_managed_str, "yes"),
 				enc_key,
 				base_path,
 				0==strcmp(slow_medium, "yes")
@@ -390,6 +398,7 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				name_str,
 				0==strcmp(is_encrypted_str, "yes"),
 				0==strcmp(is_compressed_str, "yes"),
+				0==strcmp(is_retention_managed_str, "yes"),
 				enc_key,
 				access_key,
 				secret_key,
