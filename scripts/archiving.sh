@@ -1,6 +1,7 @@
 #!/bin/bash
 
 services=(
+	rmestuary
 	rmarchived
 	rmcollectd
 	rmcollect-smsd
