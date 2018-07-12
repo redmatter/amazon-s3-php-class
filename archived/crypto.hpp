@@ -109,10 +109,6 @@ public:
 			if(0 != memcmp(blank_header.magic, header.magic, sizeof(blank_header.magic)))
 				throw rml::exception("header found corrupt; magic pattern did not match");
 
-			// TODO change this to handle differences in future header changes
-			if(0 != memcmp(blank_header.padding, header.padding, sizeof(blank_header.padding)))
-				throw rml::exception("header found corrupt; padding pattern did not match");
-
 			// TODO change this to handle future version differences, rather than checking for equality
 			if((header.format_version_major != app::types::file_format_version::major)
 			   || (header.format_version_minor != app::types::file_format_version::minor))
@@ -121,6 +117,10 @@ public:
 						app::types::file_format_version::major, app::types::file_format_version::minor,
 						header.format_version_major, header.format_version_minor);
 			}
+
+			// TODO change this to handle differences in future header changes
+			if(0 != memcmp(blank_header.padding, header.padding, sizeof(blank_header.padding)))
+				throw rml::exception("header found corrupt; padding pattern did not match");
 
 			blowfish_dec.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.iv, CryptoPP::Blowfish::BLOCKSIZE);
 			CryptoPP::FileSource source(istr,
