@@ -31,11 +31,10 @@ namespace app {
 
 struct unknown_file_format_exception : rml::exception
 {
-	unknown_file_format_exception(const int current_version_major, const int current_version_minor,
-								  const int found_version_major, const int found_version_minor) :
+	unknown_file_format_exception(const int found_version_major, const int found_version_minor) :
 			rml::exception(boost::str(
-					boost::format("Unknown file-format found; current-version: v%1%.%2% found-version: v%3%.%4%") %
-					current_version_major % current_version_minor % found_version_major % found_version_minor))
+					boost::format("Unknown file-format found; found-version: v%3%.%4%") %
+					found_version_major % found_version_minor))
 	{}
 };
 
@@ -95,7 +94,7 @@ public:
 			using namespace archiving::archived::file_format;
 
 			typedef crypto_header<version<2> > crypto_header_type;
-            typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
+			typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
 
 			{
 				std::streambuf *pbuf = istr.rdbuf();
@@ -109,7 +108,7 @@ public:
 			initialise_crypto_header(crypto_header, version_number);
 			rng_.GenerateBlock(crypto_header.iv, crypto_header_type::iv_length::value);
 
-            cipher_mode::Encryption encryption;
+			cipher_mode::Encryption encryption;
 			encryption.SetKeyWithIV(&encryption_key[0], storage::basic_endpoint::encryption_key_t::static_size,
 								   crypto_header.iv, crypto_header_type::iv_length::value);
 
@@ -150,19 +149,19 @@ public:
 
 				cipher_mode::Decryption decryption;
 
-                decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv,
+				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv,
 										crypto_header_type::iv_length::value);
-                CryptoPP::FileSource source(istr,
-                                            true,
-                                            new CryptoPP::StreamTransformationFilter(
-                                                    decryption,
-                                                    new CryptoPP::FileSink(ostr),
-                                                    CryptoPP::StreamTransformationFilter::PKCS_PADDING));
-                break;
-            }
-            case 2: {
-                typedef crypto_header<version<2> > crypto_header_type;
-                typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
+				CryptoPP::FileSource source(istr,
+											true,
+											new CryptoPP::StreamTransformationFilter(
+													decryption,
+													new CryptoPP::FileSink(ostr),
+													CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+				break;
+			}
+			case 2: {
+				typedef crypto_header<version<2> > crypto_header_type;
+				typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
 
 				if (!check_crypto_header_sanity(header.v2)) {
 					throw rml::exception("Invalid v2 header found");
@@ -180,7 +179,7 @@ public:
 				break;
 			}
 			default:
-				THROW_RML_EXCEPTION("Unknown header version v" << header.format_version.major);
+				throw unknown_file_format_exception(header.format_version.major, header.format_version.minor);
 			}
 		}
 		catch(const CryptoPP::Exception& e) {
