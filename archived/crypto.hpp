@@ -192,6 +192,8 @@ public:
 		if(types::file_format::is_encrypted(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already encrypted");
 
+		LogMessage(opdata->p_detail->identifier << " AES enabled : " << (is_aes_enabled ? "yes" : "no"));
+
 		encrypt(opdata->get_tmp_fstream(),
 				opdata->get_tmp_fstream(encrypted_format, true, true),
 				opdata->p_detail->current_file_format,
