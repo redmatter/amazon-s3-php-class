@@ -177,7 +177,42 @@ class ArchivingExportZip
 		$this->addFile($fileRelPath);
 		return $fileRelPath;
 	}
-	
+
+	public function addMediaFile($dirSuffix, $fileName, $tempFile)
+	{
+		$fileRelPath = $this->placeMediaFile($dirSuffix, $fileName, $tempFile);
+		$this->addFile($fileRelPath);
+		return $fileRelPath;
+	}
+
+	private function placeMediaFile($dirSuffix, $fileName, $tempFile)
+	{
+		$part = sprintf('%02d', $this->count);
+		$subDir = "{$this->fileNameBase}_{$dirSuffix}_{$part}";
+
+		$mediaDir = "{$this->baseDir}/{$this->count}/{$subDir}";
+		$fileRelPath = "{$subDir}/{$fileName}";
+		$filePath = "{$this->baseDir}/{$this->count}/{$fileRelPath}";
+
+		try
+		{
+			if (!$this->createDirectoryTree($mediaDir))
+				throw new Exception("Failed to create temp directory '{$mediaDir}'");
+
+			if (false === @rename($tempFile, $filePath))
+			{
+				throw new Exception ("Failed to move file; {$tempFile} to {$filePath}");
+			}
+		}
+		catch (Exception $e)
+		{
+			LogError("{$this->context()}{$e}");
+			throw $e;
+		}
+
+		return $fileRelPath;
+	}
+
 	private function writeMediaFileContent($dirSuffix, $fileName, $content)
 	{
 		$part = sprintf('%02d', $this->count);	
@@ -901,7 +936,7 @@ abstract class ArchivingExport
 		return $offsetDatetime->getTimestamp() >= time();
 	}	
 	
-	protected function getS3ObjectContent($policyID, $policyVersion, $storageKey, &$content)
+	protected function getS3ObjectContent($policyID, $policyVersion, $storageKey, &$decryptedFilePath)
 	{
 		// Get endpoint details from API
 		$bucket = $this->s3endpoints->getBucket($this->orgID, $policyID, $policyVersion);		
@@ -929,8 +964,23 @@ abstract class ArchivingExport
 		
 		// size OK - download object from S3
 		LogVerbose("{$this->context()}Downloading {$storageKey} from S3 Bucket {$bucket}");
-		
-		$response = $s3->getObject($bucket, $storageKey);
+
+		$tempDir = $this->app->cliMode ? ArchivingExportZip::TEMP_CLI_DIR : ArchivingExportZip::TEMP_DIR;
+
+		$s3File = new TempPath("{$storageKey}_s3", "{$tempDir}/{$this->exportID}");
+		$s3FileFp = @fopen($s3File->getPath(), 'wb');
+		if (false === $s3FileFp)
+		{
+			throw new Exception("Unable to open temporary file {$s3File}");
+		}
+
+		/** @noinspection PhpUnusedLocalVariableInspection */
+		/** @noinspection OnlyWritesOnParameterInspection */
+		$tmpFpSentry = new ScopeSentry(function () use ($s3FileFp) {
+			@fclose($s3FileFp);
+		});
+
+		$response = $s3->getObject($bucket, $storageKey, $s3FileFp);
 		if (!isset($response->code) || $response->code !== 200)
 		{
 			$message = "There was a problem downloading {$storageKey} from S3";
@@ -942,15 +992,25 @@ abstract class ArchivingExport
 		if (!isset($response->headers) || !is_array($response->headers))
 			throw new Exception("{$storageKey} was successfully downloaded from S3 but had no headers; skipping");
 
-		if (empty($response->body))
+		$s3FileSize = filesize($s3File);
+		if ($s3FileSize === 0)
 			throw new Exception("{$storageKey} GET was successful but no body was returned");
 
 		LogVerbose("{$this->context()}Successfully downloaded {$storageKey} from S3 Bucket {$bucket}");
 		
 		try
 		{
-			LogVerbose("{$this->context()}Processing downloaded file content of {$storageKey}, size ".strlen($response->body) ." bytes");
-			$content = ArchivingProcessFile::ProcessFileContent($response->body, $this->encryptionKey);
+			$decryptedFile = new TempPath($storageKey, "{$tempDir}/{$this->exportID}");
+
+			LogVerbose("{$this->context()}Processing downloaded file content of {$storageKey}, size {$s3FileSize} bytes");
+			ArchivingProcessFile::ProcessFile($s3File, $decryptedFile, $this->encryptionKey);
+			if ($filesize != filesize($decryptedFile))
+			{
+				throw new Exception("{$storageKey} Size of the decrypted file did not match the value from header");
+			}
+
+			$decryptedFile->setRetain();
+			$decryptedFilePath = $decryptedFile->getPath();
 		}
 		catch (Exception $e)
 		{
@@ -1014,7 +1074,7 @@ abstract class ArchivingExport
 	}
 	
 	protected function addAuditDetails($archEntry, $timeUTC)
- 	{			
+	{
 		if (!isset($this->exportedPolicyIDs[$archEntry->policyID]))
 		{
 			$this->exportedPolicyIDs[$archEntry->policyID] = $archEntry->policyID;
@@ -1333,14 +1393,14 @@ class ArchivingCallExport extends ArchivingExport
 			{
 				LogMessage("{$this->context()}Recording result ID {$resID} (AUUID '{$AUUID}') was too big to export: {$archRec} bytes - skipping recording");
 				
- 				// export of this specific entry was unsuccessful due to the size of the recording
- 				// (however we still 'may' be able to export other entries in zip if recording size OK or no recordings)
+				// export of this specific entry was unsuccessful due to the size of the recording
+				// (however we still 'may' be able to export other entries in zip if recording size OK or no recordings)
 				$recording = "\"File too big\"";
 				$recordingSize = $archRec; // could be bigger than int max? leave as double
 				$recordingSecs = (int)($recordingSize / 16384.0); // 16-bit WAV
- 				$recordingTime = strftime('%T', $recordingSecs);
- 				
- 				$success = false;
+				$recordingTime = strftime('%T', $recordingSecs);
+
+				$success = false;
 			}
 			else // not archived yet or already purged
 			{
@@ -1689,13 +1749,13 @@ class ArchivingCallExport extends ArchivingExport
 		// Construct storage key from UUID
 		$storageKey = "recording/{$this->orgID}/{$uuid}";
 
-		$content = null;
-		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
-		if (($contentSize > 0) && empty($content))
+		$decryptedFilePath = null;
+		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $decryptedFilePath);
+		if (($contentSize > 0) && empty($decryptedFilePath))
 			// recording too big
 			return $contentSize;
 		
-		$wavFileRelPath = $this->zip->addMediaFileContent('recordings', "{$prefix}_{$uuid}.wav", $content);	
+		$wavFileRelPath = $this->zip->addMediaFile('recordings', "{$prefix}_{$uuid}.wav", $decryptedFilePath);
 		
 		$recording = new stdClass();
 		$recording->filepath = $wavFileRelPath;
@@ -1999,9 +2059,9 @@ class ArchivingSMSExport extends ArchivingExport
 		
 		// a big MMS probably already contains compressed media (mp4 etc), so we don't expect to get further compression 
 		// - hence specifying expected p7zip compression ratio of 1.0 (i.e. no compression)
-		$content = null;
-		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $content);
-		if (($contentSize > 0) && empty($content))
+		$decryptedFilePath = null;
+		$contentSize = $this->getS3ObjectContent($policyID, $policyVersion, $storageKey, $decryptedFilePath);
+		if (($contentSize > 0) && empty($decryptedFilePath))
 			// recording too big
 			return $contentSize;
 		
@@ -2010,11 +2070,12 @@ class ArchivingSMSExport extends ArchivingExport
 		$message->policyID = $policyID;
 
 		// seems crude, but this is exactly how the portal determines if message is SMS or MMS
-		$xmlPos = strpos($content, "<?xml");
-		if (($xmlPos === 0) || ($xmlPos === 1)) 
+		if (file_get_contents($decryptedFilePath, false, null, 0, 5) === '<?xml')
 		{
 			// SMS message - extract text field from XML
-			
+
+			$content = file_get_contents($decryptedFilePath);
+
 			//LogDebug("SMS XML: {$content}");
 			
 			$smsDom = simplexml_load_string($content);
@@ -2031,7 +2092,7 @@ class ArchivingSMSExport extends ArchivingExport
 		else
 		{
 			// assume this is a MMS message - write contents to .eml file
-			$mmsFileRelPath = $this->zip->addMediaFileContent('mms', "{$prefix}_{$uuid}.eml", $content);
+			$mmsFileRelPath = $this->zip->addMediaFile('mms', "{$prefix}_{$uuid}.eml", $decryptedFilePath);
 
 			$message->filepath = $mmsFileRelPath;
 			$message->filesize = $contentSize; 

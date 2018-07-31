@@ -46,19 +46,60 @@ class ArchivingProcessFile
 		$dest_directory = basename($dest_file_path);
 		if (!file_exists($source_file_path))
 			throw new Exception("Source file path {$source_file_path} does not exist");
-		if (!is_dir($dest_directory))
-			throw new Exception("Destination directory {$dest_directory} does not exist");
 		if (!is_writable($dest_file_path))
 			throw new Exception("Destination directory {$dest_directory} is not writable");
 
-		$content = file_get_contents($source_file_path);
-		if ($content === false)
-			throw new Exception("Failed to read content of {$source_file_path}");
+		$pid = pcntl_fork();
+		if ($pid == -1)
+		{
+			throw new Exception('Could not fork');
+		}
 
-		if (empty($content))
-			throw new Exception("{$source_file_path} is empty");
+		if ($pid)
+		{
+            $status = null;
 
-		self::ProcessFileContent($content, $encryption_key);
+			// sleep and wait for the convert to finish; also need to keep an eye on any service-stop request
+			while (0 === pcntl_waitpid($pid, $status, WNOHANG))
+			{
+				if (DaemonScripts::Terminate())
+				{
+					posix_kill($pid, SIGABRT);
+				}
+
+				usleep(100000);
+			}
+
+			if (pcntl_wifexited($status))
+			{
+				$status = pcntl_wexitstatus($status);
+				if ($status)
+				{
+					throw new Exception("Failed to convert {$source_file_path}");
+				}
+
+				LogVerbose("Decrypted $source_file_path");
+			}
+			elseif (pcntl_wifsignaled($status))
+			{
+				$signal = pcntl_wtermsig($status);
+				throw new Exception("Failed to convert {$source_file_path}; killed by signal {$signal}");
+			}
+			elseif (pcntl_wifstopped($status))
+			{
+				$signal = pcntl_wstopsig($status);
+				throw new Exception("Failed to convert {$source_file_path}; stopped by signal {$signal}");
+			}
+		}
+		else
+		{
+			pcntl_exec('/usr/bin/archiving-convert', array(
+				'--source', $source_file_path,
+				'--target', $dest_file_path,
+				'--key', base64_encode($encryption_key),
+				'--log.syslog-tag', APP_NAME_.'-convert',
+			));
+		}
 	}
 
 	/**
