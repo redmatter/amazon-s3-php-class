@@ -977,7 +977,9 @@ abstract class ArchivingExport
 		/** @noinspection PhpUnusedLocalVariableInspection */
 		/** @noinspection OnlyWritesOnParameterInspection */
 		$tmpFpSentry = new ScopeSentry(function () use ($s3FileFp) {
-			@fclose($s3FileFp);
+			if (is_resource($s3FileFp)) {
+				@fclose($s3FileFp);
+			}
 		});
 
 		$response = $s3->getObject($bucket, $storageKey, $s3FileFp);
