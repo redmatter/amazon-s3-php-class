@@ -104,7 +104,9 @@ struct call_buffering_recording
 				;
 	}
 
-	static void run(boost::program_options::variables_map& confMap, storage::cached_endpoint_finder_t& find_endpoint, channel_t& channel, const volatile bool& quit)
+	static void run(boost::program_options::variables_map& confMap, storage::cached_endpoint_finder_t& find_endpoint,
+					channel_t& channel, const volatile bool& quit,
+					const boost::function<bool(archiving::org_id_t)>& is_aes_enabled)
 	{
 		const std::string cb_base_dir(confMap["call_buffering.base_dir"].as<std::string>());
 		while(!quit) {
@@ -127,7 +129,7 @@ struct call_buffering_recording
 
 				app::crypto crypto;
 				bool done = false;
-				if (app::converter::convert(p_opdata, crypto))
+				if (app::converter::convert(p_opdata, crypto, is_aes_enabled(p_cbr->org)))
 				{
 					rml::utils::tmp_fstream::pointer p_ecw = p_opdata->get_tmp_fstream(types::file_format::encrypted_compressed_wav, false, false);
 					p_ecw->set_persistent(true);

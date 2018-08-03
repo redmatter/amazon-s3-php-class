@@ -111,10 +111,9 @@ int main(int argc, char* argv[])
 
 		{
 			char header[6];
-			app::types::header_encrypted eh;
 
 			p_source->read(&header[0], sizeof(header));
-			if(0 != memcmp(&header[0], eh.magic, sizeof(header))) {
+			if(0 != memcmp(&header[0], archiving::archived::file_format::crypto_header_magic_string(), sizeof(header))) {
 				LogError("Unknown file format; no RMA-CE header was found");
 				exit(rml::utils::exit_codes::failure);
 			}
