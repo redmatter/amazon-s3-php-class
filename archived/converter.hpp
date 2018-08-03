@@ -23,6 +23,7 @@ class converter
 	app::operation_data::busy_set_t& operation_data_busy_set_;
 	database::internal& internal_db_;
 	volatile bool& quit_flag_;
+	const boost::function<bool(archiving::org_id_t)>& is_aes_enabled_;
 
 public:
 	enum { min_threads = 2 };
@@ -31,6 +32,7 @@ public:
 	{
 		optsDesc.add_options()
 				("converter.threads",  boost::program_options::value<unsigned int>()->default_value(min_threads), "Number of converter threads")
+				("converter.enable_aes_for_orgs",  boost::program_options::value<std::string>()->default_value(""), "Organisations enabled for AES encryption")
 				;
 	}
 
@@ -39,12 +41,14 @@ public:
 			app::operation_data::channel_t& convert_done_channel,
 			app::operation_data::busy_set_t& operation_data_busy_set,
 			database::internal& internal_db,
-			volatile bool& quit_flag) :
+			volatile bool& quit_flag,
+            const boost::function<bool(archiving::org_id_t)>& is_aes_enabled) :
 				convert_channel_(convert_channel),
 				convert_done_channel_(convert_done_channel),
 				operation_data_busy_set_(operation_data_busy_set),
 				internal_db_(internal_db),
-				quit_flag_(quit_flag)
+				quit_flag_(quit_flag),
+                is_aes_enabled_(is_aes_enabled)
 	{
 	}
 
@@ -55,7 +59,7 @@ public:
 		opdata->remove_tmp_fstream(failed_format);
 	}
 	
-	static bool convert(operation_data::pointer opdata, app::crypto& crypto)
+	static bool convert(const operation_data::pointer& opdata, app::crypto& crypto, const bool is_aes_enabled)
 	{
 		const archiving::archivable::identifier& identifier(opdata->p_detail->identifier);
 
@@ -99,7 +103,7 @@ public:
 					break;
 
 				case app::types::file_format::convert_action::encrypt:
-					crypto.encrypt(opdata, next.second);
+					crypto.encrypt(opdata, next.second, is_aes_enabled);
 					break;
 				case app::types::file_format::convert_action::decrypt:
 					crypto.decrypt(opdata, next.second);
@@ -145,7 +149,7 @@ public:
 					continue;
 				}
 
-				if(convert(opdata, crypto)) {
+				if(convert(opdata, crypto, is_aes_enabled_(identifier.org))) {
 					opdata->p_detail->retry = 0;
 					opdata->p_detail->state = operation_state::make(opdata->p_detail->state, operation_outcome::ok);
 					opdata->p_detail->real_size = opdata->get_tmp_fstream()->get_size();
