@@ -57,14 +57,14 @@ struct constants
 
 struct fixable_init_failure_exception : rml::exception
 {
-    explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
+	explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
 	{
 	}
 };
 
 struct required_header_missing_exception : fixable_init_failure_exception
 {
-    explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
+	explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
 	{
 	}
 };
@@ -121,8 +121,8 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex purge_finished_time_mutex_;
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
-    std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
-    const bool delete_retention_records_for_internal_filetypes_;
+	std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
+	const bool delete_retention_records_for_internal_filetypes_;
 
 	volatile bool& quit_;
 
@@ -156,15 +156,15 @@ class runner : public boost::enable_shared_from_this<runner>
 				p_item->identifier.filetype, boost::gregorian::date(p_item->retention->creation_date));
 	}
 
-    inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
-    {
-        if (!legacy_ondemand_purge_orgs_.empty()) {
-            const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
-            return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
-        }
+	inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
+	{
+		if (!legacy_ondemand_purge_orgs_.empty()) {
+			const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
+			return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
+		}
 
-        return false;
-    }
+		return false;
+	}
 
 public:
 	runner(
@@ -213,17 +213,17 @@ public:
 		// initialise it! not thread-safe
 		(void) get_retention_purge_restrictions(confMap);
 
-        // setup legacy_ondemand_purge_orgs_
-        const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
-        if (!legacy_ondemand_purged_orgs_str.empty()) {
-            std::vector<std::string> orgs;
-            boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
-            std::vector<std::string>::const_iterator itr = orgs.begin();
-            std::vector<std::string>::const_iterator end = orgs.end();
-            for (; itr != end; ++itr) {
-                legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
-            }
-        }
+		// setup legacy_ondemand_purge_orgs_
+		const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
+		if (!legacy_ondemand_purged_orgs_str.empty()) {
+			std::vector<std::string> orgs;
+			boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
+			std::vector<std::string>::const_iterator itr = orgs.begin();
+			std::vector<std::string>::const_iterator end = orgs.end();
+			for (; itr != end; ++itr) {
+				legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
+			}
+		}
 	}
 
 	/**
@@ -253,16 +253,16 @@ public:
 		LogMessage("Saving and terminating retention purge module");
 
 		// save items
-		const boost::posix_time::ptime& batch_save_run_till(
-				boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(30));
-		internal_db_.batch_save_run< item, item::weak_set_t >(batch_save_run_till);
+		const boost::chrono::steady_clock::time_point& batch_save_run_till(
+				boost::chrono::steady_clock::now() + boost::chrono::seconds(30));
+		internal_db_.batch_save_run<item, item::weak_set_t>(batch_save_run_till, true);
 
 		// consume everything from finished_channel and DELETE them
 		finished_channel_.set_finishing();
 		const item::channel_t::bare_item_set_t& items_finished(finished_channel_.consume_remaining());
 		if(!items_finished.empty())
 			internal_db_.delete_by_ids< item, item::channel_t::bare_item_set_t::const_iterator, item::extract_id, item::extract_identifier >(
-					items_finished.begin(), items_finished.end(), "ArchiveDPurgeQueue", "ID");
+					items_finished.begin(), items_finished.end(), "ArchiveDPurgeQueue", "ID", true);
 	}
 
 	/**
@@ -325,23 +325,23 @@ public:
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
-        static const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) > fn_schedule_purgeables(
-                boost::bind(&app::retention_purge::runner::schedule_purgeables, shared_from_this(), _1, _2, _3));
+		static const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) > fn_schedule_purgeables(
+				boost::bind(&app::retention_purge::runner::schedule_purgeables, shared_from_this(), _1, _2, _3));
 
 		int batch_count_(batch_count);
 
 		// look for any on-demand purge
-        batch_count_ -= retention_db_.get_retention_for_purge_ondemand(
-                api_, org_id, boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
-                fn_is_filetype_auto_expired, fn_schedule_purgeables);
+		batch_count_ -= retention_db_.get_retention_for_purge_ondemand(
+				api_, org_id, boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
+				fn_is_filetype_auto_expired, fn_schedule_purgeables);
 
 		// continue with the regular purge
 		if(batch_count_ > 0) {
-            return retention_db_.get_retention_for_purge(
-                    api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
-                    boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
-                    fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
-                    org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
+			return retention_db_.get_retention_for_purge(
+					api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
+					boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
+					fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
+					org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
 		}
 
 		return max_retention_id;
@@ -1011,7 +1011,7 @@ public:
 
 					if(!purge_list.empty()) {
 						internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id, item::extract_identifier >(
-										purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID");
+										purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID", false);
 
 						// to adjust for delays from processing the batch
 						purge_finished_time_ = time(0);

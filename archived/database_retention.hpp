@@ -214,7 +214,7 @@ public:
 	{
 		int count(0);
 
-		boost::shared_ptr<rmldb::connection> conn = get_connection();
+		boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 		mysqlpp::Transaction transaction(*conn);
 
 		try {
@@ -260,7 +260,7 @@ public:
 
 					//fill requested_items
 					{
-						boost::shared_ptr<rmldb::connection> conn = get_connection();
+						boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(15));
 
 						// if we go beyond @@group_concat_max_len we need to safely ignore any broken IDs, and capture them in the next iteration
 						std::string ids(row[2].c_str());
@@ -297,7 +297,7 @@ public:
 								fn_is_filetype_auto_expired, "Purge:OnDemand");
 
 						// update retention records to set State to PurgeQueued
-						boost::shared_ptr<rmldb::connection> conn_update_retention = get_connection();
+						boost::shared_ptr<rmldb::connection> conn_update_retention = get_connection_wait_for(boost::chrono::seconds(15));;
 						mysqlpp::Query query_update_retention = conn_update_retention->query();
 						query_update_retention << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
 						retention_record::set_t::const_iterator begin(requested_items.begin());
@@ -351,7 +351,7 @@ public:
 		uint64_t new_max_retention_id = max_retention_id;
 		retention_record::set_t retention_set;
 
-		boost::shared_ptr<rmldb::connection> conn = get_connection();
+		boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(1));
 		mysqlpp::Transaction transaction(*conn);
 
 		try {
@@ -456,7 +456,7 @@ public:
 			std::string uuid_hex(identifier.uuid);
 			boost::algorithm::erase_all(uuid_hex, "-");
 
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			try {
 				mysqlpp::Query query = conn->query();
 				query << "SELECT"
@@ -493,7 +493,7 @@ public:
 		types::purge_def::pointer ret(new types::purge_def(time(0)));
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 
 			try {
 				mysqlpp::Query query = conn->query();
@@ -532,7 +532,7 @@ public:
 		__attribute__ ((warn_unused_result))
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			try {
 				{
 					mysqlpp::Query query = conn->query();
@@ -542,8 +542,8 @@ public:
 
 				mysqlpp::Query query = conn->query();
 				query << "INSERT INTO `ArchivingRetention`.`HourlyUsage_"<<org<<"` \n"
-																				"( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
-																				" VALUES ("
+						 "( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+						 " VALUES ("
 					  << " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
 					  << static_cast<int>(filetype)<<", "
 					  << count<<", "
@@ -579,7 +579,7 @@ public:
 	uint64_t count_purge_audit_records(const archiving::archivable::identifier& identifier)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			try {
 				mysqlpp::Query query = conn->query();
 
@@ -621,7 +621,7 @@ public:
 		}
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			mysqlpp::Transaction transaction(*conn, false);
 			try {
 				for(Iter itr = begin; itr != end; ) {
@@ -660,7 +660,7 @@ public:
 	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			mysqlpp::Transaction transaction(*conn, false);
 
 			try {
