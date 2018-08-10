@@ -173,6 +173,23 @@ struct put_object_request
                                     boost::system::error_condition(error::http::bad_request)));
         }
 
+        switch (*file_type)
+        {
+        case archiving::file_type::cdr:
+        case archiving::file_type::pcap:
+        case archiving::file_type::pcap_sip_only:
+            if (*org_id != 1) {
+                boost::throw_exception(
+                        boost::enable_error_info(error::http_error_exception("Internal file-type must belong to Org 1"))
+                                << error::error_info_request_correlation(req.correlation)
+                                << error::error_info_error_condition(
+                                        boost::system::error_condition(error::http::bad_request)));
+            }
+            break;
+        default:
+            break;
+        }
+
         try {
             const std::string& path(
                     boost::str(boost::format("%1%_%2%_%3%_%4%_")
@@ -219,6 +236,10 @@ struct put_object_request
                         "" /* modified file path */,
                         *(content_md5),
                         archiving::archivable::state::collected));
+
+        if (*file_type == archiving::file_type::cdr) {
+            archivable->set_add_to_cdrmunch_cache(true);
+        }
 
         if (leg_uuid != boost::none) {
             archivable->set_leg_uuid(boost::lexical_cast<std::string>(*leg_uuid));
