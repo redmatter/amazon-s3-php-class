@@ -117,6 +117,8 @@ public:
 							}
 
 							data->p_detail->state = operation_state::all_done;
+						} else {
+							LogMessage(identifier<<": Not archived (no retention record created)");
 						}
 
 						pc_produce(purge_channel_, data);
@@ -127,10 +129,17 @@ public:
 				}
 
 				if(!retention_set.empty() || !usage_data_set.empty()) {
+					typedef boost::chrono::duration<double, boost::ratio<60> > double_minute;
+					const boost::chrono::steady_clock::time_point when_started = boost::chrono::steady_clock::now();
 					int retry = 0;
-					while(!retention_db_.save(retention_set, usage_data_set) && !quit_) {
-						LogMessage("[retry: "<<(++retry)<<"] Retention save failed' retrying...");
-						boost::this_thread::sleep(boost::posix_time::seconds(15));
+					while(!retention_db_.save(retention_set, usage_data_set)) {
+						const boost::chrono::seconds retry_interval(10);
+						LogWarning("[retry: " << (++retry) << "] Retention save failed; retrying in "
+											  << retry_interval.count() << "s (DO NOT KILL THE PROCESS) ... [running for "
+											  << boost::chrono::duration_cast<double_minute>(
+													  boost::chrono::steady_clock::now() - when_started).count()
+											  << " minutes]");
+						boost::this_thread::sleep_for(retry_interval);
 					}
 				}
 			}

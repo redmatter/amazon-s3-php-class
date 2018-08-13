@@ -47,7 +47,7 @@ public:
 	bool save(whisper::pointer p_whisper)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			try {
 				mysqlpp::Query query = conn->query();
 				query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"

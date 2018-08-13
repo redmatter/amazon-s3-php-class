@@ -62,14 +62,14 @@ add_subdirectory(${rml-queue_SOURCE_DIR})
 
 download_project(PROJ rml-utils
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
-        GIT_TAG 1.2.0
+        GIT_TAG 1.3.1
         UPDATE_DISCONNECTED 1
         )
 add_subdirectory(${rml-utils_SOURCE_DIR})
 
 download_project(PROJ rml-database-mysql
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
-        GIT_TAG 1.2.6
+        GIT_TAG 2.0.0
         UPDATE_DISCONNECTED 1
         )
 add_subdirectory(${rml-database-mysql_SOURCE_DIR})

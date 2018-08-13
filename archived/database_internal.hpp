@@ -59,10 +59,18 @@ public:
 	{
 	}
 
-	bool save(operation_data::pointer& opdata)
+	inline bool
+	save(operation_data::pointer& opdata)
+	{
+		return save(opdata, boost::chrono::seconds(5));
+	}
+
+	template<class Rep, class Period>
+	inline bool
+	save(operation_data::pointer& opdata, const boost::chrono::duration<Rep, Period>& wait_duration)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(wait_duration);
 			mysqlpp::Transaction transaction(*conn, false);
 
 			const operation_data::detail& opdetail(*(opdata->p_detail));
@@ -238,7 +246,7 @@ public:
 		static uint64_t max_id = 0;
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(1));
 			try {
 				if(first) {
 					mysqlpp::Query query = conn->query();
@@ -311,7 +319,7 @@ public:
 
 							files_map_t files_map;
 							{
-								boost::shared_ptr<rmldb::connection> conn = get_connection();
+								boost::shared_ptr<rmldb::connection> conn = get_connection_wait();
 								mysqlpp::Query query = conn->query();
 								query << "SELECT FileFormat, Path FROM ArchivingInternal.ArchiveDQueueFiles WHERE ArchiveDQueueID=%0:ID";
 								query.parse();
@@ -380,7 +388,7 @@ public:
 	bool purge(const std::set< operation_data::pointer >& purgeables)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			mysqlpp::Transaction trans(*conn);
 
 			try {
@@ -436,7 +444,7 @@ public:
 	{
 		std::string path;
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::milliseconds(500));
 			mysqlpp::Transaction trans(*conn);
 
 			try {
@@ -502,7 +510,7 @@ public:
 			const bool is_hardlink=true)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::milliseconds(500));
 			try {
 				mysqlpp::Query query = conn->query();
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDClearCache` "
@@ -575,7 +583,7 @@ public:
 		try {
 			types::purge_def::pointer p_ret(new types::purge_def());
 
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(2));
 
 			try {
 				if(!previous->set.empty())
@@ -674,7 +682,7 @@ public:
 	long get_purge_queue_size(const int& purge_max_queue_size, const std::string& enabled_orgs, const std::string& state_filter)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(2));
 			try {
 				mysqlpp::Query query = conn->query();
 
@@ -728,8 +736,8 @@ public:
 		LogDebug(p_item<<" added to save_db_set");
 	}
 
-	template< typename Item, typename ItemWeakSetType >
-	void batch_save_run(const boost::posix_time::ptime& run_till) try
+	template<typename Item, typename ItemWeakSetType>
+	void batch_save_run(const boost::chrono::steady_clock::time_point& run_till, const bool shutting_down) try
 	{
 		typedef ItemWeakSetType item_set;
 		typedef typename ItemWeakSetType::const_iterator item_set_iterator;
@@ -739,7 +747,13 @@ public:
 		if(Item::save_db_set.begin() == Item::save_db_set.end()) // empty?
 			return;
 
-		boost::shared_ptr<rmldb::connection> conn = get_connection();
+		boost::shared_ptr<rmldb::connection> conn;
+		if (shutting_down) {
+			conn = get_connection_wait();
+		} else {
+			conn = get_connection_wait_for(boost::chrono::seconds(5));
+		}
+
 		mysqlpp::Transaction txn(*conn, false);
 
 		try {
@@ -747,7 +761,7 @@ public:
 			item_set_iterator end = Item::save_db_set.end();
 			item_set_iterator processed_end;
 			for (item_set_iterator itr = begin; itr != end;) {
-				if (boost::posix_time::microsec_clock::universal_time() > run_till) {
+				if (!shutting_down && boost::chrono::steady_clock::now() > run_till) {
 					LogDWarning("Allowed time has run out; giving up", "IGNO");
 					break;
 				}
@@ -830,8 +844,9 @@ public:
 		LogWarning("Exception: Unknown or Unexpected");
 	}
 
-	template< typename Item, typename Iter, typename ExtractID, typename ExtractIdentifier >
-	bool delete_by_ids(const Iter& begin, const Iter& end, const std::string& table_name, const std::string& field_name="id")
+    template<typename Item, typename Iter, typename ExtractID, typename ExtractIdentifier>
+    bool delete_by_ids(const Iter& begin, const Iter& end, const std::string& table_name,
+                       const std::string& field_name = "id", const bool shutting_down = false)
 	{
 		if(begin == end)
 			return true;
@@ -843,7 +858,12 @@ public:
 			static ExtractID extract_id;
 			static ExtractIdentifier extract_identifier;
 
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+            boost::shared_ptr<rmldb::connection> conn;
+			if (shutting_down) {
+                conn = get_connection_wait();
+			} else {
+                conn = get_connection_wait_for(boost::chrono::seconds(1));
+			}
 			mysqlpp::Transaction txn(*conn, false);
 
 			try {
@@ -925,7 +945,7 @@ public:
 	 */
 	inline uint64_t get_purge_queue_max_id() try
 	{
-		boost::shared_ptr<rmldb::connection> conn = get_connection();
+		boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 		try {
 			mysqlpp::Query query = conn->query();
 
@@ -969,7 +989,7 @@ public:
 		try {
 			ExtractID extract_id;
 
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
+			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::milliseconds(500));
 			mysqlpp::Transaction txn(*conn, false);
 
 			try {
