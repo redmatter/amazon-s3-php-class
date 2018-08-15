@@ -24,4 +24,14 @@
 #define PURGE_SQL_DEBUG(conn, line) \
     SqlDebugIf(RETENTION_PURGE_SQL_DEBUG_BOOL, conn, line)
 
+#define MYSQL_CATCH_LOG_ERROR(e)                                                                \
+		catch(const mysqlpp::Exception& e) { LogError("MySQL Exception: "<<e.what()); } \
+		catch(const std::exception& e) { LogError("Exception: "<<e.what()); }           \
+		catch(...) { LogError("Unknown Exception"); }
+
+#define MYSQL_CATCH_LOG_WARNING(e)                                                                \
+		catch(const mysqlpp::Exception& e) { LogWarning("MySQL Exception: "<<e.what()); } \
+		catch(const std::exception& e) { LogWarning("Exception: "<<e.what()); }           \
+		catch(...) { LogWarning("Unknown Exception"); }
+
 #endif //ARCHIVING_ARCHIVED_MACROS_H

@@ -1,9 +1,10 @@
-/*
- * policy.hpp
- *
- *  Created on: 03 Feb 2011
- *      Author: dkorah
- */
+//
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 03/02/2011.
+//
 
 #ifndef POLICY_HPP_
 #define POLICY_HPP_
@@ -26,6 +27,42 @@
 #include <stdint.h>
 
 namespace app {
+
+namespace detail
+{
+template <typename T>
+struct __ws
+{
+    const T& d;
+
+    __ws(const T& d) : d(d)
+    {}
+};
+
+typedef boost::posix_time::ptime::date_type::ymd_type ymd_type;
+inline std::ostream&
+operator<<(std::ostream& os, const __ws<ymd_type>& ws)
+{
+    return os << '\''
+              << ymd_type::year_type::value_type(ws.d.year) << '-'
+              << ymd_type::month_type::value_type(ws.d.month) << '-'
+              << ymd_type::day_type::value_type(ws.d.day)
+              << '\'';
+}
+
+} // namespace detail
+
+/**
+ * Stream inserter helper; for types far away in another namespace
+ * @param d
+ * @return wrapped object
+ */
+template <typename T>
+inline detail::__ws<T>
+__ws(const T& d)
+{
+	return detail::__ws<T>(d);
+}
 
 /**
  * Defines various retention units
