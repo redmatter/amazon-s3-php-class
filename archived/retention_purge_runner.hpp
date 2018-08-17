@@ -401,6 +401,11 @@ public:
 		if (headers_check_is_suppressed(p_item))
 			return true;
 
+		// if the endpoint is not retention-managed, we dont need to check the state of headers etc
+		if (!p_item->endpoint->is_retention_managed) {
+			return true;
+		}
+
 		const retention_record& retention_from_db(*(p_item->retention));
 
 		storage::s3::backend::pointer storage_backend = storage::s3::backend::get_instance();
@@ -715,9 +720,12 @@ public:
 
 		// --- ---
 
-		// if we need no approval; skip this stage
-		if(state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
+		// if we need no approval or the storage-endpoint is not retention-managed; skip stages
+		if ((state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
+			|| (state::get_coarse(p_item->cur_state) == state::_delete_file_ && !p_item->endpoint->is_retention_managed))
+		{
 			p_item->cur_state = state::next_up(p_item->cur_state, /* force = */true);
+		}
 
 		switch(state::get_coarse(p_item->cur_state)) {
 
