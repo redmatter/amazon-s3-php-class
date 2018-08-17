@@ -18,7 +18,9 @@
 #include "../common/coreapi_eventlog.hpp"
 
 #include <rml/database/mysql/basic_database.hpp>
+#include <rml/database/mysql/transactional_connection.hpp>
 #include <rml/database/mysql/errors.hpp>
+#include <rml/database/mysql/utils.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
 
@@ -43,7 +45,7 @@ namespace database {
 
 namespace rmldb = rml::database::mysql;
 
-class retention : public rmldb::basic_database<retention>
+class retention : public rmldb::basic_database<retention, rmldb::transactional_connection>
 {
 public:
 	struct data
@@ -93,8 +95,8 @@ public:
 		return "retention";
 	}
 
-	retention(const boost::program_options::variables_map& confMap) :
-			rmldb::basic_database<retention>(confMap)
+	explicit retention(const boost::program_options::variables_map& confMap) :
+			rmldb::basic_database<retention, rmldb::transactional_connection>(confMap)
 	{
 	}
 
@@ -130,14 +132,14 @@ public:
 
 			ret.reset(new retention_record(
 					archiving::archivable::identifier(
-							archiving::file_type::file_type_t(rml::utils::strtoull(row[3].c_str())),
-							rml::utils::strtoull(row[4].c_str()), row[0].c_str()),// Identifier
+							archiving::file_type::file_type_t(static_cast<int>(row[3])),
+							static_cast<archiving::org_id_t>(row[4]), row[0].c_str()),// Identifier
 					types::file_format::file_format_t(rml::utils::strtoull(row[2].c_str())),
 					archiving::user_id_t(rml::utils::strtoull(row[5].c_str())),   // UserID
 					policy::id_type(rml::utils::strtoull(row[6].c_str())),      // PolicyID
 					policy::version_type(rml::utils::strtoull(row[7].c_str())), // PolicyVersion
 					creation_date, retention_min_date, retention_max_date,
-					rml::utils::strtoull(row[17].c_str()),
+					static_cast<std::time_t>(row[17]),
 					row[19] == "yes",
 					rml::utils::strtoull(row[18].c_str()),
 					rml::utils::strtoull(row[21].c_str())));
@@ -146,8 +148,8 @@ public:
 		return ret;
 	}
 
-	template < typename Iter, typename ExtractIdentifier >
-	bool purge_audit(const boost::shared_ptr<rmldb::connection>& conn, const archiving::org_id_t& org,
+	template <typename ExtractIdentifier, typename Iter>
+	bool purge_audit(const boost::shared_ptr<rmldb::transactional_connection>& conn, const archiving::org_id_t& org,
 			const coreapi_eventlog::id_t& eventlog_id, Iter begin, Iter end,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
 			const std::string& auditable_action,
@@ -214,126 +216,129 @@ public:
 	{
 		int count(0);
 
-		boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-		mysqlpp::Transaction transaction(*conn);
-
 		try {
+			typedef mysqlpp::StoreQueryResult::const_iterator row_iterator;
+
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+
+			mysqlpp::StoreQueryResult delete_requests;
 			{
-				mysqlpp::Query query = conn->query();
-				query << "SET time_zone = '+00:00'";
-				query.execute();
+				mysqlpp::Query query = conn->query(
+						"SELECT `dr`.`ID`, `dr`.`AuditLogID` FROM `DeleteRequest_%0:OrgID` `dr` "
+						"WHERE `dr`.`State`='ReadyForPurge' LIMIT 10");
+				query.parse();
+				mysqlpp::SQLQueryParms qp;
+				qp << org_id;
+
+				PURGE_SQL_DEBUG(conn, query.str(qp));
+				delete_requests = query.store(qp);
 			}
 
-			{
-				mysqlpp::Query query = conn->query();
-				query << "SET @@group_concat_max_len = " << MYSQL_GROUP_CONCAT_BUF_LENGTH;
-				query.execute();
-			}
+			const unsigned limit = 1000;
+			for (row_iterator itr = delete_requests.begin(); itr != delete_requests.end(); ++itr) {
+				const uint64_t delete_request_id(itr->at(0));
+				const coreapi_eventlog::id_t eventlog_id(itr->at(1));
 
-			{
-				mysqlpp::Query query = conn->query();
-				query << "SELECT `dr`.`ID`, `dr`.`AuditLogID`, GROUP_CONCAT( `dri`.`RetentionID` SEPARATOR ',' ) "
-						"FROM `DeleteRequest_"<<org_id<<"` `dr` "
-						"LEFT JOIN `DeleteRequestItems_"<<org_id<<"` `dri` ON `dr`.`ID` = `dri`.`DeleteRequestID` "
-						"WHERE `dr`.`State`='ReadyForPurge' AND `dri`.`State`='Approved' "
-						"GROUP BY `dr`.`ID` "
-						"FOR UPDATE";
-				PURGE_SQL_DEBUG(conn, query.str());
-				mysqlpp::StoreQueryResult res = query.store();
-				const size_t& n_rows(res.num_rows());
-				if(!n_rows || (res[0][0] == "NULL"))
-					return 0;
+				if(!coreapi_eventlog::find(api, std::make_pair(org_id, eventlog_id))) {
+					LogWarning("Failed to verify eventlog ID:"<<eventlog_id);
+					continue;
+				}
 
-				for(size_t i_row = 0; i_row<n_rows; ++i_row) {
+				conn->start_transaction();
 
-					unsigned int not_purgeable_items(0);
+				std::list<uint64_t> retention_ids;
+				{
+					mysqlpp::Query query = conn->query(
+							"SELECT `RetentionID` "
+							"FROM `DeleteRequestItems_%0:OrgID` "
+							"WHERE `State`='Approved'"
+							" AND `DeleteRequestID` = %1:DeleteRequestID "
+							"LIMIT %2:Limit");
+					query.parse();
+					mysqlpp::SQLQueryParms qp;
+					qp << org_id << delete_request_id << limit;
 
-					mysqlpp::Row row = res[i_row];
+					PURGE_SQL_DEBUG(conn, query.str(qp));
+					const mysqlpp::StoreQueryResult& items(query.store(qp));
+					{
+						const row_iterator& items_begin(items.begin());
+						const row_iterator& items_end(items.end());
+						for (row_iterator items_itr = items_begin; items_itr != items_end; ++items_itr) {
+							retention_ids.push_back(items_itr->at(0));
+						}
+					}
+				}
 
+				bool some_did_not_make_it = false;
+
+				//fill requested_items
+				if (!retention_ids.empty()) {
 					retention_record::set_t requested_items;
 
-					uint64_t delete_request_id(rml::utils::strtoull(row[0].c_str()));
-					coreapi_eventlog::id_t eventlog_id(rml::utils::strtoull(row[1].c_str()));
-					coreapi_eventlog::pointer p_eventlog(coreapi_eventlog::find(api, std::make_pair(org_id, eventlog_id)));
-					if(!p_eventlog)
-						THROW_RML_EXCEPTION("Failed to verify eventlog ID:"<<eventlog_id);
+					const std::list<uint64_t>::const_iterator& items_begin(retention_ids.begin());
+					const std::list<uint64_t>::const_iterator& items_end(retention_ids.end());
+					for (std::list<uint64_t>::const_iterator items_itr = items_begin; items_itr != items_end; ++items_itr) {
+						mysqlpp::StoreQueryResult retention_res;
+						{
+							mysqlpp::Query query = conn->query();
+							query << "SELECT " << retention_select_fields()
+								  << "FROM `Retention_" << org_id << "` WHERE ID = " << *items_itr
+								  << " AND `State`='Available' LIMIT 1 FOR UPDATE";
+							PURGE_SQL_DEBUG(conn, query.str());
 
-					//fill requested_items
-					{
-						boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(15));
-
-						// if we go beyond @@group_concat_max_len we need to safely ignore any broken IDs, and capture them in the next iteration
-						std::string ids(row[2].c_str());
-						if (ids.length() > (MYSQL_GROUP_CONCAT_BUF_LENGTH - 15)) {
-							not_purgeable_items = 1; // so that the purge-request wouldn't get marked as Done
-							const std::string::size_type sep_pos(ids.rfind(','));
-							if (sep_pos != std::string::npos) {
-								ids.erase(sep_pos);
-							}
+							retention_res = query.store();
 						}
 
-						mysqlpp::Query query = conn->query();
-						query << "SELECT "<<retention_select_fields()<<" FROM Retention_"<<org_id
-							  << " WHERE ID IN ( "<<ids<<" ) AND `State`='Available'";
-						PURGE_SQL_DEBUG(conn, query.str());
-
-						mysqlpp::UseQueryResult res = query.use();
-						while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
-							if(!is_purgeaple(rec)) {
-								not_purgeable_items++;
+						if (!retention_res.empty()) {
+							const retention_record::pointer& rec(make_retention_record(retention_res[0]));
+							if (!is_purgeaple(rec)) {
 								LogVerbose(rec->identifier<<" : Not yet purgeable");
+								some_did_not_make_it = true;
 								continue;
 							}
 
-							requested_items.insert(rec);
+							// update retention record; set State to PurgeQueued
+							{
+								mysqlpp::Query query = conn->query(
+										"UPDATE `Retention_%0:OrgID` SET `State`='PurgeQueued' "
+										"WHERE ID=%1:RetentionID LIMIT 1");
+								mysqlpp::SQLQueryParms qp;
+								qp << org_id << *items_itr;
+								PURGE_SQL_DEBUG(conn, query.str(qp));
+								query.execute(qp);
+							}
+
 							count++;
+							requested_items.insert(rec);
 						}
 					}
 
-					if(!requested_items.empty()) {
-						// audit them
-						purge_audit< retention_record::set_t::iterator, retention_record::extract_identifier >(
-								conn, org_id, p_eventlog->id, requested_items.begin(), requested_items.end(),
-								fn_is_filetype_auto_expired, "Purge:OnDemand");
+					purge_audit<retention_record::extract_identifier>(
+							conn, org_id, eventlog_id, requested_items.begin(), requested_items.end(),
+							fn_is_filetype_auto_expired, "Purge:OnDemand");
 
-						// update retention records to set State to PurgeQueued
-						boost::shared_ptr<rmldb::connection> conn_update_retention = get_connection_wait_for(boost::chrono::seconds(15));;
-						mysqlpp::Query query_update_retention = conn_update_retention->query();
-						query_update_retention << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued' WHERE ID IN(";
-						retention_record::set_t::const_iterator begin(requested_items.begin());
-						retention_record::set_t::const_iterator end(requested_items.end());
-						for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
-							query_update_retention << (itr == begin? ' ': ',')<<(*itr)->id;
-						query_update_retention << ')';
-						PURGE_SQL_DEBUG(conn, query_update_retention.str());
-						query_update_retention.execute();
-
-						// schedule the found purge-able items
-						fn_schedule_purgeables(requested_items, p_eventlog->id, delete_request_id);
-					}
-					else
-						LogDWarning("No records found to purge, for delete request ID:"<<delete_request_id, "IGNO");
-
-					if(!not_purgeable_items) {
-						mysqlpp::Query query = conn->query();
-						query << "UPDATE `DeleteRequest_"<<org_id<<"` SET `State`='Done' WHERE `ID`="<<delete_request_id;
-						PURGE_SQL_DEBUG(conn, query.str());
-						query.execute();
-					}
-					else
-						LogVerbose("DeleteRequest:"<<delete_request_id<<" not set Done as it has a few pending items");
+					// schedule the found purge-able items
+					fn_schedule_purgeables(requested_items, eventlog_id, delete_request_id);
 				}
-			}
 
-			transaction.commit();
+				// looks like we have loaded every item from the request; if there were only <limit> number of records
+				// the request will be marked Done in the next sweep.
+				if (!some_did_not_make_it && retention_ids.size() < limit) {
+					mysqlpp::Query query = conn->query(
+							"UPDATE `DeleteRequest_%0:OrgID` SET `State`='Done' "
+							"WHERE `ID`=%1:DeleteRequestID "
+							"LIMIT 1");
+					query.parse();
+					mysqlpp::SQLQueryParms qp;
+					qp << org_id << delete_request_id;
+					PURGE_SQL_DEBUG(conn, query.str(qp));
+					query.execute(qp);
+				}
+
+				conn->commit_transaction();
+			}
 		}
-		catch (const mysqlpp::BadQuery& e) {
-			LogError("MySQL Error: "<<e.what());
-			abandon_connection_if_faulty(conn, transaction, e);
-		}
-		catch (const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return count;
 	}
@@ -347,57 +352,43 @@ public:
 			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
 			const bool& org_had_legacy_ondemand_purge,
 			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
-	try {
-		uint64_t new_max_retention_id = max_retention_id;
-		retention_record::set_t retention_set;
-
-		boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(1));
-		mysqlpp::Transaction transaction(*conn);
-
+	{
 		try {
+			uint64_t new_max_retention_id = max_retention_id;
+			retention_record::set_t retention_set;
+
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(1));
+			conn->start_transaction();
+
 			{
 				mysqlpp::Query query = conn->query();
-				query << "SET time_zone = '+00:00'";
-				query.execute();
-			}
 
-			unsigned int limit_remaining(limit);
-			unsigned int max_retry(10);
-			do {
-				mysqlpp::Query query = conn->query();
-				query << "SELECT "
-						<< retention_select_fields() <<
-						"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-						"WHERE ID > "<<new_max_retention_id<<" AND `State`='Available' "<<where_configured_restrictions<<" "
-						"LIMIT "<<limit_remaining<<" FOR UPDATE";
+				std::string state_condition;
+				if (org_had_legacy_ondemand_purge) {
+					// look for any object that would fit legacy on-demand purge criteria.
+					state_condition = "(`State`='PurgeQueued' AND `Purged`='yes') OR ";
+				}
+
+				state_condition += "`State`='Available'";
+
+				query << "SELECT " << retention_select_fields() << ", `State`='PurgeQueued' "
+					  << "FROM `Retention_" << org_id << "` "
+					  << "WHERE `ID` > " << new_max_retention_id
+					  << " AND `ID` <= " << (new_max_retention_id + std::max(limit * 10, 10000U))
+					  << " AND (" << state_condition << ") " << where_configured_restrictions << " "
+					  << "LIMIT " << limit << " FOR UPDATE";
 
 				PURGE_SQL_DEBUG(conn, query.str());
 
 				mysqlpp::UseQueryResult res = query.use();
-				while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
-					if(is_purgeaple(rec)) {
-						limit_remaining--;
+				while(const mysqlpp::Row row = res.fetch_row()) {
+					retention_record::pointer rec = make_retention_record(row);
+					bool is_legacy_purged = row[row.size() - 1];
+					if(is_purgeaple(rec) || is_legacy_purged) {
 						retention_set.insert(rec);
 					}
 
 					new_max_retention_id = std::max(new_max_retention_id, rec->id);
-				}
-			} while(limit_remaining && --max_retry);
-
-			// here look for any object that would fit legacy on-demand purge criteria.
-			if (org_had_legacy_ondemand_purge && limit_remaining) {
-				mysqlpp::Query query = conn->query();
-				query << "SELECT " << retention_select_fields() << " "
-						"FROM `ArchivingRetention`.`Retention_"<<org_id<<"` r "
-						"WHERE (`State`='PurgeQueued' AND `Purged`='yes')"
-						" "<<where_configured_restrictions<<" "
-						"LIMIT "<<limit_remaining<<" FOR UPDATE";
-
-				PURGE_SQL_DEBUG(conn, query.str());
-
-				mysqlpp::UseQueryResult res = query.use();
-				while(retention_record::pointer rec = make_retention_record(res.fetch_row())) {
-					retention_set.insert(rec);
 				}
 			}
 
@@ -405,11 +396,12 @@ public:
 				// Update state
 				{
 					mysqlpp::Query query = conn->query();
-					query << "UPDATE `ArchivingRetention`.`Retention_"<<org_id<<"` SET `State`='PurgeQueued', `Purged`='no' WHERE ID IN(";
+					query << "UPDATE `Retention_"<<org_id<<"` SET `State`='PurgeQueued', `Purged`='no' WHERE ID IN(";
 					retention_record::set_t::const_iterator begin(retention_set.begin());
 					retention_record::set_t::const_iterator end(retention_set.end());
-					for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr)
+					for(retention_record::set_t::const_iterator itr = begin; itr != end; ++itr) {
 						query << (itr == begin? ' ': ',')<<(*itr)->id;
+					}
 					query << ')';
 
 					PURGE_SQL_DEBUG(conn, query.str());
@@ -420,33 +412,20 @@ public:
 				coreapi_eventlog::pointer eventlog = coreapi_eventlog::create(
 						api, org_id, coreapi_eventlog::levels::message, "Purge based on retention rules", "Archiving",
 						"Purge:Auto");
-				purge_audit< retention_record::set_t::iterator, retention_record::extract_identifier >(
+				purge_audit<retention_record::extract_identifier>(
 						conn, org_id, eventlog->id, retention_set.begin(), retention_set.end(), fn_is_filetype_auto_expired,
 						eventlog->action, is_internal_filetype);
 
 				// schedule the found purge-able items
 				fn_schedule_purgeables(retention_set, eventlog->id, 0 /* not on-demand purge */);
 
-				transaction.commit();
+				conn->commit_transaction();
 			}
-		}
-		catch (const mysqlpp::BadQuery& e) {
-			LogError("MySQL Error: "<<e.what());
-			abandon_connection_if_faulty(conn, transaction, e);
-		}
 
-		return new_max_retention_id;
-	}
-	catch(const mysqlpp::Exception& e) {
-		LogError("MySQL Exception: "<<e.what());
-		return max_retention_id;
-	}
-	catch(const std::exception& e) {
-		LogError("Exception: "<<e.what());
-		return max_retention_id;
-	}
-	catch(...) {
-		LogError("Unknown Exception");
+			return new_max_retention_id;
+		}
+		MYSQL_CATCH_LOG_ERROR(e)
+
 		return max_retention_id;
 	}
 
@@ -456,34 +435,23 @@ public:
 			std::string uuid_hex(identifier.uuid);
 			boost::algorithm::erase_all(uuid_hex, "-");
 
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-			try {
-				mysqlpp::Query query = conn->query();
-				query << "SELECT"
-					  << retention_select_fields() <<
-					  "FROM `ArchivingRetention`.`Retention_"<<identifier.org<<"` "
-					  "WHERE `UUID`=0x"<<uuid_hex<<" /*"<<identifier.uuid<<"*/ AND `Type`="<<mysqlpp::sql_int(identifier.filetype)<<" " // comments for easy grepping in logs; hex for performance
-					  "LIMIT 1";
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 
-				SqlDebug(conn, query.str());
+			mysqlpp::Query query = conn->query();
+			query << "SELECT" << retention_select_fields()
+				  << "FROM `Retention_%0:OrgID` WHERE `Type`=%1:FileType AND `UUID`=%2:UUID /*%3:Comment*/ LIMIT 1";
+			query.parse();
 
-				mysqlpp::UseQueryResult res = query.use();
-				return make_retention_record(res.fetch_row());
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: " << e.what());
-				abandon_connection_if_faulty(conn, e);
-			}
+			mysqlpp::SQLQueryParms qp;
+			qp << identifier.org << mysqlpp::sql_int(identifier.filetype)
+			   << rmldb::utils::mysqlpp_uuid_literal(identifier.uuid) << identifier.uuid;
+
+			SqlDebug(conn, query.str(qp));
+
+			mysqlpp::UseQueryResult res = query.use(qp);
+			return make_retention_record(res.fetch_row());
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return retention_record::pointer();
 	}
@@ -493,37 +461,27 @@ public:
 		types::purge_def::pointer ret(new types::purge_def(time(0)));
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 
-			try {
-				mysqlpp::Query query = conn->query();
-				query << "SELECT OrgID FROM ("
-						 " SELECT SUBSTRING(TABLE_NAME FROM 11) `OrgID` FROM `information_schema`.TABLES WHERE TABLES.TABLE_SCHEMA='ArchivingRetention' AND TABLE_NAME LIKE 'Retention_%' AND TABLE_NAME != 'Retention_Template'"
-						 ") X WHERE ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset";
+			const char* sql = "SELECT `OrgID` "
+							  "FROM ("
+							  " SELECT SUBSTRING(`TABLE_NAME` FROM 11) `OrgID`"
+							  "  FROM `information_schema`.`TABLES`"
+							  "  WHERE TABLES.TABLE_SCHEMA='ArchivingRetention'"
+							  "   AND `TABLE_NAME` LIKE 'Retention\\_%'"
+							  "   AND `TABLE_NAME` != 'Retention_Template'"
+							  ") X "
+							  "WHERE ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset";
+			PURGE_SQL_DEBUG(conn, sql);
 
-				PURGE_SQL_DEBUG(conn, query.str());
-
-				mysqlpp::UseQueryResult res = query.use();
-				while (mysqlpp::Row row = res.fetch_row()) {
-					const archiving::org_id_t org(rml::utils::strtoull(row[0].c_str()));
-					ret->set.insert(
-							types::purge_def::org_def(org));
-				}
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, e);
+			mysqlpp::Query query = conn->query(sql);
+			mysqlpp::UseQueryResult res = query.use();
+			while (mysqlpp::Row row = res.fetch_row()) {
+				types::purge_def::org_def org_def(static_cast<archiving::org_id_t>(row[0]));
+				ret->set.insert(org_def);
 			}
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(w)
 
 		return ret;
 	}
@@ -532,46 +490,26 @@ public:
 		__attribute__ ((warn_unused_result))
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-			try {
-				{
-					mysqlpp::Query query = conn->query();
-					query << "SET time_zone = '+00:00'";
-					query.execute();
-				}
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+			mysqlpp::Query query = conn->query();
+			query << "INSERT INTO `HourlyUsage_" << org << "` (`Hour`,`Type`,`Count`,`ClearUsage`,`RealUsage`,`EndpointID`) VALUES ("
+				  << " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
+				  << static_cast<int>(filetype) << ", "
+				  << count << ", "
+				  << clear_usage << ", "
+				  << real_usage << ", "
+				  << endpoint_id
+				  << ") "
+				  << "ON DUPLICATE KEY UPDATE"
+					 " `Count`=`Count`+VALUES(`Count`),"
+					 " `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`),"
+					 " `RealUsage`=`RealUsage`+VALUES(`RealUsage`)";
+			PURGE_SQL_DEBUG(conn, query.str());
+			query.execute();
 
-				mysqlpp::Query query = conn->query();
-				query << "INSERT INTO `ArchivingRetention`.`HourlyUsage_"<<org<<"` \n"
-						 "( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
-						 " VALUES ("
-					  << " DATE_ADD(CURDATE(), INTERVAL HOUR(NOW()) HOUR), "
-					  << static_cast<int>(filetype)<<", "
-					  << count<<", "
-					  << clear_usage<<", "
-					  << real_usage<<", "
-					  << endpoint_id
-					  << " ) "
-					  << "ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
-						;
-				PURGE_SQL_DEBUG(conn, query.str());
-				query.execute();
-
-				return true;
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, e);
-			}
+			return true;
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return false;
 	}
@@ -579,34 +517,20 @@ public:
 	uint64_t count_purge_audit_records(const archiving::archivable::identifier& identifier)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-			try {
-				mysqlpp::Query query = conn->query();
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+            mysqlpp::Query query = conn->query();
 
-				std::string uuid_hex(identifier.uuid);
-				boost::algorithm::erase_all(uuid_hex, "-");
-				query << "SELECT COUNT(*) FROM ArchivingRetention.Audit_"<<identifier.org<<" "
-					  "WHERE Action LIKE 'Purge:%'"
-					  " AND UUID=0x"<<uuid_hex<<
-					  " AND Type="<<static_cast<int>(identifier.filetype);
-				PURGE_SQL_DEBUG(conn, query.str());
+            std::string uuid_hex(identifier.uuid);
+            boost::algorithm::erase_all(uuid_hex, "-");
+            query << "SELECT COUNT(*) FROM `Audit_"<<identifier.org<<"` "
+                                                                     "WHERE Action LIKE 'Purge:%'"
+                                                                     " AND UUID=0x"<<uuid_hex<<
+                  " AND Type="<<static_cast<int>(identifier.filetype);
+            PURGE_SQL_DEBUG(conn, query.str());
 
-				return query.use().fetch_row().at(0);
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, e);
-			}
+            return query.use().fetch_row().at(0);
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return 0;
 	}
@@ -621,38 +545,25 @@ public:
 		}
 
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-			mysqlpp::Transaction transaction(*conn, false);
-			try {
-				for(Iter itr = begin; itr != end; ) {
-					mysqlpp::Query query = conn->query();
-					query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
-					for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-						query << (i ? ',' : ' ')<<extract_id(*itr);
-					}
-					query << " )";
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 
-					PURGE_SQL_DEBUG(conn, query.str());
-					query.execute();
-				}
-				transaction.commit();
+			conn->start_transaction();
+            for(Iter itr = begin; itr != end; ) {
+                mysqlpp::Query query = conn->query();
+                query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+                for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
+                    query << (i ? ',' : ' ')<<extract_id(*itr);
+                }
+                query << " )";
 
-				return true;
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, transaction, e);
-			}
+                PURGE_SQL_DEBUG(conn, query.str());
+                query.execute();
+            }
+            conn->commit_transaction();
+
+            return true;
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return false;
 	}
@@ -660,139 +571,121 @@ public:
 	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-			mysqlpp::Transaction transaction(*conn, false);
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+			conn->start_transaction();
 
-			try {
-				{
+			// retention data
+			{
+				const data::multiset_t::const_iterator& end(data.end());
+
+				data::multiset_t::const_iterator batch_itr = data.begin();
+				while(batch_itr != end) {
+					std::pair< data::multiset_t::const_iterator, data::multiset_t::const_iterator > batch_range = data.equal_range(*batch_itr);
+					const archiving::org_id_t& org(batch_itr->org);
+
 					mysqlpp::Query query = conn->query();
-					query << "SET time_zone = '+00:00'";
-					query.execute();
-				}
+					query << "INSERT INTO `Retention_" << org << "` \n"
+							 "( UUID, LegUUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate,"
+							 " RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
+							 " VALUES ";
 
-				// retention data
-				{
-					const data::multiset_t::const_iterator& end(data.end());
+					for(data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+						const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
+						const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
+						const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
+						const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
 
-					data::multiset_t::const_iterator batch_itr = data.begin();
-					while(batch_itr != end) {
-						std::pair< data::multiset_t::const_iterator, data::multiset_t::const_iterator > batch_range = data.equal_range(*batch_itr);
-						const archiving::org_id_t& org(batch_itr->org);
+						std::string uuid_hex(itr->uuid);
+						boost::algorithm::erase_all(uuid_hex, "-");
 
-						mysqlpp::Query query = conn->query();
-						query << "INSERT INTO `ArchivingRetention`.`Retention_"<<org<<"` \n"
-								"( UUID, LegUUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate, RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
-								" VALUES ";
+						query << ((itr != batch_range.first)? ',': '\n')
+							  <<"( "
+							  <<"0x"<<uuid_hex<<" /* "<<itr->uuid<<" */, ";
 
-						for(data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
-							const applied_policy::ymd_t& creation_ymd(itr->retention.get_creation_ymd());
-							const applied_policy::ymd_t& min_retention_ymd(itr->retention.get_min_retention_ymd());
-							const applied_policy::ymd_t& max_retention_ymd(itr->retention.get_max_retention_ymd());
-							const std::time_t& midnight_offset_seconds(itr->retention.get_midnight_offset_seconds());
-
-							std::string uuid_hex(itr->uuid);
+						if(!itr->leg_uuid.empty()) {
+							std::string uuid_hex(itr->leg_uuid);
 							boost::algorithm::erase_all(uuid_hex, "-");
-
-							query << ((itr != batch_range.first)? ',': '\n')
-									<<"( "
-									<<"0x"<<uuid_hex<<" /* "<<itr->uuid<<" */, ";
-
-							if(!itr->leg_uuid.empty()) {
-								std::string uuid_hex(itr->leg_uuid);
-								boost::algorithm::erase_all(uuid_hex, "-");
-								query << "0x"<<uuid_hex<<" /* "<<itr->leg_uuid<<" */, ";
-							}
-							else
-								query << "NULL, ";
-
-							query << itr->file_format<<", "
-									<<itr->org<<", "
-									<<itr->user<<", "
-									<<itr->retention.p_policy->id<<", "
-									<<itr->retention.p_policy->version<<", "
-									<<'\''<<applied_policy::ymd_t::year_type::value_type(creation_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(creation_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(creation_ymd.day)<<"', "
-									<<'\''<<applied_policy::ymd_t::year_type::value_type(min_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(min_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(min_retention_ymd.day)<<"', "
-									<<'\''<<applied_policy::ymd_t::year_type::value_type(max_retention_ymd.year)<<'-'<<applied_policy::ymd_t::month_type::value_type(max_retention_ymd.month)<<'-'<<applied_policy::ymd_t::day_type::value_type(max_retention_ymd.day)<<"', "
-									<<midnight_offset_seconds<<", "
-									<<itr->endpoint_id<<", "
-									<<(int)(itr->file_type)
-									<<" )\n";
+							query << "0x"<<uuid_hex<<" /* "<<itr->leg_uuid<<" */, ";
 						}
-						query << "ON DUPLICATE KEY UPDATE EndpointID=VALUES(EndpointID)";
+						else
+							query << "NULL, ";
 
-						SqlDebug(conn, query.str());
-
-						mysqlpp::SimpleResult res = query.execute();
-						LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
-
-						batch_itr = batch_range.second;
+						query << itr->file_format<<", "
+							  <<itr->org<<", "
+							  <<itr->user<<", "
+							  <<itr->retention.p_policy->id<<", "
+							  <<itr->retention.p_policy->version<<", "
+							  <<__ws(creation_ymd)<<", "
+							  <<__ws(min_retention_ymd)<<", "
+							  <<__ws(max_retention_ymd)<<", "
+							  <<midnight_offset_seconds<<", "
+							  <<itr->endpoint_id<<", "
+							  <<(int)(itr->file_type)
+							  <<" )\n";
 					}
+					query << "ON DUPLICATE KEY UPDATE EndpointID=VALUES(EndpointID)";
+
+					SqlDebug(conn, query.str());
+
+					mysqlpp::SimpleResult res = query.execute();
+					LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
+
+					batch_itr = batch_range.second;
 				}
+			}
 
+			// Usage Data
+			{
+				const usage_data::multiset_t::const_iterator& end(usage_data.end());
 
-				// Usage Data
-				{
-					const usage_data::multiset_t::const_iterator& end(usage_data.end());
+				usage_data::multiset_t::const_iterator batch_itr = usage_data.begin();
+				while(batch_itr != end) {
+					std::pair< usage_data::multiset_t::const_iterator, usage_data::multiset_t::const_iterator > batch_range = usage_data.equal_range(*batch_itr);
 
-					usage_data::multiset_t::const_iterator batch_itr = usage_data.begin();
-					while(batch_itr != end) {
-						std::pair< usage_data::multiset_t::const_iterator, usage_data::multiset_t::const_iterator > batch_range = usage_data.equal_range(*batch_itr);
+					const archiving::org_id_t& org(batch_itr->org);
 
-						const archiving::org_id_t& org(batch_itr->org);
+					mysqlpp::Query query = conn->query();
+					query << "INSERT INTO `HourlyUsage_"<<org<<"` \n"
+							"( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
+							" VALUES ";
 
-						mysqlpp::Query query = conn->query();
-						query << "INSERT INTO `ArchivingRetention`.`HourlyUsage_"<<org<<"` \n"
-								"( `Hour`, `Type`, `Count`, `ClearUsage`, `RealUsage`, `EndpointID` )"
-								" VALUES ";
-
-						for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
-							char hour_res_date[255];
-							{
-								tm tm_;
-								gmtime_r(&itr->create_time, &tm_);
-								strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
-							}
-
-							query << (itr != batch_range.first? ',': '\n')
-								  <<"( "
-								  <<'\''<<hour_res_date<<"', "
-								  <<static_cast<int>(itr->filetype)<<", "
-								  <<"1, "
-								  <<itr->clear_size<<", "
-								  <<itr->real_size<<", "
-								  <<itr->endpoint_id
-								  <<" )\n";
+					for(usage_data::multiset_t::const_iterator itr = batch_range.first; itr != batch_range.second; ++itr) {
+						char hour_res_date[255];
+						{
+							tm tm_;
+							gmtime_r(&itr->create_time, &tm_);
+							strftime(hour_res_date, 255, "%Y-%m-%d %H:00:00", &tm_);
 						}
-						query << " ON DUPLICATE KEY UPDATE `Count`=`Count`+VALUES(`Count`), `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), `RealUsage`=`RealUsage`+VALUES(`RealUsage`)"
-								"\n";
 
-						SqlDebug(conn, query.str());
-
-						mysqlpp::SimpleResult res = query.execute();
-						LogVerbose("Usage data added for Org:"<<org);
-
-						batch_itr = batch_range.second;
+						query << (itr != batch_range.first? ',': '\n')
+							  <<"( "
+							  <<'\''<<hour_res_date<<"', "
+							  <<static_cast<int>(itr->filetype)<<", "
+							  <<"1, "
+							  <<itr->clear_size<<", "
+							  <<itr->real_size<<", "
+							  <<itr->endpoint_id
+							  <<" )\n";
 					}
+					query << " ON DUPLICATE KEY "
+							 "UPDATE `Count`=`Count`+VALUES(`Count`), "
+							 "`ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), "
+							 "`RealUsage`=`RealUsage`+VALUES(`RealUsage`)";
+
+					SqlDebug(conn, query.str());
+
+					mysqlpp::SimpleResult res = query.execute();
+					LogVerbose("Usage data added for Org:"<<org);
+
+					batch_itr = batch_range.second;
 				}
-
-				transaction.commit();
-
-				return true;
 			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, transaction, e);
-			}
+
+			conn->commit_transaction();
+
+			return true;
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return false;
 	}
