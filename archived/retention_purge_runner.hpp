@@ -722,7 +722,9 @@ public:
 
 		// if we need no approval or the storage-endpoint is not retention-managed; skip stages
 		if ((state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
-			|| (state::get_coarse(p_item->cur_state) == state::_delete_file_ && !p_item->endpoint->is_retention_managed))
+			|| (state::get_coarse(p_item->cur_state) == state::_delete_file_ &&
+				// check endpoint to be valid (dummy items dont have any valid data)
+				p_item->endpoint && !p_item->endpoint->is_retention_managed))
 		{
 			p_item->cur_state = state::next_up(p_item->cur_state, /* force = */true);
 		}
