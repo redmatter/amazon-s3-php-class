@@ -44,23 +44,22 @@ public:
 			rmldb::basic_database<cdrmunch, rmldb::transactional_connection>(confMap)
 	{}
 
-	bool save(whisper::pointer p_whisper)
+	bool save(const whisper::pointer& p_whisper)
 	{
 		try {
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-            mysqlpp::Query query = conn->query();
-            query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
-                     " VALUES "
-                     "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
-            query.parse();
+			mysqlpp::Query query = conn->query();
+			query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
+					 " VALUES "
+					 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
+			query.parse();
 
-            mysqlpp::SQLQueryParms qp;
-            qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
+			mysqlpp::SQLQueryParms qp;
+			qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-            SqlDebug(conn, query.str(qp));
-            query.execute(qp);
+			MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 
-            return true;
+			return true;
 		}
 		MYSQL_CATCH_LOG_ERROR(e)
 

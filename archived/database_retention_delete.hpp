@@ -83,8 +83,7 @@ public:
                     query << "DELETE FROM `Audit_"<<org<<"` "
                           "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
                           " AND UUID="<<rmldb::utils::sql_uuid_value(id.uuid);
-                    PURGE_SQL_DEBUG(conn, query.str());
-                    query.execute();
+                    MYSQL_QUERY_EXECUTE(PURGE, conn, query);
                 }
 
                 {
@@ -92,8 +91,7 @@ public:
                     query << "DELETE FROM `Retention_"<<org<<"` "
                           "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
                           " AND UUID="<<rmldb::utils::sql_uuid_value(id.uuid);
-                    PURGE_SQL_DEBUG(conn, query.str());
-                    query.execute();
+                    MYSQL_QUERY_EXECUTE(PURGE, conn, query);
                 }
             }
 
