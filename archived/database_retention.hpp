@@ -372,7 +372,7 @@ public:
 				state_condition += "`State`='Available'";
 
 				query << "SELECT " << retention_select_fields() << ", `State`='PurgeQueued' "
-					  << "FROM `Retention_" << org_id << "` "
+					  << "FROM `Retention_" << org_id << "` r "
 					  << "WHERE `ID` > " << new_max_retention_id
 					  << " AND `ID` <= " << (new_max_retention_id + std::max(limit * 10, 10000U))
 					  << " AND (" << state_condition << ") " << where_configured_restrictions << " "
