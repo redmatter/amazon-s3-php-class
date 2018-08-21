@@ -14,10 +14,10 @@
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
 
-#define SQL_DEBUG_DEFAULT(conn, line) \
+#define MYSQL_DEBUG_DEFAULT(conn, line) \
     LogCoutIf((conn)->is_debug_enabled(), "SQL: " << line)
 
-#define SQL_DEBUG_DEFAULT_IF(cond, conn, line) \
+#define MYSQL_DEBUG_DEFAULT_IF(cond, conn, line) \
     LogCoutIf((cond) || (conn)->is_debug_enabled(), "SQL: " << line)
 
 #ifdef RETENTION_PURGE_SQL_DEBUG
@@ -26,8 +26,8 @@
 #define RETENTION_PURGE_SQL_DEBUG_BOOL false
 #endif
 
-#define SQL_DEBUG_PURGE(conn, line) \
-    SQL_DEBUG_DEFAULT_IF(RETENTION_PURGE_SQL_DEBUG_BOOL, conn, line)
+#define MYSQL_DEBUG_PURGE(conn, line) \
+    MYSQL_DEBUG_DEFAULT_IF(RETENTION_PURGE_SQL_DEBUG_BOOL, conn, line)
 
 #define MYSQL_CATCH_LOG_ERROR(e) \
     catch(const mysqlpp::Exception& e) { LogError("MySQL Exception: "<<e.what()); } \
@@ -39,7 +39,7 @@
     catch(const std::exception& e) { LogWarning("Exception: "<<e.what()); } \
     catch(...) { LogWarning("Unknown Exception"); }
 
-#define MYSQL_CHOOSE_DEBUG(mode) SQL_DEBUG_##mode
+#define MYSQL_CHOOSE_DEBUG(mode) MYSQL_DEBUG_##mode
 
 #define GET_5TH_ARG(A1, A2, A3, A4, A5, ...) A5
 #define GET_6TH_ARG(A1, A2, A3, A4, A5, A6, ...) A6
