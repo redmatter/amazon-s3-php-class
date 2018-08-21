@@ -153,7 +153,7 @@ public:
 						" RealSize=%4:RealSize "
 						"WHERE"
 						" ID=%5:ID"
-						" AND FileType=%6:FileType AND OrgID=%7:OrgID AND UUID=%8:UUID"
+						" AND FileType=%6:FileType AND OrgID=%7:OrgID AND UUID=%8:UUID "
 						"LIMIT 1"
 						;
 				query.parse();
@@ -179,7 +179,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				mysqlpp::Query query = conn->query();
 				query << "INSERT INTO `ArchivingInternal`.`ArchiveDQueueFiles`"
-						 " (ArchiveDQueueID, FileFormat, Path) VALUES"
+						 " (ArchiveDQueueID, FileFormat, Path) VALUES "
 						;
 
 				const files_map_t::iterator& end = opdata->p_detail->files_map.end();
@@ -246,7 +246,7 @@ public:
 				query << "SELECT"
 						 " ID, HostName, MetaData, PolicyID, PolicyVersion, FileType, OrgID, "
 						 << rmldb::utils::format_uuid_field("UUID", "UUID") << ","
-						 " TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, ArrivalTime, ClearSize, RealSize "
+						 " TargetFileFormat, EndPointID, CurrentFileFormat, RetryCount, OpState, CallCreateTimeEpoch, UNIX_TIMESTAMP(ArrivalTime), ClearSize, RealSize "
 						 "FROM ArchivingInternal.ArchiveDQueue "
 						 "WHERE HostName=%0q:HostName AND OpState!=%1:OpStateAllDone "
 						 " AND ID <= %2:FirstMaxID AND ID > %3:MaxID "
