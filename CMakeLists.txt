@@ -62,7 +62,7 @@ add_subdirectory(${rml-queue_SOURCE_DIR})
 
 download_project(PROJ rml-utils
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
-        GIT_TAG 1.4.0
+        GIT_TAG 1.4.1
         UPDATE_DISCONNECTED 1
         )
 add_subdirectory(${rml-utils_SOURCE_DIR})
