@@ -47,8 +47,18 @@
 #define MYSQL_QUERY_DEBUG_CONTEXT \
 "[thread:" << boost::this_thread::get_id() << ' ' << __FUNCTION__ << ":" BOOST_PP_STRINGIZE(__LINE__) "]"
 
+// ------------------ MYSQL_QUERY_DEBUG_WALL_TIMER START/STOP ------------------
+
 #define MYSQL_QUERY_DEBUG_WALL_TIMER \
 BOOST_PP_CAT(wall_timer_, __LINE__)
+
+#define MYSQL_QUERY_DEBUG_WALL_TIMER_START() rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER
+
+#define MYSQL_QUERY_DEBUG_WALL_TIMER_STOP() \
+MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
+LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+
+// ------------------ MYSQL_QUERY_DEBUG ------------------
 
 #define MYSQL_QUERY_DEBUG_IMPL(mode, conn, query) \
 MYSQL_CHOOSE_DEBUG(mode)(conn, MYSQL_QUERY_DEBUG_CONTEXT " " << query.str())
@@ -64,18 +74,16 @@ GET_5TH_ARG(__VA_ARGS__, MYSQL_QUERY_DEBUG_QP_IMPL, MYSQL_QUERY_DEBUG_IMPL, )
 // ------------------ MYSQL_QUERY_EXECUTE_GET_RESULT ------------------
 
 #define MYSQL_QUERY_EXECUTE_GET_RESULT_IMPL(mode, conn, query, resultVar) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query); \
 const mysqlpp::SimpleResult& resultVar(query.execute()); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_EXECUTE_GET_RESULT_QP_IMPL(mode, conn, query, resultVar, qp) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query, qp); \
 const mysqlpp::SimpleResult& resultVar(query.execute(qp)); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_EXECUTE_GET_RESULT_MACRO_CHOOSER(...) \
 GET_6TH_ARG(__VA_ARGS__, MYSQL_QUERY_EXECUTE_GET_RESULT_QP_IMPL, MYSQL_QUERY_EXECUTE_GET_RESULT_IMPL, )
@@ -85,18 +93,16 @@ GET_6TH_ARG(__VA_ARGS__, MYSQL_QUERY_EXECUTE_GET_RESULT_QP_IMPL, MYSQL_QUERY_EXE
 // ------------------ MYSQL_QUERY_EXECUTE ------------------
 
 #define MYSQL_QUERY_EXECUTE_IMPL(mode, conn, query) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query); \
 query.execute(); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_EXECUTE_QP_IMPL(mode, conn, query, qp) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query, qp); \
 query.execute(qp); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_EXECUTE_MACRO_CHOOSER(...) \
 GET_5TH_ARG(__VA_ARGS__, MYSQL_QUERY_EXECUTE_QP_IMPL, MYSQL_QUERY_EXECUTE_IMPL, )
@@ -106,18 +112,16 @@ GET_5TH_ARG(__VA_ARGS__, MYSQL_QUERY_EXECUTE_QP_IMPL, MYSQL_QUERY_EXECUTE_IMPL, 
 // ------------------ MYSQL_QUERY_USE ------------------
 
 #define MYSQL_QUERY_USE_IMPL(mode, conn, query, resultVar) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query); \
 const mysqlpp::UseQueryResult& resultVar(query.use()); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_USE_QP_IMPL(mode, conn, query, resultVar, qp) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query, qp); \
 const mysqlpp::UseQueryResult& resultVar(query.use(qp)); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_USE_MACRO_CHOOSER(...) \
 GET_6TH_ARG(__VA_ARGS__, MYSQL_QUERY_USE_QP_IMPL, MYSQL_QUERY_USE_IMPL, )
@@ -127,18 +131,16 @@ GET_6TH_ARG(__VA_ARGS__, MYSQL_QUERY_USE_QP_IMPL, MYSQL_QUERY_USE_IMPL, )
 // ------------------ MYSQL_QUERY_STORE ------------------
 
 #define MYSQL_QUERY_STORE_IMPL(mode, conn, query, resultVar) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query); \
 const mysqlpp::StoreQueryResult& resultVar(query.store()); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_STORE_QP_IMPL(mode, conn, query, resultVar, qp) \
-rml::utils::wall_timer MYSQL_QUERY_DEBUG_WALL_TIMER; \
+MYSQL_QUERY_DEBUG_WALL_TIMER_START(); \
 MYSQL_QUERY_DEBUG(mode, conn, query, qp); \
 const mysqlpp::StoreQueryResult& resultVar(query.store(qp)); \
-MYSQL_QUERY_DEBUG_WALL_TIMER.stop(); \
-LogMessage(MYSQL_QUERY_DEBUG_CONTEXT " SQL execution took " << MYSQL_QUERY_DEBUG_WALL_TIMER )
+MYSQL_QUERY_DEBUG_WALL_TIMER_STOP()
 
 #define MYSQL_QUERY_STORE_MACRO_CHOOSER(...) \
 GET_6TH_ARG(__VA_ARGS__, MYSQL_QUERY_STORE_QP_IMPL, MYSQL_QUERY_STORE_IMPL, )
