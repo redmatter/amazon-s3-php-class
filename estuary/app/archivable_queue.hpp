@@ -77,9 +77,8 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
 
     if (item) {
         mark_progress(item->get_database_id(), app::http::request_progress::put_dequeued);
+        LogDebug(item << " sending to ArchiveD");
     }
-
-    LogDebug(item << " sending to ArchiveD (if not NULL)");
 
     return item;
 }
