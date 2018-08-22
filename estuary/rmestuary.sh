@@ -15,8 +15,4 @@ prog_projprefix=archiving
 prog_cliopts=""
 prog_syslogtag=rm-estuary
 
-callback_before_startup() {
-	/usr/bin/rmarchived-hAPI
-}
-
 . /usr/share/rmdaemonscripts/init.sh

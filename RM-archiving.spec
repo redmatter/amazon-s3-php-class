@@ -114,10 +114,8 @@ Group: RedMatter/Archiving
 %package estuary
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
-Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package scripts
 Summary: Archiving Utility Scripts
