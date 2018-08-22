@@ -12,6 +12,7 @@
 #include "error.hpp"
 #include "queue/queue.hpp"
 #include "../../common/archivable.hpp"
+#include "http/request_progress.hpp"
 
 #include <boost/optional.hpp>
 
@@ -94,14 +95,18 @@ void produce_response_on_error(const boost::shared_ptr<response_queue>& queue,
 }
 
 void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
-                                 const boost::shared_ptr<archiving::archivable>& archivable)
+                                 const boost::shared_ptr<archiving::archivable>& archivable,
+                                 const boost::function<void(const uint64_t, app::http::request_progress::enum_t)>& mark_progress)
 {
     boost::system::error_condition error;
+    
+    uint64_t id = archivable->get_database_id();
 
+    mark_progress(id, app::http::request_progress::put_archived);
+    
     LogDebug(archivable << " .. done; setting up response");
 
-    queue->produce(boost::make_shared<response>(archivable->get_database_id(),
-                                                boost::system::error_condition(error::http::no_content)), error);
+    queue->produce(boost::make_shared<response>(id, boost::system::error_condition(error::http::no_content)), error);
     if (error) {
         LogError("Error scheduling response; " << error);
     }

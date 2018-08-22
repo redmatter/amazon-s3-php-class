@@ -297,7 +297,10 @@ int main(int argc, const char* argv[]) try
         const common::collectd::fn_save_to_database_type fn_dummy_save_to_database =
                 boost::bind(app::dummy_save_to_database, _1);
         const common::collectd::fn_on_successful_put_type fn_on_successful_put =
-                boost::bind(app::produce_response_on_success, response_queue, _1);
+                boost::bind(app::produce_response_on_success, response_queue, _1,
+                        boost::protect(
+                                boost::bind(&app::archived_shim::mark_request_progress_by_id, boost::ref(archived_shim),
+                                        _1, _2)));
 
         std::list<boost::shared_ptr<app::archived_client> > archived_clients;
         for (unsigned int i = 0; i < archived_connections; i++) {
