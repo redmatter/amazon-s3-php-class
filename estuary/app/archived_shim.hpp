@@ -292,7 +292,7 @@ struct archived_shim
             LogError(pending_request->correlation << " Failed to send response");
         }
 
-        LogMessage("[statistics] "pending_request->correlation << ' '
+        LogMessage("[statistics] " << pending_request->correlation << ' '
                            << rml::statistics::progress::format_marker<boost::chrono::microseconds>(
                                    pending_request->progress_marker));
 
