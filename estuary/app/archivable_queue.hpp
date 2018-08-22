@@ -59,7 +59,8 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
         const boost::chrono::milliseconds& wait_timeout,
         const bool _ignored_,
         const boost::function0<void>& timeout_callback,
-        const boost::function0<void>& is_finishing_callback)
+        const boost::function0<void>& is_finishing_callback,
+        const boost::function<void(const uint64_t, app::http::request_progress::enum_t)>& mark_progress)
 {
     boost::shared_ptr<archiving::archivable> item;
     boost::system::error_condition ec;
@@ -72,6 +73,10 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
         } else {
             throw boost::system::system_error(ec.value(), ec.category());
         }
+    }
+
+    if (item) {
+        mark_progress(item->get_database_id(), app::http::request_progress::put_dequeued);
     }
 
     LogDebug(item << " sending to ArchiveD (if not NULL)");
@@ -99,11 +104,11 @@ void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
                                  const boost::function<void(const uint64_t, app::http::request_progress::enum_t)>& mark_progress)
 {
     boost::system::error_condition error;
-    
+
     uint64_t id = archivable->get_database_id();
 
     mark_progress(id, app::http::request_progress::put_archived);
-    
+
     LogDebug(archivable << " .. done; setting up response");
 
     queue->produce(boost::make_shared<response>(id, boost::system::error_condition(error::http::no_content)), error);
