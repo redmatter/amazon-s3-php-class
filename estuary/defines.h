@@ -34,7 +34,7 @@
 #endif
 
 #ifndef PID_FILE_NAME
-#define PID_FILE_NAME DEFAULT_APP_NAME".pid"
+#define PID_FILE_NAME DEFAULT_APP_NAME"/"DEFAULT_APP_NAME".pid"
 #endif
 
 #ifndef PID_FILE_PATH

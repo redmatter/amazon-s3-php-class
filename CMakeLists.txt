@@ -74,6 +74,13 @@ download_project(PROJ rml-database-mysql
         )
 add_subdirectory(${rml-database-mysql_SOURCE_DIR})
 
+download_project(PROJ rml-statistics
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-statistics.git
+        GIT_TAG master
+        UPDATE_DISCONNECTED 1
+        )
+add_subdirectory(${rml-statistics_SOURCE_DIR})
+
 add_subdirectory(common)
 add_subdirectory(archived)
 #add_subdirectory(archived-monitor)

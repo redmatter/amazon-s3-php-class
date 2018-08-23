@@ -288,16 +288,19 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<boost::thread> responder_thread(http_server_threads->create_thread(
                 boost::bind(&app::archived_shim::run_responder, boost::ref(archived_shim))));
 
+        const boost::function<void(const uint64_t, app::http::request_progress::enum_t)> fn_mark_progress =
+                boost::bind(&app::archived_shim::mark_request_progress_by_id, boost::ref(archived_shim), _1, _2);
+
         const common::collectd::fn_produce_type fn_error_callback =
-                boost::bind(app::produce_response_on_error, response_queue, _1, _2);
+                boost::bind(app::produce_response_on_error, response_queue, _1, _2, boost::protect(fn_mark_progress));
         const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_get_archivable_callback =
-                boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4);
+                boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4, boost::protect(fn_mark_progress));
         const common::collectd::fn_remove_from_catalogue_type fn_dummy_remove_from_catalogue =
                 boost::bind(app::dummy_remove_from_catalogue, _1);
         const common::collectd::fn_save_to_database_type fn_dummy_save_to_database =
                 boost::bind(app::dummy_save_to_database, _1);
         const common::collectd::fn_on_successful_put_type fn_on_successful_put =
-                boost::bind(app::produce_response_on_success, response_queue, _1);
+                boost::bind(app::produce_response_on_success, response_queue, _1, boost::protect(fn_mark_progress));
 
         std::list<boost::shared_ptr<app::archived_client> > archived_clients;
         for (unsigned int i = 0; i < archived_connections; i++) {

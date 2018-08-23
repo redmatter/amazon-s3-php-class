@@ -7,16 +7,14 @@
 # description: Archiving Estuary
 # processname: rmestuary
 # config: /etc/archiving/rmestuary.conf
-# pidfile: /var/run/archiving/rmestuary.pid
+# pidfile: /var/run/archiving/rmestuary/rmestuary.pid
 
+prog_pidfile="/var/run/archiving/rmestuary/rmestuary.pid"
+prog_pidfile_old="/var/run/archiving/rmestuary.pid"
 prog_longname="Archiving Estuary"
 prog_shortname=rmestuary
 prog_projprefix=archiving
 prog_cliopts=""
 prog_syslogtag=rm-estuary
-
-callback_before_startup() {
-	/usr/bin/rmarchived-hAPI
-}
 
 . /usr/share/rmdaemonscripts/init.sh
