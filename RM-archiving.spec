@@ -39,7 +39,7 @@ BuildRequires: RM-legacy-gcc44-c++ >= 1.1.0
 BuildRequires: mysql++-devel >= 3.1.0
 BuildRequires: mariadb-devel
 BuildRequires: RM-legacy-php54-cli >= 1.0.1
-BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.0
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
 %endif
 %endif
 BuildRequires: boost_1_54_0-devel
@@ -195,7 +195,7 @@ BuildRequires: pugixml
 BuildRequires: db4-devel
 %else
 %if 0%{?el7}
-BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.0
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
 BuildRequires: libdb-devel
 %endif
 %endif
