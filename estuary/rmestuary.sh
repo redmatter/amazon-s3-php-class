@@ -7,8 +7,9 @@
 # description: Archiving Estuary
 # processname: rmestuary
 # config: /etc/archiving/rmestuary.conf
-# pidfile: /var/run/archiving/rmestuary.pid
+# pidfile: /var/run/archiving/rmestuary/pid
 
+prog_pidfile="/var/run/archiving/rmestuary/pid"
 prog_longname="Archiving Estuary"
 prog_shortname=rmestuary
 prog_projprefix=archiving

@@ -321,6 +321,7 @@ cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_data
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Estuary
+mkdir -p %{buildroot}/var/run/archiving/rmestuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
 cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
@@ -777,6 +778,7 @@ fi
 /etc/archiving/rmestuary.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+%dir %attr(755,nobody,nobody) /var/run/archiving/rmestuary
 /etc/logrotate.d/rmestuary
 /etc/rsyslog.d/11-rmestuary.conf
 
