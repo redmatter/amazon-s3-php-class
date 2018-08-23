@@ -135,8 +135,7 @@ public:
 						<< opdetail.real_size
 						;
 
-				SqlDebug(conn, query.str(qp));
-				query.execute(qp);
+				MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 
 				opdata->p_detail->database_id = query.insert_id();
 			}
@@ -170,8 +169,7 @@ public:
 						<< rmldb::utils::mysqlpp_uuid_literal(opdetail.identifier.uuid)
 						;
 
-				SqlDebug(conn, query.str(qp));
-				query.execute(qp);
+				MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 			}
 
 			// save files list
@@ -194,9 +192,7 @@ public:
 				query << " ON DUPLICATE KEY UPDATE Path=VALUES(Path)";
 
 				query.parse();
-				SqlDebug(conn, query.str(qp));
-
-				query.execute(qp);
+				MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 			}
 
 			conn->commit_transaction();
@@ -231,9 +227,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << arcd_hostname << operation_state::all_done;
 
-				SqlDebug(conn, query.str(qp));
-
-				mysqlpp::UseQueryResult res = query.use(qp);
+				MYSQL_QUERY_USE(DEFAULT, conn, query, res, qp);
 				while(mysqlpp::Row row = res.fetch_row())
 					if(row[0] != "NULL")
 						first_max_id = rml::utils::strtoull(row[0].c_str(), 0ULL);
@@ -256,9 +250,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << arcd_hostname << operation_state::all_done << first_max_id << max_id;
 
-				SqlDebug(conn, query.str(qp));
-
-				const mysqlpp::StoreQueryResult& res(query.store(qp));
+				MYSQL_QUERY_STORE(DEFAULT, conn, query, res, qp);
 				mysqlpp::StoreQueryResult::const_iterator res_end = res.end();
 				for (mysqlpp::StoreQueryResult::const_iterator itr = res.begin(); itr != res_end; ++itr) {
 					const mysqlpp::Row& row(*itr);
@@ -297,9 +289,7 @@ public:
 						{
 							mysqlpp::Query query_files = conn->query();
 							query_files << "SELECT FileFormat, Path FROM ArchivingInternal.ArchiveDQueueFiles WHERE ArchiveDQueueID=" << item_id;
-							SqlDebug(conn, query_files.str());
-
-							const mysqlpp::StoreQueryResult& res_files(query_files.store(qp));
+							MYSQL_QUERY_STORE(DEFAULT, conn, query_files, res_files);
 							mysqlpp::StoreQueryResult::const_iterator res_files_end = res_files.end();
 							for (mysqlpp::StoreQueryResult::const_iterator itr_res_files = res_files.begin();
 								 itr_res_files != res_files_end; ++itr_res_files)
@@ -320,7 +310,7 @@ public:
 
 						operation_data::pointer p_opdata(new operation_data());
 						p_opdata->p_detail = operation_data::detail::pointer(new operation_data::detail(
-                                static_cast<time_t>(row[14]),
+								static_cast<time_t>(row[14]),
 								file_type, org, uuid,
 								row[2].c_str(),
 								p_policy, static_cast<time_t>(row[13]),
@@ -363,8 +353,7 @@ public:
 				}
 				query << ')';
 
-				SqlDebug(conn, query.str());
-				query.execute();
+				MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 			}
 
 			conn->commit_transaction();
@@ -397,10 +386,7 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << org_id << uuid << file_format << app::hostname;
 
-				SqlDebug(conn, query.str(qp));
-
-				mysqlpp::UseQueryResult res = query.use(qp);
-
+				MYSQL_QUERY_USE(DEFAULT, conn, query, res, qp);
 				if(mysqlpp::Row row = res.fetch_row()) {
 					path = row[1].c_str();
 					id = rml::utils::strtoull(row[0].c_str());
@@ -413,8 +399,7 @@ public:
 
 			mysqlpp::Query query = conn->query();
 			query << "UPDATE ArchivingInternal.ArchiveDClearCache SET AccessTime=NOW() WHERE ID=" << id;
-			SqlDebug(conn, query.str());
-			query.execute();
+			MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 
 			conn->commit_transaction();
 
@@ -457,8 +442,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << org_id << uuid << file_format << path << (is_hardlink? "yes": "no") << app::hostname;
 
-			SqlDebug(conn, query.str(qp));
-			query.execute(qp);
+			MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 
 			return true;
 		}
@@ -519,8 +503,7 @@ public:
 				else
 					query << " ON DUPLICATE KEY UPDATE OrgID=VALUES(OrgID)";
 
-				PURGE_SQL_DEBUG(conn, query.str());
-				query.execute();
+				MYSQL_QUERY_EXECUTE(PURGE, conn, query);
 			}
 
 			if(!enabled_orgs.empty()) {
@@ -537,8 +520,8 @@ public:
 																									"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
 																									"WHERE "distribute_org_id<<get_org_list_where_condition(enabled_orgs)<<
 					  "ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
-				PURGE_SQL_DEBUG(conn, query.str());
-				mysqlpp::UseQueryResult res = query.use();
+
+				MYSQL_QUERY_USE(PURGE, conn, query, res);
 				while(mysqlpp::Row row = res.fetch_row()) {
 					const archiving::org_id_t OrgID = row[0];
 					const unsigned long long MaxRetentionID = row[1];
@@ -590,8 +573,7 @@ public:
 			mysqlpp::SQLQueryParms qp;
 			qp << hostname << (purge_max_queue_size + 1);
 
-			PURGE_SQL_DEBUG(conn, query.str(qp));
-			mysqlpp::UseQueryResult res = query.use(qp);
+			MYSQL_QUERY_USE(PURGE, conn, query, res, qp);
 			if (mysqlpp::Row row = res.fetch_row()) {
 				return row[0];
 			}
@@ -679,12 +661,10 @@ public:
 
 				if(!qp.empty()) {
 					query.parse();
-					SqlDebug(conn, query.str(qp));
-					query.execute(qp);
+					MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 				}
 				else {
-					SqlDebug(conn, query.str());
-					query.execute();
+					MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 				}
 			}
 
@@ -757,8 +737,7 @@ public:
 						  << " AND `FileType` = " << (int) (identifier.filetype)
 						  << " AND `UUID`=0x" << boost::algorithm::erase_all_copy(identifier.uuid, "-")
 						  << " /* " << identifier.uuid << " */";
-					SqlDebug(conn, query.str());
-					query.execute();
+					MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 				}
 			}
 
@@ -777,8 +756,7 @@ public:
 
 					ids_query << " )";
 
-					SqlDebug(conn, ids_query.str());
-					ids_query.execute();
+					MYSQL_QUERY_EXECUTE(DEFAULT, conn, ids_query);
 				}
 			}
 
@@ -803,9 +781,8 @@ public:
 			mysqlpp::Query query = conn->query();
 
 			query << "SELECT MAX(ID) FROM `ArchivingInternal`.`ArchiveDPurgeQueue`";
-			PURGE_SQL_DEBUG(conn, query.str());
 
-			mysqlpp::UseQueryResult res = query.use();
+			MYSQL_QUERY_USE(PURGE, conn, query, res);
 			if(mysqlpp::Row row = res.fetch_row()) {
 				return rml::utils::strtoull(row[0].c_str(), 0ULL);
 			}
@@ -857,12 +834,13 @@ public:
 			mysqlpp::UseQueryResult res;
 			if(!qparams.empty()) {
 				query.parse();
-				PURGE_SQL_DEBUG(conn, query.str(qparams));
-				res = query.use(qparams);
+
+				MYSQL_QUERY_USE(PURGE, conn, query, res_, qparams);
+				res = res_;
 			}
 			else {
-				PURGE_SQL_DEBUG(conn, query.str());
-				res = query.use();
+				MYSQL_QUERY_USE(PURGE, conn, query, res_);
+				res = res_;
 			}
 
 			if(!fn_setup_update_by_ids_begin.empty())
@@ -884,12 +862,10 @@ public:
 
 				if(!update_qparams.empty()) {
 					update_query.parse();
-					PURGE_SQL_DEBUG(conn, update_query.str(update_qparams));
-					update_query.execute(update_qparams);
+					MYSQL_QUERY_EXECUTE(PURGE, conn, update_query, update_qparams);
 				}
 				else {
-					PURGE_SQL_DEBUG(conn, update_query.str());
-					update_query.execute();
+					MYSQL_QUERY_EXECUTE(PURGE, conn, update_query);
 				}
 			}
 

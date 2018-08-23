@@ -189,8 +189,7 @@ public:
 						"        FROM `Audit_"<<org<<"` WHERE NOT EXISTS ("
 						"            SELECT ID FROM `Audit_"<<org<<"` WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex<<" AND Action='"<<auditable_action<<"' LIMIT 1"
 						"        ) LIMIT 1";
-				PURGE_SQL_DEBUG(conn, query.str());
-				query.execute();
+				MYSQL_QUERY_EXECUTE(PURGE, conn, query);
 			}
 
 			return true;
@@ -230,8 +229,8 @@ public:
 				mysqlpp::SQLQueryParms qp;
 				qp << org_id;
 
-				PURGE_SQL_DEBUG(conn, query.str(qp));
-				delete_requests = query.store(qp);
+				MYSQL_QUERY_STORE(PURGE, conn, query, delete_requests_, qp);
+				delete_requests = delete_requests_;
 			}
 
 			const unsigned limit = 1000;
@@ -258,8 +257,7 @@ public:
 					mysqlpp::SQLQueryParms qp;
 					qp << org_id << delete_request_id << limit;
 
-					PURGE_SQL_DEBUG(conn, query.str(qp));
-					const mysqlpp::StoreQueryResult& items(query.store(qp));
+					MYSQL_QUERY_STORE(PURGE, conn, query, items, qp);
 					{
 						const row_iterator& items_begin(items.begin());
 						const row_iterator& items_end(items.end());
@@ -284,9 +282,8 @@ public:
 							query << "SELECT " << retention_select_fields()
 								  << "FROM `Retention_" << org_id << "` WHERE ID = " << *items_itr
 								  << " AND `State`='Available' LIMIT 1 FOR UPDATE";
-							PURGE_SQL_DEBUG(conn, query.str());
-
-							retention_res = query.store();
+							MYSQL_QUERY_STORE(PURGE, conn, query, retention_res_);
+							retention_res = retention_res_;
 						}
 
 						if (!retention_res.empty()) {
@@ -304,8 +301,7 @@ public:
 										"WHERE ID=%1:RetentionID LIMIT 1");
 								mysqlpp::SQLQueryParms qp;
 								qp << org_id << *items_itr;
-								PURGE_SQL_DEBUG(conn, query.str(qp));
-								query.execute(qp);
+								MYSQL_QUERY_EXECUTE(PURGE, conn, query, qp);
 							}
 
 							count++;
@@ -331,8 +327,7 @@ public:
 					query.parse();
 					mysqlpp::SQLQueryParms qp;
 					qp << org_id << delete_request_id;
-					PURGE_SQL_DEBUG(conn, query.str(qp));
-					query.execute(qp);
+					MYSQL_QUERY_EXECUTE(PURGE, conn, query, qp);
 				}
 
 				conn->commit_transaction();
@@ -378,9 +373,7 @@ public:
 					  << " AND (" << state_condition << ") " << where_configured_restrictions << " "
 					  << "LIMIT " << limit << " FOR UPDATE";
 
-				PURGE_SQL_DEBUG(conn, query.str());
-
-				mysqlpp::UseQueryResult res = query.use();
+				MYSQL_QUERY_USE(PURGE, conn, query, res);
 				while(const mysqlpp::Row row = res.fetch_row()) {
 					retention_record::pointer rec = make_retention_record(row);
 					bool is_legacy_purged = row[row.size() - 1];
@@ -404,8 +397,7 @@ public:
 					}
 					query << ')';
 
-					PURGE_SQL_DEBUG(conn, query.str());
-					query.execute();
+					MYSQL_QUERY_EXECUTE(PURGE, conn, query);
 				}
 
 				// make audit record
@@ -446,9 +438,8 @@ public:
 			qp << identifier.org << mysqlpp::sql_int(identifier.filetype)
 			   << rmldb::utils::mysqlpp_uuid_literal(identifier.uuid) << identifier.uuid;
 
-			SqlDebug(conn, query.str(qp));
+			MYSQL_QUERY_USE(DEFAULT, conn, query, res, qp);
 
-			mysqlpp::UseQueryResult res = query.use(qp);
 			return make_retention_record(res.fetch_row());
 		}
 		MYSQL_CATCH_LOG_ERROR(e)
@@ -472,10 +463,9 @@ public:
 							  "   AND `TABLE_NAME` != 'Retention_Template'"
 							  ") X "
 							  "WHERE ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset";
-			PURGE_SQL_DEBUG(conn, sql);
 
 			mysqlpp::Query query = conn->query(sql);
-			mysqlpp::UseQueryResult res = query.use();
+			MYSQL_QUERY_USE(PURGE, conn, query, res);
 			while (mysqlpp::Row row = res.fetch_row()) {
 				types::purge_def::org_def org_def(static_cast<archiving::org_id_t>(row[0]));
 				ret->set.insert(org_def);
@@ -504,8 +494,7 @@ public:
 					 " `Count`=`Count`+VALUES(`Count`),"
 					 " `ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`),"
 					 " `RealUsage`=`RealUsage`+VALUES(`RealUsage`)";
-			PURGE_SQL_DEBUG(conn, query.str());
-			query.execute();
+			MYSQL_QUERY_EXECUTE(PURGE, conn, query);
 
 			return true;
 		}
@@ -518,17 +507,18 @@ public:
 	{
 		try {
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
-            mysqlpp::Query query = conn->query();
+			mysqlpp::Query query = conn->query();
 
-            std::string uuid_hex(identifier.uuid);
-            boost::algorithm::erase_all(uuid_hex, "-");
-            query << "SELECT COUNT(*) FROM `Audit_"<<identifier.org<<"` "
-                                                                     "WHERE Action LIKE 'Purge:%'"
-                                                                     " AND UUID=0x"<<uuid_hex<<
-                  " AND Type="<<static_cast<int>(identifier.filetype);
-            PURGE_SQL_DEBUG(conn, query.str());
+			std::string uuid_hex(identifier.uuid);
+			boost::algorithm::erase_all(uuid_hex, "-");
+			query << "SELECT COUNT(*) FROM `Audit_"<<identifier.org<<"` "
+					 "WHERE Action LIKE 'Purge:%'"
+					 " AND UUID=0x"<<uuid_hex<<
+					 " AND Type="<<static_cast<int>(identifier.filetype);
 
-            return query.use().fetch_row().at(0);
+			MYSQL_QUERY_USE(PURGE, conn, query, res);
+
+			return res.fetch_row().at(0);
 		}
 		MYSQL_CATCH_LOG_ERROR(e)
 
@@ -548,20 +538,19 @@ public:
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 
 			conn->start_transaction();
-            for(Iter itr = begin; itr != end; ) {
-                mysqlpp::Query query = conn->query();
-                query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
-                for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-                    query << (i ? ',' : ' ')<<extract_id(*itr);
-                }
-                query << " )";
+			for(Iter itr = begin; itr != end; ) {
+				mysqlpp::Query query = conn->query();
+				query << "UPDATE ArchivingRetention.Retention_"<<org<<" SET State='Purged' WHERE ID IN (";
+				for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
+					query << (i ? ',' : ' ')<<extract_id(*itr);
+				}
+				query << " )";
 
-                PURGE_SQL_DEBUG(conn, query.str());
-                query.execute();
-            }
-            conn->commit_transaction();
+				MYSQL_QUERY_EXECUTE(PURGE, conn, query);
+			}
+			conn->commit_transaction();
 
-            return true;
+			return true;
 		}
 		MYSQL_CATCH_LOG_ERROR(e)
 
@@ -625,9 +614,7 @@ public:
 					}
 					query << "ON DUPLICATE KEY UPDATE EndpointID=VALUES(EndpointID)";
 
-					SqlDebug(conn, query.str());
-
-					mysqlpp::SimpleResult res = query.execute();
+					MYSQL_QUERY_EXECUTE_GET_RESULT(DEFAULT, conn, query, res);
 					LogVerbose("Retention data: "<<res.rows()<<" rows added for Org:"<<org);
 
 					batch_itr = batch_range.second;
@@ -672,9 +659,7 @@ public:
 							 "`ClearUsage`=`ClearUsage`+VALUES(`ClearUsage`), "
 							 "`RealUsage`=`RealUsage`+VALUES(`RealUsage`)";
 
-					SqlDebug(conn, query.str());
-
-					mysqlpp::SimpleResult res = query.execute();
+					MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 					LogVerbose("Usage data added for Org:"<<org);
 
 					batch_itr = batch_range.second;
