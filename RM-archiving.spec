@@ -6,6 +6,8 @@
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
+%define rm_daemonscripts_version 1.2.0
+
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
@@ -23,7 +25,7 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
@@ -57,7 +59,7 @@ Summary: Archiving CollectD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -73,7 +75,7 @@ Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package collect-importd
@@ -81,7 +83,7 @@ Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
 BuildRequires: php54-cli
@@ -115,7 +117,7 @@ Group: RedMatter/Archiving
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 
 %package scripts
 Summary: Archiving Utility Scripts
@@ -124,7 +126,7 @@ Requires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
@@ -151,7 +153,7 @@ Summary: Tools to puush SMS and MMS email messages into archive
 Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 BuildRequires: sendmail-devel
 BuildRequires: pugixml
 BuildRequires: db4-devel

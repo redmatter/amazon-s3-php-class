@@ -10,6 +10,7 @@
 # pidfile: /var/run/archiving/rmestuary/rmestuary.pid
 
 prog_pidfile="/var/run/archiving/rmestuary/rmestuary.pid"
+prog_pidfile_old="/var/run/archiving/rmestuary.pid"
 prog_longname="Archiving Estuary"
 prog_shortname=rmestuary
 prog_projprefix=archiving
