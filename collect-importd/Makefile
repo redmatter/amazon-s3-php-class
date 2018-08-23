@@ -54,7 +54,7 @@ LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
 ifeq ($(CENTOS_VERSION),7)
-MYSQLCLIENT_LIBS_DIR=-L /usr/lib64/mysql
+MYSQLCLIENT_LIBS_DIR = -L/usr/lib64/mysql
 endif
 
 LIBS += \
