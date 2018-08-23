@@ -27,19 +27,21 @@ Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 1.1.0
 %if 0%{?el5}
+BuildRequires: gcc44
+BuildRequires: gcc44-c++
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: php54-cli
 BuildRequires: pugixml
 %else
 %if 0%{?el7}
+BuildRequires: RM-legacy-gcc44 >= 1.1.0
+BuildRequires: RM-legacy-gcc44-c++ >= 1.1.0
 BuildRequires: mysql++-devel >= 3.1.0
 BuildRequires: mariadb-devel
 BuildRequires: RM-legacy-php54-cli >= 1.0.1
-BuildRequires: pugixml pugixml-devel
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.0
 %endif
 %endif
-BuildRequires: gcc
-BuildRequires: gcc-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: RM-librml-devel = 1.10.0
 %{?el5:BuildRequires: libs3-devel >= 1.4-22774}
@@ -193,7 +195,7 @@ BuildRequires: pugixml
 BuildRequires: db4-devel
 %else
 %if 0%{?el7}
-BuildRequires: pugixml pugixml-devel
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.0
 BuildRequires: libdb-devel
 %endif
 %endif
@@ -261,25 +263,10 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
-# For CentOS 7, if pugixml header is not located at /usr/include/pugixml/pugixml.hpp then create symlink to actual header
-%if 0%{?el5}
-CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
-%else
 %if 0%{?el7}
 export PKG_CONFIG_PATH=/usr/lib64/mysql:$PKG_CONFIG_PATH
-if [ -f /usr/include/pugixml/pugixml.hpp ]
-then
-echo Found pugixml header at expected location
-CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
-else
-echo Did not find pugixml header at expected location, creating symlink
-mkdir /usr/include/pugixml
-ln -s /usr/include/pugixml.hpp /usr/include/pugixml/pugixml.hpp
-CC=gcc CXX=g++ make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
-rm -rf /usr/include/pugixml
-fi
 %endif
-%endif
+%{?el7:CC=gcc44 CXX=g++44} make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/
@@ -1064,4 +1051,3 @@ fi
 
 %clean
 rm -fR %{buildroot}
-
