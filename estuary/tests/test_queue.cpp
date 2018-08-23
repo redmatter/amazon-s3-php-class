@@ -62,6 +62,10 @@ TEST(Queue, Threaded)
     std::ostringstream pos, cos;
 
     tg.create_thread(boost::bind(produce, q, boost::ref(pos), boost::ref(c)));
+    tg.create_thread(boost::bind(produce, q, boost::ref(pos), boost::ref(c)));
+
+    tg.create_thread(boost::bind(consume, q, boost::ref(cos), boost::ref(c)));
+    tg.create_thread(boost::bind(consume, q, boost::ref(cos), boost::ref(c)));
     tg.create_thread(boost::bind(consume, q, boost::ref(cos), boost::ref(c)));
 
     boost::this_thread::sleep_for(boost::chrono::seconds(20));

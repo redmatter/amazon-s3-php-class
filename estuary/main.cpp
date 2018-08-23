@@ -292,7 +292,7 @@ int main(int argc, const char* argv[]) try
                 boost::bind(&app::archived_shim::mark_request_progress_by_id, boost::ref(archived_shim), _1, _2);
 
         const common::collectd::fn_produce_type fn_error_callback =
-                boost::bind(app::produce_response_on_error, response_queue, _1, _2);
+                boost::bind(app::produce_response_on_error, response_queue, _1, _2, boost::protect(fn_mark_progress));
         const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_get_archivable_callback =
                 boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4, boost::protect(fn_mark_progress));
         const common::collectd::fn_remove_from_catalogue_type fn_dummy_remove_from_catalogue =

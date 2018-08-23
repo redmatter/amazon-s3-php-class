@@ -48,7 +48,7 @@ struct put_object_request
     mutable boost::shared_ptr<rml::utils::tmp_fstream> fstream;
     mutable size_t bytes_remaining;
 
-    const http::request_progress_callback_type progress_callback;
+    const http::request_progress_callback_type mark_progress;
 
     std::string get_pbx_hostname() const
     {
@@ -101,7 +101,7 @@ struct put_object_request
 
             bytes_remaining(content_length != boost::none ? *content_length : 0),
 
-            progress_callback(progress_callback)
+            mark_progress(progress_callback)
     {
         if (req.request.get_method() != "PUT") {
             boost::throw_exception(
@@ -221,7 +221,7 @@ struct put_object_request
             return;
         }
 
-        progress_callback(http::request_progress::put_read_data);
+        mark_progress(http::request_progress::put_read_data);
 
         fstream->close();
 
@@ -260,7 +260,7 @@ struct put_object_request
 
         enqueue_callback(archivable);
 
-        progress_callback(http::request_progress::put_enqueued);
+        mark_progress(http::request_progress::put_enqueued);
     }
 };
 

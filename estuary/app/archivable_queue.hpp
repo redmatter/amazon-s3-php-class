@@ -84,14 +84,18 @@ boost::shared_ptr<archiving::archivable> consume_archivable(
 }
 
 void produce_response_on_error(const boost::shared_ptr<response_queue>& queue,
-                               const boost::shared_ptr<archiving::archivable>& archivable, const bool _ignored_)
+                               const boost::shared_ptr<archiving::archivable>& archivable, const bool _ignored_,
+                               const boost::function<void(const uint64_t, app::http::request_progress::enum_t)>& mark_progress)
 {
     boost::system::error_condition error;
 
+    uint64_t id = archivable->get_database_id();
+
+    mark_progress(id, app::http::request_progress::put_archived_error);
+
     LogDebug(archivable << " .. there was an error; setting up response");
 
-    queue->produce(boost::make_shared<response>(archivable->get_database_id(),
-                                                boost::system::error_condition(error::http::internal_server_error)),
+    queue->produce(boost::make_shared<response>(id, boost::system::error_condition(error::http::internal_server_error)),
                    error);
     if (error) {
         LogError("Error scheduling response; " << error);
@@ -106,7 +110,7 @@ void produce_response_on_success(const boost::shared_ptr<response_queue>& queue,
 
     uint64_t id = archivable->get_database_id();
 
-    mark_progress(id, app::http::request_progress::put_archived);
+    mark_progress(id, app::http::request_progress::put_archived_ok);
 
     LogDebug(archivable << " .. done; setting up response");
 

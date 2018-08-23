@@ -26,7 +26,8 @@ struct request_progress
         put_read_data,
         put_enqueued,
         put_dequeued,
-        put_archived,
+        put_archived_ok,
+        put_archived_error,
 
         response_sent,
 
@@ -42,7 +43,8 @@ struct request_progress
                 "put_read_data",
                 "put_enqueued",
                 "put_dequeued",
-                "put_archived",
+                "put_archived_ok",
+                "put_archived_error",
 
                 "response_sent"
         };
