@@ -266,7 +266,7 @@ echo "BUILD_ID=%{release}" >> version_info
 %if 0%{?el7}
 export PKG_CONFIG_PATH=/usr/lib64/mysql:$PKG_CONFIG_PATH
 %endif
-%{?el7:CC=gcc44 CXX=g++44} make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
+CC=gcc44 CXX=g++44 make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
 mkdir -p %{buildroot}/usr/bin/
