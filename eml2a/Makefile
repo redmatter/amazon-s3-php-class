@@ -56,10 +56,6 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
-ifeq ($(CENTOS_VERSION),7)
-MYSQLCLIENT_LIBS_DIR=-L /usr/lib64/mysql
-endif
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
