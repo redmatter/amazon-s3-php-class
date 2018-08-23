@@ -53,6 +53,7 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
+$(info *** CENTOS_VERSION: $(CENTOS_VERSION) ***)
 ifeq ($(CENTOS_VERSION),7)
 MYSQLCLIENT_LIBS_DIR = -L/usr/lib64/mysql
 endif
