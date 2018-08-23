@@ -64,6 +64,10 @@ CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 LIBRML_VERSION=1.1
 CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
 
+ifeq ($(CENTOS_VERSION),7)
+MYSQLCLIENT_LIBS_DIR=-L /usr/lib64/mysql
+endif
+
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -73,15 +77,8 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi
-
-ifeq ($(CENTOS_VERSION),5)
-LIBS += -lmysqlclient
-endif
-
-ifeq ($(CENTOS_VERSION),7)
-LIBS += -L /usr/lib64/mysql -lmysqlclient
-endif
+	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi \
+	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 
 CXX_SRCS += \
 	retention_purge.cpp \
