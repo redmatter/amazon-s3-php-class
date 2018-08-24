@@ -14,7 +14,6 @@ ifeq ($(DATABASE_SQLITE),YES)
 
 CPPFLAGS += -DDATABASE_SQLITE
 CXX_INCLUDES += -I ../external/sqlite/include
-TARGET_DEPS= ../external/sqlite/include/sqlite3.h
 
 else # DATABASE_SQLITE
 
@@ -53,6 +52,8 @@ MKDIR=mkdir -p
 include /usr/share/librml/Makefile.rules
 include /usr/share/librml/Makefile.lib_target
 include ../external/Makefile.cpp-netlib
+
+$(TMP)/$(TARGET): ../external/sqlite/include/sqlite3.h
 
 install: $(TMP)/$(TARGET)
 	$(MKDIR) $(DESTDIR_LIB) $(DESTDIR_INCLUDE) $(DESTDIR_DATA)
