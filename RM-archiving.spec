@@ -43,7 +43,8 @@ BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
 %endif
 %endif
 BuildRequires: boost_1_54_0-devel
-BuildRequires: RM-librml-devel < 1.11.0
+%{?el7:BuildRequires: RM-librml-devel < 1.11.0}
+%{?el5:BuildRequires: RM-librml-devel = 1.10.2-rc1.dc5}
 %{?el5:BuildRequires: libs3-devel >= 1.4-22774}
 %{?el7:BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7}
 BuildRequires: cryptopp-devel
