@@ -460,7 +460,12 @@ cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 cp scripts/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
 cp scripts/dsr-pre-processor/app.conf %{buildroot}/etc/archiving/dsr-preproc.conf
 cp scripts/dsr-pre-processor/autoload.php %{buildroot}/usr/share/php/archiving/archdsrpreproc_autoload.php
+%if 0%{?el5}
 cp scripts/dsr-pre-processor/init.sh %{buildroot}/etc/rc.d/init.d/rmarchdsrpreproc
+%endif
+%if 0%{?el7}
+install -Dpm 0644 scripts/dsr-pre-processor/init.service %{buildroot}%{_unitdir}/rmarchdsrpreproc.service
+%endif
 cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
 

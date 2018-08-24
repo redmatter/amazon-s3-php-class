@@ -3,8 +3,7 @@ Description=Archiving Estuary
 After=network.target network-online.target
 
 [Service]
-PIDFile=/var/run/archiving/rmestuary.pid
-ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
+PIDFile=/var/run/archiving/rmestuary/rmestuary.pid
 ExecStart=/usr/bin/rmestuary.bin </dev/null &>/dev/null
 Restart=on-abort
 RestartSec=3s
