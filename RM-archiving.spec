@@ -995,6 +995,7 @@ fi
 %{_unitdir}/rmarchpolfix.service
 %{_unitdir}/rmarchexport.service
 %{_unitdir}/rmarchpcapimport.service
+%{_unitdir}/rmarchdsrpreproc.service
 %endif
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import/done
@@ -1006,7 +1007,9 @@ fi
 %attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
 /usr/share/php/archiving/archdsrpreproc_autoload.php
+%if 0%{?el5}
 %attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
+%endif
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
 
