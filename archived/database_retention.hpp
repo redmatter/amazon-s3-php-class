@@ -344,6 +344,7 @@ public:
 		mysqlpp::Query query = conn->query();
 		query << "SELECT `AUTO_INCREMENT` FROM INFORMATION_SCHEMA.TABLES "
 				 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Retention_%0:OrgID'";
+		query.parse();
 		mysqlpp::SQLQueryParms qp;
 		qp << org_id;
 		MYSQL_QUERY_STORE(PURGE, conn, query, res, qp);
