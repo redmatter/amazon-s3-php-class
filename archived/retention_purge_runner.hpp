@@ -1258,12 +1258,7 @@ public:
 							// readjust limit based on purge queue size
 							const int limit_now(std::min< int >(limit, purge_max_queue_size - purge_queue_size));
 
-							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
-							if(new_max_id == itr->max_retention_id) {
-								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting Max-ID to zero": "; Max-ID already zero"));
-								new_max_id = 0;
-							}
-
+							const uint64_t new_max_id = batch_purge(itr->org_id, itr->max_retention_id, limit_now);
 							orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
 						} else {
 							LogVerbose("Org:"<<itr->org_id<<" Purge queue is full; purge_max_queue_size <= purge_queue_size "

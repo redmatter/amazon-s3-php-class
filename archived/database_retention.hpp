@@ -338,6 +338,18 @@ public:
 		return count;
 	}
 
+	uint64_t
+	get_max_retention_id(const boost::shared_ptr<rmldb::transactional_connection>& conn, const archiving::org_id_t org_id)
+	{
+		mysqlpp::Query query = conn->query();
+		query << "SELECT `AUTO_INCREMENT` FROM INFORMATION_SCHEMA.TABLES "
+				 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Retention_%0:OrgID'";
+		mysqlpp::SQLQueryParms qp;
+		qp << org_id;
+		MYSQL_QUERY_STORE(PURGE, conn, query, res, qp);
+		return res.at(0).at(0);
+	}
+
 	uint64_t get_retention_for_purge(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
@@ -355,7 +367,18 @@ public:
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(1));
 			conn->start_transaction();
 
-			{
+			const uint64_t max_id = get_max_retention_id(conn, org_id);
+			LogVerbose("Org: " << org_id << " Max retention-id: " << max_id);
+
+			unsigned attempts = 5;
+			for (uint64_t range_begin = max_retention_id, range_end = 0;
+				 retention_set.empty() && range_begin < max_id && attempts--;
+				 range_begin = range_end) {
+
+				range_end = (range_begin + std::max(limit * 10, 10000U));
+				LogVerbose("Org: " << org_id << " Scanning for purgeables "
+												"(retention id range " << range_begin << " - " << range_end << ")");
+
 				mysqlpp::Query query = conn->query();
 
 				std::string state_condition;
@@ -368,8 +391,7 @@ public:
 
 				query << "SELECT " << retention_select_fields() << ", `State`='PurgeQueued' "
 					  << "FROM `Retention_" << org_id << "` r "
-					  << "WHERE `ID` > " << new_max_retention_id
-					  << " AND `ID` <= " << (new_max_retention_id + std::max(limit * 10, 10000U))
+					  << "WHERE `ID` > " << range_begin << " AND `ID` <= " << range_end
 					  << " AND (" << state_condition << ") " << where_configured_restrictions << " "
 					  << "LIMIT " << limit << " FOR UPDATE";
 
@@ -380,9 +402,21 @@ public:
 					if(is_purgeaple(rec) || is_legacy_purged) {
 						retention_set.insert(rec);
 					}
-
-					new_max_retention_id = std::max(new_max_retention_id, rec->id);
 				}
+
+				const std::size_t n_found = retention_set.size();
+				LogVerbose("Org: " << org_id << " Found " << n_found << " purgeables");
+
+				if (n_found < limit) {
+					new_max_retention_id = range_end;
+				} else {
+					new_max_retention_id = range_begin + limit;
+				}
+			}
+
+			if (new_max_retention_id >= max_id) {
+				LogVerbose("Org: "<<org_id<<" Resetting retention id to 0 for rescan");
+				new_max_retention_id = 0;
 			}
 
 			if(!retention_set.empty()) {
