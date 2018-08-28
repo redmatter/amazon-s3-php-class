@@ -469,7 +469,7 @@ private:
 
 public:
 	types::purge_def::pointer update_get_purge_def(const types::purge_def::pointer& previous, const unsigned int limit,
-			const std::string& enabled_orgs)
+			const std::string& enabled_orgs, const unsigned org_scan_interval_minutes)
 	{
 		try {
 			types::purge_def::pointer p_ret(new types::purge_def());
@@ -507,19 +507,18 @@ public:
 			}
 
 			if(!enabled_orgs.empty()) {
-				const bool very_few_orgs_enabled(std::count(enabled_orgs.begin(), enabled_orgs.end(), ',') < 15);
-
 				p_ret->creation_time = time(0);
 
 				// if offset is 0 and set is empty, start from begining
 				const unsigned int offset((previous->offset && !previous->set.empty())? (previous->offset + previous->limit): 0);
 
 				mysqlpp::Query query = conn->query();
-				query <<"SELECT OrgID, MaxRetentionID, LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo, "
-						"LastRunTime < DATE_SUB(NOW(), INTERVAL "<<(very_few_orgs_enabled? 20: 60)<<" MINUTE) LastRunMoreThan__MinutesAgo "
-																									"FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
-																									"WHERE "distribute_org_id<<get_org_list_where_condition(enabled_orgs)<<
-					  "ORDER BY LastRunTime LIMIT "<<offset<<", "<<limit;
+				query << "SELECT OrgID, MaxRetentionID,"
+						 " LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo,"
+						 " LastRunTime < DATE_SUB(NOW(), INTERVAL " << org_scan_interval_minutes << " MINUTE) LastRunMoreThan__MinutesAgo "
+						 "FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
+						 "WHERE "distribute_org_id << get_org_list_where_condition(enabled_orgs)
+					  << "ORDER BY LastRunTime LIMIT " << offset << ", " << limit;
 
 				MYSQL_QUERY_USE(PURGE, conn, query, res);
 				while(mysqlpp::Row row = res.fetch_row()) {

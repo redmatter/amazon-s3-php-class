@@ -1234,7 +1234,10 @@ public:
 					p_purge_def = retention_db_.get_orgs_for_purge();
 				}
 
-				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, static_cast<unsigned int>(limit), confMap_["retention_purge.enabled_orgs"].as<std::string>());
+				p_purge_def = internal_db_.update_get_purge_def(
+				        p_purge_def, static_cast<unsigned int>(limit),
+				        confMap_["retention_purge.enabled_orgs"].as<std::string>(),
+                        confMap_["retention_purge.org_scan_interval_minutes"].as<unsigned>());
 				if(!p_purge_def) {
 					LogVerbose("Failed to update and get purge definition; skipping attempt");
 					continue;

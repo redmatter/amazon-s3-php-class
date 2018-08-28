@@ -40,6 +40,7 @@ inline void describe_config(boost::program_options::options_description& optsDes
 			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.auto_expiring_filetypes", boost::program_options::value<std::string>()->default_value("cdr"), "factor in endpoint's (S3 only at the moment) auto-expiration capability")
 			("retention_purge.enabled_orgs", boost::program_options::value<std::string>()->default_value(""), "purge enabled orgs")
+			("retention_purge.org_scan_interval_minutes", boost::program_options::value<unsigned>()->default_value(60), "how many minutes between scan for purge items, per org")
 			("retention_purge.enabled_filetypes", boost::program_options::value<std::string>()->default_value(""), "purge enabled filetypes")
 			("retention_purge.legacy_s3_headers_last_date", boost::program_options::value<std::string>()->default_value(""), "legacy s3 headers are not present beyond this date")
 			("retention_purge.bypass_headers_check_for", boost::program_options::value<std::string>()->default_value("none"), "bypass headers check; options are a comma delimited list")
@@ -335,11 +336,11 @@ struct item
 
 	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false),
 			 on_demand_purge_id(0), audit_id(0), save_pending(false)
-    {}
+	{}
 
 	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state),
 			fatal_failure(false), on_demand_purge_id(0), audit_id(0), save_pending(false)
-    {
+	{
 	}
 
 	item(const archiving::archivable::identifier& identifier,
@@ -356,17 +357,17 @@ struct item
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
-                       static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
+					   static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
 			retention(new retention_record(
-                    identifier, types::file_format::unknown, 0,
-                    static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
-                    static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
-                    boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
-                    boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
-                    boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
-                    0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+					identifier, types::file_format::unknown, 0,
+					static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
+					static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
+					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
+					0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),
@@ -474,15 +475,15 @@ struct item
 			return p ? (*this)(*p) : false;
 		}
 
-        inline bool operator()(const item& item) const
-        {
-            return (*this)(item.identifier);
-        }
+		inline bool operator()(const item& item) const
+		{
+			return (*this)(item.identifier);
+		}
 
-        inline bool operator()(const archiving::archivable::identifier& identifier) const
-        {
-            return archiving::file_type::is_internal(identifier.filetype);
-        }
+		inline bool operator()(const archiving::archivable::identifier& identifier) const
+		{
+			return archiving::file_type::is_internal(identifier.filetype);
+		}
 	};
 
 	struct extract_retention_id

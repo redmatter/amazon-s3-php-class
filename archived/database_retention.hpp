@@ -408,6 +408,7 @@ public:
 				const std::size_t n_found = retention_set.size();
 				LogVerbose("Org: " << org_id << " Found " << n_found << " purgeables");
 
+				// if we couldn't find find "limit" amount of items, that means we can move to the next range
 				if (n_found < limit) {
 					new_max_retention_id = range_end;
 				} else {
