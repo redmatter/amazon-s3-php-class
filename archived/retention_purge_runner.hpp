@@ -1253,6 +1253,8 @@ public:
 
 						// make sure we dont over fill
 						if (purge_max_queue_size > purge_queue_size) {
+							LogVerbose("Org:"<<itr->org_id<<" attempting purge (both on-demand and regular)");
+
 							// readjust limit based on purge queue size
 							const int limit_now(std::min< int >(limit, purge_max_queue_size - purge_queue_size));
 
@@ -1263,6 +1265,9 @@ public:
 							}
 
 							orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
+						} else {
+							LogVerbose("Org:"<<itr->org_id<<" Purge queue is full; purge_max_queue_size <= purge_queue_size "
+									   "(" << purge_max_queue_size << " <= " << purge_queue_size << ")");
 						}
 					}
 
