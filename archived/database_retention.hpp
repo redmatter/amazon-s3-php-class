@@ -16,6 +16,7 @@
 
 #include "../common/policy.hpp"
 #include "../common/coreapi_eventlog.hpp"
+#include "config/purge_restrictions.hpp"
 
 #include <rml/database/mysql/basic_database.hpp>
 #include <rml/database/mysql/transactional_connection.hpp>
@@ -354,7 +355,7 @@ public:
 	uint64_t get_retention_for_purge(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
-			const std::string& where_configured_restrictions,
+			const archiving::archived::purge_restrictions& restrictions,
 			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
 			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
@@ -390,10 +391,17 @@ public:
 
 				state_condition += "`State`='Available'";
 
+				std::string id_range;
+				if (!restrictions.disable_id_range_scan) {
+					std::ostringstream ostr;
+					ostr << "`ID` > " << range_begin << " AND `ID` <= " << range_end << " AND ";
+					id_range = ostr.str();
+				}
+
 				query << "SELECT " << retention_select_fields() << ", `State`='PurgeQueued' "
 					  << "FROM `Retention_" << org_id << "` r "
-					  << "WHERE `ID` > " << range_begin << " AND `ID` <= " << range_end
-					  << " AND (" << state_condition << ") " << where_configured_restrictions << " "
+					  << "WHERE " << id_range
+					  << " (" << state_condition << ") " << restrictions.criteria << " "
 					  << "LIMIT " << limit << " FOR UPDATE";
 
 				MYSQL_QUERY_USE(PURGE, conn, query, res);
@@ -413,6 +421,11 @@ public:
 					new_max_retention_id = range_end;
 				} else {
 					new_max_retention_id = range_begin + limit;
+				}
+
+				// scan only once if the range based scanning is disabled
+				if (restrictions.disable_id_range_scan) {
+					break;
 				}
 			}
 

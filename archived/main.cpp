@@ -241,6 +241,7 @@ int main(int argc, char *argv[]) try
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
+		archiving::archived::purge_restrictions::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";

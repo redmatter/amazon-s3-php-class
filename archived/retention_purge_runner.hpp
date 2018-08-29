@@ -21,6 +21,7 @@
 #include "suppress_headers_check.hpp"
 #include "storage_backend.hpp"
 #include "database_retention_delete.hpp"
+#include "config/purge_restrictions.hpp"
 
 #include <rml/pc_channel.h>
 #include <rml/coreapi.hpp>
@@ -124,6 +125,8 @@ class runner : public boost::enable_shared_from_this<runner>
 	std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
 	const bool delete_retention_records_for_internal_filetypes_;
 
+	const archiving::archived::purge_restrictions purge_restrictions;
+
 	volatile bool& quit_;
 
 	enum
@@ -191,7 +194,8 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				delete_retention_records_for_internal_filetypes_(
 						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
-				quit_(quit)
+				quit_(quit),
+				purge_restrictions(confMap)
 	{
 		// set all to false
 		for(int i = 0; i < archiving::file_type::n_file_types; i++)
@@ -209,9 +213,6 @@ public:
 
 		if (legacy_s3_headers_last_date_.is_not_a_date())
 			throw rml::exception("Invalid date found in config (retention_purge.legacy_s3_headers_last_date)");
-
-		// initialise it! not thread-safe
-		(void) get_retention_purge_restrictions(confMap);
 
 		// setup legacy_ondemand_purge_orgs_
 		const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
@@ -338,7 +339,7 @@ public:
 		// continue with the regular purge
 		if(batch_count_ > 0) {
 			return retention_db_.get_retention_for_purge(
-					api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
+					api_, org_id, max_retention_id, batch_count, purge_restrictions,
 					boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
 					fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
 					org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
