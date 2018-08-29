@@ -538,13 +538,12 @@ public:
 	 */
 	bool reload_from_database() try
 	{
-		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
 		static const uint64_t max_id(internal_db_.get_purge_queue_max_id());
 
 		static uint64_t loaded_max_id(0);
 
-		if(!require_approval && loaded_max_id >= max_id) {
-			LogMessage("Approval not required and we have finished reloading");
+		if(loaded_max_id >= max_id) {
+			LogMessage("Finished reloading");
 			return false;
 		}
 
@@ -554,53 +553,26 @@ public:
 						% app::hostname));
 
 		if(loaded_max_id < max_id) {
-			if(require_approval) {
-				where += boost::str(
-						boost::format(" AND ( ( ID <= %1% AND ID > %2% "
-								"AND State NOT IN ( "
-								" %3% /* init_error */, %4% /* approve */, %5% /* approve_ok */, %6% /* approve_error */ "
-								") ) ")
-						% max_id % loaded_max_id
-						% state::init_error % state::approve % state::approve_ok % state::approve_error);
-			}
-			else {
-				where += boost::str(
-						boost::format(" AND ( ID <= %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
-						% max_id % loaded_max_id % state::init_error);
-			}
-		}
-
-		if(require_approval) {
-			if(loaded_max_id < max_id)
-				where += boost::str(boost::format(" OR `State`=%1% /* approve_ok */ )") % state::approve_ok);
-			else
-				where += boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok);
+			where += boost::str(
+					boost::format(" AND ( ID <= %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
+					% max_id % loaded_max_id % state::init_error);
 		}
 
 		const int& limit(get_limit());
 		if(limit <= 0)
-			return require_approval || (loaded_max_id < max_id);
+			return loaded_max_id < max_id;
 
 		item::list_t loaded_items;
 
 		/**
-		 * Select all those that need reloading after a restart OR the ones that need approval.
-		 * Here once we load them, all approved ones are set to state::delete_file, just to mark as loaded.
+		 * all those that need reloading after a restart.
 		 */
 		internal_db_.batch_load< item, item::extract_id >(
 				loaded_items,
 				boost::bind(item::setup_select, _1, _2, where),                             /* fn_setup_select */
 				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)), /* fn_make_item_from_row */
-				boost::bind(item::setup_update_by_ids_begin, _1, _2,                        /* fn_setup_update_by_ids_begin */
-						boost::str(boost::format("`State`=%1% /* delete_file */") % state::delete_file)),
-				boost::bind(item::setup_update_by_ids_end, _1, _2,                          /* fn_setup_update_by_ids_end */
-						boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok)),
 				static_cast<unsigned int>(limit)                                            /* select_limit */
 		);
-
-		// if none found, we need to continue only if require_approval == true
-		if(loaded_items.empty())
-			return require_approval || (loaded_max_id < max_id);
 
 		for(item::list_t::const_iterator itr = loaded_items.begin(); itr != loaded_items.end(); ++itr) {
 			const uint64_t& id((*itr)->id);
@@ -618,7 +590,7 @@ public:
 				move_forward(*itr);
 		}
 
-		return require_approval || (loaded_max_id < max_id);
+		return loaded_max_id < max_id;
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
@@ -717,44 +689,35 @@ public:
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
 
-		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
-
 		// --- ---
-
-		// if we need no approval or the storage-endpoint is not retention-managed; skip stages
-		if ((state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
-			|| (state::get_coarse(p_item->cur_state) == state::_delete_file_ &&
-				// check endpoint to be valid (dummy items dont have any valid data)
-				p_item->endpoint && !p_item->endpoint->is_retention_managed))
-		{
-			p_item->cur_state = state::next_up(p_item->cur_state, /* force = */true);
-		}
 
 		switch(state::get_coarse(p_item->cur_state)) {
 
-		case state::_approve_:
-		{
-			// nothing to do here as we have already saved it! Just that we wouldn't take it further in the
-			// state machine; dead end ( for now )!
-			break;
-		}
-
 		case state::_delete_file_:
 		{
-			if(p_item->retention && auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
-				LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+			// if not a dummy item
+			if (p_item->retention) {
+				bool skip_delete_from_storage = false;
+				if (auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
+					LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+					skip_delete_from_storage = true;
+				} else if (p_item->endpoint && !p_item->endpoint->is_retention_managed) {
+					LogDebug(p_item<<" - skipping delete_file stage as it is NOT retention-managed");
+					skip_delete_from_storage = true;
+				}
 
-				// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-				reactor_.schedule(
-						boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
-						boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
-						state_reactor<>::low, false);
+				if (skip_delete_from_storage) {
+					// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
+					reactor_.schedule(
+							boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
+							boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
+							state_reactor<>::low, false);
 
-				// NOT break-ing from here so that the below batching logic wouldn't get starved
+					// NOT break-ing from here so that the below batching logic wouldn't get starved
+				} else {
+					__pc_produce(delete_file_channel_, p_item);
+				}
 			}
-
-			if(p_item->retention) // if not dummy
-				__pc_produce(delete_file_channel_, p_item);
 
 			if(((time(0) - last_delete_file_time_) < purge_file_interval_seconds) && (delete_file_channel_.count() < purge_file_batch_size))
 				break;
@@ -1141,18 +1104,6 @@ public:
 				LogDebug("Dummy item ... "<<iter_tens);
 
 				switch(iter_tens) {
-				case 0:
-				{
-					// TODO if we ever remove the approve stage, we need to do mods here
-
-					// tinker the delete_file state
-					item::pointer purge_item(new item(state::approve));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
-					break;
-				}
 				case 1:
 				{
 					// tinker the delete_usage state
@@ -1236,9 +1187,9 @@ public:
 				}
 
 				p_purge_def = internal_db_.update_get_purge_def(
-				        p_purge_def, static_cast<unsigned int>(limit),
-				        confMap_["retention_purge.enabled_orgs"].as<std::string>(),
-                        confMap_["retention_purge.org_scan_interval_minutes"].as<unsigned>());
+						p_purge_def, static_cast<unsigned int>(limit),
+						confMap_["retention_purge.enabled_orgs"].as<std::string>(),
+						confMap_["retention_purge.org_scan_interval_minutes"].as<unsigned>());
 				if(!p_purge_def) {
 					LogVerbose("Failed to update and get purge definition; skipping attempt");
 					continue;

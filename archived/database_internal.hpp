@@ -797,8 +797,8 @@ public:
 	void batch_load(typename Item::list_t& loaded,
 			const fn_setup_query_t& fn_setup_select,
 			const boost::function< typename Item::pointer( mysqlpp::Row& ) > fn_make_item_from_row,
-			const fn_setup_query_t& fn_setup_update_by_ids_begin=fn_setup_query_t(), const fn_setup_query_t& fn_setup_update_by_ids_end=fn_setup_query_t(),
-			const unsigned int select_limit=0, const unsigned int select_offset=0)
+			const unsigned int select_limit = 0, const unsigned int select_offset = 0,
+			const fn_setup_query_t& fn_setup_update_by_ids_begin=fn_setup_query_t(), const fn_setup_query_t& fn_setup_update_by_ids_end=fn_setup_query_t())
 	{
 		try {
 			ExtractID extract_id;
