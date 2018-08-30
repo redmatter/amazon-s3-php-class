@@ -194,6 +194,10 @@ struct state
 		if(state == delete_retention_ok)
 			return finished;
 
+		// jump over approval step; we don't do that anymore
+		if(state == init_ok)
+			return delete_file;
+
 		return make(coarse_t(((state & 0x0f0) >> 4) + 1));
 	}
 };
