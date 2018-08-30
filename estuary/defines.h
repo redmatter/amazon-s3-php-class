@@ -6,8 +6,8 @@
 // Created by Dino Korah on 04/12/2017.
 //
 
-#ifndef CDRMUNCH_estuary_DEFINES_HPP
-#define CDRMUNCH_estuary_DEFINES_HPP
+#ifndef ARCHIVING_ESTUARY_DEFINES_HPP
+#define ARCHIVING_ESTUARY_DEFINES_HPP
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-estuary"
@@ -45,4 +45,4 @@
 #define DEFAULT_LOG_FILE_PATH "syslog"
 #endif
 
-#endif //CDRMUNCH_DEFINES_HPP
+#endif //ARCHIVING_ESTUARY_DEFINES_HPP

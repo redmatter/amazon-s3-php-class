@@ -292,6 +292,19 @@ struct archived_shim
             LogError(pending_request->correlation << " Failed to send response");
         }
 
+        const boost::optional<boost::chrono::steady_clock::duration>& request_duration(
+                pending_request->progress_marker.get_duration());
+        const boost::chrono::microseconds& request_duration_micro(
+                request_duration ? boost::chrono::duration_cast<boost::chrono::microseconds>(*request_duration)
+                                 : boost::chrono::microseconds(1));
+
+        LogMessage(pending_request->correlation
+                           << ' ' << pending_request->request.get_source()
+                           << ' ' << pending_request->request.get_method()
+                           << ' ' << pending_request->request.get_destination()
+                           << ' ' << status_code
+                           << ' ' << request_duration_micro);
+
         LogMessage("[statistics] " << pending_request->correlation << ' '
                            << rml::statistics::progress::format_marker<boost::chrono::microseconds>(
                                    pending_request->progress_marker));
@@ -346,18 +359,26 @@ struct archived_shim
         boost::shared_ptr<http::pending_request> pending_request =
                 boost::make_shared<http::pending_request>(id, request, connection);
 
+        LogMessage(pending_request->correlation
+                           << ' ' << pending_request->request.get_source()
+                           << ' ' << pending_request->request.get_method()
+                           << ' ' << pending_request->request.get_destination() << " Handling request");
+
         // TODO handle mid-flight requests; ones that are stuck in the sender queue if / when ArchiveD goes down
 
         if (shutting_down == true || app::archived_client::get_is_archived_ok() <= 0.0) {
-            pending_request->respond(error::http::service_unavailable);
+            LogMessage(pending_request->correlation << " Rejecting request;"
+                                                    << " shutting-down:" << shutting_down
+                                                    << " backend-ok:" << app::archived_client::get_is_archived_ok());
+
+            pending_request->mark_progress(http::request_progress::rejected);
+
+            finalise_request(pending_request, error::http::service_unavailable,
+                             "Server temporarily unavailable; Try again later.");
             return;
         }
 
         try {
-            LogMessage(pending_request->correlation
-                               << ' ' << pending_request->request.get_method()
-                               << ' ' << pending_request->request.get_destination() << " Handling request");
-
             pending_requests.add(pending_request);
 
             boost::shared_ptr<const put_object_request> put_request =

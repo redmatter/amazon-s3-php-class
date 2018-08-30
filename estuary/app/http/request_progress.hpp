@@ -29,6 +29,8 @@ struct request_progress
         put_archived_ok,
         put_archived_error,
 
+        rejected,
+
         response_sent,
 
         n_enums
@@ -45,6 +47,8 @@ struct request_progress
                 "put_dequeued",
                 "put_archived_ok",
                 "put_archived_error",
+
+                "rejected",
 
                 "response_sent"
         };
