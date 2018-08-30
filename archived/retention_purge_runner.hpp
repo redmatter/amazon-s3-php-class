@@ -1096,7 +1096,7 @@ public:
 #undef LogChannelCount
 
 			const int iter_tens((iter / 10) % 10);
-			if(!quit_ && (iter_tens >= 0 && iter_tens <= 4) ) {
+			if(!quit_ && (iter_tens >= 0 && iter_tens <= 3) ) {
 
 				// here we make the batching mechanism to fire-off the state; they could be starving for more items
 				// so we fire-off dummy items into the channel(s) to tickle the various states
@@ -1104,7 +1104,7 @@ public:
 				LogDebug("Dummy item ... "<<iter_tens);
 
 				switch(iter_tens) {
-				case 1:
+				case 0:
 				{
 					// tinker the delete_usage state
 					item::pointer purge_item(new item(state::delete_file));
@@ -1114,7 +1114,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 2:
+				case 1:
 				{
 					// tinker the delete_retention state
 					item::pointer purge_item(new item(state::delete_usage));
@@ -1124,7 +1124,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 3:
+				case 2:
 				{
 					// tinker the finished state
 					item::pointer purge_item(new item(state::delete_retention));
@@ -1134,7 +1134,7 @@ public:
 							state_reactor<>::high, false);
 					break;
 				}
-				case 4:
+				case 3:
 				{
 					// tinker the finished state
 					item::pointer purge_item(new item(state::finished));
