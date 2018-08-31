@@ -41,9 +41,9 @@ private:
 	{
 		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
 		if(ok) {
-			n_ok_.fetch_add(1, boost::memory_order_acquire);
+			n_ok_++;
 		} else {
-			n_ok_.fetch_sub(1, boost::memory_order_acquire);
+			n_ok_--;
 		}
 
 		LogDebug("n_ok_.load(): " << n_ok_.load());
