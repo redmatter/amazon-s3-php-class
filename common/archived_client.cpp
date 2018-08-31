@@ -12,6 +12,7 @@
 namespace app {
 
 boost::atomic_uint archived_client::n_instances_(0U);
+boost::atomic_uint archived_client::n_ok_(0U);
 boost::atomic_uint archived_client::instance_id_seq_(0U);
 boost::random::mt19937 archived_client::rand_gen_;
 boost::random::uniform_int_distribution<> archived_client::rand_dist_(1, 2000);
