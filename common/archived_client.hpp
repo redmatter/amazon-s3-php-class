@@ -32,21 +32,26 @@ class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
 	static boost::atomic_uint n_instances_;
-	static boost::atomic_uint n_ok_;
 	static boost::atomic_uint instance_id_seq_;
 	static boost::random::mt19937 rand_gen_;
 	static boost::random::uniform_int_distribution<> rand_dist_;
 
-	void set_is_archived_ok(const bool ok)
+    static boost::atomic_uint& n_ok()
+    {
+        static boost::atomic_uint n_ok_(0);
+        return n_ok_;
+    }
+
+    void set_is_archived_ok(const bool ok)
 	{
 		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
 		if(ok) {
-			n_ok_.fetch_add(1, boost::memory_order_acquire);
+			n_ok().fetch_add(1, boost::memory_order_acquire);
 		} else {
-			n_ok_.fetch_sub(1, boost::memory_order_acquire);
+            n_ok().fetch_sub(1, boost::memory_order_acquire);
 		}
 
-		LogDebug("n_ok_.load(): " << n_ok_.load());
+		LogDebug("n_ok().load(): " << n_ok().load());
 	}
 
 	enum constants
@@ -272,13 +277,16 @@ public:
 
 	static float get_is_archived_ok()
 	{
-		LogDebug("n_ok_.load(): " << n_ok_.load());
-		LogDebug("n_instances_.load(): " << n_instances_.load());
+	    unsigned ok_count = n_ok().load();
+        unsigned instances = n_instances_.load();
 
-		if(n_instances_ == 0U || n_ok_ == 0U)
+		LogDebug("n_ok().load(): " << ok_count);
+		LogDebug("n_instances_.load(): " << instances);
+
+		if(instances == 0U || ok_count == 0U)
 			return 0.0;
 		
-		return (float)n_ok_.load() / (float)n_instances_.load();
+		return static_cast<float>(ok_count) / static_cast<float>(instances);
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
