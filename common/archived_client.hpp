@@ -34,7 +34,9 @@ private:
 	static boost::atomic_uint n_instances_;
 	static boost::atomic_uint n_ok_;
 	static boost::atomic_uint instance_id_seq_;
-	
+	static boost::random::mt19937 rand_gen_;
+	static boost::random::uniform_int_distribution<> rand_dist_;
+
 	void set_is_archived_ok(const bool ok)
 	{
 		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
@@ -423,12 +425,14 @@ private:
 		timer_.cancel();
 	}
 
-	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
+	inline void set_reconnect_timer(const int seconds, const bool force_reconnect, const bool add_random_delay = false)
 	{
-		DevDebug(*this<<" set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect);
+		int random_milli_seconds = add_random_delay ? rand_dist_(rand_gen_) : 0;
+		DevDebug(*this << " set_reconnect_timer - seconds:" << seconds << " [+" << random_milli_seconds << " ms]"
+					   << " force_reconnect:" << force_reconnect);
 
 		cancel_timer();
-		timer_.expires_from_now(boost::posix_time::seconds(seconds));
+		timer_.expires_from_now(boost::posix_time::milliseconds(seconds * 1000 + random_milli_seconds));
 		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived_on_timeout, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
 	}
@@ -1200,7 +1204,7 @@ private:
 		setup_retry_and_reset_current_archivable("Closing while sending");
 
 		if(reconnect)
-			set_reconnect_timer(reconnect_delay_seconds, false);
+			set_reconnect_timer(reconnect_delay_seconds, false, true);
 	}
 
 	// instead of default params; to keep boost::bind errors at bay
