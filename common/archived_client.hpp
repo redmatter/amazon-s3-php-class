@@ -32,7 +32,8 @@ class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
 	static boost::atomic_uint n_instances_;
-	static boost::atomic_uint n_ok_;
+	static unsigned n_ok_;
+	static boost::mutex n_ok_update_mutex_;
 	static boost::atomic_uint instance_id_seq_;
 	static boost::random::mt19937 rand_gen_;
 	static boost::random::uniform_int_distribution<> rand_dist_;
@@ -40,9 +41,10 @@ private:
 	void set_is_archived_ok(const bool ok)
 	{
 		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
-		if(ok) {
+		boost::unique_lock<boost::mutex> lock(n_ok_update_mutex_);
+		if (ok) {
 			n_ok_++;
-		} else {
+		} else if (n_ok_ > 0) {
 			n_ok_--;
 		}
 	}
@@ -273,7 +275,7 @@ public:
 		if(n_instances_ == 0U || n_ok_ == 0U)
 			return 0.0;
 		
-		return (float)n_ok_.load() / (float)n_instances_.load();
+		return (float)n_ok_ / (float)n_instances_.load();
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
