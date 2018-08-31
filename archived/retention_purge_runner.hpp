@@ -1115,30 +1115,32 @@ public:
 				// here we make the batching mechanism to fire-off the state; they could be starving for more items
 				// so we fire-off dummy items into the channel(s) to tickle the various states
 
-				LogDebug("Dummy item ... "<<iter_tens);
-
 				switch(iter_tens) {
 				case 0:
 				{
 					// tinker the delete_usage state
+					LogDebug("Dummy item ... state::delete_file");
 					done_move_forward(item::pointer(new item(state::delete_file)), state_reactor<>::high, false);
 					break;
 				}
 				case 1:
 				{
 					// tinker the delete_retention state
+					LogDebug("Dummy item ... state::delete_usage");
 					done_move_forward(item::pointer(new item(state::delete_usage)), state_reactor<>::high, false);
 					break;
 				}
 				case 2:
 				{
 					// tinker the finished state
+					LogDebug("Dummy item ... state::delete_retention");
 					done_move_forward(item::pointer(new item(state::delete_retention)), state_reactor<>::high, false);
 					break;
 				}
 				case 3:
 				{
 					// tinker the finished state
+					LogDebug("Dummy item ... state::finished");
 					done_move_forward(item::pointer(new item(state::finished)), state_reactor<>::high, false);
 					break;
 				}
