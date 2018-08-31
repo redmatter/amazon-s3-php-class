@@ -45,6 +45,8 @@ private:
 		} else {
 			n_ok_--;
 		}
+
+		LogDebug("n_ok_.load(): " << n_ok_.load());
 	}
 
 	enum constants
@@ -270,6 +272,9 @@ public:
 
 	static float get_is_archived_ok()
 	{
+		LogDebug("n_ok_.load(): " << n_ok_.load());
+		LogDebug("n_instances_.load(): " << n_instances_.load());
+
 		if(n_instances_ == 0U || n_ok_ == 0U)
 			return 0.0;
 		
@@ -292,7 +297,7 @@ public:
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
 			const std::string& archived_port,
-            const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
+			const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
 				strand_(io_service_),
