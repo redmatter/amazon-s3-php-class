@@ -301,7 +301,7 @@ struct archived_shim
         LogMessage(pending_request->correlation
                            << ' ' << pending_request->request.get_source()
                            << ' ' << pending_request->request.get_method()
-                           << ' ' << pending_request->request.get_destination()
+                           << ' ' << pending_request->request.get_path()
                            << ' ' << status_code
                            << ' ' << request_duration_micro);
 
@@ -362,7 +362,9 @@ struct archived_shim
         LogMessage(pending_request->correlation
                            << ' ' << pending_request->request.get_source()
                            << ' ' << pending_request->request.get_method()
-                           << ' ' << pending_request->request.get_destination() << " Handling request");
+                           << ' ' << pending_request->request.get_path() << " Handling request");
+
+        LogDebug(pending_request->correlation << " query-string: " << pending_request->request.get_query());
 
         // TODO handle mid-flight requests; ones that are stuck in the sender queue if / when ArchiveD goes down
 
