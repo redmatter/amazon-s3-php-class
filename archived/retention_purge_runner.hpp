@@ -684,6 +684,26 @@ public:
 		return;
 	}
 
+	/**
+	 * Skip a state and move-forward
+	 *
+	 * Routes it via the reactor so that we can distribute work over threads, rather than moving forward with the
+	 * current thread
+	 *
+	 * @param p_item
+	 * @param priority
+	 * @param allow_direct_exec
+	 */
+	inline void
+	done_move_forward(const item::pointer& p_item, const state_reactor<>::priority_t& priority,
+                           const bool allow_direct_exec)
+    {
+        reactor_.schedule(
+                boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
+                boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
+                priority, allow_direct_exec);
+    }
+
 	inline void perform_current_state_action(const item::pointer &p_item)
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
@@ -692,6 +712,11 @@ public:
 		// --- ---
 
 		switch(state::get_coarse(p_item->cur_state)) {
+
+		case state::_approve_:
+        {
+            done_move_forward(p_item, state_reactor<>::medium, true);
+        }
 
 		case state::_delete_file_:
 		{
@@ -707,11 +732,7 @@ public:
 				}
 
 				if (skip_delete_from_storage) {
-					// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
-							boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
-							state_reactor<>::low, false);
+                    done_move_forward(p_item, state_reactor<>::low, false);
 
 					// NOT break-ing from here so that the below batching logic wouldn't get starved
 				} else {
@@ -754,12 +775,9 @@ public:
 									item::extract_endpoint, item::extract_identifier >(
 											itr_batch.first, itr_batch.second);
 
-							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_)
-								// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-								reactor_.schedule(
-										boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-										boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-										state_reactor<>::low, false);
+							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
+							    done_move_forward(*itr_, state_reactor<>::low, false);
+							}
 
 							// move a batch forward
 							itr = itr_batch.second;
@@ -839,11 +857,9 @@ public:
 							for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
 									itr_ != itr_batch.second; ++itr_) {
 								// if done ok, move forward
-								if(done_ok)
-									reactor_.schedule(
-											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-											state_reactor<>::low, false);
+								if(done_ok) {
+                                    done_move_forward(*itr_, state_reactor<>::low, false);
+								}
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
 									__pc_produce(delete_usage_channel_, *itr_, 600, 0, 0);
@@ -931,10 +947,7 @@ public:
 							{
 								// if done ok, move forward
 								if(done_ok) {
-									reactor_.schedule(
-											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-											state_reactor<>::low, false);
+                                    done_move_forward(*itr_, state_reactor<>::low, false);
 								}
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
@@ -1107,41 +1120,25 @@ public:
 				case 0:
 				{
 					// tinker the delete_usage state
-					item::pointer purge_item(new item(state::delete_file));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+                    done_move_forward(item::pointer(new item(state::delete_file)), state_reactor<>::high, false);
 					break;
 				}
 				case 1:
 				{
 					// tinker the delete_retention state
-					item::pointer purge_item(new item(state::delete_usage));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+                    done_move_forward(item::pointer(new item(state::delete_usage)), state_reactor<>::high, false);
 					break;
 				}
 				case 2:
 				{
 					// tinker the finished state
-					item::pointer purge_item(new item(state::delete_retention));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+                    done_move_forward(item::pointer(new item(state::delete_retention)), state_reactor<>::high, false);
 					break;
 				}
 				case 3:
 				{
 					// tinker the finished state
-					item::pointer purge_item(new item(state::finished));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+                    done_move_forward(item::pointer(new item(state::finished)), state_reactor<>::high, false);
 					break;
 				}
 
