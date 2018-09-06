@@ -1,7 +1,8 @@
 #!/bin/bash
 
-config_path=/etc/archiving/rmarchived.conf
-pidfile=/var/run/archiving/rmarchived-watchdog.pid
+: "${config_path:=/etc/archiving/rmarchived.conf}"
+: "${pidfile:=/var/run/archiving/rmarchived-watchdog.pid}"
+: "${hapi_hosttype:="$(/usr/bin/hapi get HostType)"}"
 
 . /usr/share/rm-bash-functions/logging.sh
 . /usr/share/rm-bash-functions/config.sh
