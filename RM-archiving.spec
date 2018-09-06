@@ -2,6 +2,20 @@
 %{!?__build_pkg_release: %define __build_pkg_release 1}
 %{!?__librml_buildtype: %define __librml_buildtype DBGREL}
 
+%if 0%{?el5}
+%define reload_rsyslog() if [ -x /etc/init.d/rsyslog ]; then \
+    if ! /etc/init.d/rsyslog condrestart && %1; then \
+        echo "**WARNING** rsyslog not found; consider installing it."; \
+    fi; \
+fi;
+%endif
+
+%if 0%{?el7}
+%define reload_rsyslog() if systemctl is-enabled rsyslog &>/dev/null; then \
+    systemctl condrestart rsyslog; \
+fi
+%endif
+
 %define appname archiving
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
@@ -627,15 +641,14 @@ fi
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable rmarchived
+systemctl enable rmarchived-watchdog
 %endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 
 %post platform-config-redmatter
 ln -sf /etc/archiving/conf.d/retention-purge-redmatter.conf /etc/archiving/rmarchived-retention-purge.conf
@@ -648,15 +661,13 @@ ln -sf /etc/archiving/conf.d/retention-purge-ipc.conf /etc/archiving/rmarchived-
 %if 0%{?el5}
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable rmcollectd
 %endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 if [ ! -f /var/lib/archiving/collectd.db3 ]; then
 	cp /usr/share/archiving/blank_collectd.db3 /var/lib/archiving/collectd.db3
 	# TODO change permissions if we change the user we run collectd as
@@ -667,30 +678,26 @@ fi
 %if 0%{?el5}
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable rmcollect-smsd
 %endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 
 %post collect-importd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
 %if 0%{?el5}
 /sbin/chkconfig --add rmcollect-importd
 /sbin/chkconfig rmcollect-importd on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable rmcollect-importd
 %endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
@@ -708,15 +715,13 @@ systemctl enable rmcollect-importd
 %if 0%{?el5}
 /sbin/chkconfig --add rmestuary
 /sbin/chkconfig rmestuary on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable rmestuary
 %endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 
 %post scripts
 %if 0%{?el5}
@@ -726,25 +731,19 @@ systemctl enable rmestuary
 /sbin/chkconfig rmarchexport on
 /sbin/chkconfig --add rmarchpcapimport
 /sbin/chkconfig rmarchpcapimport on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
+/sbin/chkconfig --add rmarchdsrpreproc
+/sbin/chkconfig rmarchdsrpreproc on
 %endif
 %if 0%{?el7}
 systemctl enable rmarchpolfix
 systemctl enable rmarchexport
 systemctl enable rmarchpcapimport
+systemctl enable rmarchdsrpreproc
 %endif
-
-/sbin/chkconfig --add rmarchdsrpreproc
-/sbin/chkconfig rmarchdsrpreproc on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
+%reload_rsyslog true
 
 %post qascripts
-%if 0%{?el5}
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
-%endif
+%reload_rsyslog true
 
 # %post qascripts
 
@@ -752,73 +751,52 @@ systemctl enable rmarchpcapimport
 %if 0%{?el5}
 /sbin/chkconfig --add eml2a-milter
 /sbin/chkconfig eml2a-milter on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 %endif
 %if 0%{?el7}
 systemctl enable eml2a-milter
 %endif
+%reload_rsyslog true
 /usr/sbin/postconf -e "smtpd_milters = unix:/var/lib/eml2a/eml2a-milter.sock"
 /usr/sbin/postconf -e "milter_default_action = tempfail"
 %if 0%{?el5}
 # note: this will do nothing if postfix is not running
 /sbin/service postfix condrestart &> /dev/null
 %endif
+%if 0%{?el7}
+systemctl try-restart postfix
+%endif
 
 # ----------
 
 %postun
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
-%endif
 
 %postun platform-config-redmatter
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then # package being uninstalled
 	rm /etc/archiving/rmarchived-retention-purge.conf
 fi
-%endif
 
 %postun platform-config-ipc
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then # package being uninstalled
 	rm /etc/archiving/rmarchived-retention-purge.conf
 fi
-%endif
 
 %postun collectd
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
-%endif
 
 %postun collect-smsd
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
-%endif
 
 %postun collect-importd
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
-%endif
 
 %postun eml2a
 if [ "$1" -eq 0 ]; then
@@ -830,16 +808,15 @@ if [ "$1" -eq 0 ]; then
 	# note: this will do nothing if postfix is not running
 	/sbin/service postfix condrestart &> /dev/null
 %endif
+%if 0%{?el7}
+    systemctl try-restart postfix
+%endif
 fi
 
 %postun estuary
-%if 0%{?el5}
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
-%endif
 
 # ----------
 
