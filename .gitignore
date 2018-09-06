@@ -32,7 +32,6 @@ tmp*-libc*/
 /.kdev4/
 # M$ VS Code
 /.vscode/
-<<<<<<< 860a3febc4bb55a0eb0e59c4b2733d18754380f4
 /estuary/rmestuary
 /CMakeLists.txt.user
 /archiving.kdev4
@@ -41,8 +40,7 @@ tmp*-libc*/
 /eml2a/mime/decoder
 eml2a/cmake-build-debug
 eml2a/.idea
+/collect-importd/cronjobs/phonero/.idea
+/collect-importd/collect-importd
 modules.xml
-collect-importd/cronjobs/phonero/.idea
-=======
 /common/tmp-test-build/
->>>>>>> PLAT-12909 Make tests runnable from CentOS 5 container

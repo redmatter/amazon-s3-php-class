@@ -316,6 +316,7 @@ mkdir -p %{buildroot}/etc/rsyslog.d/
 mkdir -p %{buildroot}/etc/rc.d/init.d/
 %endif
 %if 0%{?el7}
+mkdir -p %{buildroot}/etc/tmpfiles.d
 mkdir -p %{buildroot}%{_unitdir}
 %endif
 mkdir -p %{buildroot}/usr/share/archiving/bin
@@ -431,6 +432,9 @@ cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_da
 cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/retention_delete_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
+%if 0%{?el7}
+cp common/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving.conf
+%endif
 
 # Estuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
@@ -946,6 +950,9 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
+%if 0%{?el7}
+/etc/tmpfiles.d/archiving.conf
+%endif
 
 %files estuary
 %defattr(-,root,root)
