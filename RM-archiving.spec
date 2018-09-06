@@ -316,7 +316,6 @@ mkdir -p %{buildroot}/etc/httpd/conf.d
 cp archived/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchived.conf
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
 cp archived-monitor/tmp-%{buildtype}-build/archived-monitor %{buildroot}/usr/bin/rmarchived-monitor
-cp archived/rmarchived_safe %{buildroot}/usr/bin/
 %if 0%{?el5}
 cp archived/rmarchived %{buildroot}/etc/rc.d/init.d/
 %endif
@@ -848,12 +847,13 @@ fi
 %defattr(-,root,root)
 /usr/bin/rmarchived.bin
 /usr/bin/rmarchived-monitor
-/usr/bin/rmarchived_safe
 /usr/share/archiving/rmarchived.supp
 %if 0%{?el5}
 /etc/rc.d/init.d/rmarchived
 %endif
 %if 0%{?el7}
+%{_bindir}/rmarchived-watchdog.sh
+%{_unitdir}/rmarchived-watchdog.service
 %{_unitdir}/rmarchived.service
 %endif
 /etc/archiving/rmarchived.conf
