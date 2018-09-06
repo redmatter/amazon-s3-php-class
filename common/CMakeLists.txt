@@ -21,7 +21,8 @@ set(HEADER_FILES
         policy.hpp
         pre.h
         types.hpp
-        collectd/callbacks.hpp)
+        collectd/callbacks.hpp
+        hostname.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

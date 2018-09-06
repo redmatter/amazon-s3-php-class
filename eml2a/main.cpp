@@ -15,6 +15,7 @@
 #include "../common/types.hpp"
 #include "../common/logstack.h"
 #include "../common/policy.hpp"
+#include "../common/hostname.hpp"
 
 #include <boost/system/error_code.hpp>
 #include <boost/asio.hpp>
@@ -386,9 +387,6 @@ void Configure(int argc, char* argv[])
 		exit(rml::utils::exit_codes::normal);
 	}
 
-	if (cli_confMap.count("hostname") != 1)
-		throw rml::exception("hostname not given");
-
 	if (cli_confMap.count("sms") == 1)
 		app::message_type = app::is_sms;
 	else if (cli_confMap.count("mms") == 1)
@@ -403,7 +401,11 @@ void Configure(int argc, char* argv[])
 	else
 		app::direction = app::is_both;
 
-	app::hostname = cli_confMap["hostname"].as<std::string>();
+	if(cli_confMap.count("hostname")) {
+		app::hostname = cli_confMap["hostname"].as<std::string>();
+	} else {
+		app::hostname = archiving::common::get_hostname();
+	}
 	if (cli_confMap.count("file") == 1)
 		app::filename = cli_confMap["file"].as<std::string>();
 
