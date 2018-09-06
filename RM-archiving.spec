@@ -649,6 +649,7 @@ fi
 %if 0%{?el7}
 systemctl enable rmarchived
 systemctl enable rmarchived-watchdog
+systemd-tmpfiles --create
 %endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
     %reload_rsyslog true
