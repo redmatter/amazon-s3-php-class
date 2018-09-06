@@ -5,6 +5,8 @@ BindsTo=rmarchived-watchdog.service
 
 [Service]
 EnvironmentFile=-/etc/sysconfig/rmarchived
+RuntimeDirectory=archiving
+RuntimeDirectoryMode=0700
 PIDFile=/var/run/archiving/rmarchived.pid
 ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI
 ExecStart=/usr/bin/rmarchived.bin --hostname $(uname -n | cut -d. -f1)
