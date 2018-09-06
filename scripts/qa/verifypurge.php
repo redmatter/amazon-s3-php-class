@@ -219,7 +219,7 @@ class VerifyPurgeApp extends BaseApp
 
         $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier_str, false) ? 'Available' : 'Purged';
 
-        return array($retentionStateFound, $storageStateFound);
+        return array($retentionStateFound, $storageStateFound, $endpoint->retentionManaged === 'yes');
     }
 
     /**
@@ -286,8 +286,13 @@ class VerifyPurgeApp extends BaseApp
 
                 $row = array_combine($this->_fields, $line);
 
-                list($row['RetentionStateFound'], $row['StorageStateFound']) =
+                list($row['RetentionStateFound'], $row['StorageStateFound'], $isRetentionManaged) =
                     $this->_getCurrentState($row['Identifier'], $row['EndpointID']);
+
+                // Override "StorageStateExpected" based on what was found in endpoint config
+                if (!$isRetentionManaged) {
+                    $row['StorageStateExpected'] = 'Available';
+                }
 
                 $ok = $row['RetentionStateFound'] == $row['RetentionStateExpected']
                     && $row['StorageStateFound'] == $row['StorageStateExpected'];

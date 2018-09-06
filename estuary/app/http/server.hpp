@@ -13,6 +13,7 @@
 #include <boost/network/protocol/http/server.hpp>
 
 #include "../error.hpp"
+#include "../../defines.h"
 
 namespace app
 {
@@ -130,6 +131,7 @@ bool send_response(const boost::shared_ptr<server::connection>& connection,
     // http://www.boost.org/doc/libs/1_54_0/libs/iterator/doc/filter_iterator.html
 
     response_header_list headers = header_list;
+    headers.add("Server", DEFAULT_APP_LONG_NAME);
     headers.add("Connection", "close");
 
     server::connection::status_t status;
