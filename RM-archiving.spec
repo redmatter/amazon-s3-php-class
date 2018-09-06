@@ -26,7 +26,9 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 %if 0%{?el7}
 Requires: RM-bash-functions >= 1.0.1
 Requires: RM-systemd-service-helpers >= 1.1.0
@@ -83,7 +85,9 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -101,7 +105,9 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package collect-importd
@@ -111,7 +117,9 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
 %if 0%{?el5}
@@ -156,7 +164,9 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package scripts
@@ -166,7 +176,9 @@ Requires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
@@ -199,7 +211,9 @@ Summary: Tools to puush SMS and MMS email messages into archive
 Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
+%if 0%{?el5}
 Requires: RM-daemonscripts >= 1.1.0
+%endif
 BuildRequires: sendmail-devel
 %if 0%{?el5}
 BuildRequires: pugixml
