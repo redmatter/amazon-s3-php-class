@@ -4,7 +4,8 @@ After=network.target network-online.target
 
 [Service]
 PIDFile=/var/run/archiving/rmestuary/rmestuary.pid
-ExecStart=/usr/bin/rmestuary.bin </dev/null &>/dev/null
+ExecStart=/usr/bin/rmestuary.bin
+SyslogIdentifier=rm-estuary
 Restart=on-abort
 RestartSec=3s
 

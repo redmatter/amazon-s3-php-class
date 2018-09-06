@@ -13,9 +13,7 @@ ExecStart=/usr/bin/crash-tracer.sh \
     --config /etc/archiving/rmarchived.conf \
     --service-name rmarchived \
     --binary /usr/bin/rmarchived.bin \
-    --pid-file /var/run/archiving/rmarchived.pid \
-    -- \
-    --hostname $(uname -n | cut -d. -f1)
+    --pid-file /var/run/archiving/rmarchived.pid
 SyslogIdentifier=rm-archived
 # Do not send SIGKILL when the service refuces to shutdown. Call a human instead!
 SendSIGKILL=no

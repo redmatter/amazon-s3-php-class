@@ -4,7 +4,8 @@ After=network.target network-online.target
 
 [Service]
 PIDFile=/var/run/archiving/rmarchpolfix.pid
-ExecStart=/usr/bin/archiving-purge-policy-fixer </dev/null &>/dev/null
+ExecStart=/usr/bin/archiving-purge-policy-fixer
+SyslogIdentifier=rm-archpolfix
 Restart=on-abort
 RestartSec=3s
 

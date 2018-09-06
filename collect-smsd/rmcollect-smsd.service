@@ -5,7 +5,8 @@ After=network.target network-online.target
 [Service]
 PIDFile=/var/run/archiving/rmcollect-smsd.pid
 ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
-ExecStart=/usr/bin/rmcollect-smsd.bin --hostname $( uname -n | cut -d. -f1 ) </dev/null &>/dev/null
+ExecStart=/usr/bin/rmcollect-smsd.bin
+SyslogIdentifier=rm-collect-smsd
 Restart=on-abort
 RestartSec=3s
 

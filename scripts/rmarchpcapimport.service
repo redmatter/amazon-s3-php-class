@@ -4,7 +4,8 @@ After=network.target network-online.target
 
 [Service]
 PIDFile=/var/run/archiving/rmarchpcapimport.pid
-ExecStart=/usr/bin/archiving-pcap-recording-import </dev/null &>/dev/null
+ExecStart=/usr/bin/archiving-pcap-recording-import
+SyslogIdentifier=rm-archpcapimport
 Restart=on-abort
 RestartSec=3s
 
