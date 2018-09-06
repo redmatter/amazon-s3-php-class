@@ -22,6 +22,7 @@
 #include <rml/logger.h>
 #include <rml/utils/snowflake.hpp>
 #include <rml/utils.h>
+#include <rml/statistics/progress/format_marker.hpp>
 
 #include <boost/atomic.hpp>
 #include <boost/exception/all.hpp>
@@ -32,37 +33,6 @@
 
 namespace app
 {
-
-struct request_status
-{
-    enum enum_t
-    {
-        processing = 0,
-        processed_ok,
-        processed_error,
-        response_sent,
-        connection_closed,
-
-        n_enums
-    };
-
-    static const char* to_string(const enum_t e)
-    {
-        static const char* strings[n_enums] = {
-                "processing",
-                "processed-ok",
-                "processed-error",
-                "response-sent",
-                "connection-closing"
-        };
-
-        if (e >= 0 && e < n_enums) {
-            return strings[e];
-        }
-
-        return "unknown";
-    }
-};
 
 struct archived_shim
 {
@@ -235,6 +205,22 @@ struct archived_shim
         responder_queue->set_finishing();
     }
 
+    inline
+    boost::shared_ptr<const http::pending_request>
+    get_pending_request_by_id(const uint64_t request_id)
+    {
+        return pending_requests.lookup(request_id);
+    }
+
+    void
+    mark_request_progress_by_id(const uint64_t request_id, http::request_progress::enum_t progress_made)
+    {
+        const boost::shared_ptr<const http::pending_request>& pending_request(get_pending_request_by_id(request_id));
+        if (pending_request) {
+            pending_request->mark_progress(progress_made);
+        }
+    }
+
     /**
      * @brief Prepare response and send it!
      */
@@ -247,7 +233,7 @@ struct archived_shim
                 responder_queue->consume(res, error);
                 if (!error) {
                     boost::shared_ptr<const http::pending_request> pending_request =
-                            pending_requests.lookup(res->request_id);
+                            get_pending_request_by_id(res->request_id);
                     if (pending_request) {
                         LogMessage(pending_request->correlation << " Result: " << *res);
                         finalise_request(pending_request, res->upshot, res->message);
@@ -306,6 +292,23 @@ struct archived_shim
             LogError(pending_request->correlation << " Failed to send response");
         }
 
+        const boost::optional<boost::chrono::steady_clock::duration>& request_duration(
+                pending_request->progress_marker.get_duration());
+        const boost::chrono::microseconds& request_duration_micro(
+                request_duration ? boost::chrono::duration_cast<boost::chrono::microseconds>(*request_duration)
+                                 : boost::chrono::microseconds(1));
+
+        LogMessage(pending_request->correlation
+                           << ' ' << pending_request->request.get_source()
+                           << ' ' << pending_request->request.get_method()
+                           << ' ' << pending_request->request.get_path()
+                           << ' ' << status_code
+                           << ' ' << request_duration_micro);
+
+        LogMessage("[statistics] " << pending_request->correlation << ' '
+                           << rml::statistics::progress::format_marker<boost::chrono::microseconds>(
+                                   pending_request->progress_marker));
+
         pending_requests.remove(pending_request);
     }
 
@@ -356,22 +359,34 @@ struct archived_shim
         boost::shared_ptr<http::pending_request> pending_request =
                 boost::make_shared<http::pending_request>(id, request, connection);
 
+        LogMessage(pending_request->correlation
+                           << ' ' << pending_request->request.get_source()
+                           << ' ' << pending_request->request.get_method()
+                           << ' ' << pending_request->request.get_path() << " Handling request");
+
+        LogDebug(pending_request->correlation << " query-string: " << pending_request->request.get_query());
+
         // TODO handle mid-flight requests; ones that are stuck in the sender queue if / when ArchiveD goes down
 
         if (shutting_down == true || app::archived_client::get_is_archived_ok() <= 0.0) {
-            pending_request->respond(error::http::service_unavailable);
+            LogMessage(pending_request->correlation << " Rejecting request;"
+                                                    << " shutting-down:" << shutting_down
+                                                    << " backend-ok:" << app::archived_client::get_is_archived_ok());
+
+            pending_request->mark_progress(http::request_progress::rejected);
+
+            finalise_request(pending_request, error::http::service_unavailable,
+                             "Server temporarily unavailable; Try again later.");
             return;
         }
 
         try {
-            LogMessage(pending_request->correlation
-                               << ' ' << pending_request->request.get_method()
-                               << ' ' << pending_request->request.get_destination() << " Handling request");
-
             pending_requests.add(pending_request);
 
             boost::shared_ptr<const put_object_request> put_request =
                     pending_request->make_shared_data_from_request<put_object_request>();
+
+            pending_request->mark_progress(http::request_progress::put_validated);
 
             // https://stackoverflow.com/a/8880116/83005
             if (pending_request->request.expect_100_continue()) {

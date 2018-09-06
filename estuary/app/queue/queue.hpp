@@ -141,7 +141,7 @@ public:
     {
         boost::mutex::scoped_lock lock(mutex);
 
-        if (not_full_condition.wait_until(
+        if (not_empty_condition.wait_until(
                 lock, wait_until, boost::bind(&base_queue::is_finishing_or_any_consumable, this->shared_from_this()))) {
 
             if (is_finishing()) {

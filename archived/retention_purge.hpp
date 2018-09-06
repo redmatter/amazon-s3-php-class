@@ -30,126 +30,15 @@ namespace retention_purge {
 inline void describe_config(boost::program_options::options_description& optsDesc)
 {
 	optsDesc.add_options()
-			("retention_purge.require_approval", boost::program_options::value<bool>()->default_value(true), "Require approval before real purge")
-//			("retention_purge.delete_cdr_retention_records", boost::program_options::value<bool>()->default_value(true), "Completely delete CDR records?")
 			("retention_purge.delete_retention_records_for_internal_filetypes", boost::program_options::value<bool>()->default_value(false), "Delete records from retention database for internal-filetypes?")
 			("retention_purge.db_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(30), "purge database flush interval")
-			("retention_purge.lag_days", boost::program_options::value<unsigned int>()->default_value(7), "purge date will lag by this many days")
 			("retention_purge.approval_run_interval_minutes", boost::program_options::value<unsigned int>()->default_value(1), "approval reload every this many minutes")
-			("retention_purge.creation_date_range_start", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
-			("retention_purge.creation_date_range_end", boost::program_options::value<std::string>()->default_value(""), "purge files created within this range")
 			("retention_purge.auto_expiring_filetypes", boost::program_options::value<std::string>()->default_value("cdr"), "factor in endpoint's (S3 only at the moment) auto-expiration capability")
-			("retention_purge.enabled_orgs", boost::program_options::value<std::string>()->default_value(""), "purge enabled orgs")
-			("retention_purge.enabled_filetypes", boost::program_options::value<std::string>()->default_value(""), "purge enabled filetypes")
+			("retention_purge.org_scan_interval_minutes", boost::program_options::value<unsigned>()->default_value(60), "how many minutes between scan for purge items, per org")
 			("retention_purge.legacy_s3_headers_last_date", boost::program_options::value<std::string>()->default_value(""), "legacy s3 headers are not present beyond this date")
 			("retention_purge.bypass_headers_check_for", boost::program_options::value<std::string>()->default_value("none"), "bypass headers check; options are a comma delimited list")
 			("retention_purge.legacy_ondemand_purged_orgs", boost::program_options::value<std::string>()->default_value(""), "Orgs that has had on-demand purge in the past")
 			;
-}
-
-inline std::string& get_retention_purge_restrictions(const boost::program_options::variables_map& confMap = boost::program_options::variables_map())
-{
-	static std::string where;
-
-	if(where.empty()) {
-		if(confMap.empty())
-			throw rml::exception("confMap empty when initialising!");
-
-		std::string where_enabled_filetypes;
-		{
-			const std::string& config(confMap["retention_purge.enabled_filetypes"].as<std::string>());
-			if(config.empty()) {
-				where = "AND 1 = 0 /* retention_purge.enabled_filetypes is empty */";
-				return where;
-			}
-
-			if(config != "all") {
-				std::vector<archiving::file_type::file_type_t> conf_types;
-				std::ostringstream conf_ostr;
-				{
-					std::string tok;
-					std::istringstream istr(config);
-					while (std::getline(istr, tok, ','))
-						if (!tok.empty())
-							conf_types.push_back(archiving::file_type::from_string(tok));
-
-					const std::vector<archiving::file_type::file_type_t>::const_iterator& begin(conf_types.begin());
-					const std::vector<archiving::file_type::file_type_t>::const_iterator& end(conf_types.end());
-					for (std::vector<archiving::file_type::file_type_t>::const_iterator itr=begin; itr != end; ++itr)
-						conf_ostr << ((itr == begin)? ' ': ',') << (int)*itr;
-				}
-
-				if(conf_types.size() == 1)
-					// not a list
-					where_enabled_filetypes = "`r`.`Type` = "+conf_ostr.str();
-				else
-					// a list of file-types
-					where_enabled_filetypes = "`r`.`Type` IN ( "+conf_ostr.str()+" )";
-			}
-		}
-
-		std::string where_enabled_orgs;
-		{
-			const std::string& enabled_orgs(confMap["retention_purge.enabled_orgs"].as<std::string>());
-			if(enabled_orgs.empty()) {
-				where = "AND 1 = 0 /* retention_purge.enabled_orgs is empty */";
-				return where;
-			}
-
-			if(enabled_orgs != "all") {
-				if(std::string::npos == enabled_orgs.find(','))
-					// not a list
-					where_enabled_orgs = "`r`.`OrgID` = "+enabled_orgs;
-				else
-					// a list of org ids
-					where_enabled_orgs = "`r`.`OrgID` IN ( "+enabled_orgs+" )";
-			}
-		}
-
-		std::string where_creation_date_range;
-		{
-			const std::string& creation_date_start(confMap["retention_purge.creation_date_range_start"].as<std::string>());
-			const std::string& creation_date_end(confMap["retention_purge.creation_date_range_end"].as<std::string>());
-
-			std::string where_start, where_end;
-
-			if (!creation_date_start.empty())
-				where_start = std::string("`r`.`CreationDate` >= '")+creation_date_start+"' ";
-			if (!creation_date_end.empty())
-				where_end = std::string("`r`.`CreationDate` <= '")+creation_date_end+"' ";
-
-			if(!where_start.empty() && !where_end.empty())
-				where_creation_date_range = std::string("( ")+where_start+"AND "+where_end+") ";
-			else if(!where_start.empty())
-				where_creation_date_range = where_start;
-			else if(!where_end.empty())
-				where_creation_date_range = where_end;
-		}
-
-		std::string where_lag_days;
-		{
-			const unsigned int& lag_days(confMap["retention_purge.lag_days"].as<unsigned int>());
-			if(lag_days) {
-				std::ostringstream ostr;
-				ostr << "`r`.`RetentionMaxDate` < DATE_SUB(CURDATE(), INTERVAL "<<lag_days<<" DAY)";
-
-				where_lag_days = ostr.str();
-			}
-		}
-
-		if(!where_enabled_filetypes.empty())
-			where += " AND "+where_enabled_filetypes;
-		if(!where_enabled_orgs.empty())
-			where += " AND "+where_enabled_orgs;
-		if(!where_creation_date_range.empty())
-			where += " AND "+where_creation_date_range;
-		if(!where_lag_days.empty())
-			where += " AND "+where_lag_days;
-
-		LogDebug("where: "<<where);
-	}
-
-	return where;
 }
 
 struct state
@@ -305,6 +194,10 @@ struct state
 		if(state == delete_retention_ok)
 			return finished;
 
+		// jump over approval step; we don't do that anymore
+		if(state == init_ok)
+			return delete_file;
+
 		return make(coarse_t(((state & 0x0f0) >> 4) + 1));
 	}
 };
@@ -335,11 +228,11 @@ struct item
 
 	item() : clear_size(0), real_size(0), id(0), cur_state(state::invalid), fatal_failure(false),
 			 on_demand_purge_id(0), audit_id(0), save_pending(false)
-    {}
+	{}
 
 	explicit item(const state::state_t& dummy_state) : clear_size(0), real_size(0), id(0), cur_state(dummy_state),
 			fatal_failure(false), on_demand_purge_id(0), audit_id(0), save_pending(false)
-    {
+	{
 	}
 
 	item(const archiving::archivable::identifier& identifier,
@@ -356,17 +249,17 @@ struct item
 
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
-                       static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
+					   static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
 			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
 			retention(new retention_record(
-                    identifier, types::file_format::unknown, 0,
-                    static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
-                    static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
-                    boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
-                    boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
-                    boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
-                    0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
+					identifier, types::file_format::unknown, 0,
+					static_cast<policy::id_type>(rml::utils::strtoull(row[7].c_str())),
+					static_cast<policy::version_type>(rml::utils::strtoull(row[8].c_str())),
+					boost::gregorian::from_simple_string(row[9].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[10].c_str()).year_month_day(),
+					boost::gregorian::from_simple_string(row[11].c_str()).year_month_day(),
+					0, false, endpoint->id, rml::utils::strtoull(row[6].c_str()))),
 			clear_size(rml::utils::strtoull(row[12].c_str())),
 			real_size(rml::utils::strtoull(row[13].c_str())),
 			id(rml::utils::strtoull(row[0].c_str())),
@@ -474,15 +367,15 @@ struct item
 			return p ? (*this)(*p) : false;
 		}
 
-        inline bool operator()(const item& item) const
-        {
-            return (*this)(item.identifier);
-        }
+		inline bool operator()(const item& item) const
+		{
+			return (*this)(item.identifier);
+		}
 
-        inline bool operator()(const archiving::archivable::identifier& identifier) const
-        {
-            return archiving::file_type::is_internal(identifier.filetype);
-        }
+		inline bool operator()(const archiving::archivable::identifier& identifier) const
+		{
+			return archiving::file_type::is_internal(identifier.filetype);
+		}
 	};
 
 	struct extract_retention_id

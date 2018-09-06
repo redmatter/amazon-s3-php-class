@@ -1,3 +1,5 @@
+#include <rml/pool/error.hpp>
+
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
@@ -148,8 +150,8 @@ volatile bool wasHUPed = false;
 
 inline void shutdown()
 {
-    quit = true;
-    OS_ShutdownPending();
+	quit = true;
+	OS_ShutdownPending();
 }
 
 inline void LogBuildInfo()
@@ -159,26 +161,26 @@ inline void LogBuildInfo()
 }
 
 void sigint(int s) {
-    LogMessage("SIGINT: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGINT: Trying a clean exit");
+	shutdown();
 }
 
 void sighup(int s) {
-    LogVerbose("SIGHUPed");
-    wasHUPed = true;
+	LogVerbose("SIGHUPed");
+	wasHUPed = true;
 
 	LogBuildInfo();
 }
 
 void sigterm(int s) {
-    LogMessage("SIGTERM: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGTERM: Trying a clean exit");
+	shutdown();
 }
 
 /* save */
 void sigusr1(int s) {
-    LogMessage("SIGUSR1: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGUSR1: Trying a clean exit");
+	shutdown();
 }
 
 }
@@ -239,6 +241,7 @@ int main(int argc, char *argv[]) try
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
+		archiving::archived::purge_restrictions::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -264,12 +267,12 @@ int main(int argc, char *argv[]) try
 			app::LogBuildInfo();
 
 			// set the signal handlers
-            rml::siginit(4,
-                        SIGINT, app::sigint,
-                        SIGHUP, app::sighup,
-                        SIGTERM, app::sigterm,
-                        SIGUSR1, app::sigusr1);
-            rml::daemon::initialise(app::confMap, PID_FILE_PATH);
+			rml::siginit(4,
+						SIGINT, app::sigint,
+						SIGHUP, app::sighup,
+						SIGTERM, app::sigterm,
+						SIGUSR1, app::sigusr1);
+			rml::daemon::initialise(app::confMap, PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
 			LogError("Initialisation Error - exception: "<<e.what());
@@ -334,13 +337,13 @@ int main(int argc, char *argv[]) try
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
 
-        const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
-                app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
-        boost::function<bool(archiving::org_id_t)> is_aes_enabled_callback = boost::bind(
-                &rml::utils::enabled_list<archiving::org_id_t>::is_enabled, boost::cref(aes_enabled_orgs_list), _1);
+		const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
+				app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
+		boost::function<bool(archiving::org_id_t)> is_aes_enabled_callback = boost::bind(
+				&rml::utils::enabled_list<archiving::org_id_t>::is_enabled, boost::cref(aes_enabled_orgs_list), _1);
 
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit,
-                                 is_aes_enabled_callback);
+								 is_aes_enabled_callback);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
 
@@ -466,10 +469,10 @@ int main(int argc, char *argv[]) try
 			// occasionally save items to DB
 			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>())) {
 				LogMessage("Saving progress of purge items");
-				const boost::posix_time::ptime& batch_save_run_till(
-						boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(15));
+				const boost::chrono::steady_clock::time_point& batch_save_run_till(
+						boost::chrono::steady_clock::now() + boost::chrono::seconds(15));
 				internal_db.batch_save_run<app::retention_purge::item, app::retention_purge::item::weak_set_t>(
-						batch_save_run_till);
+						batch_save_run_till, false);
 			}
 
 			if(monitor_pending || !(ticker % 60)) {
