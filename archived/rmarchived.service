@@ -17,6 +17,8 @@ ExecStart=/usr/bin/crash-tracer.sh \
     -- \
     --hostname $(uname -n | cut -d. -f1)
 SyslogIdentifier=rm-archived
+# Do not send SIGKILL when the service refuces to shutdown. Call a human instead!
+SendSIGKILL=no
 # Restart on non-zero exit code...
 Restart=on-failure
 # ... every 3 seconds...

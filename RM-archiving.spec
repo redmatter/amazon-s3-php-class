@@ -16,7 +16,8 @@ Release: %{__build_pkg_release}%{?dist}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: mysql++ >= 3.1.0-29693
+%{?el5:Requires: mysql++ >= 3.1.0-29693}
+%{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %{?el5:Requires: libs3 >= 1.4-22774}
@@ -78,7 +79,8 @@ Conflicts: RM-%{appname}-platform-config-redmatter
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
+%{?el5:Requires: mysql++ >= 3.1.0-29693}
+%{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
@@ -95,7 +97,8 @@ Requires: RM-%{appname}-collectd = %{version}-%{release}
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
+%{?el5:Requires: mysql++ >= 3.1.0-29693}
+%{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
@@ -104,7 +107,8 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 %package collect-importd
 Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
+%{?el5:Requires: mysql++ >= 3.1.0-29693}
+%{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
@@ -122,7 +126,8 @@ BuildRequires: RM-legacy-php54-cli >= 1.0.1
 # Summary: Archiving CollectD
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
-# Requires: mysql++ >= 3.1.0-29693
+# %{?el5:Requires: mysql++ >= 3.1.0-29693}
+# %{?el7:Requires: mysql++ >= 3.1.0}
 # %{?el7:Requires: mariadb-libs}
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
@@ -147,7 +152,8 @@ Group: RedMatter/Archiving
 %package estuary
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
+%{?el5:Requires: mysql++ >= 3.1.0-29693}
+%{?el7:Requires: mysql++ >= 3.1.0}
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 Requires: RM-daemonscripts >= 1.1.0
