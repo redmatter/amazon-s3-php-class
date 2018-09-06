@@ -1,13 +1,20 @@
 [Unit]
 Description=Archive Daemon
-After=network.target network-online.target
+After=network.target network-online.target rmarchived-watchdog.service
+BindsTo=rmarchived-watchdog.service
 
 [Service]
+EnvironmentFile=-/etc/sysconfig/rmarchived
 PIDFile=/var/run/archiving/rmarchived.pid
-ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
-ExecStart=/usr/bin/rmarchived.bin --hostname $( uname -n | cut -d. -f1 ) </dev/null &>/dev/null
-Restart=on-abort
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI
+ExecStart=/usr/bin/rmarchived.bin --hostname $(uname -n | cut -d. -f1)
+SyslogIdentifier=rm-archived
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
 RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target

@@ -26,6 +26,7 @@ Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 Requires: RM-daemonscripts >= 1.1.0
+%{?el7:Requires: RM-bash-functions >= 1.0.1}
 %if 0%{?el5}
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
@@ -297,6 +298,8 @@ cp archived/rmarchived_safe %{buildroot}/usr/bin/
 cp archived/rmarchived %{buildroot}/etc/rc.d/init.d/
 %endif
 %if 0%{?el7}
+cp archived/rmarchived-watchdog.sh %{buildroot}%{_bindir}
+install -Dpm 0644 archived/rmarchived-watchdog.service %{buildroot}%{_unitdir}
 install -Dpm 0644 archived/rmarchived.service %{buildroot}%{_unitdir}
 %endif
 cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
