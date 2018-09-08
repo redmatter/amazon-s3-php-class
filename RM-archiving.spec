@@ -170,6 +170,7 @@ Requires: cryptopp
 %package common
 Summary: Archiving Common files
 Group: RedMatter/Archiving
+Requires: RM-hCLI >= 1.0.0
 
 %package estuary
 Summary: Archiving Estuary
