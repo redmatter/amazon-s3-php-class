@@ -12,6 +12,18 @@ CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 CONFIG_COLLECTIMPORTD=/etc/archiving/rmcollect-importd.conf
 
+hapi_hosttype="$(hapi get HostType)"
+IsHapiHostType()
+{
+    for ((i=1; i<=$#; i++)); do
+        if [ "$hapi_hosttype" = "$(echo "${!i}" | tr '[:lower:]' '[:upper:]')" ]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 function Die
 {
 	echo "$1"
@@ -113,29 +125,28 @@ fi
 
 if [ -f $CONFIG_COLLECTD ]; then
 	ChangeConfig $CONFIG_COLLECTD archived_client.server_host "archived.${SEARCHDOMAIN}"
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
-	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD chunk.enabled true
-	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD info.enabled true
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTD log.level 6
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
+	IsHapiHostType DEV QA STAGE && ChangeConfig $CONFIG_COLLECTD chunk.enabled true
+	IsHapiHostType DEV QA STAGE && ChangeConfig $CONFIG_COLLECTD info.enabled true
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
 	ChangeConfig $CONFIG_COLLECTSMSD archived_client.server_host "archived.${SEARCHDOMAIN}"
 	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://api.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_COLLECTSMSD sms.directory "/mnt/rmfs/archiving-import-sms/$LOCNAME/"
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTSMSD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
 fi
 
 if [ -f $CONFIG_COLLECTIMPORTD ]; then
 	ChangeConfig $CONFIG_COLLECTIMPORTD archived_client.server_host "archived.${SEARCHDOMAIN}"
 	ChangeConfig $CONFIG_COLLECTIMPORTD coreapi.url "http://api.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_COLLECTIMPORTD import.directory "/mnt/rmfs/archiving-import/$LOCNAME/"
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTIMPORTD log.level 6
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTIMPORTD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTIMPORTD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTIMPORTD log.level 6
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTIMPORTD debug.disable_restart true
+	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTIMPORTD app.on_restart_notify_emails "dino@redmatter.com,jim@redmatter.com,qa@redmatter.com"
 fi
 exit 0
-
