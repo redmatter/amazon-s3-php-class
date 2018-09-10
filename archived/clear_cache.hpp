@@ -30,6 +30,8 @@ class clear_cache
 
 	const bool enabled_;
 
+	static const bool max_retry = 5;
+
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
@@ -148,10 +150,10 @@ public:
 				}
 			}
 
-			int retry = 0;
-			while(!db_.clear_cache_put_path(identifier.org, identifier.uuid, file_format, cache_path, is_hardlink) && !quit) {
-				LogMessage("[retry: "<<(++retry)<<"] clear_cache_put_path failed; retrying...");
-				boost::this_thread::sleep(boost::posix_time::seconds(15));
+			int retry = max_retry;
+			while(!db_.clear_cache_put_path(identifier.org, identifier.uuid, file_format, cache_path, is_hardlink) && !quit && retry) {
+				LogMessage("[retry: "<<(retry--)<<"] clear_cache_put_path failed; retrying...");
+				boost::this_thread::sleep(boost::posix_time::milliseconds(200));
 			}
 		}
 		catch(const std::exception& e) {

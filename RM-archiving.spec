@@ -20,6 +20,8 @@ fi
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
+%define rm_daemonscripts_version 1.2.0
+
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
@@ -41,33 +43,30 @@ Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 %if 0%{?el7}
 Requires: RM-bash-functions >= 1.1.0
 Requires: RM-systemd-service-helpers >= 1.2.2
 %endif
-%if 0%{?el5}
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
+%if 0%{?el5}
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: php54-cli
 BuildRequires: pugixml
+BuildRequires: libs3-devel >= 1.4-22774
 %else
 %if 0%{?el7}
-BuildRequires: RM-legacy-gcc44 >= 1.1.0
-BuildRequires: RM-legacy-gcc44-c++ >= 1.1.0
 BuildRequires: mysql++-devel >= 3.1.0
 BuildRequires: mariadb-devel
-BuildRequires: RM-legacy-php54-cli >= 1.0.1
 BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
+BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7
+BuildRequires: libuuid-devel
 %endif
 %endif
+BuildRequires: php54-cli
 BuildRequires: boost_1_54_0-devel
-%{?el7:BuildRequires: RM-librml-devel < 1.11.0}
-%{?el5:BuildRequires: RM-librml-devel = 1.10.2-rc1.dc5}
-%{?el5:BuildRequires: libs3-devel >= 1.4-22774}
-%{?el7:BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7}
+BuildRequires: RM-librml-devel >= 1.12.2
 BuildRequires: cryptopp-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
@@ -75,9 +74,6 @@ BuildRequires: threadpool
 BuildRequires: cmake
 BuildRequires: openssl-devel
 BuildRequires: zlib-devel
-%if 0%{?el7}
-BuildRequires: libuuid-devel
-%endif
 BuildRequires: autoconf, libtool
 
 %package platform-config-redmatter
@@ -100,7 +96,7 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
@@ -120,7 +116,7 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 
@@ -132,17 +128,11 @@ Group: RedMatter/Archiving
 %{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
-%if 0%{?el5}
 BuildRequires: php54-cli
-%else
-%if 0%{?el7}
-BuildRequires: RM-legacy-php54-cli >= 1.0.1
-%endif
-%endif
 
 # %package migrationd
 # Summary: Archiving CollectD
@@ -175,14 +165,10 @@ Requires: RM-hCLI >= 1.0.0
 %package estuary
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
-%{?el5:Requires: mysql++ >= 3.1.0-29693}
-%{?el7:Requires: mysql++ >= 3.1.0}
-%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
-Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package scripts
 Summary: Archiving Utility Scripts
@@ -192,7 +178,7 @@ Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
@@ -211,13 +197,7 @@ Requires: sox
 %package purge-verify
 Summary: Archiving Utility Scripts for Purge Verification
 Group: RedMatter/Archiving
-%if 0%{?el5}
 Requires: php54-cli
-%else
-%if 0%{?el7}
-Requires: RM-legacy-php54-cli >= 1.0.1
-%endif
-%endif
 Requires: RM-%{appname}-scripts
 Requires: RM-syslogger >= 0.0.1-22449
 
@@ -227,7 +207,7 @@ Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
 %if 0%{?el5}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 BuildRequires: sendmail-devel
 %if 0%{?el5}
@@ -439,6 +419,7 @@ cp common/backtrace-filter.sh %{buildroot}/usr/bin/archiving-backtrace-filter.sh
 %endif
 
 # Estuary
+mkdir -p %{buildroot}/var/run/archiving/rmestuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
 %if 0%{?el5}
 cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
@@ -970,6 +951,7 @@ fi
 /etc/archiving/rmestuary.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+%dir %attr(755,nobody,nobody) /var/run/archiving/rmestuary
 /etc/logrotate.d/rmestuary
 /etc/rsyslog.d/11-rmestuary.conf
 
@@ -1002,9 +984,10 @@ fi
 /etc/logrotate.d/archiving-purge-policy-fixer
 /etc/logrotate.d/archiving-export
 %if 0%{?el5}
-/etc/rc.d/init.d/rmarchpolfix
-/etc/rc.d/init.d/rmarchexport
-/etc/rc.d/init.d/rmarchpcapimport
+%attr(755,root,root) /etc/rc.d/init.d/rmarchpolfix
+%attr(755,root,root) /etc/rc.d/init.d/rmarchexport
+%attr(755,root,root) /etc/rc.d/init.d/rmarchpcapimport
+%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
 %endif
 %if 0%{?el7}
 %{_unitdir}/rmarchpolfix.service
@@ -1022,9 +1005,6 @@ fi
 %attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
 /usr/share/php/archiving/archdsrpreproc_autoload.php
-%if 0%{?el5}
-%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
-%endif
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
 
