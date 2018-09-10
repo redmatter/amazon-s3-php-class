@@ -45,7 +45,7 @@ Requires: RM-daemonscripts >= 1.1.0
 %endif
 %if 0%{?el7}
 Requires: RM-bash-functions >= 1.1.0
-Requires: RM-systemd-service-helpers >= 1.2.0
+Requires: RM-systemd-service-helpers >= 1.2.2
 %endif
 %if 0%{?el5}
 BuildRequires: gcc44
@@ -435,6 +435,7 @@ cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_data
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 %if 0%{?el7}
 cp common/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving.conf
+cp common/backtrace-filter.sh %{buildroot}/usr/bin/archiving-backtrace-filter.sh
 %endif
 
 # Estuary
@@ -954,6 +955,7 @@ fi
 %dir /etc/archiving/conf.d/
 %if 0%{?el7}
 /etc/tmpfiles.d/archiving.conf
+%attr(755,root,root) /usr/bin/archiving-backtrace-filter.sh
 %endif
 
 %files estuary
