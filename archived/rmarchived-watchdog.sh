@@ -11,9 +11,11 @@ freespace_KB_gt()
 {
     if [ -d "$1" ]; then
         local op=($(/bin/df --output=avail "$1"))
-        log info "${1} has ${op[1]} KB freespace"
+        if [ $(("$(date +%s)" % 10)) -eq 0 ]; then
+            log info "${1} has ${op[1]} KB freespace"
+        fi
         if [ "${op[1]}" -le "$2" ]; then
-            log err "${1} does not have enough freespace (${2} KB)"
+            log err "${1} does not have enough freespace (${op[1]} KB / ${2} KB)"
             return 1
         fi
     elif "${first:-true}"; then
