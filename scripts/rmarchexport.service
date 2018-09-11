@@ -6,8 +6,12 @@ After=network.target network-online.target
 PIDFile=/var/run/archiving/rmarchexport.pid
 ExecStart=/usr/bin/archiving-export
 SyslogIdentifier=rm-archexport
-Restart=on-abort
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
 RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target

@@ -13,8 +13,9 @@ ExecStart=/usr/bin/crash-tracer.sh \
     --binary /usr/bin/rmarchived.bin \
     --pid-file /var/run/archiving/rmarchived.pid
 SyslogIdentifier=rm-archived
-# Do not send SIGKILL when the service refuces to shutdown. Call a human instead!
+# Do not send SIGKILL when the service refuces to stop. Call a human instead!
 SendSIGKILL=no
+TimeoutStopSec=infinity
 # Restart on non-zero exit code...
 Restart=on-failure
 # ... every 3 seconds...

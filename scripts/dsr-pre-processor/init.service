@@ -6,8 +6,12 @@ After=network.target network-online.target
 PIDFile=/var/run/archiving/rmarchdsrpreproc.pid
 ExecStart=/usr/bin/archiving-dsr-pre-processor
 SyslogIdentifier=rm-archdsrpreproc
-Restart=on-abort
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
 RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target

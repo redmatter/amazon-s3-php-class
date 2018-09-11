@@ -4,11 +4,19 @@ After=network.target network-online.target
 
 [Service]
 PIDFile=/var/run/archiving/rmcollect-importd.pid
-ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI &>/dev/null
-ExecStart=/usr/bin/rmcollect-importd.bin
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI
+ExecStart=/usr/bin/crash-tracer.sh \
+    --config /etc/archiving/rmcollect-importd.conf \
+    --service-name rmcollect-importd \
+    --binary /usr/bin/rmcollect-importd.bin \
+    --pid-file /var/run/archiving/rmcollect-importd.pid
 SyslogIdentifier=rm-collect-importd
-Restart=on-abort
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
 RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target

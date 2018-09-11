@@ -32,20 +32,20 @@ Release: %{__build_pkg_release}%{?dist}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-%{?el5:Requires: mysql++ >= 3.1.0-29693}
-%{?el7:Requires: mysql++ >= 3.1.0}
-%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
-%{?el5:Requires: libs3 >= 1.4-22774}
-%{?el7:Requires: libs3 = 1.4-26468.1.0.0.dc7}
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
 %if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
+Requires: libs3 >= 1.4-22774
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 %if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: libs3 = 1.4-26468.1.0.0.dc7
 Requires: RM-bash-functions >= 1.1.0
 Requires: RM-systemd-service-helpers >= 1.2.3
 %endif
@@ -91,12 +91,16 @@ Conflicts: RM-%{appname}-platform-config-redmatter
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-%{?el5:Requires: mysql++ >= 3.1.0-29693}
-%{?el7:Requires: mysql++ >= 3.1.0}
-%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
@@ -111,24 +115,32 @@ Requires: RM-%{appname}-collectd = %{version}-%{release}
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
-%{?el5:Requires: mysql++ >= 3.1.0-29693}
-%{?el7:Requires: mysql++ >= 3.1.0}
-%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package collect-importd
 Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
-%{?el5:Requires: mysql++ >= 3.1.0-29693}
-%{?el7:Requires: mysql++ >= 3.1.0}
-%{?el7:Requires: mariadb-libs}
 Requires: cryptopp
 %if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
 %endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
@@ -168,6 +180,10 @@ Group: RedMatter/Archiving
 Requires: cryptopp
 %if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
 %endif
 
 %package scripts
