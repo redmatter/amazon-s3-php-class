@@ -426,6 +426,7 @@ cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
 %endif
 %if 0%{?el7}
 install -Dpm 0644 estuary/rmestuary.service %{buildroot}%{_unitdir}
+cp estuary/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving-estuary.conf
 %endif
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
 cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
@@ -632,11 +633,15 @@ fi
 %if 0%{?el7}
 systemctl enable rmarchived
 systemctl enable rmarchived-watchdog
-systemd-tmpfiles --create
 %endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
     %reload_rsyslog true
 fi
+
+%post common
+%if 0%{?el7}
+systemd-tmpfiles --create
+%endif
 
 %post platform-config-redmatter
 ln -sf /etc/archiving/conf.d/retention-purge-redmatter.conf /etc/archiving/rmarchived-retention-purge.conf
@@ -706,6 +711,7 @@ fi
 %endif
 %if 0%{?el7}
 systemctl enable rmestuary
+systemd-tmpfiles --create
 %endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
     %reload_rsyslog true
@@ -947,6 +953,7 @@ fi
 %endif
 %if 0%{?el7}
 %{_unitdir}/rmestuary.service
+/etc/tmpfiles.d/archiving-estuary.conf
 %endif
 /etc/archiving/rmestuary.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
