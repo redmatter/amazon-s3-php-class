@@ -10,8 +10,10 @@
 freespace_KB_gt()
 {
     if [ -d "$1" ]; then
-        local op=($(/bin/df --output=avail "$1"))
-        if [ $(("$(date +%s)" % 10)) -eq 0 ]; then
+        local op now
+        op=($(/bin/df --output=avail "$1"))
+        now="$(date +%s)"
+        if [ "${now:$((${#now}-1)):1}" -eq 0 ]; then
             log info "${1} has ${op[1]} KB freespace"
         fi
         if [ "${op[1]}" -le "$2" ]; then
