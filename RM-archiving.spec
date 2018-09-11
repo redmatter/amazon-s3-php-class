@@ -47,7 +47,7 @@ Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 %if 0%{?el7}
 Requires: RM-bash-functions >= 1.1.0
-Requires: RM-systemd-service-helpers >= 1.2.2
+Requires: RM-systemd-service-helpers >= 1.2.3
 %endif
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
