@@ -13,7 +13,7 @@ fi;
 %if 0%{?el7}
 %define reload_rsyslog() if systemctl is-enabled rsyslog &>/dev/null; then \
     systemctl condrestart rsyslog; \
-fi
+fi;
 %endif
 
 %define appname archiving
