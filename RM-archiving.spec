@@ -190,7 +190,7 @@ Requires: RM-systemd-service-helpers >= 1.2.3
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.5
-Requires: RM-php-eventlog
+Requires: RM-php-eventlog >= 1.0.1
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
