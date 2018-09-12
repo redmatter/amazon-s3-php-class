@@ -59,7 +59,7 @@ BuildRequires: libs3-devel >= 1.4-22774
 %if 0%{?el7}
 BuildRequires: mysql++-devel >= 3.1.0
 BuildRequires: mariadb-devel
-BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.4
 BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7
 BuildRequires: libuuid-devel
 %endif
@@ -190,7 +190,7 @@ Requires: RM-systemd-service-helpers >= 1.2.3
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.5
-Requires: RM-php-eventlog >= 1.0.1
+Requires: RM-php-eventlog >= 1.0.2
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
@@ -231,7 +231,7 @@ BuildRequires: pugixml
 BuildRequires: db4-devel
 %else
 %if 0%{?el7}
-BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.1
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.4
 BuildRequires: libdb-devel
 %endif
 %endif
