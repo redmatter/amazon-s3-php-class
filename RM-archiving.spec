@@ -30,7 +30,7 @@ BuildRequires: gcc44
 BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 1.12.1
+BuildRequires: RM-librml-devel >= 1.13.2
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
