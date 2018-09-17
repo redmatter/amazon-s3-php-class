@@ -6,6 +6,7 @@
 
 . /usr/share/rm-bash-functions/logging.sh
 . /usr/share/rm-bash-functions/config.sh
+. /usr/share/rm-bash-functions/pid-file.sh
 
 freespace_KB_gt()
 {
@@ -72,15 +73,12 @@ trap cleanup EXIT
 # log stderr at ERR level
 exec 2> >(log_pipe err)
 
-# if pidfile exists and the pid is alive
-if [ -e "$pidfile" ] && kill -0 "$(<"$pidfile")" &>/dev/null; then
-    log err "Already running"
+# Ensure that we can create a pidfile
+if ! create_pid_file "$pidfile"; then
     exit 1
 fi
 
-# create the pidfile
-echo -n $$ > "$pidfile"
-
+# Setup ckecks
 add_check_path "$(get_conf "$config_path" distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache)" \
     "$(get_conf "$config_path" distiller_client.base_dir.min_free_space_KB 0 500000)"
 

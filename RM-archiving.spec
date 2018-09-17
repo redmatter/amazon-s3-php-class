@@ -46,7 +46,7 @@ Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: mysql++ >= 3.1.0
 Requires: mariadb-libs
 Requires: libs3 = 1.4-26468.1.0.0.dc7
-Requires: RM-bash-functions >= 1.1.0
+Requires: RM-bash-functions >= 1.2.0
 Requires: RM-systemd-service-helpers >= 1.2.3
 %endif
 BuildRequires: gcc44
