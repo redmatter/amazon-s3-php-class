@@ -25,12 +25,34 @@ freespace_KB_gt()
     fi
 }
 
+# "in-process" sleep implementation using read; in order to reduce pid trashing
+_sleep() {
+    read -rt "${1?Specify sleep interval in seconds}" -u 1 <<<"" || return 0;
+}
+
+declare -A check_paths
+add_check_path()
+{
+    local mount_point
+    mount_point="$(stat -c '%m' "$1")"
+
+    if [ ${check_paths["$mount_point"]+xxx} ]; then
+        log notice "Merging check path; '$1' has mount-point '$mount_point'"
+        check_paths["$mount_point"]=$((${check_paths["$mount_point"]}+$2))
+    else
+        log notice "Adding check path; '$1' has mount-point '$mount_point'"
+        check_paths+=(["$mount_point"]="$2")
+    fi
+}
+
 everything_ok()
 {
-    freespace_KB_gt "$(get_conf "$config_path" distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache)" \
-        "$(get_conf "$config_path" distiller_client.base_dir.min_free_space_KB 0 500000)" && \
-    freespace_KB_gt "$(get_conf "$config_path" archived.cache_dir 0 /var/lib/archiving/cache)" \
-        "$(get_conf "$config_path" archived.cache_dir.min_free_space_KB 0 500000)"
+    local path
+    for path in "${!check_paths[@]}"; do
+        if ! freespace_KB_gt "$path" "${check_paths[$path]}"; then
+            return 1;
+        fi
+    done
 }
 
 terminate()
@@ -59,6 +81,12 @@ fi
 # create the pidfile
 echo -n $$ > "$pidfile"
 
+add_check_path "$(get_conf "$config_path" distiller_client.base_dir 0 /var/spool/cdrtmp/cdrmunch-cache)" \
+    "$(get_conf "$config_path" distiller_client.base_dir.min_free_space_KB 0 500000)"
+
+add_check_path "$(get_conf "$config_path" archived.cache_dir 0 /var/lib/archiving/cache)" \
+    "$(get_conf "$config_path" archived.cache_dir.min_free_space_KB 0 500000)"
+
 log notice "Watchdog started"
 while ! "${terminate_requested:-false}"; do
     if ! everything_ok; then
@@ -69,7 +97,7 @@ while ! "${terminate_requested:-false}"; do
     # is first check? To avoid warning about things that can't change once running
     first=false
 
-    sleep 1
+    _sleep 1
 done
 log notice "Watchdog stopped"
 
