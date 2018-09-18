@@ -13,6 +13,7 @@
 #include "types.hpp"
 #include "globals.h"
 #include "collectd/callbacks.hpp"
+#include "host_ip_change_detector.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/atomic.hpp>
@@ -200,6 +201,8 @@ private:
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
+	const archiving::host_ip_change_detector& ip_change_detector_;
+	archiving::ip_change_result ip_change_result_;
 	boost::atomic_bool shutdown_flagged_;
 
 	inline bool is_shutdown_flagged()
@@ -294,6 +297,7 @@ public:
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
 			const std::string& archived_port,
+			const archiving::host_ip_change_detector& ip_change_detector,
             const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
@@ -311,6 +315,7 @@ public:
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
 				fn_on_successful_put_(fn_on_successful_put),
+				ip_change_detector_(ip_change_detector),
 				shutdown_flagged_(false)
 	{
 		n_instances_++;
@@ -821,7 +826,14 @@ private:
 		case state::nop_ack_ok:
 		case state::ready_to_put:
 		{
-			get_archivable_for_put();
+			const archiving::ip_change_result& ip_changed(ip_change_detector_.is_changed(ip_change_result_));
+			if (ip_changed) {
+				ip_change_result_ = ip_changed;
+				LogMessage("ArchiveD IP changed; reconnecting...");
+				reconnect(true, 1);
+			} else {
+				get_archivable_for_put();
+			}
 			break;
 		}
 

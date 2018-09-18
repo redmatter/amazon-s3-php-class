@@ -302,13 +302,16 @@ int main(int argc, const char* argv[]) try
         const common::collectd::fn_on_successful_put_type fn_on_successful_put =
                 boost::bind(app::produce_response_on_success, response_queue, _1, boost::protect(fn_mark_progress));
 
+        const std::string archived_host(config["archived_client.server_host"].as<std::string>());
+        const std::string archived_port(config["archived_client.server_port"].as<std::string>());
+        archiving::host_ip_change_detector archived_ip_change_detector(archived_host, archived_port);
+
         std::list<boost::shared_ptr<app::archived_client> > archived_clients;
         for (unsigned int i = 0; i < archived_connections; i++) {
             boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
                     boost::ref(*p_io_service), fn_error_callback, fn_get_archivable_callback,
                     fn_dummy_remove_from_catalogue, fn_dummy_save_to_database,
-                    config["archived_client.server_host"].as<std::string>(),
-                    config["archived_client.server_port"].as<std::string>(),
+                    archived_host, archived_port, boost::cref(archived_ip_change_detector),
                     fn_on_successful_put);
             archived_client->connect_archived();
 
@@ -325,8 +328,17 @@ int main(int argc, const char* argv[]) try
 
         // ------------- stuff happens here! ------------- //
 
+        boost::chrono::steady_clock::time_point detect_change_time;
         while (!shutdown_flag) {
-            // const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
+            const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
+            if (detect_change_time == boost::chrono::steady_clock::time_point()) {
+                detect_change_time = now;
+            }
+
+            if ((now - detect_change_time) > boost::chrono::seconds(10)) {
+                archived_ip_change_detector.detect_change();
+                detect_change_time = now;
+            }
 
             boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
         }
