@@ -878,35 +878,27 @@ public:
 	{
 		try
 		{
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
-			try {
-				mysqlpp::Query query = conn->query();
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::milliseconds(500));
 
-				query << "SELECT `LegalHoldCount`, `RestrictAccessCount` "
-						 "FROM `ArchivingInternal`.`LegalHoldCache` "
-						 "WHERE `OrgID` = %1:OrgID AND `RetentionID` = %2:RetentionID "
-						 "LIMIT 1";
-				query.parse();
+			mysqlpp::Query query = conn->query();
 
-				mysqlpp::SQLQueryParms qp;
-				qp << org_id << retention_id;
+			query << "SELECT `LegalHoldCount`, `RestrictAccessCount` "
+					 "FROM `ArchivingInternal`.`LegalHoldCache` "
+					 "WHERE `OrgID` = %1:OrgID AND `RetentionID` = %2:RetentionID "
+					 "LIMIT 1";
+			query.parse();
 
-				SqlDebug(conn, query.str(qp));
+			mysqlpp::SQLQueryParms qp;
+			qp << org_id << retention_id;
 
-				mysqlpp::StoreQueryResult res = query.store();
-				if (!res.empty()) {
-					const mysqlpp::Row& row(res[0]);
-					return legal_hold_status(static_cast<int>(row[0]) > 0, static_cast<int>(row[1]) > 0);
-				}
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				abandon_connection_if_faulty(conn, e);
-				throw;
+			MYSQL_QUERY_STORE(PURGE, conn, query, res, qp);
+
+			if (!res.empty()) {
+				const mysqlpp::Row& row(res[0]);
+				return legal_hold_status(static_cast<int>(row[0]) > 0, static_cast<int>(row[1]) > 0);
 			}
 		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return legal_hold_status();
 	}

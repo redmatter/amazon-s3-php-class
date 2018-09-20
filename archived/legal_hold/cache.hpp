@@ -9,10 +9,10 @@
 #ifndef ARCHIVING_LEGAL_HOLD_CACHE_HPP
 #define ARCHIVING_LEGAL_HOLD_CACHE_HPP
 
-#include <archivable.hpp>
+#include "status.hpp"
 #include "../database_internal.hpp"
 #include "../database_retention.hpp"
-#include "status.hpp"
+#include "../../common/archivable.hpp"
 
 namespace app
 {
