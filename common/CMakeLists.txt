@@ -28,7 +28,7 @@ set(SOURCE_FILES
         defines.cpp
         dir_monitor.cpp
         types.cpp
-        ${VERSION_C_PATH})
+        ${VERSION_C_PATH} host_ip_change_detector.hpp)
 
 add_definitions(
         -D__librml__tmp_fstream__constructor_private__
