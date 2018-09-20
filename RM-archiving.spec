@@ -6,6 +6,8 @@
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
+%define rm_daemonscripts_version 1.2.0
+
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
@@ -23,12 +25,12 @@ Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 1.3.1
+BuildRequires: RM-librml-devel >= 1.13.2
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -38,6 +40,7 @@ BuildRequires: threadpool
 BuildRequires: cmake
 BuildRequires: openssl-devel
 BuildRequires: zlib-devel
+BuildRequires: autoconf, libtool
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
@@ -56,7 +59,7 @@ Summary: Archiving CollectD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -72,7 +75,7 @@ Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package collect-importd
@@ -80,7 +83,7 @@ Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
 Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
 BuildRequires: php54-cli
@@ -93,7 +96,7 @@ BuildRequires: php54-cli
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
-# Requires: RM-php-rmapp >= 0.0.1-22590
+# Requires: RM-php-rmapp >= 0.0.5
 # Requires: RM-%{appname}-convert = %{version}-%{release}
 
 %package convert
@@ -113,19 +116,17 @@ Group: RedMatter/Archiving
 %package estuary
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: RM-daemonscripts >= 1.1.0
-Requires: RM-%{appname}-common = %{version}-%{release}
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
-Requires: RM-php-rmapp >= 0.0.1-35101
+Requires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-eventlog
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
@@ -152,7 +153,7 @@ Summary: Tools to puush SMS and MMS email messages into archive
 Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
-Requires: RM-daemonscripts >= 1.1.0
+Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 BuildRequires: sendmail-devel
 BuildRequires: pugixml
 BuildRequires: db4-devel
@@ -322,6 +323,7 @@ cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_data
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
 
 # Estuary
+mkdir -p %{buildroot}/var/run/archiving/rmestuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
 cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
@@ -365,6 +367,13 @@ cp scripts/pcap-recording-import-init.sh %{buildroot}/etc/rc.d/init.d/rmarchpcap
 cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
+# dsr-pre-processor
+cp scripts/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
+cp scripts/dsr-pre-processor/app.conf %{buildroot}/etc/archiving/dsr-preproc.conf
+cp scripts/dsr-pre-processor/autoload.php %{buildroot}/usr/share/php/archiving/archdsrpreproc_autoload.php
+cp scripts/dsr-pre-processor/init.sh %{buildroot}/etc/rc.d/init.d/rmarchdsrpreproc
+cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
+cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
 
 # qascripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
@@ -575,6 +584,11 @@ fi
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
 
+/sbin/chkconfig --add rmarchdsrpreproc
+/sbin/chkconfig rmarchdsrpreproc on
+/etc/init.d/rsyslog condrestart ||
+	echo "**WARNING** rsyslog not found; consider installing it."
+
 %post qascripts
 /etc/init.d/rsyslog condrestart ||
 	echo "**WARNING** rsyslog not found; consider installing it."
@@ -766,6 +780,7 @@ fi
 /etc/archiving/rmestuary.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
+%dir %attr(755,nobody,nobody) /var/run/archiving/rmestuary
 /etc/logrotate.d/rmestuary
 /etc/rsyslog.d/11-rmestuary.conf
 
@@ -807,6 +822,12 @@ fi
 /etc/rc.d/init.d/rmarchpcapimport
 /etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 /etc/logrotate.d/archiving-pcap-recording-import
+%attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
+/etc/archiving/dsr-preproc.conf
+/usr/share/php/archiving/archdsrpreproc_autoload.php
+%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
+/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
+/etc/logrotate.d/archiving-dsr-pre-processor
 
 %files qascripts
 %defattr(-,root,root)

@@ -1,0 +1,13 @@
+version: '2'
+services:
+  test:
+    image: archiving-build-test
+    build: .
+    volumes:
+      - ..:/code
+    environment:
+      - make_clean=0
+      - chown_artefacts=1
+    command: ["/code/tests/build-and-run-tests.sh"]
+
+

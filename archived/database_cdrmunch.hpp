@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
 // Unauthorized copying of this file, via any medium is strictly prohibited
 // Proprietary and confidential
 //
@@ -13,6 +13,7 @@
 #include "macros.h"
 
 #include <rml/database/mysql/basic_database.hpp>
+#include <rml/database/mysql/transactional_connection.hpp>
 #include <rml/database/mysql/errors.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
@@ -31,7 +32,7 @@ namespace database {
 
 namespace rmldb = rml::database::mysql;
 
-class cdrmunch : public rmldb::basic_database<cdrmunch>
+class cdrmunch : public rmldb::basic_database<cdrmunch, rmldb::transactional_connection>
 {
 public:
 	static inline const char* get_identifier()
@@ -40,43 +41,27 @@ public:
 	}
 
 	explicit cdrmunch(const boost::program_options::variables_map& confMap) :
-		rmldb::basic_database<cdrmunch>(confMap)
-	{
-	}
+			rmldb::basic_database<cdrmunch, rmldb::transactional_connection>(confMap)
+	{}
 
-	bool save(whisper::pointer p_whisper)
+	bool save(const whisper::pointer& p_whisper)
 	{
 		try {
-			boost::shared_ptr<rmldb::connection> conn = get_connection();
-			try {
-				mysqlpp::Query query = conn->query();
-				query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
-						 " VALUES "
-						 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
-				query.parse();
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+			mysqlpp::Query query = conn->query();
+			query << "INSERT IGNORE INTO cdr_queue (path, create_time, next_attempt, retry, fs_host, uuid)"
+					 " VALUES "
+					 "( %0q:path, FROM_UNIXTIME( %1:create_time ), NOW(), 0, %2q:fs_host, UNHEX( REPLACE( %3q:uuid, '-', '' ) ) )";
+			query.parse();
 
-				mysqlpp::SQLQueryParms qp;
-				qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
+			mysqlpp::SQLQueryParms qp;
+			qp << p_whisper->cdr_path << p_whisper->create_time << p_whisper->fs_host << p_whisper->uuid;
 
-				SqlDebug(conn, query.str(qp));
-				query.execute(qp);
+			MYSQL_QUERY_EXECUTE(DEFAULT, conn, query, qp);
 
-				return true;
-			}
-			catch (const mysqlpp::BadQuery& e) {
-				LogError("MySQL Error: "<<e.what());
-				abandon_connection_if_faulty(conn, e);
-			}
+			return true;
 		}
-		catch(const mysqlpp::Exception& e) {
-			LogError("MySQL Exception: "<<e.what());
-		}
-		catch(const std::exception& e) {
-			LogError("Exception: "<<e.what());
-		}
-		catch(...) {
-			LogError("Unknown Exception");
-		}
+		MYSQL_CATCH_LOG_ERROR(e)
 
 		return false;
 	}

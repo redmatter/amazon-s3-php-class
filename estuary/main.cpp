@@ -288,24 +288,30 @@ int main(int argc, const char* argv[]) try
         boost::shared_ptr<boost::thread> responder_thread(http_server_threads->create_thread(
                 boost::bind(&app::archived_shim::run_responder, boost::ref(archived_shim))));
 
+        const boost::function<void(const uint64_t, app::http::request_progress::enum_t)> fn_mark_progress =
+                boost::bind(&app::archived_shim::mark_request_progress_by_id, boost::ref(archived_shim), _1, _2);
+
         const common::collectd::fn_produce_type fn_error_callback =
-                boost::bind(app::produce_response_on_error, response_queue, _1, _2);
+                boost::bind(app::produce_response_on_error, response_queue, _1, _2, boost::protect(fn_mark_progress));
         const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_get_archivable_callback =
-                boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4);
+                boost::bind(app::consume_archivable, archivable_queue, _2, _1, _3, _4, boost::protect(fn_mark_progress));
         const common::collectd::fn_remove_from_catalogue_type fn_dummy_remove_from_catalogue =
                 boost::bind(app::dummy_remove_from_catalogue, _1);
         const common::collectd::fn_save_to_database_type fn_dummy_save_to_database =
                 boost::bind(app::dummy_save_to_database, _1);
         const common::collectd::fn_on_successful_put_type fn_on_successful_put =
-                boost::bind(app::produce_response_on_success, response_queue, _1);
+                boost::bind(app::produce_response_on_success, response_queue, _1, boost::protect(fn_mark_progress));
+
+        const std::string archived_host(config["archived_client.server_host"].as<std::string>());
+        const std::string archived_port(config["archived_client.server_port"].as<std::string>());
+        archiving::host_ip_change_detector archived_ip_change_detector(archived_host, archived_port);
 
         std::list<boost::shared_ptr<app::archived_client> > archived_clients;
         for (unsigned int i = 0; i < archived_connections; i++) {
             boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
                     boost::ref(*p_io_service), fn_error_callback, fn_get_archivable_callback,
                     fn_dummy_remove_from_catalogue, fn_dummy_save_to_database,
-                    config["archived_client.server_host"].as<std::string>(),
-                    config["archived_client.server_port"].as<std::string>(),
+                    archived_host, archived_port, boost::cref(archived_ip_change_detector),
                     fn_on_successful_put);
             archived_client->connect_archived();
 
@@ -322,8 +328,17 @@ int main(int argc, const char* argv[]) try
 
         // ------------- stuff happens here! ------------- //
 
+        boost::chrono::steady_clock::time_point detect_change_time;
         while (!shutdown_flag) {
-            // const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
+            const boost::chrono::steady_clock::time_point& now(boost::chrono::steady_clock::now());
+            if (detect_change_time == boost::chrono::steady_clock::time_point()) {
+                detect_change_time = now;
+            }
+
+            if ((now - detect_change_time) > boost::chrono::seconds(10)) {
+                archived_ip_change_detector.detect_change();
+                detect_change_time = now;
+            }
 
             boost::this_thread::sleep_for(boost::chrono::milliseconds(1000));
         }

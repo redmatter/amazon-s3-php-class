@@ -8,7 +8,9 @@ ifndef CPP_NETLIB_BUILD_EXAMPLES
 CPP_NETLIB_BUILD_EXAMPLES=ON
 endif
 
-.PHONY: sqlite cpp-netlib clean
+CRYPTOPP_VERSION=5.6.1
+
+.PHONY: sqlite cpp-netlib cryptopp clean
 
 sqlite: prefix=$(shell pwd)/$@
 sqlite: sqlite/sqlite-autoconf-$(SQLITE_VERSION)
@@ -38,6 +40,23 @@ cpp-netlib: cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION)
 cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION):
 	@mkdir -p "$@" && tar -C "$@" --strip-components=1 -xzf cpp-netlib-$(CPP_NETLIB_VERSION).tar.gz
 
+cryptopp: prefix=$(shell pwd)/$@
+cryptopp: cryptopp/cryptopp-$(CRYPTOPP_VERSION)
+	pushd cryptopp/cryptopp-$(CRYPTOPP_VERSION) && \
+	rm -f GNUmakefile && \
+	TMPDIR=/tmp patch -p1 < ../../cryptopp-5.6.1-autotools.patch && \
+	CXX=$(CXX) CC=$(CC) CXXFLAGS=-maes autoreconf --verbose --force --install && \
+	CXX=$(CXX) CC=$(CC) CXXFLAGS=-maes ./configure --disable-shared --enable-static && \
+	sed -i 's/`gcc /`$(CC) /g' libtool && \
+	CXX=$(CXX) CC=$(CC) CXXFLAGS=-maes make -j2 && \
+	CXX=$(CXX) CC=$(CC) CXXFLAGS=-maes make install DESTDIR="$(prefix)" INSTALL="install -p -c "
+	# delete the source
+	rm -rf cryptopp/cryptopp-$(CRYPTOPP_VERSION)
+
+cryptopp/cryptopp-$(CRYPTOPP_VERSION):
+	@mkdir -p "$@" && tar -C "$@" --strip-components=1 -xjvf cryptopp-$(CRYPTOPP_VERSION).tar.bz2
+
 clean:
 	rm -rf sqlite
 	rm -rf cpp-netlib
+	rm -rf cryptopp

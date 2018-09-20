@@ -11,6 +11,7 @@
 #include "types.hpp"
 #include "operation_data.hpp"
 #include "storage_endpoint.hpp"
+#include "file_format/headers.hpp"
 
 #include <rml/utils.h>
 
@@ -28,12 +29,21 @@
 
 namespace app {
 
+struct unknown_file_format_exception : rml::exception
+{
+	unknown_file_format_exception(const int found_version_major, const int found_version_minor) :
+			rml::exception(boost::str(
+					boost::format("Unknown file-format found; found-version: v%3%.%4%") %
+					found_version_major % found_version_minor))
+	{}
+};
+
 class crypto
 {
 	CryptoPP::AutoSeededRandomPool rng_;
 
 public:
-//	inline_ void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+//	inline void encrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
 //	{
 //		encrypt(istr, ostr, detail->p_endpoint->encryption_key);
 //	}
@@ -78,7 +88,42 @@ public:
 		}
 	}
 
-	inline_ void decrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
+	void encrypt_aes(std::istream& istr, std::ostream& ostr, const storage::basic_endpoint::encryption_key_t& encryption_key)
+	{
+		try {
+			using namespace archiving::archived::file_format;
+
+			typedef crypto_header<version<2> > crypto_header_type;
+			typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
+
+			{
+				std::streambuf *pbuf = istr.rdbuf();
+				if (0 == pbuf->pubseekoff(0,std::ios::end, std::ios::in)) {
+					throw rml::exception("Zero length input to encrypt()");
+				}
+				pbuf->pubseekpos(0,std::ios::in);
+			}
+
+			crypto_header_type crypto_header;
+			initialise_crypto_header(crypto_header, version_number);
+			rng_.GenerateBlock(crypto_header.iv, crypto_header_type::iv_length::value);
+
+			cipher_mode::Encryption encryption;
+			encryption.SetKeyWithIV(&encryption_key[0], storage::basic_endpoint::encryption_key_t::static_size,
+								   crypto_header.iv, crypto_header_type::iv_length::value);
+
+			ostr.write(reinterpret_cast<char*>(&crypto_header), sizeof(crypto_header_type));
+
+			CryptoPP::FileSource(
+					istr, true, new CryptoPP::StreamTransformationFilter(
+							encryption, new CryptoPP::FileSink(ostr)));
+		}
+		catch(const CryptoPP::Exception& e) {
+			THROW_RML_EXCEPTION("encrypt_aes - CryptoPP::Exception: "<<e.what());
+		}
+	}
+
+	inline void decrypt(std::istream& istr, std::ostream& ostr, operation_data::detail::pointer const& detail)
 	{
 		decrypt(istr, ostr, detail->p_endpoint->encryption_key);
 	}
@@ -86,61 +131,87 @@ public:
 	void decrypt(std::istream& istr, std::ostream& ostr, const storage::basic_endpoint::encryption_key_t& encryption_key)
 	{
 		try {
-			CryptoPP::CBC_Mode< CryptoPP::Blowfish >::Decryption blowfish_dec;
+			using namespace archiving::archived::file_format;
 
 			istr.seekg(0); // make sure we are at offset 0
 
-			types::header_encrypted header;
-			types::header_encrypted blank_header;
+			crypto_header_union header;
+			istr.read((char*)&header, sizeof(crypto_header_union));
 
-			RML_DEBUG( assert(CryptoPP::Blowfish::BLOCKSIZE == sizeof(header.iv)) );
+			switch (header.format_version.major) {
+			case 1: {
+				typedef crypto_header<version<1> > crypto_header_type;
+				typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
 
-			istr.read((char*)&header, sizeof(types::header_encrypted));
-			if(0 != memcmp(blank_header.magic, header.magic, sizeof(blank_header.magic)))
-				throw rml::exception("header found corrupt; magic pattern did not match");
+				if (!check_crypto_header_sanity(header.v1)) {
+					throw rml::exception("Invalid v1 header found");
+				}
 
-			// TODO change this to handle differences in future header changes
-			if(0 != memcmp(blank_header.padding, header.padding, sizeof(blank_header.padding)))
-				throw rml::exception("header found corrupt; padding pattern did not match");
+				cipher_mode::Decryption decryption;
 
-			// TODO change this to handle future version differences, rather than checking for equality
-			if((header.format_version_major != app::types::file_format_version::major) || (header.format_version_minor != app::types::file_format_version::minor))
-				throw rml::exception("header found corrupt; Invalid file format version");
+				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v1.iv,
+										crypto_header_type::iv_length::value);
+				CryptoPP::FileSource source(istr,
+											true,
+											new CryptoPP::StreamTransformationFilter(
+													decryption,
+													new CryptoPP::FileSink(ostr),
+													CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+				break;
+			}
+			case 2: {
+				typedef crypto_header<version<2> > crypto_header_type;
+				typedef crypto_header_type::encryption_algorithm_type::cipher_mode cipher_mode;
 
-			blowfish_dec.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.iv, CryptoPP::Blowfish::BLOCKSIZE);
-			CryptoPP::FileSource source(istr,
-					true,
-					new CryptoPP::StreamTransformationFilter(
-							blowfish_dec,
-							new CryptoPP::FileSink(ostr),
-							CryptoPP::BlockPaddingSchemeDef::PKCS_PADDING));
+				if (!check_crypto_header_sanity(header.v2)) {
+					throw rml::exception("Invalid v2 header found");
+				}
+
+				cipher_mode::Decryption decryption;
+
+				decryption.SetKeyWithIV(&encryption_key[0], encryption_key.size(), header.v2.iv,
+										crypto_header_type::iv_length::value);
+				CryptoPP::FileSource source(istr,
+											true,
+											new CryptoPP::StreamTransformationFilter(
+													decryption,
+													new CryptoPP::FileSink(ostr)));
+				break;
+			}
+			default:
+				throw unknown_file_format_exception(header.format_version.major, header.format_version.minor);
+			}
 		}
 		catch(const CryptoPP::Exception& e) {
 			THROW_RML_EXCEPTION("CryptoPP::Exception: "<<e.what());
 		}
 	}
 
-	void encrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& encrypted_format)
+	void encrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& encrypted_format, const bool is_aes_enabled)
 	{
 		if(types::file_format::is_encrypted(opdata->p_detail->current_file_format))
 			THROW_RML_EXCEPTION(opdata->p_detail->identifier << " already encrypted");
+
+		LogMessage(opdata->p_detail->identifier << " AES enabled : " << (is_aes_enabled ? "yes" : "no"));
 
 		encrypt(opdata->get_tmp_fstream(),
 				opdata->get_tmp_fstream(encrypted_format, true, true),
 				opdata->p_detail->current_file_format,
 				opdata->p_detail->identifier,
-				opdata->p_detail->p_endpoint->encryption_key);
+				opdata->p_detail->p_endpoint->encryption_key,
+				is_aes_enabled);
 
 		opdata->get_tmp_fstream()->close();
 		opdata->p_detail->current_file_format = encrypted_format;
 	}
 
-	inline_ void encrypt(
+	inline void encrypt(
 			rml::utils::tmp_fstream::pointer current_fstream,
 			rml::utils::tmp_fstream::pointer encrypted_fstream,
 			const types::file_format::file_format_t& current_file_format,
 			const std::string& identifier,
-			const storage::basic_endpoint::encryption_key_t& encryption_key)
+			const storage::basic_endpoint::encryption_key_t& encryption_key,
+			const bool is_aes_enabled)
 	{
 		if(types::file_format::is_encrypted(current_file_format))
 			THROW_RML_EXCEPTION(identifier << " already encrypted");
@@ -178,10 +249,19 @@ public:
 
 			p_tmp->re_open();
 
-			encrypt(*p_tmp, *encrypted_fstream, encryption_key);
+			if (is_aes_enabled) {
+				encrypt_aes(*p_tmp, *encrypted_fstream, encryption_key);
+			} else {
+				encrypt(*p_tmp, *encrypted_fstream, encryption_key);
+			}
 		}
-		else
-			encrypt(*current_fstream, *encrypted_fstream, encryption_key);
+		else {
+			if (is_aes_enabled) {
+				encrypt_aes(*current_fstream, *encrypted_fstream, encryption_key);
+			} else {
+				encrypt(*current_fstream, *encrypted_fstream, encryption_key);
+			}
+		}
 	}
 
 	void decrypt(operation_data::pointer const& opdata, const types::file_format::file_format_t& decrypted_format)
@@ -219,8 +299,8 @@ public:
 				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" file size mismatch: "
 					<< precrypt_hdr.content_length << " vs " << current_fstream->get_size());
 
-            // get_size() messes with the pointer
-            current_fstream->seekg(sizeof(types::header_precrypt));
+			// get_size() messes with the pointer
+			current_fstream->seekg(sizeof(types::header_precrypt));
 
 			*(decrypted_fstream) << current_fstream->rdbuf();
 
@@ -236,7 +316,7 @@ public:
 
 			if(crc32 != precrypt_hdr.crc32)
 				THROW_RML_EXCEPTION(opdata->p_detail->identifier<<" CRC mismatch: "
-                    << crc32 << " vs " << precrypt_hdr.crc32);
+					<< crc32 << " vs " << precrypt_hdr.crc32);
 		}
 
 		opdata->get_tmp_fstream()->close();

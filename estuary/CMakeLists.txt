@@ -38,7 +38,7 @@ set(HEADER_FILES
         app/http/detail/query_map.hpp
         app/http/pending_request_map.hpp
         app/http/pending_request.hpp
-        app/http/lexical_cast.hpp)
+        app/http/lexical_cast.hpp app/http/request_progress.hpp)
 
 include_directories(
         ${CPPNETLIB_INCLUDE_DIRS}
@@ -46,6 +46,7 @@ include_directories(
         ${MYSQL_INCLUDE_DIR}
         ${rml-utils_SOURCE_DIR}
         ${rml-queue_SOURCE_DIR}
+        ${rml-statistics_SOURCE_DIR}
         ${Boost_INCLUDE_DIRS}
         ../cpp-common
 )
@@ -85,4 +86,4 @@ target_link_libraries(rmestuary.bin
         ${CPPNETLIB_LIBRARIES}
         )
 
-#add_subdirectory(tests)
+add_subdirectory(tests)

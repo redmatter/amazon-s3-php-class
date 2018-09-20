@@ -28,7 +28,7 @@ set(SOURCE_FILES
         defines.cpp
         dir_monitor.cpp
         types.cpp
-        ${VERSION_C_PATH})
+        ${VERSION_C_PATH} host_ip_change_detector.hpp)
 
 add_definitions(
         -D__librml__tmp_fstream__constructor_private__
@@ -43,6 +43,7 @@ add_definitions(
 include_directories(
         /usr/include/cpp-netlib
         /usr/include/threadpool
+        ${rml-database-mysql_SOURCE_DIR}
         ${MYSQL_INCLUDE_DIR})
 
 #find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)

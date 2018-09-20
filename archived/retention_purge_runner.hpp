@@ -22,6 +22,7 @@
 #include "storage_backend.hpp"
 #include "database_retention_delete.hpp"
 #include "legal_hold/cache.hpp"
+#include "config/purge_restrictions.hpp"
 
 #include <rml/pc_channel.h>
 #include <rml/coreapi.hpp>
@@ -58,14 +59,14 @@ struct constants
 
 struct fixable_init_failure_exception : rml::exception
 {
-    explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
+	explicit fixable_init_failure_exception(const std::string& message) : rml::exception(message)
 	{
 	}
 };
 
 struct required_header_missing_exception : fixable_init_failure_exception
 {
-    explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
+	explicit required_header_missing_exception(const std::string& key) : fixable_init_failure_exception(key+" not found in HEAD response")
 	{
 	}
 };
@@ -124,8 +125,10 @@ class runner : public boost::enable_shared_from_this<runner>
 	boost::mutex purge_finished_time_mutex_;
 
 	bool auto_expire_filetype_[archiving::file_type::n_file_types];
-    std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
-    const bool delete_retention_records_for_internal_filetypes_;
+	std::list<archiving::org_id_t> legacy_ondemand_purge_orgs_;
+	const bool delete_retention_records_for_internal_filetypes_;
+
+	const archiving::archived::purge_restrictions purge_restrictions;
 
 	volatile bool& quit_;
 
@@ -159,15 +162,15 @@ class runner : public boost::enable_shared_from_this<runner>
 				p_item->identifier.filetype, boost::gregorian::date(p_item->retention->creation_date));
 	}
 
-    inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
-    {
-        if (!legacy_ondemand_purge_orgs_.empty()) {
-            const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
-            return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
-        }
+	inline bool org_had_legacy_ondemand_purge(const archiving::org_id_t& org) const
+	{
+		if (!legacy_ondemand_purge_orgs_.empty()) {
+			const std::list<archiving::org_id_t>::const_iterator &end(legacy_ondemand_purge_orgs_.end());
+			return end != std::find(legacy_ondemand_purge_orgs_.begin(), end, org);
+		}
 
-        return false;
-    }
+		return false;
+	}
 
 public:
 	runner(
@@ -195,7 +198,8 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				delete_retention_records_for_internal_filetypes_(
 						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
-				quit_(quit)
+				quit_(quit),
+				purge_restrictions(confMap)
 	{
 		// set all to false
 		for(int i = 0; i < archiving::file_type::n_file_types; i++)
@@ -214,20 +218,17 @@ public:
 		if (legacy_s3_headers_last_date_.is_not_a_date())
 			throw rml::exception("Invalid date found in config (retention_purge.legacy_s3_headers_last_date)");
 
-		// initialise it! not thread-safe
-		(void) get_retention_purge_restrictions(confMap);
-
-        // setup legacy_ondemand_purge_orgs_
-        const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
-        if (!legacy_ondemand_purged_orgs_str.empty()) {
-            std::vector<std::string> orgs;
-            boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
-            std::vector<std::string>::const_iterator itr = orgs.begin();
-            std::vector<std::string>::const_iterator end = orgs.end();
-            for (; itr != end; ++itr) {
-                legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
-            }
-        }
+		// setup legacy_ondemand_purge_orgs_
+		const std::string &legacy_ondemand_purged_orgs_str(confMap["retention_purge.legacy_ondemand_purged_orgs"].as<std::string>());
+		if (!legacy_ondemand_purged_orgs_str.empty()) {
+			std::vector<std::string> orgs;
+			boost::split(orgs, legacy_ondemand_purged_orgs_str, boost::is_any_of(", \t"));
+			std::vector<std::string>::const_iterator itr = orgs.begin();
+			std::vector<std::string>::const_iterator end = orgs.end();
+			for (; itr != end; ++itr) {
+				legacy_ondemand_purge_orgs_.push_back(boost::lexical_cast<archiving::org_id_t>(*itr));
+			}
+		}
 	}
 
 	/**
@@ -257,16 +258,16 @@ public:
 		LogMessage("Saving and terminating retention purge module");
 
 		// save items
-		const boost::posix_time::ptime& batch_save_run_till(
-				boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(30));
-		internal_db_.batch_save_run< item, item::weak_set_t >(batch_save_run_till);
+		const boost::chrono::steady_clock::time_point& batch_save_run_till(
+				boost::chrono::steady_clock::now() + boost::chrono::seconds(30));
+		internal_db_.batch_save_run<item, item::weak_set_t>(batch_save_run_till, true);
 
 		// consume everything from finished_channel and DELETE them
 		finished_channel_.set_finishing();
 		const item::channel_t::bare_item_set_t& items_finished(finished_channel_.consume_remaining());
 		if(!items_finished.empty())
 			internal_db_.delete_by_ids< item, item::channel_t::bare_item_set_t::const_iterator, item::extract_id, item::extract_identifier >(
-					items_finished.begin(), items_finished.end(), "ArchiveDPurgeQueue", "ID");
+					items_finished.begin(), items_finished.end(), "ArchiveDPurgeQueue", "ID", true);
 	}
 
 	/**
@@ -346,7 +347,7 @@ public:
 		// continue with the regular purge
 		if(batch_count_ > 0) {
 			return retention_db_.get_retention_for_purge(
-					api_, org_id, max_retention_id, batch_count, get_retention_purge_restrictions(),
+					api_, org_id, max_retention_id, batch_count, purge_restrictions,
 					boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
 					fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
 					org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables, fn_is_purge_restricted_by_legal_hold);
@@ -413,6 +414,11 @@ public:
 		// if headers check is suppressed by config, just move forward
 		if (headers_check_is_suppressed(p_item))
 			return true;
+
+		// if the endpoint is not retention-managed, we dont need to check the state of headers etc
+		if (!p_item->endpoint->is_retention_managed) {
+			return true;
+		}
 
 		const retention_record& retention_from_db(*(p_item->retention));
 
@@ -545,13 +551,12 @@ public:
 	 */
 	bool reload_from_database() try
 	{
-		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
 		static const uint64_t max_id(internal_db_.get_purge_queue_max_id());
 
 		static uint64_t loaded_max_id(0);
 
-		if(!require_approval && loaded_max_id >= max_id) {
-			LogMessage("Approval not required and we have finished reloading");
+		if(loaded_max_id >= max_id) {
+			LogMessage("Finished reloading");
 			return false;
 		}
 
@@ -561,53 +566,26 @@ public:
 						% app::hostname));
 
 		if(loaded_max_id < max_id) {
-			if(require_approval) {
-				where += boost::str(
-						boost::format(" AND ( ( ID <= %1% AND ID > %2% "
-								"AND State NOT IN ( "
-								" %3% /* init_error */, %4% /* approve */, %5% /* approve_ok */, %6% /* approve_error */ "
-								") ) ")
-						% max_id % loaded_max_id
-						% state::init_error % state::approve % state::approve_ok % state::approve_error);
-			}
-			else {
-				where += boost::str(
-						boost::format(" AND ( ID <= %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
-						% max_id % loaded_max_id % state::init_error);
-			}
-		}
-
-		if(require_approval) {
-			if(loaded_max_id < max_id)
-				where += boost::str(boost::format(" OR `State`=%1% /* approve_ok */ )") % state::approve_ok);
-			else
-				where += boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok);
+			where += boost::str(
+					boost::format(" AND ( ID <= %1% AND ID > %2% AND State != %3% /* init_error */  ) ")
+					% max_id % loaded_max_id % state::init_error);
 		}
 
 		const int& limit(get_limit());
 		if(limit <= 0)
-			return require_approval || (loaded_max_id < max_id);
+			return loaded_max_id < max_id;
 
 		item::list_t loaded_items;
 
 		/**
-		 * Select all those that need reloading after a restart OR the ones that need approval.
-		 * Here once we load them, all approved ones are set to state::delete_file, just to mark as loaded.
+		 * all those that need reloading after a restart.
 		 */
 		internal_db_.batch_load< item, item::extract_id >(
 				loaded_items,
 				boost::bind(item::setup_select, _1, _2, where),                             /* fn_setup_select */
 				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)), /* fn_make_item_from_row */
-				boost::bind(item::setup_update_by_ids_begin, _1, _2,                        /* fn_setup_update_by_ids_begin */
-						boost::str(boost::format("`State`=%1% /* delete_file */") % state::delete_file)),
-				boost::bind(item::setup_update_by_ids_end, _1, _2,                          /* fn_setup_update_by_ids_end */
-						boost::str(boost::format(" AND `State`=%1% /* approve_ok */") % state::approve_ok)),
 				static_cast<unsigned int>(limit)                                            /* select_limit */
 		);
-
-		// if none found, we need to continue only if require_approval == true
-		if(loaded_items.empty())
-			return require_approval || (loaded_max_id < max_id);
 
 		for(item::list_t::const_iterator itr = loaded_items.begin(); itr != loaded_items.end(); ++itr) {
 			const uint64_t& id((*itr)->id);
@@ -625,7 +603,7 @@ public:
 				move_forward(*itr);
 		}
 
-		return require_approval || (loaded_max_id < max_id);
+		return loaded_max_id < max_id;
 	}
 	catch(const std::exception& e) {
 		LogWarning("Exception: "<<e.what());
@@ -719,44 +697,62 @@ public:
 		return;
 	}
 
+	/**
+	 * Skip a state and move-forward
+	 *
+	 * Routes it via the reactor so that we can distribute work over threads, rather than moving forward with the
+	 * current thread
+	 *
+	 * @param p_item
+	 * @param priority
+	 * @param allow_direct_exec
+	 */
+	inline void
+	done_move_forward(const item::pointer& p_item, const state_reactor<>::priority_t& priority,
+						   const bool allow_direct_exec)
+	{
+		reactor_.schedule(
+				boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
+				boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
+				priority, allow_direct_exec);
+	}
+
 	inline void perform_current_state_action(const item::pointer &p_item)
 	{
 		static const boost::function< bool(const archiving::archivable::identifier&) > fn_is_filetype_auto_expired(
 				boost::bind(&app::retention_purge::runner::is_auto_expiring, shared_from_this(), _1));
 
-		static const bool require_approval(confMap_["retention_purge.require_approval"].as<bool>());
-
 		// --- ---
-
-		// if we need no approval; skip this stage
-		if(state::get_coarse(p_item->cur_state) == state::_approve_ && !require_approval)
-			p_item->cur_state = state::next_up(p_item->cur_state, /* force = */true);
 
 		switch(state::get_coarse(p_item->cur_state)) {
 
 		case state::_approve_:
 		{
-			// nothing to do here as we have already saved it! Just that we wouldn't take it further in the
-			// state machine; dead end ( for now )!
+			done_move_forward(p_item, state_reactor<>::medium, true);
 			break;
 		}
 
 		case state::_delete_file_:
 		{
-			if(p_item->retention && auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
-				LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+			// if not a dummy item
+			if (p_item->retention) {
+				bool skip_delete_from_storage = false;
+				if (auto_expire_filetype_[(int)(p_item->identifier.filetype)]) {
+					LogDebug(p_item<<" - skipping delete_file stage as it is auto-expired");
+					skip_delete_from_storage = true;
+				} else if (p_item->endpoint && !p_item->endpoint->is_retention_managed) {
+					LogDebug(p_item<<" - skipping delete_file stage as it is NOT retention-managed");
+					skip_delete_from_storage = true;
+				}
 
-				// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-				reactor_.schedule(
-						boost::bind(&runner::purge_stage_done, shared_from_this(), p_item),
-						boost::bind(&runner::move_forward, shared_from_this(), p_item, _1),
-						state_reactor<>::low, false);
+				if (skip_delete_from_storage) {
+					done_move_forward(p_item, state_reactor<>::low, false);
 
-				// NOT break-ing from here so that the below batching logic wouldn't get starved
+					// NOT break-ing from here so that the below batching logic wouldn't get starved
+				} else {
+					__pc_produce(delete_file_channel_, p_item);
+				}
 			}
-
-			if(p_item->retention) // if not dummy
-				__pc_produce(delete_file_channel_, p_item);
 
 			if(((time(0) - last_delete_file_time_) < purge_file_interval_seconds) && (delete_file_channel_.count() < purge_file_batch_size))
 				break;
@@ -793,12 +789,9 @@ public:
 									item::extract_endpoint, item::extract_identifier >(
 											itr_batch.first, itr_batch.second);
 
-							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_)
-								// route it via the reactor so that we can distribute work over threads, rather than moving forward with this thread
-								reactor_.schedule(
-										boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-										boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-										state_reactor<>::low, false);
+							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
+								done_move_forward(*itr_, state_reactor<>::low, false);
+							}
 
 							// move a batch forward
 							itr = itr_batch.second;
@@ -878,11 +871,9 @@ public:
 							for(item::type_org_endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first;
 									itr_ != itr_batch.second; ++itr_) {
 								// if done ok, move forward
-								if(done_ok)
-									reactor_.schedule(
-											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-											state_reactor<>::low, false);
+								if(done_ok) {
+									done_move_forward(*itr_, state_reactor<>::low, false);
+								}
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
 									__pc_produce(delete_usage_channel_, *itr_, 600, 0, 0);
@@ -970,10 +961,7 @@ public:
 							{
 								// if done ok, move forward
 								if(done_ok) {
-									reactor_.schedule(
-											boost::bind(&runner::purge_stage_done, shared_from_this(), *itr_),
-											boost::bind(&runner::move_forward, shared_from_this(), *itr_, _1),
-											state_reactor<>::low, false);
+									done_move_forward(*itr_, state_reactor<>::low, false);
 								}
 								// else if we are not about to quit, enqueue for retry aftre 10 mins
 								else if(!quit_)
@@ -1024,7 +1012,7 @@ public:
 
 					if(!purge_list.empty()) {
 						internal_db_.delete_by_ids< item, item::list_t::const_iterator, item::extract_id, item::extract_identifier >(
-										purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID");
+										purge_list.begin(), purge_list.end(), "ArchiveDPurgeQueue", "ID", false);
 
 						// to adjust for delays from processing the batch
 						purge_finished_time_ = time(0);
@@ -1135,64 +1123,38 @@ public:
 #undef LogChannelCount
 
 			const int iter_tens((iter / 10) % 10);
-			if(!quit_ && (iter_tens >= 0 && iter_tens <= 4) ) {
+			if(!quit_ && (iter_tens >= 0 && iter_tens <= 3) ) {
 
 				// here we make the batching mechanism to fire-off the state; they could be starving for more items
 				// so we fire-off dummy items into the channel(s) to tickle the various states
 
-				LogDebug("Dummy item ... "<<iter_tens);
-
 				switch(iter_tens) {
 				case 0:
 				{
-					// TODO if we ever remove the approve stage, we need to do mods here
-
-					// tinker the delete_file state
-					item::pointer purge_item(new item(state::approve));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+					// tinker the delete_usage state
+					LogDebug("Dummy item ... state::delete_file");
+					done_move_forward(item::pointer(new item(state::delete_file)), state_reactor<>::high, false);
 					break;
 				}
 				case 1:
 				{
-					// tinker the delete_usage state
-					item::pointer purge_item(new item(state::delete_file));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+					// tinker the delete_retention state
+					LogDebug("Dummy item ... state::delete_usage");
+					done_move_forward(item::pointer(new item(state::delete_usage)), state_reactor<>::high, false);
 					break;
 				}
 				case 2:
 				{
-					// tinker the delete_retention state
-					item::pointer purge_item(new item(state::delete_usage));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+					// tinker the finished state
+					LogDebug("Dummy item ... state::delete_retention");
+					done_move_forward(item::pointer(new item(state::delete_retention)), state_reactor<>::high, false);
 					break;
 				}
 				case 3:
 				{
 					// tinker the finished state
-					item::pointer purge_item(new item(state::delete_retention));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
-					break;
-				}
-				case 4:
-				{
-					// tinker the finished state
-					item::pointer purge_item(new item(state::finished));
-					reactor_.schedule(
-							boost::bind(&runner::purge_stage_done, shared_from_this(), purge_item),
-							boost::bind(&runner::move_forward, shared_from_this(), purge_item, _1),
-							state_reactor<>::high, false);
+					LogDebug("Dummy item ... state::finished");
+					done_move_forward(item::pointer(new item(state::finished)), state_reactor<>::high, false);
 					break;
 				}
 
@@ -1237,7 +1199,10 @@ public:
 					p_purge_def = retention_db_.get_orgs_for_purge();
 				}
 
-				p_purge_def = internal_db_.update_get_purge_def(p_purge_def, static_cast<unsigned int>(limit), confMap_["retention_purge.enabled_orgs"].as<std::string>());
+				p_purge_def = internal_db_.update_get_purge_def(
+						p_purge_def, static_cast<unsigned int>(limit),
+						confMap_["retention_purge.enabled_orgs"].as<std::string>(),
+						confMap_["retention_purge.org_scan_interval_minutes"].as<unsigned>());
 				if(!p_purge_def) {
 					LogVerbose("Failed to update and get purge definition; skipping attempt");
 					continue;
@@ -1256,16 +1221,16 @@ public:
 
 						// make sure we dont over fill
 						if (purge_max_queue_size > purge_queue_size) {
+							LogVerbose("Org:"<<itr->org_id<<" attempting purge (both on-demand and regular)");
+
 							// readjust limit based on purge queue size
 							const int limit_now(std::min< int >(limit, purge_max_queue_size - purge_queue_size));
 
-							uint64_t new_max_id(batch_purge(itr->org_id, itr->max_retention_id, limit_now));
-							if(new_max_id == itr->max_retention_id) {
-								LogMessage("Org:"<<itr->org_id<<" no purgables found"<<(itr->max_retention_id? "; resetting Max-ID to zero": "; Max-ID already zero"));
-								new_max_id = 0;
-							}
-
+							const uint64_t new_max_id = batch_purge(itr->org_id, itr->max_retention_id, limit_now);
 							orgs_update.insert(types::purge_def::org_def(itr->org_id, new_max_id));
+						} else {
+							LogVerbose("Org:"<<itr->org_id<<" Purge queue is full; purge_max_queue_size <= purge_queue_size "
+									   "(" << purge_max_queue_size << " <= " << purge_queue_size << ")");
 						}
 					}
 

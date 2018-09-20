@@ -9,11 +9,8 @@
 #ifndef ARCHIVING_ARCHIVED_MACROS_H
 #define ARCHIVING_ARCHIVED_MACROS_H
 
-#define SqlDebug(conn, line) \
-    LogCoutIf((conn)->is_debug_enabled(), "SQL: " << line)
-
-#define SqlDebugIf(cond, conn, line) \
-    LogCoutIf((cond) || (conn)->is_debug_enabled(), "SQL: " << line)
+#include <rml/database/mysql/macro/catch_exception.h>
+#include <rml/database/mysql/macro/query_timer.h>
 
 #ifdef RETENTION_PURGE_SQL_DEBUG
 #define RETENTION_PURGE_SQL_DEBUG_BOOL true
@@ -21,7 +18,8 @@
 #define RETENTION_PURGE_SQL_DEBUG_BOOL false
 #endif
 
-#define PURGE_SQL_DEBUG(conn, line) \
-    SqlDebugIf(RETENTION_PURGE_SQL_DEBUG_BOOL, conn, line)
+// Add PURGE context for SQL debug logging
+#define MYSQL_DEBUG_SQL_PURGE(conn, line) \
+    MYSQL_DEBUG_SQL_DEFAULT_IF(RETENTION_PURGE_SQL_DEBUG_BOOL, conn, line)
 
 #endif //ARCHIVING_ARCHIVED_MACROS_H

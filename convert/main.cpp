@@ -161,14 +161,13 @@ int main(int argc, char* argv[])
 
 		unsigned int iter = 0;
 		if(!source_plain) {
-			const std::size_t& max_header_size = std::max<std::size_t>(sizeof(app::types::header_encrypted), sizeof(app::types::header_precrypt));
+			const std::size_t& max_header_size = std::max<std::size_t>(sizeof(archiving::archived::file_format::crypto_header_union), sizeof(app::types::header_precrypt));
 			std::vector<char> header(max_header_size);
-			app::types::header_encrypted eh;
 
 			p_source->read(&header[0], max_header_size);
 			p_source->seekg(0);
 
-			if(0 == memcmp(&header[0], eh.magic, sizeof(eh.magic))) {
+			if(0 == memcmp(&header[0], archiving::archived::file_format::crypto_header_magic_string(), 6)) {
 				LogVerbose("RMA-CE file format");
 				if(1 != cli_confMap.count("key"))
 					throw rml::exception("Encryption key not given");

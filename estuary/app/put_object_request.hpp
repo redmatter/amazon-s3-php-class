@@ -48,6 +48,8 @@ struct put_object_request
     mutable boost::shared_ptr<rml::utils::tmp_fstream> fstream;
     mutable size_t bytes_remaining;
 
+    const http::request_progress_callback_type mark_progress;
+
     std::string get_pbx_hostname() const
     {
         if (pbx_hostname == boost::none) {
@@ -81,7 +83,7 @@ struct put_object_request
         return boost::static_pointer_cast<std::iostream>(fstream);
     }
 
-    explicit put_object_request(const http::pending_request& req) :
+    put_object_request(const http::pending_request& req, const http::request_progress_callback_type& progress_callback) :
             file_type(req.request.get_path_vector().get_component<archiving::file_type::file_type_t>(1, "file-type")),
             org_id(req.request.get_path_vector().get_component<archiving::org_id_t>(2, "organisation-id")),
             uuid(req.request.get_path_vector().get_component<boost::uuids::uuid>(3, "uuid")),
@@ -97,7 +99,9 @@ struct put_object_request
             content_md5(base64_to_hex(req.request.get_first_header_value_as<std::string>("Content-MD5"))),
             accept(req.request.get_first_header_value_as<std::string>("Accept")),
 
-            bytes_remaining(content_length != boost::none ? *content_length : 0)
+            bytes_remaining(content_length != boost::none ? *content_length : 0),
+
+            mark_progress(progress_callback)
     {
         if (req.request.get_method() != "PUT") {
             boost::throw_exception(
@@ -173,6 +177,23 @@ struct put_object_request
                                     boost::system::error_condition(error::http::bad_request)));
         }
 
+        switch (*file_type)
+        {
+        case archiving::file_type::cdr:
+        case archiving::file_type::pcap:
+        case archiving::file_type::pcap_sip_only:
+            if (*org_id != 1) {
+                boost::throw_exception(
+                        boost::enable_error_info(error::http_error_exception("Internal file-type must belong to Org 1"))
+                                << error::error_info_request_correlation(req.correlation)
+                                << error::error_info_error_condition(
+                                        boost::system::error_condition(error::http::bad_request)));
+            }
+            break;
+        default:
+            break;
+        }
+
         try {
             const std::string& path(
                     boost::str(boost::format("%1%_%2%_%3%_%4%_")
@@ -200,6 +221,8 @@ struct put_object_request
             return;
         }
 
+        mark_progress(http::request_progress::put_read_data);
+
         fstream->close();
 
         // prepare the archivable object
@@ -220,6 +243,10 @@ struct put_object_request
                         *(content_md5),
                         archiving::archivable::state::collected));
 
+        if (*file_type == archiving::file_type::cdr) {
+            archivable->set_add_to_cdrmunch_cache(true);
+        }
+
         if (leg_uuid != boost::none) {
             archivable->set_leg_uuid(boost::lexical_cast<std::string>(*leg_uuid));
         }
@@ -232,6 +259,8 @@ struct put_object_request
         archivable->set_owners(*owners);
 
         enqueue_callback(archivable);
+
+        mark_progress(http::request_progress::put_enqueued);
     }
 };
 

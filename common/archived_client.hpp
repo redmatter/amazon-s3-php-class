@@ -13,6 +13,7 @@
 #include "types.hpp"
 #include "globals.h"
 #include "collectd/callbacks.hpp"
+#include "host_ip_change_detector.hpp"
 
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/atomic.hpp>
@@ -32,15 +33,19 @@ class archived_client : public boost::enable_shared_from_this< archived_client >
 {
 private:
 	static boost::atomic_uint n_instances_;
-	static boost::atomic_uint n_ok_;
+	static unsigned n_ok_;
+	static boost::mutex n_ok_update_mutex_;
 	static boost::atomic_uint instance_id_seq_;
-	
+	static boost::random::mt19937 rand_gen_;
+	static boost::random::uniform_int_distribution<> rand_dist_;
+
 	void set_is_archived_ok(const bool ok)
 	{
 		LogVerbose("id:"<<instance_id_<<" set_is_archived_ok: "<<ok);
-		if(ok) {
+		boost::unique_lock<boost::mutex> lock(n_ok_update_mutex_);
+		if (ok) {
 			n_ok_++;
-		} else {
+		} else if (n_ok_ > 0) {
 			n_ok_--;
 		}
 	}
@@ -196,6 +201,8 @@ private:
 	archiving::archivable::pointer put_archivable_ptr_;
 	size_t put_file_size_, put_sent_size_;
 
+	const archiving::host_ip_change_detector& ip_change_detector_;
+	archiving::ip_change_result ip_change_result_;
 	boost::atomic_bool shutdown_flagged_;
 
 	inline bool is_shutdown_flagged()
@@ -271,7 +278,7 @@ public:
 		if(n_instances_ == 0U || n_ok_ == 0U)
 			return 0.0;
 		
-		return (float)n_ok_.load() / (float)n_instances_.load();
+		return (float)n_ok_ / (float)n_instances_.load();
 	}
 
 	static void describe_config(boost::program_options::options_description& optsDesc)
@@ -290,6 +297,7 @@ public:
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
 			const std::string& archived_host,
 			const std::string& archived_port,
+			const archiving::host_ip_change_detector& ip_change_detector,
             const common::collectd::fn_on_successful_put_type& fn_on_successful_put = common::collectd::fn_on_successful_put_type()) :
 				instance_id_(++instance_id_seq_),
 				io_service_(io_service),
@@ -307,6 +315,7 @@ public:
 				fn_remove_from_catalogue_(fn_remove_from_catalogue),
 				fn_save_to_database_(fn_save_to_database),
 				fn_on_successful_put_(fn_on_successful_put),
+				ip_change_detector_(ip_change_detector),
 				shutdown_flagged_(false)
 	{
 		n_instances_++;
@@ -423,12 +432,14 @@ private:
 		timer_.cancel();
 	}
 
-	inline void set_reconnect_timer(const int seconds, const bool force_reconnect)
+	inline void set_reconnect_timer(const int seconds, const bool force_reconnect, const bool add_random_delay = false)
 	{
-		DevDebug(*this<<" set_reconnect_timer - seconds:"<<seconds<<" force_reconnect:"<<force_reconnect);
+		int random_milli_seconds = add_random_delay ? rand_dist_(rand_gen_) : 0;
+		DevDebug(*this << " set_reconnect_timer - seconds:" << seconds << " [+" << random_milli_seconds << " ms]"
+					   << " force_reconnect:" << force_reconnect);
 
 		cancel_timer();
-		timer_.expires_from_now(boost::posix_time::seconds(seconds));
+		timer_.expires_from_now(boost::posix_time::milliseconds(seconds * 1000 + random_milli_seconds));
 		timer_.async_wait(strand_.wrap(boost::bind(&archived_client::connect_archived_on_timeout, shared_from_this(),
 				force_reconnect, true, boost::asio::placeholders::error)));
 	}
@@ -815,7 +826,14 @@ private:
 		case state::nop_ack_ok:
 		case state::ready_to_put:
 		{
-			get_archivable_for_put();
+			const archiving::ip_change_result& ip_changed(ip_change_detector_.is_changed(ip_change_result_));
+			if (ip_changed) {
+				ip_change_result_ = ip_changed;
+				LogMessage("ArchiveD IP changed; reconnecting...");
+				reconnect(true, 1);
+			} else {
+				get_archivable_for_put();
+			}
 			break;
 		}
 
@@ -1200,7 +1218,7 @@ private:
 		setup_retry_and_reset_current_archivable("Closing while sending");
 
 		if(reconnect)
-			set_reconnect_timer(reconnect_delay_seconds, false);
+			set_reconnect_timer(reconnect_delay_seconds, false, true);
 	}
 
 	// instead of default params; to keep boost::bind errors at bay

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017 Red Matter Ltd. UK. All rights reserved.
+// Copyright (c) 2018 Red Matter Ltd. UK. All rights reserved.
 // Unauthorized copying of this file, via any medium is strictly prohibited
 // Proprietary and confidential
 //
@@ -18,8 +18,10 @@
 #include "../common/basic_database.hpp"
 #include "../common/coreapi_eventlog.hpp"
 
+#include <rml/database/mysql/transactional_connection.hpp>
 #include <rml/database/mysql/basic_database.hpp>
 #include <rml/database/mysql/errors.hpp>
+#include <rml/database/mysql/utils.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
 
@@ -40,7 +42,7 @@ namespace database {
 
 namespace rmldb = rml::database::mysql;
 
-class retention_delete : public rmldb::basic_database<retention_delete>
+class retention_delete : public rmldb::basic_database<retention_delete, rmldb::transactional_connection>
 {
 public:
     static inline const char* get_identifier()
@@ -49,7 +51,7 @@ public:
     }
 
     explicit retention_delete(const boost::program_options::variables_map& confMap) :
-            rmldb::basic_database<retention_delete>(confMap)
+            rmldb::basic_database<retention_delete, rmldb::transactional_connection>(confMap)
     {}
 
     template<typename Iter, typename ExtractIdentifier, typename IsInternalFiletype>
@@ -62,57 +64,44 @@ public:
             return true;
         }
 
-        try
-        {
-            boost::shared_ptr<rmldb::connection> conn = get_connection();
-            mysqlpp::Transaction transaction(*conn, false);
+        try {
+            boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
+            conn->start_transaction();
 
-            try {
-                for(Iter itr = begin; itr != end; ) {
-                    for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-
-                        const archiving::archivable::identifier& id(extract_identifier(*itr));
-                        if (!is_internal_filetype(id)) {
-                            LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
-                            return false;
-                        }
-
-                        std::string uuid_hex(id.uuid);
-                        boost::algorithm::erase_all(uuid_hex, "-");
-
-                        {
-                            mysqlpp::Query query = conn->query();
-                            query << "DELETE FROM `ArchivingRetention`.`Audit_"<<org<<"` "
-                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                            PURGE_SQL_DEBUG(conn, query.str());
-                            query.execute();
-                        }
-
-                        {
-                            mysqlpp::Query query = conn->query();
-                            query << "DELETE FROM `ArchivingRetention`.`Retention_"<<org<<"` "
-                                "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
-                                " AND UUID=0x"<<uuid_hex<<" /* "<<id.uuid<<" */";
-                            PURGE_SQL_DEBUG(conn, query.str());
-                            query.execute();
-                        }
-
-                    }
+            for(Iter itr = begin; itr != end; ++itr) {
+                const archiving::archivable::identifier& id(extract_identifier(*itr));
+                if (!is_internal_filetype(id)) {
+                    LogError("identifier:"<<id<<" - A non-internal-filetype was found in the batch to delete from retention-database");
+                    return false;
                 }
 
-                transaction.commit();
+                std::string uuid_hex(id.uuid);
+                boost::algorithm::erase_all(uuid_hex, "-");
 
-                return true;
+                {
+                    mysqlpp::Query query = conn->query();
+                    query << "DELETE FROM `Audit_"<<org<<"` "
+                          "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                          " AND UUID="<<rmldb::utils::sql_uuid_value(id.uuid);
+                    MYSQL_QUERY_EXECUTE(PURGE, conn, query);
+                }
+
+                {
+                    mysqlpp::Query query = conn->query();
+                    query << "DELETE FROM `Retention_"<<org<<"` "
+                          "WHERE Type="<<int(id.filetype)<<" /* "<<id.filetype<<" */"
+                          " AND UUID="<<rmldb::utils::sql_uuid_value(id.uuid);
+                    MYSQL_QUERY_EXECUTE(PURGE, conn, query);
+                }
             }
-            catch (const mysqlpp::BadQuery& e) {
-                LogError("MySQL Error: "<<e.what());
-                abandon_connection_if_faulty(conn, transaction, e);
-            }
+
+            conn->commit_transaction();
+
+            return true;
         }
-        catch(const std::exception& e) {
-            LogWarning("Failed to delete from retention-database - err:"<<e.what());
-        }
+        MYSQL_CATCH_LOG_WARNING(e)
+
+        LogWarning("Failed to delete from retention-database");
 
         return false;
     }

@@ -49,6 +49,7 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include <host_ip_change_detector.hpp>
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-collectd"
@@ -535,13 +536,16 @@ int main(int argc, char* argv[]) try
 		const unsigned int n_threads( 2 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 1 ));
 		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
 
+		const std::string archived_host(app::confMap["archived_client.server_host"].as<std::string>());
+		const std::string archived_port(app::confMap["archived_client.server_port"].as<std::string>());
+		archiving::host_ip_change_detector archived_ip_change_detector(archived_host, archived_port);
+
 		std::list< app::archived_client::pointer > archived_clients;
 		for(unsigned int i = 0; i < (n_threads - 2); i++) {
 			archived_clients.push_back(
 					boost::make_shared<app::archived_client>(
 							boost::ref(io_service), fn_out_queue_produce, fn_out_queue_consume, fn_remove_from_catalogue,
-							fn_save_to_database, app::confMap["archived_client.server_host"].as<std::string>(),
-							app::confMap["archived_client.server_port"].as<std::string>()));
+							fn_save_to_database, archived_host, archived_port, boost::cref(archived_ip_change_detector)));
 		}
 
 		for(unsigned int i = 0; i < n_threads; i++)
@@ -595,6 +599,10 @@ int main(int argc, char* argv[]) try
 				internal_db.clear_dormant_sessions();
 
 				rml::sqlite::status::log_all();
+			}
+
+			if (!(ticks % 10)) {
+				archived_ip_change_detector.detect_change();
 			}
 
 			boost::this_thread::sleep_for(boost::chrono::seconds(1));

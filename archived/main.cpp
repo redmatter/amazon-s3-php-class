@@ -1,3 +1,5 @@
+#include <rml/pool/error.hpp>
+
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
@@ -33,6 +35,7 @@
 #include <rml/config.h>
 #include <rml/siginit.h>
 #include <rml/daemon.h>
+#include <rml/utils/enabled_disabled_list.hpp>
 
 #include <fcgio.h>
 
@@ -147,29 +150,37 @@ volatile bool wasHUPed = false;
 
 inline void shutdown()
 {
-    quit = true;
-    OS_ShutdownPending();
+	quit = true;
+	OS_ShutdownPending();
+}
+
+inline void LogBuildInfo()
+{
+	LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
+	LogAlways("built on "<<version_date<<' '<<build_host);
 }
 
 void sigint(int s) {
-    LogMessage("SIGINT: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGINT: Trying a clean exit");
+	shutdown();
 }
 
 void sighup(int s) {
-    LogMessage("SIGHUPed");
-    wasHUPed = true;
+	LogVerbose("SIGHUPed");
+	wasHUPed = true;
+
+	LogBuildInfo();
 }
 
 void sigterm(int s) {
-    LogMessage("SIGTERM: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGTERM: Trying a clean exit");
+	shutdown();
 }
 
 /* save */
 void sigusr1(int s) {
-    LogMessage("SIGUSR1: Trying a clean exit");
-    shutdown();
+	LogMessage("SIGUSR1: Trying a clean exit");
+	shutdown();
 }
 
 }
@@ -230,6 +241,7 @@ int main(int argc, char *argv[]) try
 		app::call_buffering_recording::describe_config(optsDesc);
 		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
+		archiving::archived::purge_restrictions::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -252,17 +264,15 @@ int main(int argc, char *argv[]) try
 			// configure the logger
 			rml::logger::configure(app::confMap, SYSLOG_APP_NAME);
 
-			// a new day is a gift!
-			LogAlways(DEFAULT_APP_LONG_NAME" v"<<version_number_string<<' '<<copyright_string);
-			LogAlways("built on "<<version_date<<' '<<build_host);
+			app::LogBuildInfo();
 
 			// set the signal handlers
-            rml::siginit(4,
-                        SIGINT, app::sigint,
-                        SIGHUP, app::sighup,
-                        SIGTERM, app::sigterm,
-                        SIGUSR1, app::sigusr1);
-            rml::daemon::initialise(app::confMap, PID_FILE_PATH);
+			rml::siginit(4,
+						SIGINT, app::sigint,
+						SIGHUP, app::sighup,
+						SIGTERM, app::sigterm,
+						SIGUSR1, app::sigusr1);
+			rml::daemon::initialise(app::confMap, PID_FILE_PATH);
 		}
 		catch(const std::exception &e) {
 			LogError("Initialisation Error - exception: "<<e.what());
@@ -328,7 +338,14 @@ int main(int argc, char *argv[]) try
 
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
-		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit);
+
+		const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
+				app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
+		boost::function<bool(archiving::org_id_t)> is_aes_enabled_callback = boost::bind(
+				&rml::utils::enabled_list<archiving::org_id_t>::is_enabled, boost::cref(aes_enabled_orgs_list), _1);
+
+		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit,
+								 is_aes_enabled_callback);
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
 
@@ -416,7 +433,7 @@ int main(int argc, char *argv[]) try
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
 		threads.create_thread(boost::bind(
 				app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder),
-				boost::ref(cbr_channel), app::quit));
+				boost::ref(cbr_channel), app::quit, is_aes_enabled_callback));
 		threads.create_thread(boost::bind(&app::retention_purge::runner::feed_purge_queue, p_retention_purge_runner));
 
 		put_server.start();
@@ -430,6 +447,7 @@ int main(int argc, char *argv[]) try
 				LogDebug(((ticker%2) ? "tik": "tok"));
 
 			if(0 == (ticker % 20)) {
+				LogMessage("Clearing internal caches");
 				cached_endpoint_finder.clear_unused(60);
 				cached_policy_finder.clear_unused(10);
 				cached_org_policy_versions_finder.clear_unused(10);
@@ -437,28 +455,36 @@ int main(int argc, char *argv[]) try
 				cached_coreapi_user_finder.clear_unused(10);
 			}
 
-			if(have_more_to_load && (0 == (ticker % 20)))
+			if(have_more_to_load && (0 == (ticker % 20))) {
+				LogMessage("Loading more items from ArchiveDQueue");
 				internal_db.find_retriables(app::hostname, cached_policy_finder,
-						boost::bind(&app::operation_data_dedup::is_loaded, boost::ref(operation_data_dedup), _1),
-						cached_endpoint_finder, convert_channel, have_more_to_load);
+											boost::bind(&app::operation_data_dedup::is_loaded,
+														boost::ref(operation_data_dedup), _1),
+											cached_endpoint_finder, convert_channel, have_more_to_load);
+			}
 
 			// load approved purge items occasionally
-			if(more_to_reload && (0 == (ticker % std::min<unsigned int>(180, app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60))))
+			if(more_to_reload && (0 == (ticker % std::min<unsigned int>(180, app::confMap["retention_purge.approval_run_interval_minutes"].as<unsigned int>() * 60)))) {
+				LogMessage("Loading more purge items from ArchiveDPurgeQueue");
 				more_to_reload = p_retention_purge_runner->reload_from_database();
+			}
 
 			// occasionally save items to DB
 			if(0 == (ticker % app::confMap["retention_purge.db_flush_interval_seconds"].as<unsigned int>())) {
-				const boost::posix_time::ptime& batch_save_run_till(
-						boost::posix_time::microsec_clock::universal_time() + boost::posix_time::seconds(15));
+				LogMessage("Saving progress of purge items");
+				const boost::chrono::steady_clock::time_point& batch_save_run_till(
+						boost::chrono::steady_clock::now() + boost::chrono::seconds(15));
 				internal_db.batch_save_run<app::retention_purge::item, app::retention_purge::item::weak_set_t>(
-						batch_save_run_till);
+						batch_save_run_till, false);
 			}
 
 			if(monitor_pending || !(ticker % 60)) {
+				LogMessage("Preparing statistics for the past minute");
 				boost::posix_time::ptime till = boost::posix_time::microsec_clock::local_time() + boost::posix_time::milliseconds(50);
 				boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(monitor_data->mutex, till);
 				
 				if(lock) {
+					LogMessage("Adding statistics for the past minute");
 					app::monitor::monitor_t::item_t item;
 					time(&item.sample_time);
 					item.convert_waiting = convert_channel.count();
@@ -478,8 +504,10 @@ int main(int argc, char *argv[]) try
 					
 					monitor_pending = false;
 				}
-				else
+				else {
+					LogMessage("Could not add statistics for the past minute [failed to lock]. Trying again in a second");
 					monitor_pending = true;
+				}
 			}
 
 			ticker++;
@@ -489,8 +517,10 @@ int main(int argc, char *argv[]) try
 
 		LogMessage("Quit flagged ... stopping channels");
 
+		LogMessage("PUT server stopping");
 		(void)put_server.stop();
-		
+
+		LogMessage("Setting all channels as finishing");
 		convert_channel.set_finishing();
 		convert_done_channel.set_finishing();
 		storage_operation_channel.set_finishing();
@@ -499,15 +529,19 @@ int main(int argc, char *argv[]) try
 		whisper_channel.set_finishing();
 		cbr_channel.set_finishing();
 
+		LogMessage("Stopping purge");
 		p_purge_state_reactor.reset();
 		p_retention_purge_runner->shutdown();
 
 		coreapi.logout();
 
+		LogMessage("Shutting down io scheduler");
 		p_io_service->stop();
 
+		LogMessage("Stopping FastCGI server");
 		fcgi_server.stop();
 
+		LogMessage("Waiting for all threads to finish");
 		threads.join_all();
 
 		LogAlways("terminated normally");

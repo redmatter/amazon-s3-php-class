@@ -40,6 +40,12 @@ struct request_wrapped
     }
 
     inline
+    std::string get_source() const
+    {
+        return boost::network::http::source(req);
+    }
+
+    inline
     std::string get_destination() const
     {
         return boost::network::http::destination(req);

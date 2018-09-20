@@ -629,6 +629,13 @@ private:
 				opdata->p_detail->state = operation_state::put_file_convert;
 				opdata->p_detail->arrival_time = time(0);
 
+				// save the state of operation data only if we need to process it further ( not if policy == do_not_archive )
+				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
+					if (!internal_db_.save(opdata)) {
+						throw protocol_exception("failed to save to database");
+					}
+				}
+
 				ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
 
 				// Looks like we have the file intact; lets make it temporarily not temporary
@@ -639,10 +646,6 @@ private:
 				clear_cache_.put(opdata->p_detail->identifier, opdata->p_detail->current_file_format, ofs_);
 
 				current_state_ = states::put_check_received_file_ack_ok;
-
-				// save the state of operation data only if we need to process it further ( not if policy == do_not_archive )
-				if( policy_id_ != policy::pseudo_id::do_not_archive )
-					internal_db_.save(opdata);
 
 				// Put CDRs and those recordings needed for CDR processing on to filesystem
 				// The decision is made in CollectD and is represented as AddToCDRMunchCache header set to "true"
