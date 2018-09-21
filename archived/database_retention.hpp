@@ -36,8 +36,6 @@
 
 #include <time.h>
 
-#define MYSQL_GROUP_CONCAT_BUF_LENGTH 102400
-
 namespace app {
 
 extern std::string hostname;
@@ -210,9 +208,10 @@ public:
 
 	int get_retention_for_purge_ondemand(
 			rml::coreapi& api, const archiving::org_id_t& org_id,
-			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
+			const boost::function< bool(retention_record::pointer) >& is_purgeable,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
-			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables,
+			const boost::function<bool(retention_record::pointer)>& fn_is_purge_restricted_by_legal_hold)
 	{
 		int count(0);
 
@@ -289,9 +288,15 @@ public:
 
 						if (!retention_res.empty()) {
 							const retention_record::pointer& rec(make_retention_record(retention_res[0]));
-							if (!is_purgeaple(rec)) {
+							if (!is_purgeable(rec)) {
 								LogVerbose(rec->identifier<<" : Not yet purgeable");
 								some_did_not_make_it = true;
+								continue;
+							}
+
+							if (fn_is_purge_restricted_by_legal_hold(rec)) {
+								LogVerbose(rec->identifier<<" : Not allowed due to legal-hold");
+                                some_did_not_make_it = true;
 								continue;
 							}
 
@@ -356,11 +361,12 @@ public:
 			rml::coreapi& api, const archiving::org_id_t& org_id,
 			const uint64_t& max_retention_id, const unsigned int limit,
 			const archiving::archived::purge_restrictions& restrictions,
-			const boost::function< bool(retention_record::pointer) >& is_purgeaple,
+			const boost::function< bool(retention_record::pointer) >& is_purgeable,
 			const boost::function< bool(const archiving::archivable::identifier&) >& fn_is_filetype_auto_expired,
 			const boost::function< boost::optional<bool>(const archiving::file_type::file_type_t&) >& is_internal_filetype,
 			const bool& org_had_legacy_ondemand_purge,
-			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables)
+			const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) >& fn_schedule_purgeables,
+            const boost::function<bool(retention_record::pointer)>& fn_is_purge_restricted_by_legal_hold)
 	{
 		try {
 			uint64_t new_max_retention_id = max_retention_id;
@@ -408,7 +414,7 @@ public:
 				while(const mysqlpp::Row row = res.fetch_row()) {
 					retention_record::pointer rec = make_retention_record(row);
 					bool is_legacy_purged = row[row.size() - 1];
-					if(is_purgeaple(rec) || is_legacy_purged) {
+					if(is_legacy_purged || (is_purgeable(rec) && !fn_is_purge_restricted_by_legal_hold(rec))) {
 						retention_set.insert(rec);
 					}
 				}
