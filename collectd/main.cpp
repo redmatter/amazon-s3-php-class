@@ -11,6 +11,7 @@
 
 #include "archivable/queue.hpp"
 #include "../common/collectd/callbacks.hpp"
+#include "../common/host_ip_change_detector.hpp"
 
 #include "database_sqlite.hpp"
 #include <rml/sqlite/status.hpp>
@@ -49,7 +50,6 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
-#include <host_ip_change_detector.hpp>
 
 #ifndef SYSLOG_APP_NAME
 #define SYSLOG_APP_NAME "rm-collectd"
