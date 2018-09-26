@@ -75,7 +75,7 @@ struct host_ip_change_detector
     inline void
     detect_change()
     {
-        addrinfo* result;
+        addrinfo* result = 0;
         addrinfo hints;
         memset(&hints, 0, sizeof hints); // make sure the struct is empty
         hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
@@ -91,9 +91,8 @@ struct host_ip_change_detector
                     ip_address.store(new_ip_address, boost::memory_order_acquire);
                 }
             }
+            freeaddrinfo(result);
         }
-
-        freeaddrinfo(result);
     }
 };
 } // namespace archiving
