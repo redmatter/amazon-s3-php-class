@@ -884,7 +884,7 @@ public:
 
 			query << "SELECT `LegalHoldCount`, `RestrictAccessCount` "
 					 "FROM `ArchivingInternal`.`LegalHoldCache` "
-					 "WHERE `OrgID` = %1:OrgID AND `RetentionID` = %2:RetentionID "
+					 "WHERE `OrgID` = %0:OrgID AND `RetentionID` = %1:RetentionID "
 					 "LIMIT 1";
 			query.parse();
 
