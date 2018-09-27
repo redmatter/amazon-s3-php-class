@@ -305,6 +305,8 @@ public:
 								mysqlpp::Query query = conn->query(
 										"UPDATE `Retention_%0:OrgID` SET `State`='PurgeQueued' "
 										"WHERE ID=%1:RetentionID LIMIT 1");
+								query.parse();
+
 								mysqlpp::SQLQueryParms qp;
 								qp << org_id << *items_itr;
 								MYSQL_QUERY_EXECUTE(PURGE, conn, query, qp);
