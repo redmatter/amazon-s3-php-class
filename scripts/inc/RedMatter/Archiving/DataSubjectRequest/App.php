@@ -341,7 +341,7 @@ class App extends \BaseApp
                 }
 
                 $retentionDb->query(
-                    "UPDATE `ArchivingRetention`.`LegalHoldI_{$orgId}` " .
+                    "UPDATE `ArchivingRetention`.`LegalHold_{$orgId}` " .
                     "SET `State` = '{$newState}' " .
                     "WHERE `ID` = {$requestId}"
                 );
