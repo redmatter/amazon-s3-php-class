@@ -283,7 +283,7 @@ class App extends \BaseApp
                     $assocStr = implode(', ', $assoc);
                     $retentionDb->query(
                         "INSERT INTO `ArchivingRetention`.`LegalHoldItems_{$orgId}` " .
-                        ' (`LegalHoldID`, `RetentionID`) ' .
+                        ' (`LegalHoldID`, `OrgID`, `RetentionID`) ' .
                         "SELECT {$requestId}, {$orgId}, r_.`ID`" .
                         ' FROM ' .
                         "`ArchivingRetention`.`LegalHoldItems_{$orgId}` i " .
