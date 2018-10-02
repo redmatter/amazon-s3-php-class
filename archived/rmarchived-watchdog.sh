@@ -26,11 +26,6 @@ freespace_KB_gt()
     fi
 }
 
-# "in-process" sleep implementation using read; in order to reduce pid trashing
-_sleep() {
-    read -rt "${1?Specify sleep interval in seconds}" -u 1 <<<"" || return 0;
-}
-
 declare -A check_paths
 add_check_path()
 {
@@ -95,7 +90,7 @@ while ! "${terminate_requested:-false}"; do
     # is first check? To avoid warning about things that can't change once running
     first=false
 
-    _sleep 1
+    sleep 1
 done
 log notice "Watchdog stopped"
 
