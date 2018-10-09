@@ -826,9 +826,8 @@ private:
 		case state::nop_ack_ok:
 		case state::ready_to_put:
 		{
-			const archiving::ip_change_result& ip_changed(ip_change_detector_.is_changed(ip_change_result_));
-			if (ip_changed) {
-				ip_change_result_ = ip_changed;
+			ip_change_result_ = ip_change_detector_.is_changed(ip_change_result_);
+			if (ip_change_result_) {
 				LogMessage("ArchiveD IP changed; reconnecting...");
 				reconnect(true, 1);
 			} else {
