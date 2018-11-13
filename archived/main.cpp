@@ -293,6 +293,8 @@ int main(int argc, char *argv[]) try
 		app::database::retention_delete retention_delete_db(app::confMap);
 		app::database::cdrmunch cdrmunch_db(app::confMap);
 
+		app::legal_hold_cache legal_hold_cache(internal_db, retention_db);
+
 		app::operation_data::busy_set_t operation_data_busy_set;
 		app::operation_data_dedup operation_data_dedup(operation_data_busy_set, internal_db);
 
@@ -359,7 +361,8 @@ int main(int argc, char *argv[]) try
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
 						app::confMap, cached_endpoint_finder, cached_policy_finder, cached_org_policy_versions_finder,
-						coreapi, *p_purge_state_reactor, retention_db, retention_delete_db, internal_db, app::quit));
+						coreapi, *p_purge_state_reactor, retention_db, retention_delete_db, internal_db,
+						legal_hold_cache, app::quit));
 
 		app::whisper_client whisper_client(*p_io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),

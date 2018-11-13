@@ -283,7 +283,7 @@ class App extends \BaseApp
                     $assocStr = implode(', ', $assoc);
                     $retentionDb->query(
                         "INSERT INTO `ArchivingRetention`.`LegalHoldItems_{$orgId}` " .
-                        ' (`LegalHoldID`, `RetentionID`) ' .
+                        ' (`LegalHoldID`, `OrgID`, `RetentionID`) ' .
                         "SELECT {$requestId}, {$orgId}, r_.`ID`" .
                         ' FROM ' .
                         "`ArchivingRetention`.`LegalHoldItems_{$orgId}` i " .
@@ -341,7 +341,7 @@ class App extends \BaseApp
                 }
 
                 $retentionDb->query(
-                    "UPDATE `ArchivingRetention`.`LegalHoldI_{$orgId}` " .
+                    "UPDATE `ArchivingRetention`.`LegalHold_{$orgId}` " .
                     "SET `State` = '{$newState}' " .
                     "WHERE `ID` = {$requestId}"
                 );
@@ -640,9 +640,9 @@ class App extends \BaseApp
             {
                 $logContext->LogMessage('Processing notifications ...');
                 $requests = $retentionDb->query(
-                    'SELECT lh.`ID` ID, lh.`UserID` UserID, lh.`State` State, lh.`Time`,' .
+                    'SELECT lh.`ID` ID, lh.`UserID` UserID, lh.`State` State, UNIX_TIMESTAMP(lh.`Time`) Time,' .
                     ' lh.`ExternalReference` ExtRef,' .
-                    ' UNIX_TIMESTAMP(lh.`ExpiryDate`) ExpiryDate, lh.`ExpiryNotified` ExpiryNotified' .
+                    ' UNIX_TIMESTAMP(lh.`ExpiryDate`) ExpiryDate, lh.`ExpiryNotified` ExpiryNotified, ' .
                     ' SUM(i.`State` = "Pending") PendingCount, ' .
                     ' SUM(i.`State` = "Approved") ApprovedCount, ' .
                     ' SUM(i.`State` = "Rejected") RejectedCount ' .
@@ -915,7 +915,7 @@ class App extends \BaseApp
                     '(`RetentionID`, `OrgID`, `LegalHoldCount`, `RestrictAccessCount`)' .
                     ' VALUES ' .
                     implode(', ', array_map(function ($row) use ($orgId) {
-                            return "({$row->RetentionID}, {$orgId}, {$row->LegalHoldCount})";
+                            return "({$row->RetentionID}, {$orgId}, {$row->LegalHoldCount}, {$row->RestrictAccessCount})";
                         }, $rows)
                     ) .
                     ' ON DUPLICATE KEY UPDATE ' .
