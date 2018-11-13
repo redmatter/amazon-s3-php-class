@@ -15,6 +15,7 @@
 
 #include "../common/policy.hpp"
 #include "macros.h"
+#include "legal_hold/status.hpp"
 
 #include <rml/database/mysql/basic_database.hpp>
 #include <rml/database/mysql/transactional_connection.hpp>
@@ -871,6 +872,35 @@ public:
 			conn->commit_transaction();
 		}
 		MYSQL_CATCH_LOG_ERROR(e)
+	}
+
+	inline legal_hold_status get_legal_hold_status(const archiving::org_id_t org_id, const uint64_t retention_id)
+	{
+		try
+		{
+			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::milliseconds(500));
+
+			mysqlpp::Query query = conn->query();
+
+			query << "SELECT `LegalHoldCount`, `RestrictAccessCount` "
+					 "FROM `ArchivingInternal`.`LegalHoldCache` "
+					 "WHERE `OrgID` = %0:OrgID AND `RetentionID` = %1:RetentionID "
+					 "LIMIT 1";
+			query.parse();
+
+			mysqlpp::SQLQueryParms qp;
+			qp << org_id << retention_id;
+
+			MYSQL_QUERY_STORE(PURGE, conn, query, res, qp);
+
+			if (!res.empty()) {
+				const mysqlpp::Row& row(res[0]);
+				return legal_hold_status(static_cast<int>(row[0]) > 0, static_cast<int>(row[1]) > 0);
+			}
+		}
+		MYSQL_CATCH_LOG_ERROR(e)
+
+		return legal_hold_status();
 	}
 };
 

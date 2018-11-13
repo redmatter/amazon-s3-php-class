@@ -66,7 +66,7 @@ struct host_ip_change_detector
 
         // till archived_clients connect and the change-detector has its first run, we fail open
         if (last_result.ip_address == 0 || ip_address_ == 0) {
-            return ip_change_result(false, 0);
+            return ip_change_result(false, ip_address_);
         }
 
         return ip_change_result(last_result.ip_address != ip_address_, ip_address_);
@@ -85,10 +85,16 @@ struct host_ip_change_detector
         if (0 != getaddrinfo(hostname.c_str(), service.c_str(), &hints, &result)) {
             LogWarning("Couldn't resolve host:" << hostname << " service/port:" << service);
         } else {
-            for (addrinfo* res = result; res != NULL; res = res->ai_next) {
+            for (addrinfo* res = result; res != 0; res = res->ai_next) {
                 uint32_t new_ip_address = ((struct sockaddr_in*) res->ai_addr)->sin_addr.s_addr;
                 if (new_ip_address != ip_address) {
+                    LogVerbose("IP address of " << hostname << ":" << service << " has changed;"
+                                                << " old:" << ip_address << " new:" << new_ip_address);
                     ip_address.store(new_ip_address, boost::memory_order_acquire);
+                    break;
+                } else {
+                    LogVerbose("IP address of " << hostname << ":" << service << " has NOT changed;"
+                                                << " old:" << ip_address << " new:" << new_ip_address);
                 }
             }
             freeaddrinfo(result);

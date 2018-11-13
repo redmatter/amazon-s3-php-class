@@ -11,9 +11,10 @@
 
 #include <string>
 #include <boost/program_options/variables_map.hpp>
-#include <types.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
+
+#include "../../common/types.hpp"
 
 namespace archiving
 {
