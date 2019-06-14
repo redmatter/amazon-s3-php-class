@@ -17,3 +17,6 @@
 [submodule "libs/rml-database-mysql"]
 	path = libs/rml-database-mysql
 	url = ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
+[submodule "libs/rml/rml"]
+	path = libs/rml/rml
+	url = ssh://git@bitbucket.redmatter.com/lib/rml.git

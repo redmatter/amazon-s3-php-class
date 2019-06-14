@@ -21,6 +21,7 @@ include_directories(
         /usr/include/cpp-netlib
         ${SQLITE3_INCLUDE_DIRS}
         ${rml-queue_SOURCE_DIR}
+        ${rml_SOURCE_DIR}/..
         ../common
 )
 

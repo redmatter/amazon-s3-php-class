@@ -47,6 +47,7 @@ include_directories(
         ${rml-utils_SOURCE_DIR}
         ${rml-queue_SOURCE_DIR}
         ${rml-statistics_SOURCE_DIR}
+        ${rml_SOURCE_DIR}/..
         ${Boost_INCLUDE_DIRS}
         ../cpp-common
 )

@@ -52,6 +52,18 @@ download_project(PROJ cmake-common
 # Add cmake-common to CMAKE_MODULE_PATH
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
 
+# Add lib#rml
+#option(rml_BUILD_TESTS "" OFF)
+option(BUILD_HEADER_ONLY "" ON)
+download_project(PROJ rml
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
+        # GIT_TAG 1.13.3
+        GIT_TAG feature/PLAT-18569-remove-build-time-artefacts-for-git-submodules
+        UPDATE_DISCONNECTED 1
+        SOURCE_DIR "${CMAKE_BINARY_DIR}/rml-src/rml"
+        )
+add_subdirectory(${rml_SOURCE_DIR})
+
 # Add rml-queue
 download_project(PROJ rml-queue
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
