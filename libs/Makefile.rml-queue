@@ -1,0 +1,12 @@
+PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+
+RML_QUEUE_GIT_SUBMODULE=libs/rml-queue
+RML_QUEUE_DIR=$(PROJECT_DIR)/$(RML_QUEUE_GIT_SUBMODULE)
+RML_QUEUE_HPP=$(RML_QUEUE_DIR)/rml/queue/queue.hpp
+
+CXX_INCLUDES += -I $(RML_QUEUE_DIR)
+
+$(RML_QUEUE_HPP):
+	@cd $(PROJECT_DIR) && git submodule update --init --recursive $(RML_QUEUE_GIT_SUBMODULE)
+
+*.cpp: $(RML_QUEUE_HPP)

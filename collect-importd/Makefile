@@ -2,7 +2,7 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../version_info
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 include ../common/Makefile.macros
 
 FREESWITCH_DIR=/opt/freeswitch
@@ -50,9 +50,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-LIBRML_VERSION=1.1
-CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -62,7 +59,7 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmysqlclient
+	-lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmysqlclient
 
 # -lcrypt -luuid \
 
@@ -71,9 +68,11 @@ CXX_SRCS += \
 
 C_SRCS += \
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+
+include ../libs/Makefile.rml
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)

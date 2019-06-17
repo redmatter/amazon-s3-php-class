@@ -2,11 +2,8 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../version_info
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 include ../common/Makefile.macros
-
-RML_QUEUE_DIR=../libs/rml-queue
-RML_QUEUE_QUEUE_HPP=$(RML_QUEUE_DIR)/rml/queue/queue.hpp
 
 FREESWITCH_DIR=/opt/freeswitch
 
@@ -27,7 +24,7 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a \
 RML_LOG_SOURCE_LOCATION=YES
 
 # Always DATABASE_SQLITE=YES
-CXX_INCLUDES += -I ../external/sqlite/include -I $(RML_QUEUE_DIR)
+CXX_INCLUDES += -I ../external/sqlite/include
 LIBS += -L ../external/sqlite/lib -lsqlite3 -ldl
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
@@ -56,9 +53,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-LIBRML_VERSION=1.1
-CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -68,23 +62,19 @@ LIBS += \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
-	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lcryptopp -larchiving_common -luuid
+	-lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \
 	main.cpp
 
 C_SRCS += \
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 
-main.cpp : $(RML_QUEUE_QUEUE_HPP)
-
-ifeq ($(RML_QUEUE_DIR),../libs/rml-queue)
-$(RML_QUEUE_QUEUE_HPP):
-	@cd .. && git submodule update --init --recursive libs/rml-queue
-endif
+include ../libs/Makefile.rml
+include ../libs/Makefile.rml-queue
 
 ../external/sqlite/lib/libsqlite3.a:
 	@$(MAKE) -C ../external sqlite

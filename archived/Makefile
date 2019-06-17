@@ -1,14 +1,5 @@
 VERSION_FILE=../version_info
-include /usr/share/librml/Makefile.macros
-
-RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-database-mysql
-RML_DATABASE_MYSQL_DIR=../$(RML_DATABASE_MYSQL_GIT_SUBMODULE)
-RML_DATABASE_MYSQL_HPP=$(RML_DATABASE_MYSQL_DIR)/rml/database/mysql/connection.hpp
-
-RML_UTILS_GIT_SUBMODULE=libs/rml-utils
-RML_UTILS_DIR=../$(RML_UTILS_GIT_SUBMODULE)
-RML_UTILS_HPP=$(RML_UTILS_DIR)/rml/utils/enabled_disabled_list.hpp
-
+include ../libs/rml/rml/Makefile.macros
 include ../common/Makefile.macros
 
 LIBS += -L../common/$(TMP)
@@ -22,8 +13,6 @@ TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 RML_LOG_SOURCE_LOCATION=YES
 
 CXX_INCLUDES += -isystem /usr/include/threadpool \
-	-I $(RML_DATABASE_MYSQL_DIR) \
-	-I $(RML_UTILS_DIR) \
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -61,9 +50,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/rm$(TARGET).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-LIBRML_VERSION=1.1
-CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -73,7 +59,7 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lfcgi -lmysqlclient
+	-lcryptopp -lpugixml -lmysqlpp -ls3 -larchiving_common -lfcgi -lmysqlclient
 
 CXX_SRCS += \
 	retention_purge.cpp \
@@ -83,22 +69,13 @@ C_SRCS += \
 
 BUILD_MODE=DEBUG
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
-# include ../external/Makefile.cryptopp
 
-main.cpp: $(RML_DATABASE_MYSQL_HPP) $(RML_UTILS_HPP)
-
-ifeq ($(RML_DATABASE_MYSQL_DIR),../$(RML_DATABASE_MYSQL_GIT_SUBMODULE))
-$(RML_DATABASE_MYSQL_HPP):
-	@cd .. && git submodule update --init --recursive $(RML_DATABASE_MYSQL_GIT_SUBMODULE)
-endif
-
-ifeq ($(RML_UTILS_DIR),../$(RML_UTILS_GIT_SUBMODULE))
-$(RML_UTILS_HPP):
-	@cd .. && git submodule update --init --recursive $(RML_UTILS_GIT_SUBMODULE)
-endif
+include ../libs/Makefile.rml
+include ../libs/Makefile.rml-database-mysql
+include ../libs/Makefile.rml-utils
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)
