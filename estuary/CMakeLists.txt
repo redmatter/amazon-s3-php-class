@@ -7,8 +7,9 @@ project(estuary)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 if (NOT EXISTS ../external/cpp-netlib)
-        execute_process(COMMAND make -C ../external cpp-netlib RESULT_VARIABLE res)
-        if (NOT res OR NOT EXISTS ../external/cpp-netlib)
+        execute_process(COMMAND make -C ../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
+                RESULT_VARIABLE res)
+        if (NOT res STREQUAL "0" OR NOT EXISTS ../external/cpp-netlib)
                 message(FATAL_ERROR "Failed to setup cpp-netlib")
         endif()
 endif()
