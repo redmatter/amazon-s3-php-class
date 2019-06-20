@@ -7,7 +7,7 @@
 <- OK\r\n
 
 ( Handshaked; any incompatibility can be flagged by server or client by ERR )
-( Ready for tansmission )
+( Ready for transmission )
 
 -> PUT <OrgID> <file_type> <collectd-object-identifier(uses md5 for now)> <content-length>\r\n
 OwnerID: <UserID>[,<UserID>,...]\r\n

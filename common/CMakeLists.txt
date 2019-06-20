@@ -21,14 +21,24 @@ set(HEADER_FILES
         policy.hpp
         pre.h
         types.hpp
-        collectd/callbacks.hpp)
+        collectd/callbacks.hpp
+        host_ip_change_detector.hpp
+        net/archived/error.hpp
+        net/archived/connection.hpp
+        net/archived/connection_pool.hpp
+        net/archived/send_nop.hpp
+        net/archived/send_file.hpp
+        net/archived/connection_manager.hpp
+        net/archived/detail/put_file_session.hpp
+        net/archived/detail/put_state.hpp
+)
 
 set(SOURCE_FILES
         archived_client.cpp
         defines.cpp
         dir_monitor.cpp
         types.cpp
-        ${VERSION_C_PATH} host_ip_change_detector.hpp)
+        ${VERSION_C_PATH})
 
 add_definitions(
         -D__librml__tmp_fstream__constructor_private__
