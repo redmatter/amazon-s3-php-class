@@ -22,6 +22,8 @@ namespace error
 
 enum enum_t
 {
+    cannot_resolve,
+
     bad_handshake,
     bad_protocol_version,
 
@@ -50,6 +52,8 @@ public:
     std::string message(int ev) const
     {
         switch (static_cast<enum_t>(ev)) {
+        case cannot_resolve:
+            return "cannot resolve";
         case bad_handshake:
             return "bad handshake";
         case bad_protocol_version:

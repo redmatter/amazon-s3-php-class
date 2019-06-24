@@ -53,7 +53,6 @@ struct connection
     ip::tcp::socket socket;
 
     boost::system::error_code fault;
-    boost::chrono::steady_clock::time_point last_activity_time;
     boost::chrono::steady_clock::time_point last_send_file_time;
 
     connection(boost::asio::io_service& io_service, const ip::address& addr, unsigned short port) :
@@ -71,12 +70,6 @@ struct connection
     bool no_puts_for(const boost::chrono::duration<Rep, Period>& duration) const
     {
         return (last_send_file_time + duration) < boost::chrono::steady_clock::now();
-    }
-
-    template<class Rep, class Period>
-    bool is_inactive_for(const boost::chrono::duration<Rep, Period>& duration) const
-    {
-        return (last_activity_time + duration) < boost::chrono::steady_clock::now();
     }
 
     bool is_faulty() const
@@ -111,7 +104,6 @@ struct connection
         }
 
         id = boost::str(boost::format("%1% (%2%)") % socket.local_endpoint().port() % addr);
-        last_activity_time = boost::chrono::steady_clock::now();
 
         do_handshake(ec);
     }
