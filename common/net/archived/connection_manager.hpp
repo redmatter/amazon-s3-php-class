@@ -74,22 +74,6 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
 
     boost::atomic_uint32_t active_ip_address;
 
-    uint32_t
-    get_active_ip_address()
-    {
-        uint32_t ip;
-        while (true) {
-            ip = active_ip_address.load();
-            if (ip != 0) {
-                break;
-            }
-
-            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-        }
-
-        return ip;
-    }
-
     void
     update_active_ip_address(boost::system::error_code& ec)
     {
@@ -157,7 +141,9 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
     get_connection_pool(uint32_t addr, boost::system::error_code& ec)
     {
         if (addr == 0) {
-            addr = get_active_ip_address();
+            // TODO .. any error would do here, but any confusion should be avoided
+            ec = boost::system::posix::make_error_code(boost::system::posix::invalid_argument);
+            return boost::shared_ptr<connection_pool>();
         }
 
         return pool_map.get_pool(addr, ec);
@@ -180,6 +166,22 @@ public:
         io_service.post(boost::bind(
                 &connection_manager::scheduled_nop_to_connections, shared_from_this(),
                 boost::system::error_code(), boost::make_shared<timer_type>(io_service)));
+    }
+
+    uint32_t
+    get_active_ip_address()
+    {
+        uint32_t ip;
+        while (true) {
+            ip = active_ip_address.load();
+            if (ip != 0) {
+                break;
+            }
+
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+        }
+
+        return ip;
     }
 
     boost::shared_ptr<connection>

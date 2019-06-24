@@ -29,6 +29,7 @@
 
 #include <uuid/uuid.h>
 #include <time.h>
+#include <archivable/group.hpp>
 
 namespace {
 
@@ -150,6 +151,8 @@ class cdr_inspector : public boost::noncopyable
 	bool orgs_enabled_all_;
 
 	const std::string& pbx_hostname_;
+
+	common::archivable::group_ip_cache& group_ip_cache_;
 
 	struct leg
 	{
@@ -348,6 +351,9 @@ public:
 
 					// aliasing it to make the code more readable
 					archiving::archivable::pointer archivable_cdr = p_archivable;
+
+					// add a stub entry for the CDR
+					group_ip_cache_.add(archivable_cdr->get_uuid(), 0);
 
 					// inspect and cleanup CDR
 					{

@@ -10,12 +10,11 @@ set(HEADER_FILES
         database_sqlite.hpp
         cdr_inspector.hpp
         cdr_dir_monitor.hpp
-#        pre.h
         archivable/queue.hpp
         archivable/catalogue.hpp
         archivable/utils.hpp
         archivable/error.hpp
-        )
+        net/archived_client.hpp)
 
 include_directories(
         /usr/include/cpp-netlib
