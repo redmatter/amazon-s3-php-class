@@ -27,24 +27,6 @@
 #include <time.h>
 #include <stdio.h>
 
-namespace {
-
-template < typename ByteArray >
-void bytes_from_string(const std::string& str, ByteArray& bytes)
-{
-	byte* buf(bytes.c_array());
-	size_t skip(0);
-	for(size_t i = 0; i < std::min<size_t>(str.length()/2, ByteArray::size()); i++) {
-		skip += ((str[skip + i * 2] == '-')? 1: 0);
-		if(1 != sscanf(&str[skip + i * 2], "%2hhx", &buf[i])) {
-			LogWarning("Invalid character found at "<<(i*2));
-			throw rml::exception("Invalid character found");
-		}
-	}
-}
-
-} // namespace
-
 namespace app {
 
 namespace database {
@@ -172,6 +154,73 @@ public:
 		LogError("save_run failed; exception:unknown");
 	}
 
+    inline archiving::archived_ip_t
+    put_group_get_archived_ip(const archiving::put_group_id_t& group_id) try
+    {
+        sqlite::work txn(p_pool_);
+
+        sqlite::query::pointer p_query(
+                txn.query("SELECT `ArchivedIP` FROM `PutGroup` WHERE `ID`=:ID LIMIT 1"));
+        const sqlite::result& res(p_query->prepare()
+                                          ->bind(sqlite::types::blob(group_id), ":ID")
+                                          ->execute());
+        return res ? res[0].as_int() : 0;
+    } catch (const sqlite::exception& e) {
+        LogError("failed to get IP; using default. exception:" << e);
+        return 0;
+    } catch (const std::exception& e) {
+        LogError("failed to get IP; using default. exception:" << e.what());
+        return 0;
+    }
+
+    inline void
+    put_group_set_archived_ip(const archiving::put_group_id_t& group_id, const archiving::archived_ip_t& archived_ip) try
+    {
+        sqlite::work txn(p_pool_, sqlite::work::mode::immediate,
+                         sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
+        sqlite::query::pointer p_query(txn.query(
+                "WITH new (`ID`, `ArchivedIP`, `RefCount`, `Done`) "
+                "  AS ( VALUES(:ID, :ArchivedIP, 1, 0) ) "
+                "INSERT OR REPLACE INTO `PutGroup` (`ID`, `ArchivedIP`, `RefCount`, `Done`) "
+                "  SELECT old.`ID`, new.`ArchivedIP`, new.`RefCount` + old.`RefCount`, new.`Done` "
+                "    FROM new LEFT JOIN `PutGroup` AS old ON new.`ID` = old.`ID`"));
+        p_query->prepare()
+                ->bind(group_id, ":ID")
+                ->bind(archived_ip, ":ArchivedIP")
+                ->execute();
+        txn.commit();
+    } catch (const sqlite::exception& e) {
+        LogError("failed to add/set-ip put-group. exception:" << e);
+    } catch (const std::exception& e) {
+        LogError("failed to add/set-ip put-group. exception:" << e.what());
+    }
+
+    inline void
+    put_group_add(const archiving::put_group_id_t& group_id)
+    {
+        put_group_set_archived_ip(group_id, 0);
+    }
+
+    inline void
+    put_group_decrement_ref_count(const archiving::put_group_id_t& group_id) try
+    {
+        sqlite::work txn(p_pool_, sqlite::work::mode::immediate,
+                         sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
+        sqlite::query::pointer p_query(txn.query(
+                "UPDATE `PutGroup` "
+                "  SET `RefCount` = `RefCount` - 1, "
+                "    `Done` = CASE WHEN `RefCount` <= 0 THEN 1 ELSE 0 END "
+                "  WHERE `ID`=:ID AND `RefCount` > 0"));
+        p_query->prepare()
+                ->bind(group_id, ":ID")
+                ->execute();
+        txn.commit();
+    } catch (const sqlite::exception& e) {
+        LogError("failed to update put-group ref-count. exception:" << e);
+    } catch (const std::exception& e) {
+        LogError("failed to update put-group ref-count. exception:" << e.what());
+    }
+
 private:
 	inline void save_all() try
 	{
@@ -287,10 +336,10 @@ private:
 			}
 
 			archiving::uuid_t uuid;
-			bytes_from_string(p_arc->get_uuid(), uuid);
+			archiving::string_to_uuid(p_arc->get_uuid(), uuid);
 
 			archiving::uuid_t originator_uuid;
-			bytes_from_string(p_arc->get_originator_uuid(), originator_uuid);
+            archiving::string_to_uuid(p_arc->get_originator_uuid(), originator_uuid);
 
 			archiving::uuid_t leg_uuid;
 
@@ -321,7 +370,7 @@ private:
 			if (str_leg_uuid.empty()) {
 				p_query->bind(sqlite::null, ":LegUUID");
 			} else {
-				bytes_from_string(str_leg_uuid, leg_uuid);
+                archiving::string_to_uuid(str_leg_uuid, leg_uuid);
 				p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
 			}
 
@@ -353,7 +402,7 @@ public:
 			archiving::archivable& arc(*p_arc);
 
 			archiving::uuid_t uuid;
-			bytes_from_string(arc.get_uuid(), uuid);
+            archiving::string_to_uuid(arc.get_uuid(), uuid);
 
 			sqlite::work txn(p_pool_);
 
@@ -607,7 +656,7 @@ public:
 	archiving::archivable::pointer load_archivable_by_uuid(const std::string &uuid)
 	{
 		archiving::uuid_t uuid_bin;
-		bytes_from_string(uuid, uuid_bin);
+        archiving::string_to_uuid(uuid, uuid_bin);
 
 		return load_archivable_by_key_value<sqlite::types::blob>("UUID", sqlite::types::blob(uuid_bin));
 	}
