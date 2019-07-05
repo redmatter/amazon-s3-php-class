@@ -49,7 +49,7 @@ include ../external/Makefile.cpp-netlib
 include ../libs/Makefile.rml
 
 ../external/sqlite/include/sqlite3.h:
-	@$(MAKE) -C ../external sqlite
+	$(MAKE) -C ../external sqlite
 #
 #clean_extra:
 #	@$(MAKE) -C ../external clean

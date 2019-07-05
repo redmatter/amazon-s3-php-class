@@ -17,6 +17,7 @@
 #include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace common
 {
@@ -46,7 +47,7 @@ make_connection_pool(
     }
 
     return boost::make_shared<connection_pool>(
-            io_service,
+            boost::ref(io_service),
             ip_addr, boost::lexical_cast<unsigned short>(archived_port),
             pool_min_size, pool_max_size);
 }
@@ -122,19 +123,39 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
         }
 
         timer->async_wait(
-                boost::bind(&connection_manager::scheduled_update_active_ip_address, shared_from_this(), _1, timer));
+                boost::bind(&connection_manager::scheduled_update_active_ip_address, shared_from_this(),
+                        boost::asio::placeholders::error, timer));
     }
 
     static void
-    send_nop_to_pool(uint32_t, boost::shared_ptr<connection_pool>& pool)
+    send_nop_to_pool(uint32_t ip, boost::shared_ptr<connection_pool>& pool)
     {
+        boost::system::error_code ec;
+        LogMessage(utils::uint32_to_ip(ip, ec) << " sending NOPs to inactive connections in pool");
         pool->send_nop_to_connections();
     }
 
     void
     scheduled_nop_to_connections(const boost::system::error_code& ec, const boost::shared_ptr<timer_type>& timer)
     {
-        pool_map.for_each(boost::bind(connection_manager::send_nop_to_pool, _1, _2));
+        // timer was cancelled (during shutdown)
+        if (ec == boost::asio::error::operation_aborted) {
+            return;
+        }
+
+        pool_map.for_each(
+                boost::bind(connection_manager::send_nop_to_pool, _1, _2));
+
+        boost::system::error_code err;
+        timer->expires_from_now(boost::chrono::seconds(10), err);
+        if (err) {
+            LogError("failed to schedule NOPs for inactive connections");
+            return;
+        }
+
+        timer->async_wait(
+                boost::bind(&connection_manager::scheduled_nop_to_connections, shared_from_this(),
+                            boost::asio::placeholders::error, timer));
     }
 
     boost::shared_ptr<connection_pool>
@@ -150,6 +171,20 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
     }
 
 public:
+    static void describe_config(boost::program_options::options_description& optsDesc)
+    {
+        optsDesc.add_options()
+                ("archived_client.server_port",
+                 boost::program_options::value<std::string>()->default_value(ARCHIVED_LISTEN_PORT),
+                 "ArchiveD listen port")
+                ("archived_client.server_host",
+                 boost::program_options::value<std::string>()->default_value("archived.redmatter.com"),
+                 "ArchiveD host name")
+                ("archived_connection_pool.max_connections",
+                 boost::program_options::value<std::size_t>()->default_value(4),
+                 "max number of connections to ArchiveD");
+    }
+
     connection_manager(boost::asio::io_service& io_service,
                        const std::string& archived_host, const std::string& archived_port,
                        std::size_t pool_min_size, std::size_t pool_max_size) :
@@ -159,22 +194,27 @@ public:
             pool_min_size(pool_min_size), pool_max_size(pool_max_size),
             io_service(io_service), resolver(io_service),
             active_ip_address(0)
-    {
-        io_service.post(boost::bind(
-                &connection_manager::scheduled_update_active_ip_address, shared_from_this(),
-                boost::system::error_code(), boost::make_shared<timer_type>(io_service)));
-        io_service.post(boost::bind(
-                &connection_manager::scheduled_nop_to_connections, shared_from_this(),
-                boost::system::error_code(), boost::make_shared<timer_type>(io_service)));
-    }
+    {}
 
+    template<class Rep, class Period>
     uint32_t
-    get_active_ip_address()
+    get_active_ip_address(boost::system::error_code& ec,
+                          const boost::chrono::duration<Rep, Period>& timeout = boost::chrono::duration<Rep, Period>())
     {
+        const boost::chrono::steady_clock::time_point start_time(boost::chrono::steady_clock::now());
+
         uint32_t ip;
         while (true) {
             ip = active_ip_address.load();
             if (ip != 0) {
+                break;
+            }
+
+            // if no timeout given (i.e zero value)
+            if (timeout.count() != 0 
+                && start_time + timeout < boost::chrono::steady_clock::now()) {
+
+                ec.assign(boost::system::errc::timed_out, boost::system::get_system_category());
                 break;
             }
 
@@ -184,6 +224,13 @@ public:
         return ip;
     }
 
+    /**
+     * @brief Get the connection object
+     * 
+     * @param addr 
+     * @param ec 
+     * @return boost::shared_ptr<connection> 
+     */
     boost::shared_ptr<connection>
     get_connection(uint32_t addr, boost::system::error_code& ec)
     {
@@ -193,6 +240,47 @@ public:
         }
 
         return pool->grab_wait(ec);
+    }
+
+    /**
+     * @brief Get the pool level; how full are we?
+     * 
+     * @param ec 
+     * @return float 
+     */
+    float
+    get_pool_level(boost::system::error_code& ec)
+    {
+        uint32_t archived_ip = get_active_ip_address(ec, boost::chrono::seconds(1));
+        if (ec) {
+            return 0.0;
+        }
+
+        boost::shared_ptr<connection_pool> pool = get_connection_pool(archived_ip, ec);
+        if (ec) {
+            return 0.0;
+        }
+
+        float max_size = static_cast<float>(pool->max_size());
+        if (max_size < 1) {
+            return 0.0;
+        }
+
+        float size = static_cast<float>(
+            std::max<std::size_t>(pool->size(), 1));
+
+        return size / max_size;
+    }
+
+    void
+    start()
+    {
+        io_service.post(boost::bind(
+                &connection_manager::scheduled_update_active_ip_address, shared_from_this(),
+                boost::system::error_code(), boost::make_shared<timer_type>(boost::ref(io_service))));
+        io_service.post(boost::bind(
+                &connection_manager::scheduled_nop_to_connections, shared_from_this(),
+                boost::system::error_code(), boost::make_shared<timer_type>(boost::ref(io_service))));
     }
 
     void shutdown()

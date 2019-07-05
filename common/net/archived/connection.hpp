@@ -61,6 +61,11 @@ struct connection
             io_service(io_service), strand(io_service), timer(io_service), socket(io_service)
     {}
 
+    ~connection()
+    {
+        LogVerbose(*this << " destroyed");
+    }
+
     bool is_ok() const
     {
         return socket.is_open();
@@ -88,8 +93,11 @@ struct connection
         LogVerbose(*this << " Connecting to " << ep);
         socket.connect(ep, ec);
         if (ec) {
+            DevDebug(*this << " Connect failed " << ec.message());
             return;
         }
+
+        LogVerbose(*this << " Connected; handshake in progress");
 
         boost::asio::socket_base::send_buffer_size send_buffer_size_option(8 * 1024);
         socket.set_option(send_buffer_size_option, ec);
@@ -106,9 +114,18 @@ struct connection
         id = boost::str(boost::format("%1% (%2%)") % socket.local_endpoint().port() % addr);
 
         do_handshake(ec);
+
+        LogVerbose(*this << " Connected; handshake OK");
     }
 
 private:
+    static const boost::regex&
+    greeting_regex()
+    {
+        static const boost::regex re("^ArchiveD v(\\d+\\.\\d+\\.\\d+) protocol (\\d+\\.\\d+)\\r");
+        return re;
+    }
+
     void receive_and_check_archived_greeting(boost::system::error_code& ec)
     {
         // ArchiveD greeting
@@ -126,9 +143,8 @@ private:
             return;
         }
 
-        boost::regex e("^ArchiveD v(\\d+\\.\\d+\\.\\d+) protocol (\\d+\\.\\d+)\\r");
         boost::smatch what;
-        if (!boost::regex_match(line, what, e, boost::match_extra)) {
+        if (!boost::regex_match(line, what, greeting_regex(), boost::match_extra)) {
             LogVerbose(*this << " invalid handshake from server");
             ec = error::make_error_code(error::bad_handshake);
             return;

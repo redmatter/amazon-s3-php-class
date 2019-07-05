@@ -17,6 +17,7 @@
 #include <cryptopp/hex.h>
 
 #include <boost/array.hpp>
+#include <boost/algorithm/hex.hpp>
 
 #include <stdint.h>
 
@@ -53,6 +54,20 @@ string_to_uuid(const std::string& str, uuid_t& uuid)
     }
 }
 
+inline void
+uuid_to_hex_string(const uuid_t& uuid, std::string& str)
+{
+    boost::algorithm::hex(uuid.begin(), uuid.end(), std::back_inserter(str));
+}
+
+
+inline std::string
+uuid_to_hex_string(const uuid_t& uuid)
+{
+    std::string str;
+    uuid_to_hex_string(uuid, str);
+    return str;
+}
 
 /**
  * Types of files we deal with

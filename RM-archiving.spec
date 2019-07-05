@@ -40,6 +40,7 @@ BuildRequires: cmake
 BuildRequires: openssl-devel
 BuildRequires: zlib-devel
 BuildRequires: autoconf, libtool
+BuildRequires: readline-devel
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform

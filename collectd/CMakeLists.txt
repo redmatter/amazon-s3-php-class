@@ -18,7 +18,6 @@ set(HEADER_FILES
 
 include_directories(
         /usr/include/cpp-netlib
-        ${SQLITE3_INCLUDE_DIRS}
         ${rml-queue_SOURCE_DIR}
         ${rml_SOURCE_DIR}/..
         ../common
@@ -26,6 +25,10 @@ include_directories(
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+set( ENV{PKG_CONFIG_PATH} "${CMAKE_SOURCE_DIR}/external/sqlite/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+pkg_check_modules(SQLITE3 REQUIRED sqlite3)
 
 add_definitions(
         -Dinline_=
@@ -46,11 +49,13 @@ target_link_libraries(rmcollectd.bin
         pugixml
         cryptopp
         uuid
-        sqlite3
+        ${SQLITE3_LIBRARIES}
 
         rt
         Threads::Threads
         ${Boost_LIBRARIES}
 )
+target_include_directories(rmcollectd.bin PUBLIC ${SQLITE3_INCLUDE_DIRS})
+target_compile_options(rmcollectd.bin PUBLIC ${SQLITE3_CFLAGS_OTHER})
 
 add_subdirectory(tests)

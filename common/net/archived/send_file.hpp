@@ -38,8 +38,6 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         session->post_error(conn->io_service, ec);
     }
 
-    conn->last_activity_time = boost::chrono::steady_clock::now();
-
     switch (session->state) {
     case detail::put_state::init: {
         session->state = detail::put_state::init_ack_waiting;
@@ -59,13 +57,14 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
             return;
         }
 
+        DevDebug(*conn << ' ' << *session << " PUT (init) ACK [" << line << "]");
+
         // if we have an ERR (line does not start with "OK PUT ")
         if (line.compare(0, 7, "OK PUT ") != 0) {
             // here we have an error response from ArchiveD
             // "ERR PUT <type> <org-id> <uuid> <error-message>\r\n"
             boost::iterator_range<std::string::iterator> r = boost::find_nth(line, " ", 4);
-            std::string message(line, distance(line.begin(), r.end()),
-                                line.length() - distance(line.begin(), r.end()) - 2);
+            std::string message(line, std::distance(line.begin(), r.end()), std::distance(r.end(), line.end()) - 1);
             LogWarning(*conn << ' ' << *session << " (PUT) negative ACK from ArchiveD; err:" << message);
             conn->fault = error::make_error_code(error::put_initialisation_ack_negative);
             session->post_error(conn->io_service, conn->fault);
@@ -140,13 +139,14 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
             return;
         }
 
+        DevDebug(*conn << ' ' << *session << " PUT (file-sent) ACK [" << line << "]");
+
         // if we have an ERR (line does not start with "OK RECV ")
         if (line.compare(0, 8, "OK RECV ") != 0) {
             // here we have an error response from ArchiveD
             // "ERR RECV <type> <org-id> <uuid> <error-message>\r\n"
             boost::iterator_range<std::string::iterator> r = boost::find_nth(line, " ", 4);
-            std::string message(line, distance(line.begin(), r.end()),
-                                line.length() - distance(line.begin(), r.end()) - 2);
+            std::string message(line, std::distance(line.begin(), r.end()), std::distance(r.end(), line.end()) - 1);
             LogWarning(*conn << ' ' << *session << " (RECV) negative ACK from ArchiveD; err:" << message);
             session->post_error(conn->io_service, error::put_send_file_failure_ack_negative);
             return;
@@ -170,14 +170,15 @@ void send_file(const boost::shared_ptr<connection>& conn,
                const boost::shared_ptr<archiving::archivable>& file,
                const boost::function<void(boost::system::error_code& ec)>& done_callback)
 {
-    conn->last_send_file_time = boost::chrono::steady_clock::now();
-
     std::ostream ostr(&conn->send_buffer);
     if (!file->inject_put_request(ostr)) {
         conn->io_service.post(
                 boost::bind(boost::protect(done_callback), error::make_error_code(error::put_initialisation_failed)));
         return;
     }
+
+    // todo move update to last_send_file_time to the end of transfer
+    conn->last_send_file_time = boost::chrono::steady_clock::now();
 
     boost::shared_ptr<detail::put_file_session> pfs =
             boost::make_shared<detail::put_file_session>(file, done_callback);

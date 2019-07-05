@@ -51,7 +51,7 @@ class ip_pool_map
     std::size_t
     get_index(const uint32_t ip) const
     {
-        std::size_t i = insertion_point.load();
+        std::size_t i = insertion_point;
         while (i > 0) {
             if (ips[i - 1] == ip) {
                 return i - 1;

@@ -9,45 +9,37 @@
 #ifndef ARCHIVING_COMMON_ARCHIVABLE_GROUP_HPP
 #define ARCHIVING_COMMON_ARCHIVABLE_GROUP_HPP
 
+#include "../types.hpp"
+
 #include <boost/function.hpp>
 #include <boost/thread/mutex.hpp>
-#include <boost/uuid/uuid.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/unordered_map.hpp>
-
-#include <map>
-
-#include <stdint.h>
 
 namespace common
 {
 namespace archivable
 {
 
-typedef boost::uuids::uuid group_id_t;
-typedef uint32_t ip_t;
-
 struct cached_ip
 {
     boost::chrono::steady_clock::time_point expires_at;
-    ip_t ip;
+    archiving::archived_ip_t ip;
 
     template<class Rep, class Period>
-    explicit cached_ip(ip_t ip, boost::chrono::duration<Rep, Period>& ttl) :
+    explicit cached_ip(archiving::archived_ip_t ip, boost::chrono::duration<Rep, Period>& ttl) :
             expires_at(boost::chrono::steady_clock::now() + ttl), ip(ip)
     {}
 };
 
 class group_ip_cache
 {
-//    typedef std::map<group_id_t, cached_ip> map_type;
-    typedef boost::unordered_map<group_id_t, cached_ip> map_type;
+    typedef boost::unordered_map<archiving::put_group_id_t, cached_ip> map_type;
 
     // load-callback - called to load a group (load from database)
-    typedef boost::function<ip_t(group_id_t)> load_callback_type;
+    typedef boost::function<archiving::archived_ip_t(archiving::put_group_id_t)> load_callback_type;
 
     // on-add-callback - called when a new group is added (to save to database)
-    typedef boost::function<void(const group_id_t&, ip_t)> on_add_callback_type;
+    typedef boost::function<void(const archiving::put_group_id_t&, archiving::archived_ip_t)> on_add_callback_type;
 
     boost::mutex mutex;
     map_type m;
@@ -62,19 +54,22 @@ public:
             load_callback(load_callback), on_add_callback(on_add_callback), ttl(ttl)
     {}
 
-    void add(const std::string& leg_uuid, ip_t ip)
+    void add(const std::string& leg_uuid, archiving::archived_ip_t ip)
     {
-        add(boost::lexical_cast<group_id_t>(leg_uuid), ip);
+        archiving::put_group_id_t group_id;
+        archiving::string_to_uuid(leg_uuid, group_id);
+
+        add(group_id, ip);
     }
 
-    void add(const group_id_t& g, ip_t ip)
+    void add(const archiving::put_group_id_t& g, archiving::archived_ip_t ip)
     {
         boost::unique_lock<boost::mutex> lock;
         cached_ip cip(ip, ttl);
 
         // insert the cached-ip
         std::pair<map_type::iterator, bool> res =
-                m.insert(std::make_pair<group_id_t, cached_ip>(g, cip));
+                m.insert(std::make_pair<archiving::put_group_id_t, cached_ip>(g, cip));
 
         // a new addition with 0 value for IP? We dont want to hit database with that; no value.
         // Also; we never expect the IP in cache to reset to zero.
@@ -95,12 +90,18 @@ public:
         }
     }
 
-    ip_t get(const std::string& leg_uuid)
+    archiving::archived_ip_t get(const std::string& leg_uuid) try
     {
-        return get(boost::lexical_cast<group_id_t>(leg_uuid));
+        archiving::put_group_id_t g;
+        archiving::string_to_uuid(leg_uuid, g);
+
+        return get(g);
+    } catch (const std::exception& e) {
+        LogWarning("Invalid leg-uuid " << leg_uuid << "; error:" << e.what());
+        return 0;
     }
 
-    ip_t get(const group_id_t& g)
+    archiving::archived_ip_t get(const archiving::put_group_id_t& g)
     {
         boost::unique_lock<boost::mutex> lock;
         map_type::iterator itr = m.find(g);
@@ -108,9 +109,9 @@ public:
             return itr->second.ip;
         }
 
-        ip_t ip = load_callback(g);
+        archiving::archived_ip_t ip = load_callback(g);
         if (ip != 0) {
-            m.insert(std::make_pair<group_id_t, cached_ip>(g, cached_ip(ip, ttl)));
+            m.insert(std::make_pair<archiving::put_group_id_t, cached_ip>(g, cached_ip(ip, ttl)));
         }
 
         return ip;

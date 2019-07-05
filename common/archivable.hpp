@@ -625,12 +625,12 @@ public:
 		return owners_.orgID;
 	}
 
-	inline std::pair< std::string, std::string > get_paths() const
+	inline std::pair<const std::string&, std::string> get_paths() const
 	{
 		if(is_modified_)
-			return std::make_pair<std::string, std::string>(file_path_, p_fstream_->get_filename());
+			return std::make_pair<const std::string&, std::string>(file_path_, p_fstream_->get_filename());
 
-		return std::make_pair<std::string, std::string>(file_path_, "");
+		return std::make_pair<const std::string&, std::string>(file_path_, std::string());
 	}
 
 	/**

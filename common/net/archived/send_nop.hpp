@@ -40,7 +40,23 @@ void send_nop(const boost::shared_ptr<connection>& conn, boost::system::error_co
         return;
     }
 
-    conn->last_activity_time = boost::chrono::steady_clock::now();
+    std::string line;
+    std::istream istr(&conn->recv_buffer);
+
+    // if we can't get the response line from buffer
+    if (!std::getline(istr, line)) {
+        LogMessage(*conn << " no ack received for NOP");
+        conn->fault = error::make_error_code(error::nop_ack_not_received);
+        ec = conn->fault;
+        return;
+    }
+
+    DevDebug(*conn << " NOP ACK [" << line << "]");
+
+    if (line.compare(0, 2, "OK") != 0) {
+        conn->fault = error::make_error_code(error::put_send_file_failure_ack_not_received);
+        ec = conn->fault;
+    }
 }
 
 } // namespace archived

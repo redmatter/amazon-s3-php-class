@@ -49,6 +49,8 @@ std::ostream& operator<<(std::ostream& os, const put_state::enum_t e)
     case put_state::done:
         return os << "done";
     }
+
+    return os << "<unknown>";
 }
 
 } // namespace detail

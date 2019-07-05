@@ -35,7 +35,10 @@ enum enum_t
     put_send_file_failure_reading_file,
     put_send_file_failure_ack_not_received,
     put_send_file_failure_ack_negative,
-    put_send_file_failure_general
+    put_send_file_failure_general,
+
+    nop_ack_not_received,
+    nop_ack_negative
 };
 
 namespace detail
@@ -74,6 +77,10 @@ public:
             return "put send-file failed (no ACK received)";
         case put_send_file_failure_ack_negative:
             return "put send-file failed (Negative ACK)";
+        case nop_ack_not_received:
+            return "nop failed (no ACK received)";
+        case nop_ack_negative:
+            return "nop failed (Negative ACK)";
         }
 
         return "common.net error";

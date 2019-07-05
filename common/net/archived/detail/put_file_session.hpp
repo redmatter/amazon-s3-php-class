@@ -9,7 +9,7 @@
 #ifndef ARCHIVING_COMMON_NET_ARCHIVED_PUT_FILE_HPP
 #define ARCHIVING_COMMON_NET_ARCHIVED_PUT_FILE_HPP
 
-#include "../../archivable.hpp"
+#include "../../../archivable.hpp"
 #include "put_state.hpp"
 
 #include <boost/shared_ptr.hpp>

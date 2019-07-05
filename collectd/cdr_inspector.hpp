@@ -29,7 +29,6 @@
 
 #include <uuid/uuid.h>
 #include <time.h>
-#include <archivable/group.hpp>
 
 namespace {
 
@@ -144,6 +143,7 @@ class cdr_inspector : public boost::noncopyable
 	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
 	const common::collectd::fn_is_in_catalogue_type &fn_is_in_catalogue_;
 	const common::collectd::fn_save_to_database_type &fn_save_to_database_;
+    const common::collectd::fn_add_put_group_type &fn_add_put_group_;
 
 	const boost::program_options::variables_map& confMap;
 
@@ -151,8 +151,6 @@ class cdr_inspector : public boost::noncopyable
 	bool orgs_enabled_all_;
 
 	const std::string& pbx_hostname_;
-
-	common::archivable::group_ip_cache& group_ip_cache_;
 
 	struct leg
 	{
@@ -193,16 +191,18 @@ public:
 	 * @param pbx_hostname
 	 */
 	cdr_inspector(
-			const common::collectd::fn_consume_type &fn_in_queue_consume,
-			const common::collectd::fn_produce_type &fn_out_queue_produce,
+			const common::collectd::fn_consume_type& fn_in_queue_consume,
+			const common::collectd::fn_produce_type& fn_out_queue_produce,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_is_in_catalogue_type& fn_is_in_catalogue,
-			const common::collectd::fn_save_to_database_type &fn_save_to_database,
-			const boost::program_options::variables_map &confMap,
-			const std::string &pbx_hostname) :
+			const common::collectd::fn_save_to_database_type& fn_save_to_database,
+            const common::collectd::fn_add_put_group_type& fn_add_put_group,
+			const boost::program_options::variables_map& confMap,
+			const std::string& pbx_hostname) :
 			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
 			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
-			fn_save_to_database_(fn_save_to_database), confMap(confMap), pbx_hostname_(pbx_hostname)
+			fn_save_to_database_(fn_save_to_database), fn_add_put_group_(fn_add_put_group),
+			confMap(confMap), pbx_hostname_(pbx_hostname)
 	{
 		if(confMap.count("cdr_handler.archiving_enabled_orgs")) {
 			const std::string& orgs_enabled(confMap["cdr_handler.archiving_enabled_orgs"].as<std::string>());
@@ -274,6 +274,9 @@ public:
 				try {
 					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false);
 					LogVerbose(*p_archivable<<" from channel");
+
+					archiving::put_group_id_t put_group_id;
+					archiving::string_to_uuid(p_archivable->get_uuid(), put_group_id);
 
 					const archiving::file_type::file_type_t&  archivable_file_type(p_archivable->get_type());
 
@@ -351,9 +354,6 @@ public:
 
 					// aliasing it to make the code more readable
 					archiving::archivable::pointer archivable_cdr = p_archivable;
-
-					// add a stub entry for the CDR
-					group_ip_cache_.add(archivable_cdr->get_uuid(), 0);
 
 					// inspect and cleanup CDR
 					{
@@ -628,6 +628,7 @@ public:
 											throw rml::exception("Quit flagged during database retry");
 									}
 									archivable_cbr->hibernate();
+									fn_add_put_group_(put_group_id);
 									fn_out_queue_produce_(archivable_cbr, true);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
@@ -746,6 +747,7 @@ public:
 										}
 
 										if (archivable_recording) {
+											fn_add_put_group_(put_group_id);
 											fn_out_queue_produce_(archivable_recording, true);
 										}
 									}
@@ -814,6 +816,7 @@ public:
 								}
 
 								if (archivable_recording) {
+									fn_add_put_group_(put_group_id);
 									fn_out_queue_produce_(archivable_recording, true);
 								}
 							}
@@ -859,6 +862,7 @@ public:
 						}
 
 						archivable_cdr->hibernate();
+                        fn_add_put_group_(put_group_id);
 						fn_out_queue_produce_(archivable_cdr, false);
 					}
 				}

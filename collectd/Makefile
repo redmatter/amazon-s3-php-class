@@ -18,14 +18,11 @@ endif
 
 TARGET=collectd
 
-TARGET_DEPS=../common/$(TMP)/libarchiving_common.a \
-	../external/sqlite/lib/libsqlite3.a
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
 RML_LOG_SOURCE_LOCATION=YES
 
-# Always DATABASE_SQLITE=YES
-CXX_INCLUDES += -I ../external/sqlite/include
-LIBS += -L ../external/sqlite/lib -lsqlite3 -ldl
+# LIBS += -ldl
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
 CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
@@ -33,6 +30,7 @@ endif
 
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+CPPFLAGS += -DRML_CONFIG_ENABLE_HAPI
 CPPFLAGS += -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
 
 DEFAULT_APP_NAME=rm$(TARGET)
@@ -72,12 +70,10 @@ C_SRCS += \
 include ../libs/rml/rml/Makefile.rules
 include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+include ../external/Makefile.sqlite
 
 include ../libs/Makefile.rml
 include ../libs/Makefile.rml-queue
-
-../external/sqlite/lib/libsqlite3.a:
-	@$(MAKE) -C ../external sqlite
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES
