@@ -14,6 +14,7 @@
 
 #include <rml/version.h>
 #include <rml/logger.hpp>
+#include <rml/pool/item_traits.hpp>
 
 #include <boost/asio/streambuf.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -23,6 +24,19 @@
 #include <boost/regex.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/format.hpp>
+
+namespace common { namespace net { namespace archived { struct connection; }}}
+namespace rml
+{
+namespace pool
+{
+
+template<>
+struct has_is_faulty<common::net::archived::connection> : boost::true_type
+{};
+
+}
+}
 
 namespace common
 {
@@ -69,6 +83,21 @@ struct connection
     bool is_ok() const
     {
         return socket.is_open();
+    }
+
+    /**
+     * Invoked by the pool when a connection returns to the poll, to figure out if it is faulty.
+     * Hooked via has_is_faulty (see begining of this file).
+     * @return
+     */
+    inline bool
+    is_faulty()
+    {
+        if (!socket.is_open()) {
+            return true;
+        }
+
+        return fault;
     }
 
     template<class Rep, class Period>

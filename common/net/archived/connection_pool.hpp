@@ -55,11 +55,14 @@ class connection_pool : public rml::pool::locking_fifo_pool<connection>
             c->start(ec);
 
             if (ec) {
-                throw std::runtime_error(ec.message());
+                throw boost::system::system_error(ec);
             }
 
             return c;
         } catch (...) {
+            // todo replace the sleep here with a better logic; ideally a circuit-breaker
+            boost::this_thread::sleep_for(boost::chrono::seconds(2));
+
             delete c;
             throw;
         }

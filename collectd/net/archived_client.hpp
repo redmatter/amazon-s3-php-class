@@ -14,6 +14,7 @@
 #include "../../common/net/archived/send_file.hpp"
 
 #include <rml/logger.hpp>
+#include <rml/sentry.h>
 
 #include <boost/bind.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -68,7 +69,7 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
         }
     }
 
-    void send_file_finished(const boost::shared_ptr<archiving::archivable>& archivable, const boost::system::error_code& ec)
+    void send_file_finished(const boost::shared_ptr<archiving::archivable>& archivable, const boost::system::error_code& ec) try
     {
         archivable->hibernate();
 
@@ -88,6 +89,8 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
 
         LogMessage(archivable << " finished with error:" << ec.message());
         fn_produce(archivable, false /* already in catalogue */);
+    } catch (const std::exception& e) {
+        LogWarning(archivable << ' ' << e.what());
     }
 
 public:
@@ -114,14 +117,20 @@ public:
             shutting_down(false)
     {}
 
+    void requeue_archivable(const boost::shared_ptr<archiving::archivable>& archivable) try
+    {
+        fn_produce(archivable, false);
+    } catch (const std::exception& e) {
+        LogError(archivable << " : failed to setup retry" << e.what());
+    }
+
     void run()
     {
-        while (!shutting_down) {
-            boost::shared_ptr<archiving::archivable> archivable;
-            try {
-                archivable.reset();
+        LogMessage("archived_client scheduler thread starting");
 
-                archivable = fn_consume(
+        while (!shutting_down) {
+            try {
+                boost::shared_ptr<archiving::archivable> archivable = fn_consume(
                         false, boost::chrono::milliseconds(10000),
                         // on consume-timeout, send NOP or reconnect if connection has gone away
                         boost::protect(boost::bind(&archived_client::consume_timeout, shared_from_this())),
@@ -139,6 +148,10 @@ public:
                     continue;
                 }
 
+                // make sure we don't let it fall through the cracks; if we don't succeed, item goes back into the queue.
+                rml::sentry archivable_sentry(
+                    boost::bind(&archived_client::requeue_archivable, shared_from_this(), archivable));
+
                 boost::system::error_code ec;
 
                 const archiving::put_group_id_t& put_group_id(get_put_group_id(archivable));
@@ -146,14 +159,14 @@ public:
                 if (ip == 0) {
                     ip = connection_manager->get_active_ip_address(ec, boost::chrono::seconds(1));
                     if (ec) {
-                        throw std::runtime_error(ec.message());
+                        throw boost::system::system_error(ec);
                     }
                 }
 
                 LogVerbose(archivable<<" grabbing connection");
                 boost::shared_ptr<common::net::archived::connection> conn = connection_manager->get_connection(ip, ec);
                 if (ec) {
-                    throw std::runtime_error(ec.message());
+                    throw boost::system::system_error(ec);
                 }
 
                 LogVerbose(archivable<<" connection grabbed " << *conn);
@@ -161,22 +174,20 @@ public:
                 fn_set_put_group_archived_ip(put_group_id, ip);
                 common::net::archived::send_file(conn, archivable,
                         boost::bind(&archived_client::send_file_finished, shared_from_this(), archivable, _1));
+
+                archivable_sentry.cancel();
             } catch (const std::exception& e) {
                 LogWarning(e.what());
-                if (archivable) {
-                    try {
-                        fn_produce(archivable, false /* already in the catalogue */);
-                    } catch (const std::exception& e) {
-                        LogError(archivable << " : failed to setup retry" << e.what());
-                    }
-                }
             }
         }
+
+        LogMessage("archived_client scheduler thread closing");
     }
 
     void shutdown()
     {
         shutting_down = true;
+        LogMessage("archived_client shutdown in progress");
     }
 };
 } // namespace net

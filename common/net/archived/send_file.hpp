@@ -30,7 +30,7 @@ namespace archived
 
 void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_transferred,
                     const boost::shared_ptr<connection>& conn,
-                    const boost::shared_ptr<detail::put_file_session>& session)
+                    const boost::shared_ptr<detail::put_file_session>& session) try
 {
     if (ec) {
         conn->fault = ec;
@@ -164,11 +164,15 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     case detail::put_state::done:
         break;
     }
+} catch (const std::exception& e) {
+    LogWarning(*conn << ' ' << *session << " PUT failed; exception:" << e.what());
+    conn->fault = error::make_error_code(error::put_send_file_failure_general);
+    session->post_error(conn->io_service, conn->fault);
 }
 
 void send_file(const boost::shared_ptr<connection>& conn,
                const boost::shared_ptr<archiving::archivable>& file,
-               const boost::function<void(boost::system::error_code& ec)>& done_callback)
+               const boost::function<void(boost::system::error_code& ec)>& done_callback) try
 {
     std::ostream ostr(&conn->send_buffer);
     if (!file->inject_put_request(ostr)) {
@@ -186,7 +190,12 @@ void send_file(const boost::shared_ptr<connection>& conn,
             boost::bind(send_file_impl,
                         boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
                         conn, pfs)));
+} catch (const std::exception& e) {
+    LogWarning(*conn << ' ' << *file << " PUT initialisation failed; exception:" << e.what());
+    conn->io_service.post(
+            boost::bind(boost::protect(done_callback), error::make_error_code(error::put_initialisation_failed)));
 }
+
 } // namespace archived
 } // namespace net
 } // namespace common

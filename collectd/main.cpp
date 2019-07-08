@@ -418,8 +418,7 @@ int main(int argc, char* argv[]) try
 						&collectd::archivable::queue::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
 
 		const common::collectd::fn_consume_type fn_in_queue_consume(
-				boost::bind(
-						&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+				boost::bind(&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
 		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
 				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3, _4));
 

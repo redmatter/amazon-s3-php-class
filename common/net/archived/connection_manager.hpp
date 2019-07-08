@@ -78,6 +78,8 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
     void
     update_active_ip_address(boost::system::error_code& ec)
     {
+        LogVerbose("Updating ArchiveD IP");
+
         ip::tcp::resolver::query query(archived_host, archived_port);
         ip::tcp::resolver::iterator endpoint_itr = resolver.resolve(query, ec);
         if (ec) {
@@ -89,12 +91,15 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
             return;
         }
 
-        uint32_t new_result = utils::ip_to_uint32(endpoint_itr->endpoint().address(), ec);
+        const ip::address& ip_addr(endpoint_itr->endpoint().address());
+        uint32_t ip_int32 = utils::ip_to_uint32(ip_addr, ec);
         if (ec) {
             return;
         }
 
-        active_ip_address.store(new_result, boost::memory_order_acquire);
+        active_ip_address.store(ip_int32, boost::memory_order_acquire);
+
+        LogMessage("Current ArchiveD IP: " << ip_addr);
     }
 
     void
