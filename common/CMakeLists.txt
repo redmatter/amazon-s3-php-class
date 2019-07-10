@@ -21,14 +21,27 @@ set(HEADER_FILES
         policy.hpp
         pre.h
         types.hpp
-        collectd/callbacks.hpp)
+        collectd/callbacks.hpp
+        host_ip_change_detector.hpp
+        net/archived/error.hpp
+        net/archived/connection.hpp
+        net/archived/connection_pool.hpp
+        net/archived/send_nop.hpp
+        net/archived/send_file.hpp
+        net/archived/connection_manager.hpp
+        net/archived/detail/put_file_session.hpp
+        net/archived/detail/put_state.hpp
+        net/ip_addr_utils.hpp
+        net/archived/detail/ip_pool_map.hpp
+        archivable/group.hpp
+)
 
 set(SOURCE_FILES
         archived_client.cpp
         defines.cpp
         dir_monitor.cpp
         types.cpp
-        ${VERSION_C_PATH} host_ip_change_detector.hpp)
+        ${VERSION_C_PATH})
 
 add_definitions(
         -D__librml__tmp_fstream__constructor_private__
@@ -44,6 +57,7 @@ include_directories(
         /usr/include/cpp-netlib
         /usr/include/threadpool
         ${rml-database-mysql_SOURCE_DIR}
+        ${rml_SOURCE_DIR}/..
         ${MYSQL_INCLUDE_DIR})
 
 #find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)

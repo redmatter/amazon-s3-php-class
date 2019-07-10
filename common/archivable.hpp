@@ -465,22 +465,20 @@ public:
 				;
 	}
 
-	inline bool inject_put_request(std::ostream &ostr) const try
+	inline bool inject_put_request(std::ostream &os) const try
 	{
-#ifndef RML_NO_DEBUG
-		std::string put_request;
-		{
-			std::ostringstream ostr;
-#endif
+		// formulate the PUT request into a string stream; in case of any exceptions, we don't
+		// want to pollute the send_buffer_ which backs the ostream.
+
+		std::ostringstream ostr;
 		ostr << "PUT "<<type_<<' '<<((type_ != file_type::cdr)? owners_.orgID: org_id_t(1))<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 		shove_metadata(ostr);
-#ifndef RML_NO_DEBUG
-			put_request = ostr.str();
-		}
+
+		const std::string put_request = ostr.str();
+
 		LogDebug("ToArchiveD: "<<put_request);
-		ostr << put_request;
-#endif
-		ostr << "\r\n";
+
+		os << put_request << "\r\n";
 
 		return true;
 	}
@@ -627,12 +625,12 @@ public:
 		return owners_.orgID;
 	}
 
-	inline std::pair< std::string, std::string > get_paths() const
+	inline std::pair<const std::string&, std::string> get_paths() const
 	{
 		if(is_modified_)
-			return std::make_pair<std::string, std::string>(file_path_, p_fstream_->get_filename());
+			return std::make_pair<const std::string&, std::string>(file_path_, p_fstream_->get_filename());
 
-		return std::make_pair<std::string, std::string>(file_path_, "");
+		return std::make_pair<const std::string&, std::string>(file_path_, std::string());
 	}
 
 	/**

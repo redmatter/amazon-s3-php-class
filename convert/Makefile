@@ -2,7 +2,7 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../version_info
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 
 TARGET=convert
 
@@ -33,9 +33,6 @@ CPPFLAGS += -DDEFAULT_APP_LONG_NAME='"$(DEFAULT_APP_LONG_NAME)"'
 DEFAULT_LOG_FILE_PATH=syslog
 CPPFLAGS += -DDEFAULT_LOG_FILE_PATH='"$(DEFAULT_LOG_FILE_PATH)"'
 
-LIBRML_VERSION=1.1
-CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -43,16 +40,18 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcryptopp -lpugixml $(shell pkg-config rml-$(LIBRML_VERSION) --libs) -larchiving_common -lcrypto -lssl
+	-lcryptopp -lpugixml -larchiving_common -lcrypto -lssl
 
 CXX_SRCS += \
 	main.cpp
 
 C_SRCS += \
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+
+include ../libs/Makefile.rml
 
 $(TMP)/extract : $(TMP)/extract.o
 	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)

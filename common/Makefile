@@ -1,6 +1,6 @@
 VERSION_FILE=../version_info
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 include Makefile.macros
 
 TARGET=libarchiving_common.a
@@ -13,7 +13,8 @@ DATABASE_SQLITE=YES
 ifeq ($(DATABASE_SQLITE),YES)
 
 CPPFLAGS += -DDATABASE_SQLITE
-CXX_INCLUDES += -I ../external/sqlite/include
+CXX_INCLUDES += \
+    -I ../external/sqlite/include
 TARGET_DEPS= ../external/sqlite/include/sqlite3.h
 
 else # DATABASE_SQLITE
@@ -41,27 +42,14 @@ C_SRCS += \
 
 BUILD_MODE=DEBUG
 
-DESTDIR=$(TMP)/build
-DESTDIR_LIB=$(DESTDIR)/lib64
-DESTDIR_INCLUDE=$(DESTDIR)/usr/include/rml
-DESTDIR_DATA=$(DESTDIR)/usr/share/librml
-
-INSTALL=install -c -m 755
-INSTALL_DATA=install -c -m 644
-MKDIR=mkdir -p
-
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.lib_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.lib_target
 include ../external/Makefile.cpp-netlib
 
-install: $(TMP)/$(TARGET)
-	$(MKDIR) $(DESTDIR_LIB) $(DESTDIR_INCLUDE) $(DESTDIR_DATA)
-	$(INSTALL_DATA) *.h $(DESTDIR_INCLUDE)
-	$(INSTALL_DATA) Makefile.* $(DESTDIR_DATA)
-	$(INSTALL_DATA) $(TMP)/$(TARGET) $(DESTDIR_LIB)
+include ../libs/Makefile.rml
 
 ../external/sqlite/include/sqlite3.h:
-	@$(MAKE) -C ../external sqlite
+	$(MAKE) -C ../external sqlite
 #
 #clean_extra:
 #	@$(MAKE) -C ../external clean

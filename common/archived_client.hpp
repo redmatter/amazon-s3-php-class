@@ -1034,7 +1034,7 @@ private:
 
 		put_archivable_ptr_ = fn_consume_(
 				false, boost::chrono::milliseconds(10000),
-				// on connection timeout, send NOP or reconnect if connection has gone away
+				// on consume-timeout, send NOP or reconnect if connection has gone away
 				boost::protect(boost::bind(&archived_client::send_nop_or_reconnect, shared_from_this())),
 				// if the queue is finishing, the archived_client has to close (shutdown) as well
 				boost::protect(boost::bind(&archived_client::close, shared_from_this(), false)));

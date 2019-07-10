@@ -1,13 +1,15 @@
-/*
- * main.cpp
- *
- *  Created on: Apr 28, 2010
- *      Author: dkorah
- */
+//
+// Copyright (c) 2019 Red Matter Ltd. UK. All rights reserved.
+// Unauthorized copying of this file, via any medium is strictly prohibited
+// Proprietary and confidential
+//
+// Created by Dino Korah on 28 April 2010.
+//
 
 #include "cdr_inspector.hpp"
 #include "directory_loader.hpp"
 #include "cdr_dir_monitor.hpp"
+#include "net/archived_client.hpp"
 
 #include "archivable/queue.hpp"
 #include "../common/collectd/callbacks.hpp"
@@ -16,15 +18,16 @@
 #include "database_sqlite.hpp"
 #include <rml/sqlite/status.hpp>
 
-#include "../common/archived_client.hpp"
 #include "../common/types.hpp"
 #include "../common/inotify_monitor.hpp"
+#include "../common/net/archived/connection_manager.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
 #include <rml/thread_adapter.h>
 #include <rml/config.h>
 #include <rml/siginit.h>
+#include <rml/hapi.hpp>
 #include <rml/daemon.h>
 #include <rml/version.h>
 
@@ -211,11 +214,20 @@ const time_t startup_time(time(0));
 namespace {
 
 bool more_to_load_from_db = false;
-inline float continue_loading_dir() {
-	if(!app::quit && more_to_load_from_db)
+inline float continue_loading_dir(const boost::function<float(boost::system::error_code&)>& get_archived_availability) {
+	if (app::quit) {
 		return 0.0;
+	}
 
-	return app::archived_client::get_is_archived_ok();
+	boost::system::error_code ec;
+	float availability = get_archived_availability(ec);
+	if (ec) {
+		// if we can't get the availability, we still need to keep loading at a slow pace
+		availability = 0.1;
+	}
+
+	return std::min<float>(
+		std::max<float>(availability, 0.25), 1.0);
 }
 
 /**
@@ -277,6 +289,7 @@ int main(int argc, char* argv[]) try
 
 	// default initialization to catch any initialization error
 	rml::logger::configure();
+    rml::hapi::host_cache::initialise();
 
 	boost::program_options::variables_map cli_confMap;
 	{
@@ -346,7 +359,7 @@ int main(int argc, char* argv[]) try
 		rml::logger::describe_config(optsDesc);
 
 		app::cdr_inspector::describe_config(optsDesc);
-		app::archived_client::describe_config(optsDesc);
+		common::net::archived::connection_manager::describe_config(optsDesc);
 		app::directory_loader::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 
@@ -405,14 +418,26 @@ int main(int argc, char* argv[]) try
 						&collectd::archivable::queue::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
 
 		const common::collectd::fn_consume_type fn_in_queue_consume(
-				boost::bind(
-						&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+				boost::bind(&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
 		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
 				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3, _4));
 
 		app::database::internal internal_db(app::confMap, "CollectDQueue");
+
 		const common::collectd::fn_save_to_database_type fn_save_to_database(
 				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
+
+		const common::collectd::fn_lookup_put_group_archived_ip_type fn_lookup_put_group_archived_ip(
+				boost::bind(&app::database::internal::put_group_get_archived_ip, boost::ref(internal_db), _1));
+
+		const common::collectd::fn_set_put_group_archived_ip_type fn_set_put_group_archived_ip(
+				boost::bind(&app::database::internal::put_group_set_archived_ip, boost::ref(internal_db), _1, _2));
+
+		const common::collectd::fn_add_put_group_type fn_add_put_group(
+				boost::bind(&app::database::internal::put_group_add, boost::ref(internal_db), _1));
+
+		const common::collectd::fn_remove_put_group_type fn_remove_put_group(
+				boost::bind(&app::database::internal::put_group_remove, boost::ref(internal_db), _1));
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -420,6 +445,24 @@ int main(int argc, char* argv[]) try
 		boost::thread_group threads, cdr_inspector_threads, dir_loader_threads;
 		boost::asio::io_service io_service;
 		boost::shared_ptr<boost::asio::io_service::work> p_work = boost::make_shared<boost::asio::io_service::work>(boost::ref(io_service));
+
+		const std::string archived_host(app::confMap["archived_client.server_host"].as<std::string>());
+		const std::string archived_port(app::confMap["archived_client.server_port"].as<std::string>());
+
+		boost::shared_ptr<common::net::archived::connection_manager> conn_mgr =
+				boost::make_shared<common::net::archived::connection_manager>(
+						boost::ref(io_service), archived_host, archived_port,
+						0, app::confMap["archived_connection_pool.max_connections"].as<std::size_t>());
+
+		boost::function<float()> continue_loading_dir_callback = boost::bind(
+				continue_loading_dir, boost::protect(boost::bind(
+						&common::net::archived::connection_manager::get_pool_level, conn_mgr, _1)));
+
+		boost::shared_ptr<collectd::net::archived_client> archived_client =
+				boost::shared_ptr<collectd::net::archived_client>(new collectd::net::archived_client(
+						conn_mgr, fn_out_queue_produce, fn_out_queue_consume,
+						fn_remove_from_catalogue, fn_save_to_database, common::collectd::fn_on_successful_put_type(),
+						fn_lookup_put_group_archived_ip, fn_set_put_group_archived_ip, fn_remove_put_group));
 
 		archiving::cdr_dir_monitor cdr_dir_monitor(boost::bind(fn_in_queue_produce, _1, true), app::hostname);
 
@@ -481,8 +524,7 @@ int main(int argc, char* argv[]) try
 						boost::protect(
 								boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 										archiving::file_type::cdr, size_t(36/*uuid*/+4/*.cdr*/+4/*.xml*/), _1)),
-						boost::protect(
-								boost::bind(continue_loading_dir))));
+						boost::protect(continue_loading_dir_callback)));
 
 		// One for PCaps
 		if(app::confMap["pcap.enabled"].as<bool>())
@@ -495,8 +537,7 @@ int main(int argc, char* argv[]) try
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 											identify_pcap_type, _1)),
-							boost::protect(
-									boost::bind(continue_loading_dir))));
+							boost::protect(continue_loading_dir_callback)));
 
 		// One for chunks
 		if(app::confMap["chunk.enabled"].as<bool>())
@@ -509,8 +550,7 @@ int main(int argc, char* argv[]) try
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 											archiving::file_type::recording, size_t(36/*uuid*/+4/*.wav*/), _1)),
-							boost::protect(
-									boost::bind(continue_loading_dir))));
+							boost::protect(continue_loading_dir_callback)));
 
 		// One for info files
 		if(app::confMap["info.enabled"].as<bool>())
@@ -523,48 +563,34 @@ int main(int argc, char* argv[]) try
 							boost::protect(
 									boost::bind(&app::archivable_dedup::is_file_loaded, boost::ref(archivable_dedup),
 											archiving::file_type::info, size_t(36/*uuid*/+4/*.xml*/), _1)),
-							boost::protect(
-									boost::bind(continue_loading_dir))));
+							boost::protect(continue_loading_dir_callback)));
 
 		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
 		app::cdr_inspector cdr_inspector(
 				fn_in_queue_consume, fn_out_queue_produce, fn_remove_from_catalogue, fn_is_in_catalogue,
-				fn_save_to_database, app::confMap, app::hostname);
+				fn_save_to_database, fn_add_put_group, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			cdr_inspector_threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
 
-		const unsigned int n_threads( 2 + std::max<unsigned int>( app::confMap["app.service_threads"].as<unsigned int>(), 1 ));
-		LogMessage("Starting "<<(n_threads-1)<<"+1 service threads");
-
-		const std::string archived_host(app::confMap["archived_client.server_host"].as<std::string>());
-		const std::string archived_port(app::confMap["archived_client.server_port"].as<std::string>());
-		archiving::host_ip_change_detector archived_ip_change_detector(archived_host, archived_port);
-
-		std::list< app::archived_client::pointer > archived_clients;
-		for(unsigned int i = 0; i < (n_threads - 2); i++) {
-			archived_clients.push_back(
-					boost::make_shared<app::archived_client>(
-							boost::ref(io_service), fn_out_queue_produce, fn_out_queue_consume, fn_remove_from_catalogue,
-							fn_save_to_database, archived_host, archived_port, boost::cref(archived_ip_change_detector)));
+		const unsigned n_service_threads = boost::thread::hardware_concurrency() * 2 + 1;
+		LogMessage("Starting " << n_service_threads << " service threads");
+		for(unsigned int i = 0; i < n_service_threads; i++) {
+			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
 
-		for(unsigned int i = 0; i < n_threads; i++)
-			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
+        conn_mgr->start();
+
+		const unsigned n_send_schedulers = 2;
+		LogMessage("Starting " << n_send_schedulers << " scheduler threads");
+		for(unsigned int i = 0; i < n_send_schedulers; i++) {
+			threads.create_thread(boost::bind(&collectd::net::archived_client::run, archived_client));
+		}
 
 		// setup the save_run thread
 		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db)));
 
 		// kick the monitor to life
 		inotify_monitor->async_monitor();
-
-		// kick the ArchiveD clients to life
-		{
-			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
-			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-			for(; itr != end; ++itr) {
-				(*itr)->connect_archived();
-			}
-		}
 
 		DevDebug("app::confMap[\"purge.done_items_max_age_minutes\"].as<unsigned int>() "<<app::confMap["purge.done_items_max_age_minutes"].as<unsigned int>());
 
@@ -578,15 +604,22 @@ int main(int argc, char* argv[]) try
 
 		int ticks = 1;
 		while(!app::quit) {
-			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
-				LogDebug(((time(0)%2) ? "tik": "tok"));
+			if(app::confMap["app.tik_tok"].as<std::string>() == "true") {
+				LogDebug(((time(0) % 2) ? "tik" : "tok"));
+			}
 
 			if(more_to_load_from_db && !(ticks % 10)) {
-				const float& loading_factor(app::archived_client::get_is_archived_ok());
-				if(loading_factor)
-					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, boost::bind(fn_in_queue_produce, _1, true), more_to_load_from_db, loading_factor);
-				else
+				boost::system::error_code ec;
+				float pool_level = conn_mgr->get_pool_level(ec);
+				if (!ec && pool_level > 0) {
+					internal_db.find_archivables(app::hostname, fn_get_loaded_instance, boost::bind(fn_in_queue_produce, _1, true), more_to_load_from_db, pool_level);
+				} else {
 					LogMessage("Database loading paused; waiting for ArchiveDs to come back online");
+				}
+			}
+
+			if (ticks % 15 == 0) {
+				internal_db.put_group_purge_expired();
 			}
 
 			if(!(ticks % 60)) {
@@ -599,10 +632,6 @@ int main(int argc, char* argv[]) try
 				internal_db.clear_dormant_sessions();
 
 				rml::sqlite::status::log_all();
-			}
-
-			if (!(ticks % 10)) {
-				archived_ip_change_detector.detect_change();
 			}
 
 			boost::this_thread::sleep_for(boost::chrono::seconds(1));
@@ -626,35 +655,26 @@ int main(int argc, char* argv[]) try
 		out_queue->set_finishing();
 
 		// Initiate shutdown of ArchiveD clients
-		{
-			std::list< app::archived_client::pointer >::iterator end = archived_clients.end();
-			std::list< app::archived_client::pointer >::iterator itr = archived_clients.begin();
-			for(; itr != end; ++itr) {
-				(*itr)->shutdown();
-			}
-		}
-		// delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
+		archived_client->shutdown();
+
+        conn_mgr->shutdown();
+
+        // delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
 		// as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
 		// up to ~10s before continuing with shutdown.
-		archived_clients.clear();
-		{
-			const boost::chrono::steady_clock::time_point wait_until(
-					boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
-			while (wait_until >= boost::chrono::steady_clock::now()) {
-				const unsigned int& instances(app::archived_client::get_instances_count());
-				if (instances == 0) {
-					LogMessage("All ArchiveD-clients finished");
-					break;
-				}
+        archived_client.reset();
 
-				LogMessage("Waiting for ArchiveD-clients to finish;" << instances << " instances remaining");
-				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
-			}
-		}
-
-		if (app::archived_client::get_instances_count()) {
-			LogWarning("ArchiveD-clients did not finish while waiting; continuing with shutdown");
-		}
+//		{
+//			const boost::chrono::steady_clock::time_point wait_until(
+//					boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
+//			while (wait_until >= boost::chrono::steady_clock::now()) {
+//				// todo wait and make sure we are safe to proceed with shutdown
+//				// todo reset callbacks or make sure there are ways to shutdown those objects involved, safely
+//
+//				LogMessage("Waiting for ArchiveD-clients to finish;" << instances << " instances remaining");
+//				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
+//			}
+//		}
 
 		p_work.reset();
 

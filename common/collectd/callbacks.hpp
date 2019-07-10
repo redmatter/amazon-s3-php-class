@@ -37,7 +37,12 @@ typedef boost::function1<bool, boost::shared_ptr<archiving::archivable> > fn_sav
 
 typedef boost::function1<void, boost::shared_ptr<archiving::archivable> > fn_on_successful_put_type;
 
-}
-}
+typedef boost::function<archiving::archived_ip_t(archiving::put_group_id_t)> fn_lookup_put_group_archived_ip_type;
+typedef boost::function<void(const archiving::put_group_id_t&, archiving::archived_ip_t)> fn_set_put_group_archived_ip_type;
+typedef boost::function<void(const archiving::put_group_id_t&)> fn_add_put_group_type;
+typedef boost::function<void(const archiving::put_group_id_t&)> fn_remove_put_group_type;
+
+} // namespace collectd
+} // namespace common
 
 #endif //COMMON_COLLECTD_CALLBACKS_HPP

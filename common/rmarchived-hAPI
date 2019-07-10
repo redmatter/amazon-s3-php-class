@@ -8,7 +8,6 @@ CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_RETENTION_DELETE=/etc/archiving/conf.d/retention_delete_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
 CONFIG_DB_BIG=/etc/archiving/conf.d/big_database.conf
-CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 CONFIG_COLLECTIMPORTD=/etc/archiving/rmcollect-importd.conf
 
@@ -109,15 +108,6 @@ if [ -f $CONFIG_DB_BIG ]; then
 
 	ChangeConfig $CONFIG_DB_BIG mysql_big.host $MYSQL_RW
 	ChangeConfig $CONFIG_DB_BIG mysql_big.password $MYSQL_PW
-fi
-
-if [ -f $CONFIG_COLLECTD ]; then
-	ChangeConfig $CONFIG_COLLECTD archived_client.server_host "archived.${SEARCHDOMAIN}"
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD log.level 6
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD debug.disable_restart true
-	( hapi get HostType DEV || hapi get HostType QA ) && ChangeConfig $CONFIG_COLLECTD app.on_restart_notify_emails "dino@redmatter.com,qa@redmatter.com"
-	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD chunk.enabled true
-	( hapi get HostType DEV || hapi get HostType QA || hapi get HostType STAGE ) && ChangeConfig $CONFIG_COLLECTD info.enabled true
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then

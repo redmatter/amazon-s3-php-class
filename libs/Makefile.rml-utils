@@ -1,0 +1,12 @@
+PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+
+RML_UTILS_GIT_SUBMODULE=libs/rml-utils
+RML_UTILS_DIR=$(PROJECT_DIR)/$(RML_UTILS_GIT_SUBMODULE)
+RML_UTILS_HPP=$(RML_UTILS_DIR)/rml/utils/enabled_disabled_list.hpp
+
+CXX_INCLUDES += -I $(RML_UTILS_DIR)
+
+$(RML_UTILS_HPP):
+	@cd $(PROJECT_DIR) && git submodule update --init --recursive $(RML_UTILS_GIT_SUBMODULE)
+
+*.cpp: $(RML_UTILS_HPP)
