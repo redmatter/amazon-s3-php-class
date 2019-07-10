@@ -15,9 +15,5 @@ prog_projprefix=archiving
 prog_cliopts="--hostname $( uname -n | cut -d. -f1 )"
 prog_syslogtag=rm-collectd
 
-callback_before_startup() {
-	/usr/bin/rmarchived-hAPI
-}
-
 . /usr/share/rmdaemonscripts/init.sh
 

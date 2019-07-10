@@ -55,6 +55,7 @@ include_directories(
         /usr/include/cpp-netlib
         ${rml-database-mysql_SOURCE_DIR}
         ${rml-utils_SOURCE_DIR}
+        ${rml_SOURCE_DIR}/..
         /usr/include/threadpool
         ${MYSQL_INCLUDE_DIR}
         ../common

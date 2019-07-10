@@ -32,4 +32,4 @@ LIBS_test_suppress_headers_check = \
 	-lboost_date_time \
 	-lcryptopp $(shell pkg-config rml-$(LIBRML_VERSION) --libs)
 
-include /usr/share/librml/Makefile.gtest
+include ../libs/rml/rml/Makefile.gtest

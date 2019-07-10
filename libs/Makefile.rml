@@ -1,0 +1,15 @@
+PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+
+RML_GIT_SUBMODULE=libs/rml/rml
+RML_DIR=$(PROJECT_DIR)/libs/rml
+RML_HPP=$(RML_DIR)/rml/build_config.h
+
+CXX_INCLUDES += -I $(RML_DIR)
+
+$(RML_HPP): $(RML_DIR)/rml
+	@cd $(RML_DIR)/rml && make build_config.h BUILD_INLINE=YES
+
+$(RML_DIR)/rml:
+	@cd $(PROJECT_DIR) && git submodule update --init --recursive $(RML_GIT_SUBMODULE)
+
+*.cpp: $(RML_HPP)

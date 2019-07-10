@@ -30,7 +30,6 @@ BuildRequires: gcc44
 BuildRequires: gcc44-c++
 BuildRequires: boost_1_54_0-devel
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: RM-librml-devel >= 1.13.3
 BuildRequires: libs3-devel >= 1.4-22774
 BuildRequires: cryptopp-devel
 BuildRequires: pugixml
@@ -41,6 +40,7 @@ BuildRequires: cmake
 BuildRequires: openssl-devel
 BuildRequires: zlib-devel
 BuildRequires: autoconf, libtool
+BuildRequires: readline-devel
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform

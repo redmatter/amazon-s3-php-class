@@ -198,8 +198,8 @@ public:
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				delete_retention_records_for_internal_filetypes_(
 						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
-				quit_(quit),
-				purge_restrictions(confMap)
+				purge_restrictions(confMap),
+				quit_(quit)
 	{
 		// set all to false
 		for(int i = 0; i < archiving::file_type::n_file_types; i++)
