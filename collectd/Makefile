@@ -32,6 +32,7 @@ CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
 CPPFLAGS += -DRML_CONFIG_ENABLE_HAPI
 CPPFLAGS += -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+CPPFLAGS += -DBOOST_CHRONO_VERSION=2
 
 DEFAULT_APP_NAME=rm$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
@@ -74,6 +75,7 @@ include ../external/Makefile.sqlite
 
 include ../libs/Makefile.rml
 include ../libs/Makefile.rml-queue
+include ../libs/Makefile.rml-utils
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES

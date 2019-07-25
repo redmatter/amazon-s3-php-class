@@ -36,6 +36,16 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         conn->fault = ec;
         LogWarning(*conn << ' ' << *session << " network/protocl error; err:" << ec.message());
         session->post_error(conn->io_service, ec);
+        return;
+    }
+
+    // if interrupted while or before sending_file, we give up straight away. Any state beyond that has to be allowed to
+    // finish as there is no way to tell ArchiveD that the transfer is being interrupted.
+    if (session->is_interrupted() && session->state <= detail::put_state::sending_file) {
+        conn->fault = error::make_error_code(error::put_interrupted);
+        LogMessage(*conn << ' ' << *session << " interrupted; giving up");
+        session->post_error(conn->io_service, conn->fault);
+        return;
     }
 
     switch (session->state) {
@@ -97,6 +107,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
         const std::streamsize bytes_read = session->file_stream->gcount();
         session->file_size_remaining -= static_cast<std::size_t>(bytes_read);
+        // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
 
         std::ostream ostr(&conn->send_buffer);
         ostr.write(&buf[0], bytes_read);
@@ -172,7 +183,8 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
 void send_file(const boost::shared_ptr<connection>& conn,
                const boost::shared_ptr<archiving::archivable>& file,
-               const boost::function<void(boost::system::error_code& ec)>& done_callback) try
+               const boost::function<void(boost::system::error_code& ec)>& done_callback,
+               const boost::function<bool()>& is_interrupted) try
 {
     std::ostream ostr(&conn->send_buffer);
     if (!file->inject_put_request(ostr)) {
@@ -184,12 +196,13 @@ void send_file(const boost::shared_ptr<connection>& conn,
     // todo move update to last_send_file_time to the end of transfer
     conn->last_send_file_time = boost::chrono::steady_clock::now();
 
-    boost::shared_ptr<detail::put_file_session> pfs =
-            boost::make_shared<detail::put_file_session>(file, done_callback);
+    boost::shared_ptr<detail::put_file_session> session =
+            boost::make_shared<detail::put_file_session>(file, boost::cref(done_callback), boost::cref(is_interrupted));
+    LogVerbose(*conn << ' ' << *session << " PUT initialising");
     boost::asio::async_write(conn->socket, conn->send_buffer, conn->strand.wrap(
             boost::bind(send_file_impl,
                         boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
-                        conn, pfs)));
+                        conn, session)));
 } catch (const std::exception& e) {
     LogWarning(*conn << ' ' << *file << " PUT initialisation failed; exception:" << e.what());
     conn->io_service.post(

@@ -75,6 +75,8 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
 
     boost::atomic_uint32_t active_ip_address;
 
+    bool shutting_down;
+
     void
     update_active_ip_address(boost::system::error_code& ec)
     {
@@ -106,7 +108,8 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
     scheduled_update_active_ip_address(const boost::system::error_code& ec, const boost::shared_ptr<timer_type>& timer)
     {
         // timer was cancelled (during shutdown)
-        if (ec == boost::asio::error::operation_aborted) {
+        if (ec == boost::asio::error::operation_aborted || shutting_down) {
+            LogVerbose("ArchiveD IP updater shutting down");
             return;
         }
 
@@ -144,7 +147,8 @@ class connection_manager : public boost::enable_shared_from_this<connection_mana
     scheduled_nop_to_connections(const boost::system::error_code& ec, const boost::shared_ptr<timer_type>& timer)
     {
         // timer was cancelled (during shutdown)
-        if (ec == boost::asio::error::operation_aborted) {
+        if (ec == boost::asio::error::operation_aborted || shutting_down) {
+            LogVerbose("NOP-er shutting down");
             return;
         }
 
@@ -198,7 +202,7 @@ public:
             archived_host(archived_host), archived_port(archived_port),
             pool_min_size(pool_min_size), pool_max_size(pool_max_size),
             io_service(io_service), resolver(io_service),
-            active_ip_address(0)
+            active_ip_address(0), shutting_down(false)
     {}
 
     template<class Rep, class Period>
@@ -290,6 +294,7 @@ public:
 
     void shutdown()
     {
+        shutting_down = true;
         pool_map.for_each(boost::bind(detail::shutdown_pool, _1, _2));
     }
 };

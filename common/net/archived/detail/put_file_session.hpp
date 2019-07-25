@@ -12,6 +12,8 @@
 #include "../../../archivable.hpp"
 #include "put_state.hpp"
 
+#include <rml/utils/wall_timer.hpp>
+
 #include <boost/shared_ptr.hpp>
 #include <boost/bind.hpp>
 #include <boost/bind/protect.hpp>
@@ -33,19 +35,28 @@ struct put_file_session
 {
     const boost::shared_ptr<archiving::archivable> file;
     const boost::function<void(boost::system::error_code& ec)> done_callback;
+    const boost::function<bool()> is_interrupted;
     boost::shared_ptr<rml::utils::tmp_fstream> file_stream;
+    std::size_t file_size;
     std::size_t file_size_remaining;
     detail::put_state::enum_t state;
 
+    rml::utils::wall_timer timer;
+
     put_file_session(const boost::shared_ptr<archiving::archivable>& file,
-                     const boost::function<void(boost::system::error_code& ec)> done_callback) :
-            file(file), done_callback(done_callback),
+                     const boost::function<void(boost::system::error_code& ec)> done_callback,
+                     const boost::function<bool()>& is_interrupted) :
+            file(file), done_callback(done_callback), is_interrupted(is_interrupted),
             file_size_remaining(0), state(detail::put_state::init)
     {}
 
     void post_error(boost::asio::io_service& ios, const boost::system::error_code& ec)
     {
+        timer.stop();
         ios.post(boost::bind(boost::protect(done_callback), ec));
+        if (!ec) {
+            LogMessage(*this << " - transfer completed " << file_size << " bytes in " << timer);
+        }
     }
 
     void post_error(boost::asio::io_service& ios, const error::enum_t& e)
@@ -63,7 +74,8 @@ struct put_file_session
         file_stream = file->get_fstream_ptr();
         file_stream->re_open();
 
-        file_size_remaining = file_stream->get_size();
+        file_size = file_stream->get_size();
+        file_size_remaining = file_size;
 
         // make sure the get pointer is at the beginning of the file stream
         file_stream->rdbuf()->pubseekpos(0, std::ios::in);
