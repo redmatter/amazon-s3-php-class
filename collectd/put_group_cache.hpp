@@ -59,7 +59,7 @@ struct put_group_cache
         boost::shared_ptr<put_group> value = get_internal(id);
         if (!value) {
             boost::unique_lock<boost::shared_mutex> lock(mutex);
-            value = boost::make_shared<put_group>(id, 0, ip);
+            value = boost::make_shared<put_group>(id, 1, ip);
             m.insert(std::make_pair(id, detail::cached_item(value)));
         } else if (ip != 0 && value->ip == 0) {
             value->ip = ip;
