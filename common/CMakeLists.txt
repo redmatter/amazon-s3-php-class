@@ -33,8 +33,7 @@ set(HEADER_FILES
         net/archived/detail/put_state.hpp
         net/ip_addr_utils.hpp
         net/archived/detail/ip_pool_map.hpp
-        archivable/group.hpp
-)
+        archivable/group.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

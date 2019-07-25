@@ -121,7 +121,7 @@ public:
     {
         fn_produce(archivable, false);
     } catch (const std::exception& e) {
-        LogError(archivable << " : failed to setup retry" << e.what());
+        LogError(archivable << " : failed to setup retry; error: " << e.what());
     }
 
     void run()
@@ -136,6 +136,11 @@ public:
                         boost::protect(boost::bind(&archived_client::consume_timeout, shared_from_this())),
                         // if the queue is finishing, the archived_client has to close (shutdown) as well
                         boost::protect(boost::bind(&archived_client::shutdown, shared_from_this())));
+
+                // if shutdown while "waiting to consume"
+                if (shutting_down) {
+                    break;
+                }
 
                 // if no archivable was obtained
                 if (!archivable) {
@@ -172,8 +177,10 @@ public:
                 LogVerbose(archivable<<" connection grabbed " << *conn);
 
                 fn_set_put_group_archived_ip(put_group_id, ip);
+                LogVerbose(archivable<<" IP set to " << ip);
                 common::net::archived::send_file(conn, archivable,
-                        boost::bind(&archived_client::send_file_finished, shared_from_this(), archivable, _1));
+                        boost::bind(&archived_client::send_file_finished, shared_from_this(), archivable, _1),
+                        boost::bind(&archived_client::is_shutting_down, shared_from_this()));
 
                 archivable_sentry.cancel();
             } catch (const std::exception& e) {
@@ -188,6 +195,11 @@ public:
     {
         shutting_down = true;
         LogMessage("archived_client shutdown in progress");
+    }
+
+    bool is_shutting_down()
+    {
+        return shutting_down;
     }
 };
 } // namespace net

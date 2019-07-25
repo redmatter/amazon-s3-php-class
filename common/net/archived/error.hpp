@@ -36,6 +36,7 @@ enum enum_t
     put_send_file_failure_ack_not_received,
     put_send_file_failure_ack_negative,
     put_send_file_failure_general,
+    put_interrupted,
 
     nop_ack_not_received,
     nop_ack_negative
@@ -77,6 +78,8 @@ public:
             return "put send-file failed (no ACK received)";
         case put_send_file_failure_ack_negative:
             return "put send-file failed (Negative ACK)";
+        case put_interrupted:
+            return "put interrupted";
         case nop_ack_not_received:
             return "nop failed (no ACK received)";
         case nop_ack_negative:
