@@ -14,11 +14,14 @@ set(HEADER_FILES
         archivable/catalogue.hpp
         archivable/utils.hpp
         archivable/error.hpp
-        net/archived_client.hpp)
+        net/archived_client.hpp
+        put_group_cache.hpp
+        put_group.hpp)
 
 include_directories(
         /usr/include/cpp-netlib
         ${rml-queue_SOURCE_DIR}
+        ${rml-utils_SOURCE_DIR}
         ${rml_SOURCE_DIR}/..
         ../common
 )

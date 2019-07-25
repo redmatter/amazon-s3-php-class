@@ -1,0 +1,11 @@
+﻿---
+BasedOnStyle: Mozilla
+TabWidth: 4
+IndentWidth: 4
+ColumnLimit: 120
+# AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BraceWrapping:
+  AfterNamespace: true
+
+...

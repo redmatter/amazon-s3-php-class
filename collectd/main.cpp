@@ -10,6 +10,7 @@
 #include "directory_loader.hpp"
 #include "cdr_dir_monitor.hpp"
 #include "net/archived_client.hpp"
+#include "put_group_cache.hpp"
 
 #include "archivable/queue.hpp"
 #include "../common/collectd/callbacks.hpp"
@@ -30,6 +31,7 @@
 #include <rml/hapi.hpp>
 #include <rml/daemon.h>
 #include <rml/version.h>
+#include <rml/utils/saver_list.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/program_options.hpp>
@@ -289,7 +291,7 @@ int main(int argc, char* argv[]) try
 
 	// default initialization to catch any initialization error
 	rml::logger::configure();
-    rml::hapi::host_cache::initialise();
+	rml::hapi::host_cache::initialise();
 
 	boost::program_options::variables_map cli_confMap;
 	{
@@ -341,8 +343,6 @@ int main(int argc, char* argv[]) try
 						->default_value(false), "info file handling enabled")
 				("info.directory", boost::program_options::value<std::string>()
 						->default_value(std::string("/opt/freeswitch/log/info")), "info files directory")
-				("app.service_threads",  boost::program_options::value<unsigned int>()
-						->default_value(4), "CollectD service threads")
 				("app.tik_tok", boost::program_options::value<std::string>()
 						->default_value(std::string("false")), "enable tik tok")
 				("purge.done_items_max_age_minutes",  boost::program_options::value<unsigned int>()
@@ -424,20 +424,37 @@ int main(int argc, char* argv[]) try
 
 		app::database::internal internal_db(app::confMap, "CollectDQueue");
 
+		typedef rml::utils::saver_list<boost::shared_ptr<app::put_group> > put_group_saver_list_type;
+
+		put_group_saver_list_type::save_range_callback_type put_group_saver_list_save_range_callback(
+			boost::bind(
+				&app::database::internal::put_group_save_bulk<put_group_saver_list_type::list_citr_type>, 
+				boost::ref(internal_db), _1, _2));
+
+		put_group_saver_list_type put_group_saver_list(
+			100, boost::chrono::seconds(30), boost::protect(put_group_saver_list_save_range_callback));
+
+		app::put_group_cache::save_callback_type put_group_save_callback(
+			boost::bind(&put_group_saver_list_type::add, boost::ref(put_group_saver_list), _1));
+		app::put_group_cache::load_callback_type put_group_load_callback(
+			boost::bind(&app::database::internal::put_group_load, boost::ref(internal_db), _1));
+		
+		app::put_group_cache put_group_cache(put_group_load_callback, put_group_save_callback);
+
 		const common::collectd::fn_save_to_database_type fn_save_to_database(
 				boost::bind(&app::database::internal::save, boost::ref(internal_db), _1));
 
 		const common::collectd::fn_lookup_put_group_archived_ip_type fn_lookup_put_group_archived_ip(
-				boost::bind(&app::database::internal::put_group_get_archived_ip, boost::ref(internal_db), _1));
+				boost::bind(&app::put_group_cache::get, boost::ref(put_group_cache), _1));
 
 		const common::collectd::fn_set_put_group_archived_ip_type fn_set_put_group_archived_ip(
-				boost::bind(&app::database::internal::put_group_set_archived_ip, boost::ref(internal_db), _1, _2));
+				boost::bind(&app::put_group_cache::put, boost::ref(put_group_cache), _1, _2));
 
 		const common::collectd::fn_add_put_group_type fn_add_put_group(
-				boost::bind(&app::database::internal::put_group_add, boost::ref(internal_db), _1));
+				boost::bind(&app::put_group_cache::put, boost::ref(put_group_cache), _1, 0)); // always add with ip=0
 
 		const common::collectd::fn_remove_put_group_type fn_remove_put_group(
-				boost::bind(&app::database::internal::put_group_remove, boost::ref(internal_db), _1));
+				boost::bind(&app::put_group_cache::remove, boost::ref(put_group_cache), _1));
 
 		initialized = true;
 		LogMessage("Initialisation complete");
@@ -578,7 +595,7 @@ int main(int argc, char* argv[]) try
 			threads.create_thread(boost::bind(&boost::asio::io_service::run, boost::ref(io_service)));
 		}
 
-        conn_mgr->start();
+		conn_mgr->start();
 
 		const unsigned n_send_schedulers = 2;
 		LogMessage("Starting " << n_send_schedulers << " scheduler threads");
@@ -608,7 +625,7 @@ int main(int argc, char* argv[]) try
 				LogDebug(((time(0) % 2) ? "tik" : "tok"));
 			}
 
-			if(more_to_load_from_db && !(ticks % 10)) {
+			if(more_to_load_from_db && !(ticks % 10) && !app::quit) {
 				boost::system::error_code ec;
 				float pool_level = conn_mgr->get_pool_level(ec);
 				if (!ec && pool_level > 0) {
@@ -618,11 +635,17 @@ int main(int argc, char* argv[]) try
 				}
 			}
 
-			if (ticks % 15 == 0) {
-				internal_db.put_group_purge_expired();
+			if (ticks % 15 == 0 && !app::quit) {
+				try {
+					put_group_saver_list.save();
+                    put_group_cache.prune();
+                    internal_db.put_group_purge_expired();
+				} catch (const std::exception& e) {
+					LogError(e.what());
+				}
 			}
 
-			if(!(ticks % 60)) {
+			if(!(ticks % 60) && !app::quit) {
 				LogMessage("[statistics] Queue:"<<*in_queue<<' '<<in_queue->get_statistics());
 				LogMessage("[statistics] Queue:"<<*out_queue<<' '<<out_queue->get_statistics());
 				LogMessage("[statistics] DBLoading:"<<RML_YES_NO(more_to_load_from_db));
@@ -634,10 +657,18 @@ int main(int argc, char* argv[]) try
 				rml::sqlite::status::log_all();
 			}
 
-			boost::this_thread::sleep_for(boost::chrono::seconds(1));
-
-			ticks++;
+			if (!app::quit) {
+				boost::this_thread::sleep_for(boost::chrono::seconds(1));
+				ticks++;
+			}
 		}
+
+		// First one to start shutting down as we need time for any on-going PUTs that are almost done to succeed.
+		LogMessage("Stopping ArchiveD client");
+		archived_client->shutdown();
+
+		LogMessage("Stopping ArchiveD connection manager");
+		conn_mgr->shutdown();
 
 		LogMessage("Stopping inotify monitor(s)");
 		inotify_monitor.reset();
@@ -654,27 +685,12 @@ int main(int argc, char* argv[]) try
 		LogMessage("Setting OUT queue to finish");
 		out_queue->set_finishing();
 
-		// Initiate shutdown of ArchiveD clients
-		archived_client->shutdown();
+        LogMessage("Reset archived_client");
+		archived_client.reset();
 
-        conn_mgr->shutdown();
-
-        // delete archived-clients so that any in the middle of state-machine / callbacks / etc will self-destroy,
-		// as soon as they finish what those. Here we clear the list that holds a shared_ptr to each client, and wait
-		// up to ~10s before continuing with shutdown.
-        archived_client.reset();
-
-//		{
-//			const boost::chrono::steady_clock::time_point wait_until(
-//					boost::chrono::steady_clock::now() + boost::chrono::seconds(10));
-//			while (wait_until >= boost::chrono::steady_clock::now()) {
-//				// todo wait and make sure we are safe to proceed with shutdown
-//				// todo reset callbacks or make sure there are ways to shutdown those objects involved, safely
-//
-//				LogMessage("Waiting for ArchiveD-clients to finish;" << instances << " instances remaining");
-//				boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
-//			}
-//		}
+        LogMessage("Shutting down put-group saver-list");
+		put_group_saver_list_type::list_citr_range_type remaining = put_group_saver_list.shutdown();
+		LogMessage(std::distance(remaining.begin(), remaining.end()) << " found (unsaved) in put-group saver-list");
 
 		p_work.reset();
 
