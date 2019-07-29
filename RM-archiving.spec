@@ -66,7 +66,6 @@ BuildRequires: libuuid-devel
 %endif
 BuildRequires: php54-cli
 BuildRequires: boost_1_54_0-devel
-BuildRequires: RM-librml-devel >= 1.13.1
 BuildRequires: cryptopp-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
