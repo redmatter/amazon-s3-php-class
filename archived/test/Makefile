@@ -1,7 +1,7 @@
 # default; override from commandline
 BUILD_MODE=DEBUG
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 include ../../version_info
 
 TARGET=test
@@ -61,8 +61,8 @@ CXX_SRCS += \
 
 C_SRCS += \
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 
 $(TMP)/extract : $(TMP)/extract.o
 	g++ $(TMP)/version.c -o $@ $< $(BUILD_LFLAGS) $(LFLAGS)

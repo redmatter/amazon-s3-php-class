@@ -21,6 +21,7 @@
 #include "suppress_headers_check.hpp"
 #include "storage_backend.hpp"
 #include "database_retention_delete.hpp"
+#include "legal_hold/cache.hpp"
 #include "config/purge_restrictions.hpp"
 
 #include <rml/pc_channel.h>
@@ -105,6 +106,8 @@ class runner : public boost::enable_shared_from_this<runner>
 	database::retention_delete& retention_delete_db_;
 	database::internal& internal_db_;
 
+	legal_hold_cache& legal_hold_cache_;
+
 	item::channel_t item_save_channel_;
 	item::channel_t delete_file_channel_;
 	item::channel_t delete_usage_channel_;
@@ -177,7 +180,7 @@ public:
 			const org_policy_versions::cached_finder_t& org_policy_versions_finder,
 			rml::coreapi& api, state_reactor<>& reactor,
 			database::retention& retention_db, database::retention_delete& retention_delete_db,
-			database::internal& internal_db, volatile bool& quit) :
+			database::internal& internal_db, legal_hold_cache& lh_cache, volatile bool& quit) :
 				confMap_(confMap),
 				legacy_s3_headers_last_date_(
 						boost::gregorian::from_simple_string(
@@ -188,14 +191,15 @@ public:
 				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
 				org_policy_versions_finder_(org_policy_versions_finder), api_(api), reactor_(reactor),
 				retention_db_(retention_db), retention_delete_db_(retention_delete_db), internal_db_(internal_db),
+				legal_hold_cache_(lh_cache),
 				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
 				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
 				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_),
 				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
 				delete_retention_records_for_internal_filetypes_(
 						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
-				quit_(quit),
-				purge_restrictions(confMap)
+				purge_restrictions(confMap),
+				quit_(quit)
 	{
 		// set all to false
 		for(int i = 0; i < archiving::file_type::n_file_types; i++)
@@ -329,12 +333,16 @@ public:
 		static const boost::function< void(const retention_record::set_t&, const uint64_t&, const uint64_t&) > fn_schedule_purgeables(
 				boost::bind(&app::retention_purge::runner::schedule_purgeables, shared_from_this(), _1, _2, _3));
 
+		const boost::function<bool(retention_record::pointer)> fn_is_purge_restricted_by_legal_hold =
+				boost::bind(app::is_purge_restricted_by_legal_hold<retention_record::pointer>,
+							boost::ref(legal_hold_cache_), _1);
+
 		int batch_count_(batch_count);
 
 		// look for any on-demand purge
 		batch_count_ -= retention_db_.get_retention_for_purge_ondemand(
 				api_, org_id, boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, false),
-				fn_is_filetype_auto_expired, fn_schedule_purgeables);
+				fn_is_filetype_auto_expired, fn_schedule_purgeables, fn_is_purge_restricted_by_legal_hold);
 
 		// continue with the regular purge
 		if(batch_count_ > 0) {
@@ -342,7 +350,7 @@ public:
 					api_, org_id, max_retention_id, batch_count, purge_restrictions,
 					boost::bind(retention_record::is_purgeable, boost::ref(cached_policy_finder_), _1, true),
 					fn_is_filetype_auto_expired, boost::bind(check_is_internal_filetype, delete_retention_records_for_internal_filetypes_, _1),
-					org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables);
+					org_had_legacy_ondemand_purge(org_id), fn_schedule_purgeables, fn_is_purge_restricted_by_legal_hold);
 		}
 
 		return max_retention_id;
@@ -398,6 +406,11 @@ public:
 	 */
 	bool purge_initialise(const item::pointer &p_item) try
 	{
+		if (legal_hold_cache_.get_status(p_item->retention).purge_restricted) {
+			LogMessage(p_item->identifier<<" Held by legal-hold; not purging");
+			return false;
+		}
+
 		// if headers check is suppressed by config, just move forward
 		if (headers_check_is_suppressed(p_item))
 			return true;

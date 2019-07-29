@@ -1,0 +1,12 @@
+PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+
+RML_STATISTICS_GIT_SUBMODULE=libs/rml-statistics
+RML_STATISTICS_DIR=$(PROJECT_DIR)/$(RML_STATISTICS_GIT_SUBMODULE)
+RML_STATISTICS_HPP=$(RML_STATISTICS_DIR)/rml/statistics/time_moving_average.hpp
+
+CXX_INCLUDES += -I $(RML_STATISTICS_DIR)
+
+$(RML_STATISTICS_HPP):
+	@cd $(PROJECT_DIR) && git submodule update --init --recursive $(RML_STATISTICS_GIT_SUBMODULE)
+
+*.cpp: $(RML_STATISTICS_HPP)

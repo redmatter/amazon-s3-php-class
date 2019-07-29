@@ -17,6 +17,7 @@ include_directories(
         ${MYSQL_INCLUDE_DIR}
         ${MYSQLPP_INCLUDE_DIR}
         /usr/include/cpp-netlib
+        ${rml_SOURCE_DIR}/..
         ../common
 )
 

@@ -40,7 +40,9 @@ set(HEADER_FILES
         macros.h
         file_format/headers.hpp
         file_format/policies.hpp
-        file_format/detail/parameter.hpp config/purge_restrictions.hpp)
+        file_format/detail/parameter.hpp config/purge_restrictions.hpp
+        legal_hold/cache.hpp
+        legal_hold/status.hpp)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)
@@ -53,6 +55,7 @@ include_directories(
         /usr/include/cpp-netlib
         ${rml-database-mysql_SOURCE_DIR}
         ${rml-utils_SOURCE_DIR}
+        ${rml_SOURCE_DIR}/..
         /usr/include/threadpool
         ${MYSQL_INCLUDE_DIR}
         ../common

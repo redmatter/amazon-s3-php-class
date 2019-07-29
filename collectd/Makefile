@@ -2,11 +2,8 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../version_info
 
-include /usr/share/librml/Makefile.macros
+include ../libs/rml/rml/Makefile.macros
 include ../common/Makefile.macros
-
-RML_QUEUE_DIR=../libs/rml-queue
-RML_QUEUE_QUEUE_HPP=$(RML_QUEUE_DIR)/rml/queue/queue.hpp
 
 FREESWITCH_DIR=/opt/freeswitch
 
@@ -21,14 +18,11 @@ endif
 
 TARGET=collectd
 
-TARGET_DEPS=../common/$(TMP)/libarchiving_common.a \
-	../external/sqlite/lib/libsqlite3.a
+TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
 RML_LOG_SOURCE_LOCATION=YES
 
-# Always DATABASE_SQLITE=YES
-CXX_INCLUDES += -I ../external/sqlite/include -I $(RML_QUEUE_DIR)
-LIBS += -L ../external/sqlite/lib -lsqlite3 -ldl
+# LIBS += -ldl
 
 ifeq ($(RML_LOG_SOURCE_LOCATION),YES)
 CPPFLAGS += -DRML_LOG_SOURCE_LOCATION
@@ -36,7 +30,9 @@ endif
 
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
+CPPFLAGS += -DRML_CONFIG_ENABLE_HAPI
 CPPFLAGS += -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1
+CPPFLAGS += -DBOOST_CHRONO_VERSION=2
 
 DEFAULT_APP_NAME=rm$(TARGET)
 CPPFLAGS += -DDEFAULT_APP_NAME='"$(DEFAULT_APP_NAME)"'
@@ -56,9 +52,6 @@ CPPFLAGS += -DSYSLOG_APP_NAME='"$(SYSLOG_APP_NAME)"'
 PID_FILE_PATH=/var/run/archiving/$(DEFAULT_APP_NAME).pid
 CPPFLAGS += -DPID_FILE_PATH='"$(PID_FILE_PATH)"'
 
-LIBRML_VERSION=1.1
-CPPFLAGS += $(shell pkg-config rml-$(LIBRML_VERSION) --cflags)
-
 LIBS += \
 	-lboost_program_options$(BOOST_NAME_EXT) \
 	-lboost_thread$(BOOST_NAME_EXT) \
@@ -68,26 +61,21 @@ LIBS += \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
-	$(shell pkg-config rml-$(LIBRML_VERSION) --libs) -lpugixml -lcryptopp -larchiving_common -luuid
+	-lpugixml -lcryptopp -larchiving_common -luuid
 
 CXX_SRCS += \
 	main.cpp
 
 C_SRCS += \
 
-include /usr/share/librml/Makefile.rules
-include /usr/share/librml/Makefile.app_target
+include ../libs/rml/rml/Makefile.rules
+include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+include ../external/Makefile.sqlite
 
-main.cpp : $(RML_QUEUE_QUEUE_HPP)
-
-ifeq ($(RML_QUEUE_DIR),../libs/rml-queue)
-$(RML_QUEUE_QUEUE_HPP):
-	@cd .. && git submodule update --init --recursive libs/rml-queue
-endif
-
-../external/sqlite/lib/libsqlite3.a:
-	@$(MAKE) -C ../external sqlite
+include ../libs/Makefile.rml
+include ../libs/Makefile.rml-queue
+include ../libs/Makefile.rml-utils
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION) DATABASE_SQLITE=YES

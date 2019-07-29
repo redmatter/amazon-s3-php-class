@@ -16,6 +16,8 @@
 #include <rml/exception.h>
 #include <rml/logger.h>
 
+#include "../../common/types.hpp"
+
 namespace archiving
 {
 namespace archived

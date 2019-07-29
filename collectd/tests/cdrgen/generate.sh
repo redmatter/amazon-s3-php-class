@@ -14,7 +14,7 @@ dv_selected=(all)
 
 all_enabled_data_variations=(
     with-recording
-    with-recording-10mins
+    with-recording-10mins-whitenoise
     without-recording
     with-call-analysis
     with-call-analysis-fudge

@@ -1,0 +1,20 @@
+EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+SQLITE_BASE_DIR=$(EXTERNAL_DIR)/sqlite
+SQLITE_INCLUDE_DIR=$(SQLITE_BASE_DIR)/include
+SQLITE_LIB_DIR=$(SQLITE_BASE_DIR)/lib
+
+CXX_INCLUDES += -isystem $(SQLITE_INCLUDE_DIR)
+LIBS += -L$(SQLITE_LIB_DIR) -lsqlite3
+
+CLEAN_EXTRA += clean-sqlite
+
+*.cpp: $(SQLITE_INCLUDE_DIR)/sqlite3.h
+
+$(SQLITE_INCLUDE_DIR)/sqlite3.h :
+	@$(MAKE) -C $(EXTERNAL_DIR) sqlite
+
+.PHONY: clean-sqlite
+
+clean-sqlite:
+	@rm -rf $(SQLITE_BASE_DIR)

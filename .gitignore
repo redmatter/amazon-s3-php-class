@@ -27,6 +27,9 @@ tmp*-libc*/
 !/*/tests/CMakeLists.txt
 !/collectd/test/cdrgen/
 !/collectd/tests/cdrgen/
+/***/*_test.db3
+/***/*.db3-shm
+/***/*.db3-wal
 
 # KDevelop
 /.kdev4/
@@ -44,3 +47,7 @@ eml2a/.idea
 /collect-importd/collect-importd
 modules.xml
 /common/tmp-test-build/
+/eml2a/eml2a-milter
+/collect-importd/cronjobs/phonero/.idea
+/collect-importd/cronjobs/phonero/src/vendor/
+/collect-importd/collect-importd

@@ -106,7 +106,7 @@ public:
 		boost::smatch match;
 		if (!boost::regex_search(file_path, match, uuid_regex) || match.size() != 2) {
 			LogError(std::string("is_file_loaded: filename was not in expected format: ") + file_path);
-            return false;
+			return false;
 		}
 		std::string uuid = match[1].str();
 
@@ -324,15 +324,17 @@ int main(int argc, char* argv[]) try
 		const common::collectd::fn_save_to_database_type &fn_save_to_database(
 				boost::bind(&collectimportd::archivable::database::save, boost::ref(internal_db_save_retry), _1));
 
+		const std::string archived_host(app::confMap["archived_client.server_host"].as<std::string>());
+		const std::string archived_port(app::confMap["archived_client.server_port"].as<std::string>());
+		archiving::host_ip_change_detector archived_ip_change_detector(archived_host, archived_port);
+
 		// PLAT-11755: instance of archived_client is required in order to successfully process a backlog
 		// without this change, if there is a backlog the application never starts properly, as there is
 		// a backlog log which is never removed (the items in the backlog list are never added to the queue
 		// via fn_out_channel_produce)
 		boost::shared_ptr<app::archived_client> archived_client = boost::make_shared<app::archived_client>(
 				boost::ref(*p_io_service), fn_out_channel_produce, fn_out_channel_consume, fn_remove_from_catalogue,
-				fn_save_to_database,
-				app::confMap["archived_client.server_host"].as<std::string>(),
-				app::confMap["archived_client.server_port"].as<std::string>());
+				fn_save_to_database, archived_host, archived_port, boost::cref(archived_ip_change_detector));
 
 		// initialise the internal static variables before we load anything;
 		bool more_to_load_from_db = false, wait_for_first_run;
@@ -378,9 +380,14 @@ int main(int argc, char* argv[]) try
 			if(app::confMap["app.tik_tok"].as<std::string>() == "true")
 				LogDebug(((time(0)%2) ? "tik": "tok"));
 
-			if(!(ticks++ % 10))
+			if(!(ticks++ % 10)) {
 				p_io_service->post(boost::bind(&app::database::internal::find_archivables, boost::ref(internal_db),
-						boost::ref(app::hostname), boost::ref(fn_get_loaded_instance), boost::ref(in_channel), boost::ref(more_to_load_from_db), app::archived_client::get_is_archived_ok()));
+											   boost::ref(app::hostname), boost::ref(fn_get_loaded_instance),
+											   boost::ref(in_channel), boost::ref(more_to_load_from_db),
+											   app::archived_client::get_is_archived_ok()));
+
+				archived_ip_change_detector.detect_change();
+			}
 
 			boost::this_thread::sleep(boost::posix_time::seconds(1));
 		}

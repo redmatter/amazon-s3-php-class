@@ -8,6 +8,8 @@
 #ifndef DATABASE_SQLITE_HPP_
 #define DATABASE_SQLITE_HPP_
 
+#include "put_group.hpp"
+
 #include "../common/policy.hpp"
 #include "../common/archivable.hpp"
 
@@ -20,30 +22,14 @@
 #include <boost/program_options.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/recursive_mutex.hpp>
+#include <boost/thread/condition_variable.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/bind.hpp>
 
 #include <set>
 
 #include <time.h>
 #include <stdio.h>
-
-namespace {
-
-template < typename ByteArray >
-void bytes_from_string(const std::string& str, ByteArray& bytes)
-{
-	byte* buf(bytes.c_array());
-	size_t skip(0);
-	for(size_t i = 0; i < std::min<size_t>(str.length()/2, ByteArray::size()); i++) {
-		skip += ((str[skip + i * 2] == '-')? 1: 0);
-		if(1 != sscanf(&str[skip + i * 2], "%2hhx", &buf[i])) {
-			LogWarning("Invalid character found at "<<(i*2));
-			throw rml::exception("Invalid character found");
-		}
-	}
-}
-
-} // namespace
 
 namespace app {
 
@@ -53,7 +39,21 @@ using namespace rml;
 
 class internal
 {
+	// pool is really here to easily create a read-only connection. read-write connections, though obtained via the pool
+	// are not cached (see pool logic that checks flag on release). pool is beneficial really only for the case where
+	// more than one RO connections are required (for example in a loop) at the same time. All other cases couls use
+	// just a connection created from the constructor. One connection can also be created for RW mode. This one
+	// connection mode is possible because of SQLITE_THREADSAFE=1 AKA serialized.
+	// see https://www.sqlite.org/threadsafe.html
+	//
+	// future work:
+	// - see if all use-cases of pool can be converted to use single connection (sub-queries etc)
+	// - replace connection pool with ro_conn and rw_conn
 	const sqlite::session::pool::pointer p_pool_;
+
+	bool writer_available;
+	boost::mutex writer_mutex;
+	boost::condition_variable writer_not_available_cond;
 
 	typedef std::list< archiving::archivable::pointer > archivable_pointer_list;
 
@@ -66,6 +66,36 @@ class internal
 	inline bool is_shutdown_flagged()
 	{
 		return shutdown_flagged_.load(boost::memory_order_consume);
+	}
+
+	inline bool
+	is_writer_available()
+	{
+		return writer_available || is_shutdown_flagged();
+	}
+
+	inline bool
+	wait_for_writer_available(boost::unique_lock<boost::mutex>& lock)
+	{
+		const boost::chrono::steady_clock::time_point start_time(boost::chrono::steady_clock::now());
+
+		writer_not_available_cond.wait(lock, boost::bind(&internal::is_writer_available, this));
+		if (!is_shutdown_flagged()) {
+			writer_available = false;
+		}
+
+		LogVerbose("obtained writer in " << boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::steady_clock::now() - start_time).count() << "ms");
+
+		return !writer_available;
+	}
+
+	inline void
+	set_writer_available(boost::unique_lock<boost::mutex>& lock)
+	{
+		writer_available = true;
+
+		lock.unlock();
+		writer_not_available_cond.notify_one();
 	}
 
 public:
@@ -115,6 +145,7 @@ public:
 				confMap["sqlite.database_path"].as<std::string>(),
 				sqlite::session::flags_readonly | sqlite::session::flags_cache_shared,
 				confMap["sqlite.debug_on"].as<bool>())),
+		writer_available(true),
 		save_interval_seconds_(confMap["queue.save_interval_seconds"].as<unsigned int>()), shutdown_flagged_(false)
 	{
 	}
@@ -172,6 +203,149 @@ public:
 		LogError("save_run failed; exception:unknown");
 	}
 
+	inline boost::shared_ptr<put_group>
+	put_group_load(const archiving::put_group_id_t& id) try
+	{
+		sqlite::work txn(p_pool_);
+
+		sqlite::query::pointer p_query(
+				txn.query("SELECT `ArchivedIP`, `RefCount` FROM `PutGroup` WHERE `ID`=:ID LIMIT 1"));
+		const sqlite::result& res(p_query->prepare()
+										  ->bind(sqlite::types::blob(id), ":ID")
+										  ->execute());
+		if (res) {
+			return boost::make_shared<put_group>(id, res[1].as_int(), res[0].as_int());
+		}
+
+		return boost::shared_ptr<put_group>();
+	} catch (const sqlite::exception& e) {
+		LogError("failed to get IP; using default. exception:" << e);
+		return boost::shared_ptr<put_group>();
+	} catch (const std::exception& e) {
+		LogError("failed to get IP; using default. exception:" << e.what());
+		return boost::shared_ptr<put_group>();
+	}
+
+	template <typename Itr>
+	Itr put_group_save_bulk(const Itr& begin, const Itr& end) try
+	{
+		if (begin == end) {
+			return end;
+		}
+
+		boost::unique_lock<boost::mutex> lock(writer_mutex);
+		if (!wait_for_writer_available(lock)) {
+			return begin;
+		}
+
+		rml::sentry writer_available_sentry(
+				boost::bind(&internal::set_writer_available, this, boost::ref(lock)));
+
+		sqlite::work txn(p_pool_, sqlite::work::mode::deffered, sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
+		sqlite::query::pointer p_query = txn.query();
+
+		p_query << "INSERT OR REPLACE INTO `PutGroup` (`ID`, `ArchivedIP`, `RefCount`, `Done`, `Expires`) VALUES";
+		{
+			uint count = 0;
+			Itr itr = begin;
+			for (; itr != end; ++itr, count++) {
+				if (itr != begin) {
+					p_query << ",";
+				}
+				p_query << "("
+				"  :ID" << count << ", :ArchivedIP" << count << ", :RefCount" << count << ", "
+				"  CASE WHEN :RefCount" << count << " != 0 THEN 0 ELSE 1 END, "
+				"  CASE WHEN :RefCount" << count << " != 0 THEN 0 ELSE STRFTIME('%s','NOW') + 1800 END" // 30 mins grace period
+				")";
+			}
+		}
+
+		p_query->prepare();
+		
+		{
+			uint count = 0;
+			Itr itr = begin;
+			for (; itr != end; ++itr, count++) {
+				p_query
+					->bind(sqlite::types::blob((*itr)->id), boost::str(boost::format(":ID%1%") % count))
+					->bind(static_cast<int>((*itr)->ip), boost::str(boost::format(":ArchivedIP%1%") % count))
+					->bind(static_cast<int>((*itr)->ref_count.load(boost::memory_order_acquire)), 
+						boost::str(boost::format(":RefCount%1%") % count));
+			}
+		}
+
+		p_query->execute();
+		
+		txn.commit();
+
+		return end;
+	} catch (const sqlite::exception& e) {
+		LogError("failed to save put-groups (bulk). exception:" << e);
+		return begin;
+	} catch(const std::exception& e) {
+		LogError("failed to save put-groups (bulk). exception:" << e.what());
+		return begin;
+	}
+
+	inline void put_group_save(const boost::shared_ptr<put_group>& pg) try
+	{
+		boost::unique_lock<boost::mutex> lock(writer_mutex);
+		if (!wait_for_writer_available(lock)) {
+			return;
+		}
+
+		rml::sentry writer_available_sentry(
+				boost::bind(&internal::set_writer_available, this, boost::ref(lock)));
+
+		sqlite::work txn(p_pool_, sqlite::work::mode::deffered, sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
+		sqlite::query::pointer p_query = txn.query(
+			"INSERT INTO `PutGroup` (`ID`, `ArchivedIP`, `RefCount`, `Done`, `Expires`) "
+			"  VALUES("
+			"    :ID, :ArchivedIP, :RefCount, "
+			"    CASE WHEN :RefCount != 0 THEN 0 ELSE 1 END, "
+			"    CASE WHEN :RefCount != 0 THEN 0 ELSE STRFTIME('%s','NOW') + 1800 /*30 mins*/ END"
+			"  ) "
+			"ON CONFLICT(`ID`) "
+			"  DO UPDATE SET "
+			"    `ArchivedIP` = :ArchivedIP, "
+			"    `RefCount` = :RefCount, "
+			"    `Done` = CASE WHEN :RefCount != 0 THEN 0 ELSE 1 END, "
+			"    `Expires` = CASE WHEN :RefCount != 0 THEN 0 ELSE STRFTIME('%s','NOW') + 1800 /*30 mins*/ END");
+		p_query->prepare()
+				->bind(sqlite::types::blob(pg->id), ":ID")
+				->bind(static_cast<int>(pg->ip), ":ArchivedIP")
+				->bind(static_cast<int>(pg->ref_count.load(boost::memory_order_acquire)), ":RefCount")
+				->execute();
+		txn.commit();
+	} catch (const sqlite::exception& e) {
+		LogError("failed to add/set-ip put-group. exception:" << e);
+	} catch (const std::exception& e) {
+		LogError("failed to add/set-ip put-group. exception:" << e.what());
+	}
+
+	inline void
+	put_group_purge_expired() try
+	{
+		boost::unique_lock<boost::mutex> lock(writer_mutex);
+		if (!wait_for_writer_available(lock)) {
+			return;
+		}
+
+		rml::sentry writer_available_sentry(
+				boost::bind(&internal::set_writer_available, this, boost::ref(lock)));
+
+		sqlite::work txn(p_pool_, sqlite::work::mode::deffered, sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
+
+		sqlite::query::pointer p_query(txn.query("DELETE FROM `PutGroup` WHERE `Expires` > 0 AND `Expires` < STRFTIME('%s','NOW')"));
+		p_query->execute();
+
+		txn.commit();
+	} catch (const sqlite::exception& e) {
+		LogError("failed to purge expired put-groups. exception:" << e);
+	} catch (const std::exception& e) {
+		LogError("failed to purge expired put-groups. exception:" << e.what());
+	}
+
 private:
 	inline void save_all() try
 	{
@@ -179,6 +353,14 @@ private:
 
 		if(save_list_.empty())
 			return;
+
+		boost::unique_lock<boost::mutex> writer_lock(writer_mutex);
+		if (!wait_for_writer_available(writer_lock)) {
+			return;
+		}
+
+		rml::sentry writer_available_sentry(
+				boost::bind(&internal::set_writer_available, this, boost::ref(writer_lock)));
 
 		sqlite::work txn(p_pool_, sqlite::work::mode::deffered, sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
 
@@ -287,10 +469,10 @@ private:
 			}
 
 			archiving::uuid_t uuid;
-			bytes_from_string(p_arc->get_uuid(), uuid);
+			archiving::string_to_uuid(p_arc->get_uuid(), uuid);
 
 			archiving::uuid_t originator_uuid;
-			bytes_from_string(p_arc->get_originator_uuid(), originator_uuid);
+			archiving::string_to_uuid(p_arc->get_originator_uuid(), originator_uuid);
 
 			archiving::uuid_t leg_uuid;
 
@@ -321,7 +503,7 @@ private:
 			if (str_leg_uuid.empty()) {
 				p_query->bind(sqlite::null, ":LegUUID");
 			} else {
-				bytes_from_string(str_leg_uuid, leg_uuid);
+				archiving::string_to_uuid(str_leg_uuid, leg_uuid);
 				p_query->bind(sqlite::types::blob(leg_uuid), ":LegUUID");
 			}
 
@@ -353,7 +535,7 @@ public:
 			archiving::archivable& arc(*p_arc);
 
 			archiving::uuid_t uuid;
-			bytes_from_string(arc.get_uuid(), uuid);
+			archiving::string_to_uuid(arc.get_uuid(), uuid);
 
 			sqlite::work txn(p_pool_);
 
@@ -607,7 +789,7 @@ public:
 	archiving::archivable::pointer load_archivable_by_uuid(const std::string &uuid)
 	{
 		archiving::uuid_t uuid_bin;
-		bytes_from_string(uuid, uuid_bin);
+		archiving::string_to_uuid(uuid, uuid_bin);
 
 		return load_archivable_by_key_value<sqlite::types::blob>("UUID", sqlite::types::blob(uuid_bin));
 	}
@@ -703,6 +885,14 @@ public:
 
 		try {
 			int xx = 1;
+
+			boost::unique_lock<boost::mutex> lock(writer_mutex);
+			if (!wait_for_writer_available(lock)) {
+				return false;
+			}
+
+			rml::sentry writer_available_sentry(
+					boost::bind(&internal::set_writer_available, this, boost::ref(lock)));
 
 			sqlite::work txn(p_pool_, sqlite::work::mode::deffered, sqlite::session::flags_readwrite | sqlite::session::flags_cache_private);
 

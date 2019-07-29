@@ -1,11 +1,11 @@
-SQLITE_VERSION=3071502
+SQLITE_VERSION=3270200
 
 CPP_NETLIB_VERSION=0.11.2-final
 ifndef CPP_NETLIB_BUILD_TESTS
-CPP_NETLIB_BUILD_TESTS=ON
+CPP_NETLIB_BUILD_TESTS=OFF
 endif
 ifndef CPP_NETLIB_BUILD_EXAMPLES
-CPP_NETLIB_BUILD_EXAMPLES=ON
+CPP_NETLIB_BUILD_EXAMPLES=OFF
 endif
 
 CRYPTOPP_VERSION=5.6.1
@@ -14,12 +14,14 @@ CRYPTOPP_VERSION=5.6.1
 
 sqlite: prefix=$(shell pwd)/$@
 sqlite: sqlite/sqlite-autoconf-$(SQLITE_VERSION)
-	prefix=$(shell pwd)/sqlite
 	cd sqlite/sqlite-autoconf-$(SQLITE_VERSION) && \
-		./configure --enable-static --disable-shared \
+		./configure --enable-static --disable-shared --enable-static-shell \
+			--disable-json1 --enable-readline --disable-dynamic-extensions \
 			--bindir=$(prefix)/bin --libdir=$(prefix)/lib \
 			--includedir=$(prefix)/include --prefix=$(prefix) && \
-		make install
+		make -j2 install
+	# delete the source
+	rm -rf sqlite/sqlite-autoconf-$(SQLITE_VERSION)
 
 sqlite/sqlite-autoconf-$(SQLITE_VERSION):
 	@mkdir -p sqlite && tar -C sqlite -xzf sqlite-autoconf-$(SQLITE_VERSION).tar.gz

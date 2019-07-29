@@ -52,6 +52,17 @@ download_project(PROJ cmake-common
 # Add cmake-common to CMAKE_MODULE_PATH
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
 
+# Add lib#rml
+#option(rml_BUILD_TESTS "" OFF)
+option(BUILD_HEADER_ONLY "" ON)
+download_project(PROJ rml
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
+        GIT_TAG 1.14.0
+        UPDATE_DISCONNECTED 1
+        SOURCE_DIR "${CMAKE_BINARY_DIR}/rml-src/rml"
+        )
+add_subdirectory(${rml_SOURCE_DIR})
+
 # Add rml-queue
 download_project(PROJ rml-queue
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
@@ -62,7 +73,7 @@ add_subdirectory(${rml-queue_SOURCE_DIR})
 
 download_project(PROJ rml-utils
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
-        GIT_TAG 1.4.1
+        GIT_TAG 1.4.2
         UPDATE_DISCONNECTED 1
         )
 add_subdirectory(${rml-utils_SOURCE_DIR})

@@ -12,7 +12,7 @@ LIBS_test_encrypted_header_v2 = \
 	-lboost_system \
 	-L ../../common/$(TMP) -larchiving_common
 
-include /usr/share/librml/Makefile.gtest
+include ../libs/rml/rml/Makefile.gtest
 
 test_encrypted_header_v2 : version.o ../../common/$(TMP)/libarchiving_common.a
 ../../common/$(TMP)/libarchiving_common.a:

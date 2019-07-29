@@ -313,7 +313,7 @@ public:
 					const uint64_t& archivable_id(rml::utils::strtoull(row[0].c_str()));
 					max_id = archivable_id;
 
-					const archiving::file_type::file_type_t archivable_file_type(rml::utils::strtoull(row[1].c_str(), 0UL));
+					const archiving::file_type::file_type_t archivable_file_type = archiving::file_type::file_type_t(row[1].conv(0));
 					const std::string archivable_uuid(row[2].c_str());
 
 					try{

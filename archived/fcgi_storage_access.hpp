@@ -372,5 +372,7 @@ public:
 
 }  // namespace app
 
+#undef Timing
+#undef Debug
 
 #endif /* FCGI_STORAGE_ACCESS_HPP_ */

@@ -17,6 +17,7 @@
 #include <cryptopp/hex.h>
 
 #include <boost/array.hpp>
+#include <boost/algorithm/hex.hpp>
 
 #include <stdint.h>
 
@@ -31,7 +32,42 @@ typedef uint64_t endpoint_id_t;
 
 typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 
-typedef boost::array< byte, 16 > uuid_t;
+typedef boost::array<unsigned char, 16> uuid_t;
+
+// for PUT grouping by LegUUID
+typedef uuid_t put_group_id_t;
+
+// identifies an ArchiveD instance (among SDCs, from GDCs) by its IP address
+typedef uint32_t archived_ip_t;
+
+inline void
+string_to_uuid(const std::string& str, uuid_t& uuid)
+{
+    unsigned char* buf(uuid.c_array());
+    size_t skip(0);
+    for(size_t i = 0; i < std::min<size_t>(str.length()/2, uuid_t::size()); i++) {
+        skip += ((str[skip + i * 2] == '-')? 1: 0);
+        if(1 != sscanf(&str[skip + i * 2], "%2hhx", &buf[i])) {
+            uuid.fill(0); // reset the uuid if there was an error
+            throw std::runtime_error("Invalid character found");
+        }
+    }
+}
+
+inline void
+uuid_to_hex_string(const uuid_t& uuid, std::string& str)
+{
+    boost::algorithm::hex(uuid.begin(), uuid.end(), std::back_inserter(str));
+}
+
+
+inline std::string
+uuid_to_hex_string(const uuid_t& uuid)
+{
+    std::string str;
+    uuid_to_hex_string(uuid, str);
+    return str;
+}
 
 /**
  * Types of files we deal with
