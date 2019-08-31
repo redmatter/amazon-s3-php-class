@@ -19,7 +19,7 @@ add_definitions(
 )
 
 add_executable(asio-freeswitch-esl main.cpp ${HEADER_FILES})
-target_link_libraries(rmcollectd-perf-test
+target_link_libraries(asio-freeswitch-esl
         esl
 
         rt
