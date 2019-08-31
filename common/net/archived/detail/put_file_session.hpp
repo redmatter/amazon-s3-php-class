@@ -33,6 +33,7 @@ std::ostream& operator<<(std::ostream&, const put_file_session&);
 
 struct put_file_session
 {
+    typedef boost::array<char, 16 * 1024> file_buffer_type;
     const boost::shared_ptr<archiving::archivable> file;
     const boost::function<void(boost::system::error_code& ec)> done_callback;
     const boost::function<bool()> is_interrupted;
@@ -42,6 +43,7 @@ struct put_file_session
     detail::put_state::enum_t state;
 
     rml::utils::wall_timer timer;
+    file_buffer_type file_buffer;
 
     put_file_session(const boost::shared_ptr<archiving::archivable>& file,
                      const boost::function<void(boost::system::error_code& ec)> done_callback,

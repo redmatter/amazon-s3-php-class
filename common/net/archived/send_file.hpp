@@ -32,6 +32,8 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
                     const boost::shared_ptr<connection>& conn,
                     const boost::shared_ptr<detail::put_file_session>& session) try
 {
+    typedef detail::put_file_session::file_buffer_type file_buffer_type;
+
     if (ec) {
         conn->fault = ec;
         LogWarning(*conn << ' ' << *session << " network/protocl error; err:" << ec.message());
@@ -94,10 +96,8 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     }
 
     case detail::put_state::sending_file: {
-        const std::size_t buf_length = std::min<std::size_t>(session->file_size_remaining, 4096);
-        std::vector<char> buf(buf_length + 1);
-
-        if (!session->file_stream->read(&buf[0], buf_length)) {
+        const std::size_t buf_length = std::min<std::size_t>(session->file_size_remaining, file_buffer_type::size());
+        if (!session->file_stream->read(session->file_buffer.c_array(), buf_length)) {
             // failed ot read from file, midway.
             // this will leave this instance of the connection unusable; marking it faulty.
             conn->fault = error::make_error_code(error::put_send_file_failure_reading_file);
@@ -110,7 +110,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
 
         std::ostream ostr(&conn->send_buffer);
-        ostr.write(&buf[0], bytes_read);
+        ostr.write(session->file_buffer.c_array(), buf_length);
 
         // have we finished copying data from the file?
         if (session->file_size_remaining == 0) {
@@ -131,10 +131,6 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         session->state = detail::put_state::file_sent_ack_waiting;
         boost::asio::async_read_until(conn->socket, conn->recv_buffer, "\r\n", conn->strand.wrap(
                 boost::bind(send_file_impl, boost::asio::placeholders::error, 0, conn, session)));
-
-        // wait for one second per 100KB; ArchiveD needs time to compute MD5, and do other housekeeping
-        // todo set_reconnect_timer(std::max(static_cast<const int>(put_file_size_ / 102400), 20), true);
-
         break;
     }
 
