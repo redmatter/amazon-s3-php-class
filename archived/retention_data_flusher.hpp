@@ -8,9 +8,11 @@
 #ifndef RETENTION_DATA_FLUSHER_HPP_
 #define RETENTION_DATA_FLUSHER_HPP_
 
-#include <boost/chrono/duration.hpp>
-#include <boost/thread/thread.hpp>
 #include "database_retention.hpp"
+
+#include <boost/chrono/duration.hpp>
+#include <boost/chrono/io/time_point_io.hpp>
+#include <boost/thread/thread.hpp>
 
 namespace app {
 
@@ -80,7 +82,7 @@ public:
 							const types::metadata::pointer& p_metadata( data->p_detail->p_metadata );
 							types::metadata::const_iterator itr = p_metadata->find("CreateTime");
 							if (itr == p_metadata->end()) {
-								LogWarning(identifier<<" CreateTime NOT found in metadata");
+								LogWarning("flush-retention: " << identifier<<" CreateTime NOT found in metadata");
 								time(&creation_time);
 							} else {
 								creation_time = rml::utils::strtoull(itr->second.c_str());
@@ -88,7 +90,7 @@ public:
 						}
 
 						if (data->p_detail->state == operation_state::put_file_save_ok) {
-							LogDebug(identifier<<": ToRetention");
+							LogDebug("flush-retention: " << identifier<<": ToRetention");
 							{
 								database::retention::data retention;
 								retention.file_format = data->p_detail->target_file_format;
@@ -133,7 +135,7 @@ public:
 
 							data->p_detail->state = operation_state::all_done;
 						} else {
-							LogMessage(identifier<<": Not archived (no retention record created)");
+							LogMessage("flush-retention: " << identifier<<": Not archived (no retention record created)");
 						}
 
 						pc_produce(purge_channel_, data);
@@ -151,7 +153,7 @@ public:
 					int retry = 0;
 					while(!retention_db_.save(retention_set, usage_data_set)) {
 						const boost::chrono::seconds retry_interval(10);
-						LogWarning("[retry: " << (++retry) << "] Retention save failed; retrying in "
+						LogWarning("flush-retention: [retry: " << (++retry) << "] Retention save failed; retrying in "
 											  << retry_interval.count() << "s (DO NOT KILL THE PROCESS) ... [running for "
 											  << boost::chrono::duration_cast<double_minute>(
 													  boost::chrono::steady_clock::now() - when_started).count()
@@ -166,13 +168,13 @@ public:
 			} catch (const operation_data::channel_t::finishing_exception& e) {
 				break;
 			} catch (const std::exception& e) {
-				LogError("Exception: "<<e.what());
+				LogError("flush-retention: Exception: "<<e.what());
 			} catch (...) {
-				LogError("Unexpected exception");
+				LogError("flush-retention: Unexpected exception");
 			}
 
 			const boost::chrono::steady_clock::time_point& attempt_end_time(boost::chrono::steady_clock::now());
-			LogMessage("flush-retention: attempt took " << boost::chrono::duration_cast<boost::chrono::seconds>(attempt_end_time - attempt_start_time).count() << "s");
+			LogMessage("flush-retention: Retention saved; attempt took " << boost::chrono::duration_cast<boost::chrono::seconds>(attempt_end_time - attempt_start_time).count() << "s");
 
 			// next attempt based on attempt start time so that there is more chance of reducing a built-up backlog due
 			// to spike in traffic.
@@ -180,6 +182,8 @@ public:
 			if (next_flush < (attempt_end_time + min_flush_interval_seconds_)) {
 				next_flush = attempt_end_time + min_flush_interval_seconds_;
 			}
+
+			LogDebug("flush-retention: Next retention flush @ " << next_flush);
 		}
 	} catch (const boost::thread_interrupted &e) {
 		LogMessage("flush-retention: thread interrupted");
