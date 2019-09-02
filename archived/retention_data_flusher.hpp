@@ -174,7 +174,7 @@ public:
 			}
 
 			const boost::chrono::steady_clock::time_point& attempt_end_time(boost::chrono::steady_clock::now());
-			LogMessage("flush-retention: Retention saved; attempt took " << boost::chrono::duration_cast<boost::chrono::seconds>(attempt_end_time - attempt_start_time).count() << "s");
+			LogMessage("flush-retention: attempt took " << boost::chrono::duration_cast<boost::chrono::duration<double> >(attempt_end_time - attempt_start_time).count() << "s");
 
 			// next attempt based on attempt start time so that there is more chance of reducing a built-up backlog due
 			// to spike in traffic.
