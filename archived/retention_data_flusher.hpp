@@ -8,6 +8,8 @@
 #ifndef RETENTION_DATA_FLUSHER_HPP_
 #define RETENTION_DATA_FLUSHER_HPP_
 
+#include <boost/chrono/duration.hpp>
+#include <boost/thread/thread.hpp>
 #include "database_retention.hpp"
 
 namespace app {
@@ -20,13 +22,17 @@ class retention_data_flusher
 
 	volatile bool& quit_;
 
-	unsigned int flush_interval_seconds_;
+	const boost::chrono::seconds flush_interval_seconds_;
+	const boost::chrono::seconds min_flush_interval_seconds_;
+	const unsigned int flush_max_batch_size_;
 
 public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("retention_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "retention data - flush interval in seconds")
+				("retention_data.flush_max_batch_size", boost::program_options::value<unsigned int>()->default_value(2000U), "retention data flush - maximum batch size")
+				("retention_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "retention data flush - interval in seconds")
+				("retention_data.min_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(3U), "retention data flush - minimum interval between attempts, in seconds")
 				;
 	}
 
@@ -35,28 +41,36 @@ public:
 		purge_channel_(purge_channel),
 		retention_db_(retention_db),
 		quit_(quit),
-		flush_interval_seconds_(confMap["retention_data.flush_interval_seconds"].as<unsigned int>())
+		flush_interval_seconds_(confMap["retention_data.flush_interval_seconds"].as<unsigned int>()),
+		min_flush_interval_seconds_(
+				std::min(
+						static_cast<unsigned int>(flush_interval_seconds_.count()),
+						std::max(1U, confMap["retention_data.min_flush_interval_seconds"].as<unsigned int>()))),
+		flush_max_batch_size_(std::max(500U, confMap["retention_data.flush_max_batch_size"].as<unsigned int>()))
 	{
 	}
 
-	void run()
-	{
-		// start in 20s
-		int c = -20;
-
-		while(!quit_) {
-
-			if( ++c % flush_interval_seconds_) {
-				boost::this_thread::sleep(boost::posix_time::seconds(1));
-				continue;
-			}
+	void run() try {
+		// delay the first attempt by 20 seconds
+		boost::chrono::steady_clock::time_point next_flush =
+				boost::chrono::steady_clock::now() + boost::chrono::seconds(20);
+		while (!quit_) {
+			boost::this_thread::sleep_until(next_flush);
+			const boost::chrono::steady_clock::time_point& attempt_start_time(boost::chrono::steady_clock::now());
 
 			database::retention::data::multiset_t retention_set;
 			database::retention::usage_data::multiset_t usage_data_set;
 
 			try {
-				unsigned int batch_max = 500;
-				while(!quit_ && batch_max--) {
+				bool channel_finishing = false;
+
+				// disable interruption via boost::thread::terminate()
+				// otherwise it can affect consume() from pc_channel as it uses conditional-wait which is one of the
+				// interruption points.
+				boost::this_thread::disable_interruption disable_interruption;
+
+				unsigned int batch_max = flush_max_batch_size_;
+				while (!quit_ && batch_max--) {
 					try {
 						operation_data::pointer data = retention_data_channel_.consume(0, 1000);
 						const archiving::archivable::identifier& identifier(data->p_detail->identifier);
@@ -65,15 +79,15 @@ public:
 						{
 							const types::metadata::pointer& p_metadata( data->p_detail->p_metadata );
 							types::metadata::const_iterator itr = p_metadata->find("CreateTime");
-							if(itr == p_metadata->end()) {
+							if (itr == p_metadata->end()) {
 								LogWarning(identifier<<" CreateTime NOT found in metadata");
 								time(&creation_time);
-							}
-							else
+							} else {
 								creation_time = rml::utils::strtoull(itr->second.c_str());
+							}
 						}
 
-						if(data->p_detail->state == operation_state::put_file_save_ok) {
+						if (data->p_detail->state == operation_state::put_file_save_ok) {
 							LogDebug(identifier<<": ToRetention");
 							{
 								database::retention::data retention;
@@ -97,8 +111,9 @@ public:
 								{
 									const types::metadata::pointer& p_metadata( data->p_detail->p_metadata );
 									types::metadata::const_iterator itr = p_metadata->find("LegUUID");
-									if(itr != p_metadata->end())
+									if (itr != p_metadata->end()) {
 										retention.leg_uuid = itr->second;
+									}
 								}
 
 								retention_set.insert(retention);
@@ -122,13 +137,15 @@ public:
 						}
 
 						pc_produce(purge_channel_, data);
-					}
-					catch(const operation_data::channel_t::consume_timed_out_exception& e) {
+					} catch(const operation_data::channel_t::finishing_exception& e) {
+						channel_finishing = true;
+						break;
+					} catch(const operation_data::channel_t::consume_timed_out_exception& e) {
 						break;
 					}
 				}
 
-				if(!retention_set.empty() || !usage_data_set.empty()) {
+				if (!retention_set.empty() || !usage_data_set.empty()) {
 					typedef boost::chrono::duration<double, boost::ratio<60> > double_minute;
 					const boost::chrono::steady_clock::time_point when_started = boost::chrono::steady_clock::now();
 					int retry = 0;
@@ -142,19 +159,34 @@ public:
 						boost::this_thread::sleep_for(retry_interval);
 					}
 				}
-			}
-			catch(const operation_data::channel_t::finishing_exception& e) {
+
+				if (channel_finishing) {
+					break;
+				}
+			} catch (const operation_data::channel_t::finishing_exception& e) {
 				break;
-			}
-			catch(const std::exception& e) {
+			} catch (const std::exception& e) {
 				LogError("Exception: "<<e.what());
-			}
-			catch(...) {
+			} catch (...) {
 				LogError("Unexpected exception");
 			}
-		}
 
-		LogMessage("flush_retention(): thread ending");
+			const boost::chrono::steady_clock::time_point& attempt_end_time(boost::chrono::steady_clock::now());
+			LogMessage("flush-retention: attempt took " << boost::chrono::duration_cast<boost::chrono::seconds>(attempt_end_time - attempt_start_time).count() << "s");
+
+			// next attempt based on attempt start time so that there is more chance of reducing a built-up backlog due
+			// to spike in traffic.
+			next_flush = attempt_start_time + flush_interval_seconds_;
+			if (next_flush < (attempt_end_time + min_flush_interval_seconds_)) {
+				next_flush = attempt_end_time + min_flush_interval_seconds_;
+			}
+		}
+	} catch (const boost::thread_interrupted &e) {
+		LogMessage("flush-retention: thread interrupted");
+	} catch (const std::exception &e) {
+		LogMessage("flush-retention: thread ending due to exception: " << e.what());
+	} catch (...) {
+		LogMessage("flush-retention: thread ending due to unknown exception");
 	}
 };
 

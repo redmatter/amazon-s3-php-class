@@ -429,7 +429,8 @@ int main(int argc, char *argv[]) try
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
 		}
 
-		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
+		boost::thread* retention_data_flusher_threads = threads.create_thread(
+				boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
 		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
 		threads.create_thread(boost::bind(
 				app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder),
@@ -540,6 +541,8 @@ int main(int argc, char *argv[]) try
 
 		LogMessage("Stopping FastCGI server");
 		fcgi_server.stop();
+
+		retention_data_flusher_threads->interrupt();
 
 		LogMessage("Waiting for all threads to finish");
 		threads.join_all();
