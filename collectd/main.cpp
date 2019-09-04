@@ -6,6 +6,8 @@
 // Created by Dino Korah on 28 April 2010.
 //
 
+#include <rml/pool/error.hpp>
+
 #include "cdr_inspector.hpp"
 #include "directory_loader.hpp"
 #include "cdr_dir_monitor.hpp"
