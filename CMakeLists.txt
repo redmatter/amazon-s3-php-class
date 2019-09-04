@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.14)
+
+option(BUILD_TESTS "Build tests" ON)
 
 option(USE_CLANG "Build application with clang" OFF)
 if (USE_CLANG)
@@ -14,83 +16,75 @@ include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wunnamed-type-template-args
         HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 
-# setup additional cmake module path
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake-modules)
+include(FetchContent)
 
-# setup git-submodule
-include(SetupGitSubmodules)
+FetchContent_Declare(
+        cmake-common
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/cmake.git
+        GIT_TAG        master
+)
 
-# make sure DownloadProject is checked-out and added to cmake module path
-setup_git_submodules(SUBMODULE_PATH cmake-modules/external/DownloadProject)
-setup_cmake_modules(${CMAKE_SOURCE_DIR}/cmake-modules/external DownloadProject)
-
-# initialise DownloadProject
-include(DownloadProject)
-
-if (CMAKE_VERSION VERSION_LESS 3.2)
-    set(UPDATE_DISCONNECTED_IF_AVAILABLE "")
-else ()
-    set(UPDATE_DISCONNECTED_IF_AVAILABLE "UPDATE_DISCONNECTED 1")
-endif ()
-
-option(BUILD_TESTS "Build tests" ON)
 if (BUILD_TESTS)
-    download_project(PROJ googletest
-            GIT_REPOSITORY https://github.com/google/googletest.git
-            GIT_TAG release-1.8.0
-            UPDATE_DISCONNECTED 1
-            )
-    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
+    FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY git@github.com:google/googletest.git
+            GIT_TAG        release-1.8.1
+    )
 endif()
 
-# Use DownloadProject to load cmake-common
-download_project(PROJ cmake-common
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/cmake.git
-        GIT_TAG develop
-        ${UPDATE_DISCONNECTED_IF_AVAILABLE})
+FetchContent_Declare(
+        librml
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
+        GIT_TAG        1.14.0
+)
 
+FetchContent_Declare(
+        rml-queue
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
+        GIT_TAG        master
+)
+
+FetchContent_Declare(
+        rml-utils
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
+        GIT_TAG        1.4.2
+)
+
+FetchContent_Declare(
+        rml-database-mysql
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
+        GIT_TAG        2.0.3
+)
+
+FetchContent_Declare(
+        rml-statistics
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-statistics.git
+        GIT_TAG        1.1.0
+)
+
+FetchContent_MakeAvailable(cmake-common)
 # Add cmake-common to CMAKE_MODULE_PATH
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
 
-# Add lib#rml
-#option(rml_BUILD_TESTS "" OFF)
-option(BUILD_HEADER_ONLY "" ON)
-download_project(PROJ rml
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
-        GIT_TAG 1.14.0
-        UPDATE_DISCONNECTED 1
-        SOURCE_DIR "${CMAKE_BINARY_DIR}/rml-src/rml"
-        )
-add_subdirectory(${rml_SOURCE_DIR})
+if (BUILD_TESTS)
+    FetchContent_MakeAvailable(googletest)
+endif()
 
-# Add rml-queue
-download_project(PROJ rml-queue
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
-        GIT_TAG master
-        UPDATE_DISCONNECTED 1
-        )
-add_subdirectory(${rml-queue_SOURCE_DIR})
+FetchContent_GetProperties(librml rml-queue rml-utils rml-database-mysql rml-statistics)
+if(NOT librml_POPULATED)
+    option(BUILD_HEADER_ONLY "" ON) # todo see if we need this
+    FetchContent_Populate(librml)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librml)
+    file(CREATE_LINK ${librml_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/librml/rml SYMBOLIC)
+    # run build-time templating logic in librml
+    add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/librml/rml")
+    set(librml_INC_DIR "${CMAKE_CURRENT_BINARY_DIR}/librml")
+endif()
 
-download_project(PROJ rml-utils
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
-        GIT_TAG 1.4.2
-        UPDATE_DISCONNECTED 1
-        )
-add_subdirectory(${rml-utils_SOURCE_DIR})
-
-download_project(PROJ rml-database-mysql
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
-        GIT_TAG 2.0.3
-        UPDATE_DISCONNECTED 1
-        )
-add_subdirectory(${rml-database-mysql_SOURCE_DIR})
-
-download_project(PROJ rml-statistics
-        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-statistics.git
-        GIT_TAG 1.1.0
-        UPDATE_DISCONNECTED 1
-        )
-add_subdirectory(${rml-statistics_SOURCE_DIR})
+FetchContent_Populate(rml-queue)
+FetchContent_Populate(rml-utils)
+FetchContent_Populate(rml-database-mysql)
+FetchContent_Populate(rml-statistics)
 
 add_subdirectory(common)
 add_subdirectory(archived)
