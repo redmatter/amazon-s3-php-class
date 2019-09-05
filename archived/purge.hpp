@@ -42,7 +42,7 @@ public:
 	{
 	}
 
-	void run()
+	void run() try
 	{
 		const boost::chrono::seconds flush_interval_seconds_(confMap["purge.interval_seconds"].as<unsigned int>());
 		const boost::chrono::seconds min_flush_interval_seconds_(
@@ -80,13 +80,12 @@ public:
 
 					purge_items.push_front(opdata);
 					operation_data_busy_set_.remove(opdata); // RIP
-				} catch(const operation_data::channel_t::finishing_exception& e) {
+				} catch (const operation_data::channel_t::finishing_exception& e) {
 					channel_finishing = true;
 					break;
 				} catch (const operation_data::channel_t::consume_timed_out_exception& e) {
 					break;
-				}
-				catch(const std::exception& e) {
+				} catch (const std::exception& e) {
 					LogWarning("queue-purge: exception:" << e.what());
 				}
 			}
@@ -113,6 +112,14 @@ public:
 
 			LogDebug("queue-purge: Next attempt @ " << next_attempt);
 		}
+
+		LogMessage("queue-purge: terminating");
+	} catch (const boost::thread_interrupted &e) {
+		LogMessage("queue-purge: thread interrupted");
+	} catch (const std::exception &e) {
+		LogMessage("queue-purge: thread ending due to exception: " << e.what());
+	} catch (...) {
+		LogMessage("queue-purge: thread ending due to unknown exception");
 	}
 };
 

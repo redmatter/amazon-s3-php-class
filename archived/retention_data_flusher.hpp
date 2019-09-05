@@ -147,10 +147,10 @@ public:
 
 						// collect all items for release to purge-channel later on
 						saved_items.push_front(data);
-					} catch(const operation_data::channel_t::finishing_exception& e) {
+					} catch (const operation_data::channel_t::finishing_exception& e) {
 						channel_finishing = true;
 						break;
-					} catch(const operation_data::channel_t::consume_timed_out_exception& e) {
+					} catch (const operation_data::channel_t::consume_timed_out_exception& e) {
 						break;
 					}
 				}
@@ -207,6 +207,8 @@ public:
 
 			LogDebug("flush-retention: Next attempt @ " << next_attempt);
 		}
+
+		LogMessage("flush-retention: terminating");
 	} catch (const boost::thread_interrupted &e) {
 		LogMessage("flush-retention: thread interrupted");
 	} catch (const std::exception &e) {
