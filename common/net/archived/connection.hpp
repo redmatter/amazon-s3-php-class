@@ -126,21 +126,9 @@ struct connection
             return;
         }
 
-        LogVerbose(*this << " Connected; handshake in progress");
-
-        boost::asio::socket_base::send_buffer_size send_buffer_size_option(8 * 1024);
-        socket.set_option(send_buffer_size_option, ec);
-        if (ec) {
-            return;
-        }
-
-        ip::tcp::socket::keep_alive keep_alive_option(true);
-        socket.set_option(keep_alive_option, ec);
-        if (ec) {
-            return;
-        }
-
         id = boost::str(boost::format("%1% (%2%)") % socket.local_endpoint().port() % addr);
+
+        LogVerbose(*this << " Connected; handshake in progress");
 
         do_handshake(ec);
 
