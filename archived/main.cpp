@@ -349,7 +349,7 @@ int main(int argc, char *argv[]) try
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
 
-		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, app::quit);
+		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, internal_db, app::quit);
 
 		app::purge purge(purge_channel, internal_db, operation_data_busy_set, app::quit, app::confMap);
 

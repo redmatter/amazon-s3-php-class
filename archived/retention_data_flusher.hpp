@@ -13,6 +13,7 @@
 #include <boost/chrono/duration.hpp>
 #include <boost/chrono/io/time_point_io.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/container/slist.hpp>
 
 namespace app {
 
@@ -21,6 +22,7 @@ class retention_data_flusher
 	operation_data::channel_t& retention_data_channel_;
 	operation_data::channel_t& purge_channel_;
 	database::retention& retention_db_;
+	database::internal& internal_db_;
 
 	volatile bool& quit_;
 
@@ -32,16 +34,19 @@ public:
 	static void describe_config(boost::program_options::options_description& optsDesc)
 	{
 		optsDesc.add_options()
-				("retention_data.flush_max_batch_size", boost::program_options::value<unsigned int>()->default_value(2000U), "retention data flush - maximum batch size")
+				("retention_data.flush_max_batch_size", boost::program_options::value<unsigned int>()->default_value(4000U), "retention data flush - maximum batch size")
 				("retention_data.flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(10U), "retention data flush - interval in seconds")
 				("retention_data.min_flush_interval_seconds", boost::program_options::value<unsigned int>()->default_value(3U), "retention data flush - minimum interval between attempts, in seconds")
 				;
 	}
 
-	retention_data_flusher(const boost::program_options::variables_map& confMap, operation_data::channel_t& retention_data_channel, operation_data::channel_t& purge_channel, database::retention& retention_db, volatile bool& quit) :
+	retention_data_flusher(const boost::program_options::variables_map &confMap,
+						   operation_data::channel_t &retention_data_channel, operation_data::channel_t &purge_channel,
+						   database::retention &retention_db, database::internal &internal_db, volatile bool &quit) :
 		retention_data_channel_(retention_data_channel),
 		purge_channel_(purge_channel),
 		retention_db_(retention_db),
+		internal_db_(internal_db),
 		quit_(quit),
 		flush_interval_seconds_(confMap["retention_data.flush_interval_seconds"].as<unsigned int>()),
 		min_flush_interval_seconds_(
@@ -62,6 +67,8 @@ public:
 
 			database::retention::data::multiset_t retention_set;
 			database::retention::usage_data::multiset_t usage_data_set;
+
+			boost::container::slist<operation_data::pointer> saved_items;
 
 			try {
 				bool channel_finishing = false;
@@ -138,7 +145,8 @@ public:
 							LogMessage("flush-retention: " << identifier<<": Not archived (no retention record created)");
 						}
 
-						pc_produce(purge_channel_, data);
+						// collect all items for release to purge-channel later on
+						saved_items.push_front(data);
 					} catch(const operation_data::channel_t::finishing_exception& e) {
 						channel_finishing = true;
 						break;
@@ -162,8 +170,22 @@ public:
 					}
 				}
 
-				if (channel_finishing) {
+				// if the channel is finishing or quit flagged, we need to save the latest state and break from the loop.
+				// otherwise the items are moved on to the purge channel.
+				if (channel_finishing || quit_) {
+					boost::container::slist<operation_data::pointer>::iterator end = saved_items.end();
+					boost::container::slist<operation_data::pointer>::iterator itr = saved_items.begin();
+					for (; itr != end; ++itr) {
+						internal_db_.save(*itr);
+					}
+
 					break;
+				}
+
+				boost::container::slist<operation_data::pointer>::iterator end = saved_items.end();
+				boost::container::slist<operation_data::pointer>::iterator itr = saved_items.begin();
+				for (; itr != end; ++itr) {
+					pc_produce(purge_channel_, *itr);
 				}
 			} catch (const operation_data::channel_t::finishing_exception& e) {
 				break;
