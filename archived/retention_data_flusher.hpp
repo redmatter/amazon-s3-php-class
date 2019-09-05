@@ -59,10 +59,10 @@ public:
 
 	void run() try {
 		// delay the first attempt by 20 seconds
-		boost::chrono::steady_clock::time_point next_flush =
+		boost::chrono::steady_clock::time_point next_attempt =
 				boost::chrono::steady_clock::now() + boost::chrono::seconds(20);
 		while (!quit_) {
-			boost::this_thread::sleep_until(next_flush);
+			boost::this_thread::sleep_until(next_attempt);
 			const boost::chrono::steady_clock::time_point& attempt_start_time(boost::chrono::steady_clock::now());
 
 			database::retention::data::multiset_t retention_set;
@@ -200,12 +200,12 @@ public:
 
 			// next attempt based on attempt start time so that there is more chance of reducing a built-up backlog due
 			// to spike in traffic.
-			next_flush = attempt_start_time + flush_interval_seconds_;
-			if (next_flush < (attempt_end_time + min_flush_interval_seconds_)) {
-				next_flush = attempt_end_time + min_flush_interval_seconds_;
+			next_attempt = attempt_start_time + flush_interval_seconds_;
+			if (next_attempt < (attempt_end_time + min_flush_interval_seconds_)) {
+				next_attempt = attempt_end_time + min_flush_interval_seconds_;
 			}
 
-			LogDebug("flush-retention: Next retention flush @ " << next_flush);
+			LogDebug("flush-retention: Next attempt @ " << next_attempt);
 		}
 	} catch (const boost::thread_interrupted &e) {
 		LogMessage("flush-retention: thread interrupted");
