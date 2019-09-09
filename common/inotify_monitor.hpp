@@ -51,7 +51,7 @@ struct event
 
 	friend std::ostream& operator<<(std::ostream& ostr, const event& e)
 	{
-		ostr << "inotify::event{ dir_name: " << e.dir_name << ", file_name:" << e.file_name << ", type: ";
+		ostr << "inotify::event{ dir_name:" << e.dir_name << ", file_name:" << e.file_name << ", type:";
 
 		if(e.type & event::created)
 			ostr << "created";
@@ -90,7 +90,7 @@ public:
 private:
 	enum
 	{
-		buffer_max_length = 4 * 1024
+		read_buffer_size = 4 * 1024
 	};
 
 	typedef std::map< int, event_handler_t > watch_descriptor_handler_map_t;
@@ -99,7 +99,8 @@ private:
 public:
 	monitor(boost::asio::io_service& io_service, error_handler_t error_handler=error_handler_t())
 		: fd_(make_fd()), io_service_(io_service),
-		  monitor_stream_descriptor_(io_service, fd_), error_handler_(error_handler)
+		  monitor_stream_descriptor_(io_service, fd_), error_handler_(error_handler),
+		  buffer_leftover(0)
 	{
 	}
 
@@ -134,19 +135,19 @@ public:
 
 	void remove_directory(const std::string& dir_name)
 	{
-        watch_descriptor_path_bimap_t::right_iterator it = watch_descriptors_.right.find(dir_name);
-	    if(it == watch_descriptors_.right.end())
-	        throw std::invalid_argument("Directory "+dir_name+" is not being monitored");
+		watch_descriptor_path_bimap_t::right_iterator it = watch_descriptors_.right.find(dir_name);
+		if(it == watch_descriptors_.right.end())
+			throw std::invalid_argument("Directory "+dir_name+" is not being monitored");
 
-	    handlers_.erase(it->second);
+		handlers_.erase(it->second);
 
-	    if(inotify_rm_watch(fd_, it->second) == -1)
+		if(inotify_rm_watch(fd_, it->second) == -1)
 			THROW_RML_EXCEPTION("Failed to remove directory monitoration - Directory: " << dir_name << " - Reason:" << strerror(errno));
 	}
 
 	void async_monitor()
 	{
-	    async_read();
+		async_read();
 	}
 
 	~monitor()
@@ -161,72 +162,91 @@ public:
 	}
 
 private:
-	typedef boost::array< unsigned char, buffer_max_length > buffer_t;
-	typedef boost::shared_ptr< buffer_t > buffer_ptr_t;
+	inline static int make_fd()
+	{
+		int fd = inotify_init();
+		if (fd == -1) {
+			boost::throw_exception(
+					boost::system::system_error(
+							boost::system::error_code(errno, boost::system::get_system_category()),
+							"init_inotify failed"));
+		}
 
-    inline static int make_fd()
-    {
-        // int fd = inotify_init1(/* IN_NONBLOCK */ 0);
-        int fd = inotify_init();
-        if(fd == -1) {
-        	boost::system::system_error e(
-            		boost::system::error_code(errno, boost::system::get_system_category()), "init_inotify1 failed");
-        	boost::throw_exception(e);
-        }
-
-        return fd;
-    }
+		return fd;
+	}
 
 	// Reads data from inotify file descriptor
 	void async_read()
 	{
-		buffer_ptr_t p_buffer(new buffer_t);
+		if (buffer_leftover >= read_buffer_size) {
+			throw std::runtime_error("no room in inotify read-buffer");
+		}
+
 		monitor_stream_descriptor_.async_read_some(
-				boost::asio::buffer(*p_buffer),
-				boost::bind(&monitor::handle_read, this, p_buffer,
-						boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+				boost::asio::buffer(read_buffer + buffer_leftover, read_buffer_size - buffer_leftover),
+				boost::bind(&monitor::handle_read, this,
+							boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
 	}
 
 	// Parse events read
-	void handle_read(buffer_ptr_t p_buffer, const boost::system::error_code& e, std::size_t bytes_transferred)
+	void handle_read(const boost::system::error_code& e, std::size_t bytes_transferred)
 	{
-		if (!e) {
-			buffer_t& buffer(*p_buffer);
-
-	        struct inotify_event* p_event;
-			unsigned int bytes_processed = 0;
-			if (bytes_transferred > sizeof (struct inotify_event)) {
-				do
-				{
-					p_event = reinterpret_cast<struct inotify_event*> (&buffer[0] + bytes_processed);
-
-					watch_descriptor_path_bimap_t::left_iterator it_wdp = watch_descriptors_.left.find(p_event->wd);
-					watch_descriptor_handler_map_t::const_iterator it_wdh = handlers_.find(p_event->wd);
-					if (it_wdp != watch_descriptors_.left.end() && it_wdh != handlers_.end())
-						it_wdh->second( // handler
-								event((p_event->len? p_event->name: ""), it_wdp->second, static_cast<event::type_t> (p_event->mask)), e);
-					else
-						LogWarning("Invalid / unknown notification from inotify");
-
-					bytes_processed += sizeof (struct inotify_event) + p_event->len;
-
-				} while (bytes_transferred - bytes_processed >= sizeof (struct inotify_event) + p_event->len);
-			}
-
-			if(bytes_transferred - bytes_processed)
-				LogDMessage((bytes_transferred - bytes_processed)<<" bytes NOT processed", "IGNO");
-
-			async_read();
-		} else {
+		if (e) {
 			if (e == boost::asio::error::operation_aborted || fd_ == -1) {
 				LogMessage("Closing directory monitoring");
-			} else {
-				if(error_handler_.empty())
-					LogWarning(e.message());
-				else
-					error_handler_(e);
+				return;
 			}
+
+			if (error_handler_.empty()) {
+				LogWarning(e.message());
+			} else {
+				error_handler_(e);
+			}
+
+			return;
 		}
+
+		std::size_t bytes_in_buffer = bytes_transferred + buffer_leftover;
+		if (bytes_in_buffer < sizeof(inotify_event)) {
+			LogVerbose("Found " << bytes_in_buffer << " (" << bytes_transferred << ") bytes in buffer; not enough for inotify_event");
+
+			// read more to process it
+			buffer_leftover = bytes_in_buffer;
+			async_read();
+
+			return;
+		}
+
+		unsigned int bytes_processed = 0;
+		while (bytes_in_buffer - bytes_processed >= sizeof(inotify_event)) {
+			inotify_event* p_event = reinterpret_cast<inotify_event*> (read_buffer + bytes_processed);
+
+			// take into account the length of `name` buffer (within `inotify_event`) and check again to make sure we
+			// have enough bytes in buffer.
+			if (bytes_in_buffer - bytes_processed < sizeof(inotify_event) + p_event->len) {
+				break;
+			}
+
+			watch_descriptor_path_bimap_t::left_iterator it_wdp = watch_descriptors_.left.find(p_event->wd);
+			watch_descriptor_handler_map_t::const_iterator it_wdh = handlers_.find(p_event->wd);
+			if (it_wdp != watch_descriptors_.left.end() && it_wdh != handlers_.end()) {
+				const event ev((p_event->len ? p_event->name : ""), it_wdp->second,
+							   static_cast<event::type_t> (p_event->mask));
+				it_wdh->second(ev, e);
+			} else {
+				LogWarning("Invalid / unknown notification from inotify");
+			}
+
+			bytes_processed += sizeof(inotify_event) + p_event->len;
+		}
+
+		buffer_leftover = bytes_in_buffer - bytes_processed;
+		if (buffer_leftover > 0) {
+			LogVerbose((bytes_in_buffer - bytes_processed) << " bytes leftover");
+			memmove(read_buffer, read_buffer + bytes_processed, buffer_leftover);
+		}
+
+		async_read();
 	}
 
 	int fd_;
@@ -238,7 +258,8 @@ private:
 	watch_descriptor_handler_map_t handlers_;
 	error_handler_t error_handler_;
 
-	unsigned char buffer_[buffer_max_length];
+	char read_buffer[read_buffer_size] __attribute__ ((aligned(__alignof__(inotify_event))));
+	std::size_t buffer_leftover;
 };
 
 }  // namespace inotify
