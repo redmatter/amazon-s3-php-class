@@ -337,25 +337,23 @@ public:
 		MYSQL_CATCH_LOG_WARNING(e)
 	}
 
-	bool purge(const std::set< operation_data::pointer >& purgeables)
+	template <typename Itr>
+	bool purge(const Itr& begin, const Itr& end)
 	{
 		try {
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			conn->start_transaction();
 
-			const std::set<operation_data::pointer>::const_iterator& end(purgeables.end());
-			for(std::set< operation_data::pointer >::const_iterator itr = purgeables.begin(); itr != end; ) {
-				mysqlpp::Query query = conn->query();
-				query << "DELETE FROM ArchivingInternal.ArchiveDQueue WHERE ID IN (";
-
-				for (int i = 0; i < 1000 && itr != end; i++, ++itr) {
-					query << (i ? ',' : ' ') << (*itr)->p_detail->database_id
-						  << " /*"<<(*itr)->p_detail->identifier<<"*/";
-				}
-				query << ')';
-
-				MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
+			mysqlpp::Query query = conn->query();
+			query << "DELETE FROM `ArchivingInternal`.`ArchiveDQueue` WHERE `ID` IN (";
+			for (Itr itr = begin; itr != end; ++itr) {
+				query << ((itr != begin) ? ',' : ' ')
+					  << (*itr)->p_detail->database_id << " /*" << (*itr)->p_detail->identifier << "*/";
 			}
+
+			query << ')';
+
+			MYSQL_QUERY_EXECUTE(DEFAULT, conn, query);
 
 			conn->commit_transaction();
 

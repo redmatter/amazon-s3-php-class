@@ -349,7 +349,7 @@ int main(int argc, char *argv[]) try
 		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
 				internal_db, cached_endpoint_finder, app::quit);
 
-		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, app::quit);
+		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, internal_db, app::quit);
 
 		app::purge purge(purge_channel, internal_db, operation_data_busy_set, app::quit, app::confMap);
 
@@ -429,8 +429,10 @@ int main(int argc, char *argv[]) try
 				threads.create_thread(boost::bind(&boost::asio::io_service::run, p_io_service));
 		}
 
-		threads.create_thread(boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
-		threads.create_thread(boost::bind(&app::purge::run, boost::ref(purge)));
+		boost::thread* retention_data_flusher_thread = threads.create_thread(
+				boost::bind(&app::retention_data_flusher::run, boost::ref(retention_data_flusher)));
+		boost::thread* queue_purge_thread = threads.create_thread(
+				boost::bind(&app::purge::run, boost::ref(purge)));
 		threads.create_thread(boost::bind(
 				app::call_buffering_recording::run, boost::ref(app::confMap), boost::ref(cached_endpoint_finder),
 				boost::ref(cbr_channel), app::quit, is_aes_enabled_callback));
@@ -540,6 +542,9 @@ int main(int argc, char *argv[]) try
 
 		LogMessage("Stopping FastCGI server");
 		fcgi_server.stop();
+
+		retention_data_flusher_thread->interrupt();
+		queue_purge_thread->interrupt();
 
 		LogMessage("Waiting for all threads to finish");
 		threads.join_all();
