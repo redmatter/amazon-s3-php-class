@@ -2,6 +2,20 @@
 %{!?__build_pkg_release: %define __build_pkg_release 1}
 %{!?__librml_buildtype: %define __librml_buildtype DBGREL}
 
+%if 0%{?el5}
+%define reload_rsyslog() if [ -x /etc/init.d/rsyslog ]; then \
+    if ! /etc/init.d/rsyslog condrestart && %1; then \
+        echo "**WARNING** rsyslog not found; consider installing it."; \
+    fi; \
+fi;
+%endif
+
+%if 0%{?el7}
+%define reload_rsyslog() if systemctl is-enabled rsyslog &>/dev/null; then \
+    systemctl condrestart rsyslog; \
+fi;
+%endif
+
 %define appname archiving
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
@@ -18,21 +32,41 @@ Release: %{__build_pkg_release}%{?dist}
 BuildRoot: /tmp/RM-%{appname}-%{version}
 Summary: Red Matter %{appname}
 License: Closed
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
-Requires: libs3 >= 1.4-22774
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-%{appname}-platform-config = %{version}-%{release}
 Requires: fcgi
 Requires: httpd >= 2.4
+%if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
+Requires: libs3 >= 1.4-22774
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%endif
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: libs3 = 1.4-26468.1.0.0.dc7
+Requires: RM-bash-functions >= 1.2.0
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
-BuildRequires: boost_1_54_0-devel
+%if 0%{?el5}
 BuildRequires: mysql++-devel >= 3.1.0-29693
-BuildRequires: libs3-devel >= 1.4-22774
-BuildRequires: cryptopp-devel
 BuildRequires: pugixml
+BuildRequires: libs3-devel >= 1.4-22774
+%else
+%if 0%{?el7}
+BuildRequires: mysql++-devel >= 3.1.0
+BuildRequires: mariadb-devel
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.4
+BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7
+BuildRequires: libuuid-devel
+%endif
+%endif
+BuildRequires: php54-cli
+BuildRequires: boost_1_54_0-devel
+BuildRequires: cryptopp-devel
 BuildRequires: fcgi-devel
 BuildRequires: rsync >= 3.0.8
 BuildRequires: threadpool
@@ -57,9 +91,17 @@ Conflicts: RM-%{appname}-platform-config-redmatter
 %package collectd
 Summary: Archiving CollectD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
+%if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 Requires: RM-fscore >= 0.0.1-26178
 Provides: cdrpostd
@@ -73,17 +115,33 @@ Requires: RM-%{appname}-collectd = %{version}-%{release}
 %package collect-smsd
 Summary: Archiving CollectSmsD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
+%if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 
 %package collect-importd
 Summary: Archiving CollectImportD
 Group: RedMatter/Archiving
-Requires: mysql++ >= 3.1.0-29693
 Requires: cryptopp
+%if 0%{?el5}
+Requires: mysql++ >= 3.1.0-29693
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: mysql++ >= 3.1.0
+Requires: mariadb-libs
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
+%endif
 Requires: RM-%{appname}-common = %{version}-%{release}
 BuildRequires: php-cli
 BuildRequires: php54-cli
@@ -92,7 +150,9 @@ BuildRequires: php54-cli
 # Summary: Archiving CollectD
 # Group: RedMatter/Archiving
 # Requires: RM-%{appname}-common >= %{version}-%{release}
-# Requires: mysql++ >= 3.1.0-29693
+# %{?el5:Requires: mysql++ >= 3.1.0-29693}
+# %{?el7:Requires: mysql++ >= 3.1.0}
+# %{?el7:Requires: mariadb-libs}
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
 # Requires: php-s3 >= 0.4.0-20785
@@ -112,21 +172,30 @@ Requires: cryptopp
 %package common
 Summary: Archiving Common files
 Group: RedMatter/Archiving
+Requires: RM-hCLI >= 1.0.0
 
 %package estuary
 Summary: Archiving Estuary
 Group: RedMatter/Archiving
 Requires: cryptopp
+%if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%else
+%if 0%{?el7}
+Requires: RM-systemd-service-helpers >= 1.2.3
+%endif
+%endif
 
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.5
-Requires: RM-php-eventlog
+Requires: RM-php-eventlog >= 1.0.2
 Requires: php-s3 >= 0.4.0-41402
 Requires: RM-%{appname}-convert >= %{version}-%{release}
+%if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%endif
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
@@ -153,10 +222,19 @@ Summary: Tools to puush SMS and MMS email messages into archive
 Group: RedMatter/Archiving
 Requires: postfix
 Requires: RM-syslogger >= 0.0.1-22449
+%if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
+%endif
 BuildRequires: sendmail-devel
+%if 0%{?el5}
 BuildRequires: pugixml
 BuildRequires: db4-devel
+%else
+%if 0%{?el7}
+BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.4
+BuildRequires: libdb-devel
+%endif
+%endif
 
 # ------------ description---------------
 
@@ -221,6 +299,9 @@ tool.
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
+%if 0%{?el7}
+export PKG_CONFIG_PATH=/usr/lib64/mysql:$PKG_CONFIG_PATH
+%endif
 CC=gcc44 CXX=g++44 make TMP=tmp-%{buildtype}-build BUILD_MODE=%{buildtype}
 
 %install
@@ -228,7 +309,13 @@ mkdir -p %{buildroot}/usr/bin/
 mkdir -p %{buildroot}/etc/archiving/conf.d/
 mkdir -p %{buildroot}/etc/logrotate.d/
 mkdir -p %{buildroot}/etc/rsyslog.d/
+%if 0%{?el5}
 mkdir -p %{buildroot}/etc/rc.d/init.d/
+%endif
+%if 0%{?el7}
+mkdir -p %{buildroot}/etc/tmpfiles.d
+mkdir -p %{buildroot}%{_unitdir}
+%endif
 mkdir -p %{buildroot}/usr/share/archiving/bin
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
@@ -241,8 +328,14 @@ mkdir -p %{buildroot}/etc/httpd/conf.d
 cp archived/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchived.conf
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
 cp archived-monitor/tmp-%{buildtype}-build/archived-monitor %{buildroot}/usr/bin/rmarchived-monitor
-cp archived/rmarchived_safe %{buildroot}/usr/bin/
+%if 0%{?el5}
 cp archived/rmarchived %{buildroot}/etc/rc.d/init.d/
+%endif
+%if 0%{?el7}
+cp archived/rmarchived-watchdog.sh %{buildroot}%{_bindir}
+install -Dpm 0644 archived/rmarchived-watchdog.service %{buildroot}%{_unitdir}
+install -Dpm 0644 archived/rmarchived.service %{buildroot}%{_unitdir}
+%endif
 cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
 cp archived/rmarchived.conf %{buildroot}/etc/archiving/
 cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
@@ -255,7 +348,12 @@ cp archived/retention-purge-config/ipc.conf %{buildroot}/etc/archiving/conf.d/re
 # CollectD
 cp collectd/tmp-%{buildtype}-build/collectd %{buildroot}/usr/bin/rmcollectd.bin
 cp collectd/rmcollectd_safe %{buildroot}/usr/bin/
+%if 0%{?el5}
 cp collectd/rmcollectd %{buildroot}/etc/rc.d/init.d/
+%endif
+%if 0%{?el7}
+install -Dpm 0644 collectd/rmcollectd.service %{buildroot}%{_unitdir}
+%endif
 cp collectd/rmcollectd.supp %{buildroot}/usr/share/archiving/
 cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
@@ -272,7 +370,12 @@ cp -r collectd/schema %{buildroot}/usr/share/archiving/collectd-schema
 # CollectSmsD
 cp collect-smsd/tmp-%{buildtype}-build/collect-smsd %{buildroot}/usr/bin/rmcollect-smsd.bin
 cp collect-smsd/rmcollect-smsd_safe %{buildroot}/usr/bin/
+%if 0%{?el5}
 cp collect-smsd/rmcollect-smsd %{buildroot}/etc/rc.d/init.d/
+%endif
+%if 0%{?el7}
+install -Dpm 0644 collect-smsd/rmcollect-smsd.service %{buildroot}%{_unitdir}
+%endif
 cp collect-smsd/rmcollect-smsd.supp %{buildroot}/usr/share/archiving/
 cp collect-smsd/rmcollect-smsd.conf %{buildroot}/etc/archiving/
 cp collect-smsd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-smsd
@@ -281,7 +384,12 @@ cp collect-smsd/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmcollect-smsd.conf
 # CollectImportD
 cp collect-importd/tmp-%{buildtype}-build/collect-importd %{buildroot}/usr/bin/rmcollect-importd.bin
 cp collect-importd/rmcollect-importd_safe %{buildroot}/usr/bin/
+%if 0%{?el5}
 cp collect-importd/rmcollect-importd %{buildroot}/etc/rc.d/init.d/
+%endif
+%if 0%{?el7}
+install -Dpm 0644 collect-importd/rmcollect-importd.service %{buildroot}%{_unitdir}
+%endif
 cp collect-importd/rmcollect-importd.supp %{buildroot}/usr/share/archiving/
 cp collect-importd/rmcollect-importd.conf %{buildroot}/etc/archiving/
 cp collect-importd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollect-importd
@@ -321,11 +429,21 @@ cp common/retention_database.conf %{buildroot}/etc/archiving/conf.d/retention_da
 cp common/retention_delete_database.conf %{buildroot}/etc/archiving/conf.d/retention_delete_database.conf
 cp common/cdrmunch_database.conf %{buildroot}/etc/archiving/conf.d/cdrmunch_database.conf
 cp common/rmarchived-hAPI %{buildroot}/usr/bin/
+%if 0%{?el7}
+cp common/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving.conf
+cp common/backtrace-filter.sh %{buildroot}/usr/bin/archiving-backtrace-filter.sh
+%endif
 
 # Estuary
 mkdir -p %{buildroot}/var/run/archiving/rmestuary
 cp estuary/tmp-%{buildtype}-build/rmestuary %{buildroot}/usr/bin/rmestuary.bin
+%if 0%{?el5}
 cp estuary/rmestuary.sh %{buildroot}/etc/rc.d/init.d/rmestuary
+%endif
+%if 0%{?el7}
+install -Dpm 0644 estuary/rmestuary.service %{buildroot}%{_unitdir}
+cp estuary/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving-estuary.conf
+%endif
 cp estuary/rmestuary.conf %{buildroot}/etc/archiving/
 cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
 cp estuary/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmestuary.conf
@@ -349,12 +467,22 @@ cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arc
 cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch
 cp scripts/purge-policy-fixer.php %{buildroot}/usr/bin/archiving-purge-policy-fixer
 cp scripts/purge-policy-fixer.conf %{buildroot}/etc/archiving/purge-policy-fixer.conf
+%if 0%{?el5}
 cp scripts/rmarchpolfix.sh %{buildroot}/etc/rc.d/init.d/rmarchpolfix
+%endif
+%if 0%{?el7}
+install -Dpm 0644 scripts/rmarchpolfix.service %{buildroot}%{_unitdir}
+%endif
 cp scripts/archiving-purge-policy-fixer-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 cp scripts/archiving-purge-policy-fixer-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-purge-policy-fixer
 cp scripts/export.php %{buildroot}/usr/bin/archiving-export
 cp scripts/export.conf %{buildroot}/etc/archiving/export.conf
+%if 0%{?el5}
 cp scripts/rmarchexport.sh %{buildroot}/etc/rc.d/init.d/rmarchexport
+%endif
+%if 0%{?el7}
+install -Dpm 0644 scripts/rmarchexport.service %{buildroot}%{_unitdir}
+%endif
 cp scripts/archiving-export-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-export.conf
 cp scripts/archiving-export-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-export
 cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.conf
@@ -363,7 +491,12 @@ cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.con
 mkdir -p %{buildroot}/var/lib/archiving/pcap-import/done
 cp scripts/pcap-recording-import.php %{buildroot}/usr/bin/archiving-pcap-recording-import
 cp scripts/pcap-recording-import.conf %{buildroot}/etc/archiving/pcap-recording-import.conf
+%if 0%{?el5}
 cp scripts/pcap-recording-import-init.sh %{buildroot}/etc/rc.d/init.d/rmarchpcapimport
+%endif
+%if 0%{?el7}
+install -Dpm 0644 scripts/rmarchpcapimport.service %{buildroot}%{_unitdir}
+%endif
 cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
@@ -371,7 +504,12 @@ cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 cp scripts/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
 cp scripts/dsr-pre-processor/app.conf %{buildroot}/etc/archiving/dsr-preproc.conf
 cp scripts/dsr-pre-processor/autoload.php %{buildroot}/usr/share/php/archiving/archdsrpreproc_autoload.php
+%if 0%{?el5}
 cp scripts/dsr-pre-processor/init.sh %{buildroot}/etc/rc.d/init.d/rmarchdsrpreproc
+%endif
+%if 0%{?el7}
+install -Dpm 0644 scripts/dsr-pre-processor/init.service %{buildroot}%{_unitdir}/rmarchdsrpreproc.service
+%endif
 cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
 
@@ -406,7 +544,12 @@ mkdir -p %{buildroot}/usr/share/eml2a
 cp eml2a/tmp-%{buildtype}-build/eml2a %{buildroot}/usr/bin
 cp eml2a/eml2a-milter %{buildroot}/usr/bin
 cp eml2a/eml2a-milter_safe %{buildroot}/usr/bin/
+%if 0%{?el5}
 cp eml2a/eml2a-milter.init %{buildroot}/etc/rc.d/init.d/eml2a-milter
+%endif
+%if 0%{?el7}
+install -Dpm 0644 eml2a/eml2a-milter.service %{buildroot}%{_unitdir}
+%endif
 cp eml2a/eml2a.conf %{buildroot}/etc/archiving/
 cp eml2a/eml2a-milter.conf %{buildroot}/usr/share/eml2a
 cp eml2a/logrotate.conf %{buildroot}/etc/logrotate.d/eml2a
@@ -498,14 +641,23 @@ fi
 
 %post
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
+%if 0%{?el5}
 /sbin/chkconfig --add rmarchived
 /sbin/chkconfig rmarchived on
 /sbin/chkconfig httpd on
+%endif
+%if 0%{?el7}
+systemctl enable rmarchived
+systemctl enable rmarchived-watchdog
+%endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
+    %reload_rsyslog true
 fi
+
+%post common
+%if 0%{?el7}
+systemd-tmpfiles --create
+%endif
 
 %post platform-config-redmatter
 ln -sf /etc/archiving/conf.d/retention-purge-redmatter.conf /etc/archiving/rmarchived-retention-purge.conf
@@ -515,36 +667,45 @@ ln -sf /etc/archiving/conf.d/retention-purge-ipc.conf /etc/archiving/rmarchived-
 
 %post collectd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
+%if 0%{?el5}
 /sbin/chkconfig --add rmcollectd
 /sbin/chkconfig rmcollectd on
+%endif
+%if 0%{?el7}
+systemctl enable rmcollectd
+%endif
+if [ "$1" -eq 1 ]; then # package just got installed ?
+    %reload_rsyslog true
+fi
 if [ ! -f /var/lib/archiving/collectd.db3 ]; then
 	cp /usr/share/archiving/blank_collectd.db3 /var/lib/archiving/collectd.db3
 	# TODO change permissions if we change the user we run collectd as
 fi
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
 
 %post collect-smsd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
+%if 0%{?el5}
 /sbin/chkconfig --add rmcollect-smsd
 /sbin/chkconfig rmcollect-smsd on
+%endif
+%if 0%{?el7}
+systemctl enable rmcollect-smsd
+%endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
+    %reload_rsyslog true
 fi
 
 %post collect-importd
 /usr/bin/rmarchived-hAPI &> /dev/null || /bin/true
+%if 0%{?el5}
 /sbin/chkconfig --add rmcollect-importd
 /sbin/chkconfig rmcollect-importd on
+%endif
+%if 0%{?el7}
+systemctl enable rmcollect-importd
+%endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
+    %reload_rsyslog true
 fi
 
 #%post convert
@@ -560,61 +721,66 @@ fi
 # fi
 
 %post estuary
+%if 0%{?el5}
 /sbin/chkconfig --add rmestuary
 /sbin/chkconfig rmestuary on
+%endif
+%if 0%{?el7}
+systemctl enable rmestuary
+systemd-tmpfiles --create
+%endif
 if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
+    %reload_rsyslog true
 fi
 
 %post scripts
+%if 0%{?el5}
 /sbin/chkconfig --add rmarchpolfix
 /sbin/chkconfig rmarchpolfix on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
-
 /sbin/chkconfig --add rmarchexport
 /sbin/chkconfig rmarchexport on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
-
 /sbin/chkconfig --add rmarchpcapimport
 /sbin/chkconfig rmarchpcapimport on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
-
 /sbin/chkconfig --add rmarchdsrpreproc
 /sbin/chkconfig rmarchdsrpreproc on
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
+%endif
+%if 0%{?el7}
+systemctl enable rmarchpolfix
+systemctl enable rmarchexport
+systemctl enable rmarchpcapimport
+systemctl enable rmarchdsrpreproc
+%endif
+%reload_rsyslog true
 
 %post qascripts
-/etc/init.d/rsyslog condrestart ||
-	echo "**WARNING** rsyslog not found; consider installing it."
+%reload_rsyslog true
 
 # %post qascripts
 
 %post eml2a
+%if 0%{?el5}
 /sbin/chkconfig --add eml2a-milter
 /sbin/chkconfig eml2a-milter on
-if [ "$1" -eq 1 ]; then # package just got installed ?
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		echo "**WARNING** rsyslog not found; consider installing it."
-fi
+%endif
+%if 0%{?el7}
+systemctl enable eml2a-milter
+%endif
+%reload_rsyslog true
 /usr/sbin/postconf -e "smtpd_milters = unix:/var/lib/eml2a/eml2a-milter.sock"
 /usr/sbin/postconf -e "milter_default_action = tempfail"
+%if 0%{?el5}
 # note: this will do nothing if postfix is not running
 /sbin/service postfix condrestart &> /dev/null
+%endif
+%if 0%{?el7}
+systemctl try-restart postfix
+%endif
 
 # ----------
 
 %postun
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
 
 %postun platform-config-redmatter
@@ -629,23 +795,17 @@ fi
 
 %postun collectd
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
 
 %postun collect-smsd
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
 
 %postun collect-importd
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
 
 %postun eml2a
@@ -654,15 +814,18 @@ if [ "$1" -eq 0 ]; then
 	# on installation
 	/usr/sbin/postconf -e "`/usr/sbin/postconf -d smtpd_milters`"
 	/usr/sbin/postconf -e "`/usr/sbin/postconf -d milter_default_action`"
+%if 0%{?el5}
 	# note: this will do nothing if postfix is not running
 	/sbin/service postfix condrestart &> /dev/null
+%endif
+%if 0%{?el7}
+    systemctl try-restart postfix
+%endif
 fi
 
 %postun estuary
 if [ "$1" -eq 0 ]; then
-	[ -x /etc/init.d/rsyslog ] &&
-		/etc/init.d/rsyslog condrestart ||
-		/bin/true
+%reload_rsyslog false
 fi
 
 # ----------
@@ -671,9 +834,15 @@ fi
 %defattr(-,root,root)
 /usr/bin/rmarchived.bin
 /usr/bin/rmarchived-monitor
-/usr/bin/rmarchived_safe
 /usr/share/archiving/rmarchived.supp
+%if 0%{?el5}
 /etc/rc.d/init.d/rmarchived
+%endif
+%if 0%{?el7}
+%{_bindir}/rmarchived-watchdog.sh
+%{_unitdir}/rmarchived-watchdog.service
+%{_unitdir}/rmarchived.service
+%endif
 /etc/archiving/rmarchived.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
@@ -699,7 +868,12 @@ fi
 /usr/bin/rmcollectd.bin
 /usr/bin/rmcollectd_safe
 /usr/share/archiving/rmcollectd.supp
+%if 0%{?el5}
 /etc/rc.d/init.d/rmcollectd
+%endif
+%if 0%{?el7}
+%{_unitdir}/rmcollectd.service
+%endif
 /etc/archiving/rmcollectd.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
@@ -718,7 +892,12 @@ fi
 /usr/bin/rmcollect-smsd.bin
 /usr/bin/rmcollect-smsd_safe
 /usr/share/archiving/rmcollect-smsd.supp
+%if 0%{?el5}
 /etc/rc.d/init.d/rmcollect-smsd
+%endif
+%if 0%{?el7}
+%{_unitdir}/rmcollect-smsd.service
+%endif
 /etc/archiving/rmcollect-smsd.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
@@ -730,7 +909,12 @@ fi
 /usr/bin/rmcollect-importd.bin
 /usr/bin/rmcollect-importd_safe
 /usr/share/archiving/rmcollect-importd.supp
+%if 0%{?el5}
 /etc/rc.d/init.d/rmcollect-importd
+%endif
+%if 0%{?el7}
+%{_unitdir}/rmcollect-importd.service
+%endif
 /etc/archiving/rmcollect-importd.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
@@ -772,11 +956,21 @@ fi
 %files common
 %attr(755,root,root) /usr/bin/rmarchived-hAPI
 %dir /etc/archiving/conf.d/
+%if 0%{?el7}
+/etc/tmpfiles.d/archiving.conf
+%attr(755,root,root) /usr/bin/archiving-backtrace-filter.sh
+%endif
 
 %files estuary
 %defattr(-,root,root)
 /usr/bin/rmestuary.bin
+%if 0%{?el5}
 /etc/rc.d/init.d/rmestuary
+%endif
+%if 0%{?el7}
+%{_unitdir}/rmestuary.service
+/etc/tmpfiles.d/archiving-estuary.conf
+%endif
 /etc/archiving/rmestuary.conf
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving
 %dir %attr(755,cdrmunch,cdrmunch) /var/run/archiving
@@ -812,20 +1006,28 @@ fi
 /etc/logrotate.d/archiving-headerspatch
 /etc/logrotate.d/archiving-purge-policy-fixer
 /etc/logrotate.d/archiving-export
-/etc/rc.d/init.d/rmarchpolfix
-/etc/rc.d/init.d/rmarchexport
+%if 0%{?el5}
+%attr(755,root,root) /etc/rc.d/init.d/rmarchpolfix
+%attr(755,root,root) /etc/rc.d/init.d/rmarchexport
+%attr(755,root,root) /etc/rc.d/init.d/rmarchpcapimport
+%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
+%endif
+%if 0%{?el7}
+%{_unitdir}/rmarchpolfix.service
+%{_unitdir}/rmarchexport.service
+%{_unitdir}/rmarchpcapimport.service
+%{_unitdir}/rmarchdsrpreproc.service
+%endif
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import
 %dir %attr(755,cdrmunch,cdrmunch) /var/lib/archiving/pcap-import/done
 /usr/bin/archiving-pcap-recording-import
 /etc/archiving/conf.d/big_database.conf
 /etc/archiving/pcap-recording-import.conf
-/etc/rc.d/init.d/rmarchpcapimport
 /etc/rsyslog.d/11-archiving-pcap-recording-import.conf
 /etc/logrotate.d/archiving-pcap-recording-import
 %attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
 /usr/share/php/archiving/archdsrpreproc_autoload.php
-%attr(755,root,root) /etc/rc.d/init.d/rmarchdsrpreproc
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
 
@@ -861,7 +1063,12 @@ fi
 %attr(4755,postfix,postfix) /usr/bin/eml2a
 %attr(4755,postfix,postfix) /usr/bin/eml2a-milter
 /usr/bin/eml2a-milter_safe
+%if 0%{?el5}
 %attr(755,root,root) /etc/rc.d/init.d/eml2a-milter
+%endif
+%if 0%{?el7}
+%{_unitdir}/eml2a-milter.service
+%endif
 /etc/logrotate.d/eml2a
 /etc/rsyslog.d/11-eml2a.conf
 %attr(755,root,root) /usr/bin/eml2a-milter-hAPI
@@ -870,4 +1077,3 @@ fi
 
 %clean
 rm -fR %{buildroot}
-

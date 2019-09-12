@@ -1,0 +1,19 @@
+[Unit]
+Description=Archive Daemon Watchdog
+Before=rmarchived.service
+
+[Service]
+EnvironmentFile=-/etc/sysconfig/rmarchived-watchdog
+PIDFile=/var/run/archiving/rmarchived-watchdog.pid
+ExecStart=/bin/bash /usr/bin/rmarchived-watchdog.sh
+SyslogIdentifier=rm-archived-watchdog
+
+# Restart on non-zero exit code...
+Restart=on-abnormal
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target

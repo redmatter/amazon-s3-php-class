@@ -1,0 +1,17 @@
+[Unit]
+Description=Archive PCAP Recording Import
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmarchpcapimport.pid
+ExecStart=/usr/bin/archiving-pcap-recording-import
+SyslogIdentifier=rm-archpcapimport
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target

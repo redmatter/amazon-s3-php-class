@@ -59,7 +59,8 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lboost_regex$(BOOST_NAME_EXT) \
-	-lpugixml -lmysqlpp -lcryptopp -larchiving_common -lmysqlclient
+	-lpugixml -lmysqlpp -lcryptopp -larchiving_common \
+	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 
 # -lcrypt -luuid \
 
