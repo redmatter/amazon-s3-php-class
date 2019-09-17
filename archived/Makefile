@@ -61,7 +61,8 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 -larchiving_common -lfcgi -lmysqlclient
+	-lcryptopp -lpugixml -lmysqlpp -ls3 -larchiving_common -lfcgi \
+	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 
 CXX_SRCS += \
 	retention_purge.cpp \

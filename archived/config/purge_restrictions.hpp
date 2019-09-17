@@ -9,6 +9,8 @@
 #ifndef ARCHIVING_PURGE_RESTRICTIONS_HPP
 #define ARCHIVING_PURGE_RESTRICTIONS_HPP
 
+#include "../../common/types.hpp"
+
 #include <string>
 #include <boost/program_options/variables_map.hpp>
 #include <rml/exception.h>

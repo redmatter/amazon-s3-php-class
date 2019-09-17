@@ -1,0 +1,22 @@
+[Unit]
+Description=Archiving Collect SMS Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmcollect-smsd.pid
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI
+ExecStart=/usr/bin/crash-tracer.sh \
+    --config /etc/archiving/rmcollect-smsd.conf \
+    --service-name rmcollect-smsd \
+    --binary /usr/bin/rmcollect-smsd.bin \
+    --pid-file /var/run/archiving/rmcollect-smsd.pid
+SyslogIdentifier=rm-collect-smsd
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target

@@ -26,6 +26,7 @@
 #include "org_policy_versions.hpp"
 
 #include "../common/types.hpp"
+#include "../common/hostname.hpp"
 
 #include <rml/fcgi/server.hpp>
 #include <rml/logger.h>
@@ -253,10 +254,11 @@ int main(int argc, char *argv[]) try
 			exit(rml::utils::exit_codes::normal);
 		}
 
-		if(1 != cli_confMap.count("hostname"))
-			throw rml::exception("hostname not given");
-
-		app::hostname = cli_confMap["hostname"].as<std::string>();
+		if(cli_confMap.count("hostname")) {
+			app::hostname = cli_confMap["hostname"].as<std::string>();
+		} else {
+			app::hostname = archiving::common::get_hostname();
+		}
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);

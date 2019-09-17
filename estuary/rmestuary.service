@@ -1,0 +1,23 @@
+[Unit]
+Description=Archiving Estuary
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmestuary/rmestuary.pid
+ExecStart=/usr/bin/crash-tracer.sh \
+    --config /etc/archiving/rmestuary.conf \
+    --service-name rmestuary \
+    --binary /usr/bin/rmestuary.bin \
+    --pid-file /var/run/archiving/rmestuary/rmestuary.pid
+SyslogIdentifier=rm-estuary
+# Do not kill it if it doesn't respond to "stop" for .. seconds
+TimeoutStopSec=30
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target

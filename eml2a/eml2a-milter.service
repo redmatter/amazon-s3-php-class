@@ -1,0 +1,18 @@
+[Unit]
+Description=Archiving milter daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/eml2a/eml2a-milter.pid
+ExecStartPre=/bin/bash /usr/bin/eml2a-milter-hAPI
+ExecStart=/usr/bin/eml2a-milter -p /var/lib/eml2a/eml2a-milter.sock
+SyslogIdentifier=eml2a
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target
