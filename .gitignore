@@ -43,6 +43,8 @@ tmp*-libc*/
 /eml2a/mime/decoder
 eml2a/cmake-build-debug
 eml2a/.idea
+/collect-importd/cronjobs/phonero/.idea
+/collect-importd/collect-importd
 modules.xml
 /common/tmp-test-build/
 /eml2a/eml2a-milter

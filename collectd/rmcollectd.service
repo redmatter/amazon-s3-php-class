@@ -1,0 +1,22 @@
+[Unit]
+Description=Archiving Collect Daemon
+After=network.target network-online.target
+
+[Service]
+PIDFile=/var/run/archiving/rmcollectd.pid
+ExecStartPre=/bin/bash /usr/bin/rmarchived-hAPI
+ExecStart=/usr/bin/crash-tracer.sh \
+    --config /etc/archiving/rmcollectd.conf \
+    --service-name rmcollectd \
+    --binary /usr/bin/rmcollectd.bin \
+    --pid-file /var/run/archiving/rmcollectd.pid
+SyslogIdentifier=rm-collectd
+# Restart on non-zero exit code...
+Restart=on-failure
+# ... every 3 seconds...
+RestartSec=3s
+# ... and never give up
+StartLimitInterval=0
+
+[Install]
+WantedBy=multi-user.target

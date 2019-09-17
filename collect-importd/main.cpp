@@ -11,6 +11,7 @@
 #include "../common/database.hpp"
 
 #include "../common/types.hpp"
+#include "../common/hostname.hpp"
 #include "import_dir_monitor.hpp"
 
 #include "../common/logstack.h"
@@ -248,10 +249,11 @@ int main(int argc, char* argv[]) try
 			return 1;
 		}
 
-		if(1 != cli_confMap.count("hostname"))
-			throw rml::exception("hostname not given");
-
-		app::hostname = cli_confMap["hostname"].as<std::string>();
+		if(cli_confMap.count("hostname")) {
+			app::hostname = cli_confMap["hostname"].as<std::string>();
+		} else {
+			app::hostname = archiving::common::get_hostname();
+		}
 
 		try {
 			rml::config::parse(CONFIG_FILE_PATH, optsDesc, app::confMap);

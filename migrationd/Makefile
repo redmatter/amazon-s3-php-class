@@ -46,7 +46,8 @@ LIBS += \
 	-lboost_filesystem$(BOOST_NAME_EXT) \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lpugixml -lmysqlpp -lcryptopp -ls3 -lmysqlclient_r
+	-lpugixml -lmysqlpp -lcryptopp -ls3 \
+	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 
 CXX_SRCS += \
 	main.cpp
