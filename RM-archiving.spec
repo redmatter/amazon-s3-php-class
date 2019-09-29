@@ -81,6 +81,10 @@ BuildRequires: autoconf, libtool
 BuildRequires: readline-devel
 BuildRequires: curl-devel
 Buildrequires: libxml2-devel
+%if 0%{?el7}
+# workaround for broken autoprov after rpmbuild ?!?
+Provides: libs3.so.4()(64bit)
+%endif
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
