@@ -22,6 +22,9 @@ fi;
 
 %define rm_daemonscripts_version 1.2.0
 
+%define libs3_abi 4.1
+%define libs3_abi_major 4
+
 Group: RedMatter/Archiving
 Name: RM-%{appname}
 Prefix: /
@@ -49,6 +52,7 @@ Requires: libs3 = 1.4-26468.1.0.0.dc7
 Requires: RM-bash-functions >= 1.2.0
 Requires: RM-systemd-service-helpers >= 1.2.3
 %endif
+BuildRequires: wget
 BuildRequires: gcc44
 BuildRequires: gcc44-c++
 %if 0%{?el5}
@@ -75,6 +79,8 @@ BuildRequires: openssl-devel
 BuildRequires: zlib-devel
 BuildRequires: autoconf, libtool
 BuildRequires: readline-devel
+BuildRequires: curl-devel
+Buildrequires: libxml2-devel
 
 %package platform-config-redmatter
 Summary: ArchiveD config specific to redmatter platform
@@ -324,6 +330,7 @@ mkdir -p %{buildroot}/usr/share/php/archiving
 
 # ArchiveD
 mkdir -p %{buildroot}/var/www/rmarchived
+mkdir -p %{buildroot}/usr/lib/archiving
 mkdir -p %{buildroot}/etc/httpd/conf.d
 cp archived/apache.conf %{buildroot}/etc/httpd/conf.d/rmarchived.conf
 cp archived/tmp-%{buildtype}-build/archived %{buildroot}/usr/bin/rmarchived.bin
@@ -340,6 +347,9 @@ cp archived/rmarchived.supp %{buildroot}/usr/share/archiving/
 cp archived/rmarchived.conf %{buildroot}/etc/archiving/
 cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
 cp archived/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchived.conf
+cp -L external/libs3/lib/libs3.so.%{libs3_abi} %{buildroot}/usr/lib/archiving
+( cd %{buildroot}/usr/lib/archiving && ln -sf libs3.so.%{libs3_abi} libs3.so.%{libs3_abi_major} )
+cp -L external/libs3/bin/s3 %{buildroot}/usr/bin/s3-%{libs3_abi}-archiving
 
 # ArchiveD retention-purge config (platform specific)
 cp archived/retention-purge-config/redmatter.conf %{buildroot}/etc/archiving/conf.d/retention-purge-redmatter.conf
@@ -859,6 +869,9 @@ fi
 /etc/archiving/conf.d/internal_database.conf
 /var/www/rmarchived
 /etc/httpd/conf.d/rmarchived.conf
+/usr/lib/archiving/libs3.so.%{libs3_abi}
+/usr/lib/archiving/libs3.so.%{libs3_abi_major}
+/usr/bin/s3-%{libs3_abi}-archiving
 
 %files platform-config-redmatter
 %defattr(-,root,root)

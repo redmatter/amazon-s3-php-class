@@ -1,0 +1,28 @@
+EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+LIBS3_USE_BUILTIN=YES
+LIBS3_VER_MAJOR=4
+LIBS3_VER_MINOR=1
+
+ifeq ($(LIBS3_USE_BUILTIN),YES)
+LIBS3_INCLUDE_DIR=$(EXTERNAL_DIR)/libs3/include
+CXX_INCLUDES += -I $(LIBS3_INCLUDE_DIR)
+LIBS += $(EXTERNAL_DIR)/libs3/lib/libs3.so.$(LIBS3_VER_MAJOR).$(LIBS3_VER_MINOR)
+LFLAGS_DEFS += -Wl,-rpath=/usr/lib/archiving
+else
+LIBS += -l:libs3.so.$(LIBS3_VER_MAJOR).$(LIBS3_VER_MINOR)
+endif
+
+ifeq ($(LIBS3_USE_BUILTIN),YES)
+
+CLEAN_EXTRA += clean-libs3
+
+*.cpp: $(LIBS3_INCLUDE_DIR)/libs3.h
+
+$(LIBS3_INCLUDE_DIR)/libs3.h :
+	@$(MAKE) -C $(EXTERNAL_DIR) libs3
+
+clean-libs3:
+	@rm -rf $(EXTERNAL_DIR)/libs3
+
+endif
