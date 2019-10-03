@@ -246,9 +246,9 @@ class ArchivingHeadersPatchApp extends BaseApp
 									return;
 								}
 
-								$s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+								$s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
 
-								$inf = $s3->getObjectInfo($endpoint->bucket, $identifier);
+								$inf = S3::getObjectInfo($endpoint->bucket, $identifier, true, null, $s3creds);
 								LogDebug(var_export($inf, true), 'Metadata from S3 for '.$identifier);
 								$real_size = $inf['size'];
 
@@ -287,7 +287,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 										if (!is_null($copy_ok))
 											sleep($delay);
 
-										if (false === ($copy_ok = $s3->copyObject($endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, array('Content-Type'=>'binary/octet-stream'))))
+										if (false === ($copy_ok = S3::copyObject($endpoint->bucket, $identifier, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, array('Content-Type'=>'binary/octet-stream'), S3::STORAGE_CLASS_STANDARD, null, $s3creds)))
 										{
 											if ($retry)
 											{
