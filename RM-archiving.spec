@@ -165,7 +165,7 @@ BuildRequires: php54-cli
 # %{?el7:Requires: mariadb-libs}
 # Requires: libs3 = 1.4-17269
 # Requires: cryptopp
-# Requires: php-s3 >= 0.4.0-20785
+# Requires: php-s3 >= 0.5.1
 # Requires: RM-php-rmapp >= 0.0.5
 # Requires: RM-%{appname}-convert = %{version}-%{release}
 
@@ -201,7 +201,7 @@ Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-eventlog >= 1.0.2
-Requires: php-s3 >= 0.4.0-41402
+Requires: php-s3 >= 0.5.1
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
