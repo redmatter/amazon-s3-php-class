@@ -243,7 +243,7 @@ class ArchivingExporterApp extends BaseApp
 	 */
 	public function run()
 	{
-        API::Init($this->getConf()->get('coreapi.url', 'http://api.{hapi:SearchDomain}'), new ArrayStorage(),
+        API::Init($this->getConf()->get('coreapi.url', 'http://cdr.coreapi.{hapi:SearchDomain}'), new ArrayStorage(),
             APP_NAME_ . ':1.0');
         API::LoginBasicAuth($this->getConf()->get('coreapi.authorization_creds', false), null/*mfa*/,
             true/*re_authenticate*/);
