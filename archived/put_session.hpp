@@ -450,9 +450,9 @@ private:
 
 								creation_date_yyyymmdd_.clear();
 								{
-									char str[10];
+									char str[16];
 									struct tm * timeinfo = localtime(&creation_time_);
-									strftime(str, 10, "%Y%m%d", timeinfo);
+									strftime(str, 16, "%Y%m%dT%H00", timeinfo);
 
 									creation_date_yyyymmdd_ = str;
 								}
