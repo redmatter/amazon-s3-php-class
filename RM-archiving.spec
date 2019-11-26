@@ -354,6 +354,11 @@ cp collectd/rmcollectd %{buildroot}/etc/rc.d/init.d/
 %if 0%{?el7}
 install -Dpm 0644 collectd/rmcollectd.service %{buildroot}%{_unitdir}
 %endif
+%if 0%{?el7}
+sed -i "s|__PATH__|/var/lib/freeswitch|" collectd/rmcollectd.conf
+%else
+sed -i "s|__PATH__|/var/log/freeswitch|" collectd/rmcollectd.conf
+%endif
 cp collectd/rmcollectd.supp %{buildroot}/usr/share/archiving/
 cp collectd/rmcollectd.conf %{buildroot}/etc/archiving/
 cp collectd/logrotate.conf %{buildroot}/etc/logrotate.d/rmcollectd
