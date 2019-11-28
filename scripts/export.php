@@ -786,7 +786,7 @@ abstract class ArchivingExport
 	protected function getOrgBranding($orgID)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl("http://api.{$this->app->hAPISearchDomain}/branding/{$this->orgID}");
+		$client->setUrl("http://cdr.coreapi.{$this->app->hAPISearchDomain}/branding/{$this->orgID}");
 		$client->setMethod('GET');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -855,7 +855,7 @@ abstract class ArchivingExport
 		}
 		
 		$client = RestClient::createClient();
-		$client->setUrl("http://api.{$this->app->hAPISearchDomain}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
+		$client->setUrl("http://cdr.coreapi.{$this->app->hAPISearchDomain}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
 		$client->setMethod('GET');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -2285,7 +2285,7 @@ class ArchivingExportApp extends BaseApp
 			$this->backminutes = ((int)$this->conf->get('export.backdays', 7)) * 24 * 60;
 		}	
 		
-		$this->coreApiUrl = $this->conf->get('coreapi.url', 'http://api.{hapi:SearchDomain}');
+		$this->coreApiUrl = $this->conf->get('coreapi.url', 'http://cdr.coreapi.{hapi:SearchDomain}');
 		if (empty($this->coreApiUrl))
 			throw new Exception('CoreAPI URL not configured');
 		
