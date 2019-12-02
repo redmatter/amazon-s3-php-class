@@ -28,8 +28,11 @@ class ArchivingEndpoint
 {
 	public $id;
 	public $org;
+	/** @var bool */
 	public $encrypted;
+	/** @var bool */
 	public $compressed;
+	/** @var bool */
 	public $retentionManaged;
 	public $type;
 	public $accessKey;
@@ -38,6 +41,7 @@ class ArchivingEndpoint
 	public $bucket;
 	public $region;
 	public $basePath;
+	/** @var bool */
 	public $slowMedium;
 	public $baseURI;
 
@@ -105,9 +109,9 @@ class ArchivingEndpoint
 
 		$row = $res[0];
 		$this->type = $row->Type;
-		$this->encrypted = $row->Encrypted;
-		$this->compressed = $row->Compressed;
-		$this->retentionManaged = $row->RetentionManaged;
+		$this->encrypted = 'yes' === $row->Encrypted;
+		$this->compressed = 'yes' === $row->Compressed;
+		$this->retentionManaged = 'yes' === $row->RetentionManaged;
 
 		$details_loaded = false;
 		switch($this->type)
@@ -132,7 +136,7 @@ class ArchivingEndpoint
 				if (count($res))
 				{
 					$this->basePath = $row->BasePath;
-					$this->slowMedium = $row->SlowMedium;
+					$this->slowMedium = 'yes' === $row->SlowMedium;
 
 					$details_loaded = true;
 				}
@@ -196,9 +200,9 @@ class ArchivingEndpoint
 			$this->id = $xpath('ID', false, $endpointNode);
 
 			$this->type = $xpath('Type', false, $endpointNode);
-			$this->encrypted = 'yes' == $xpath('Encrypted', false, $endpointNode);
-			$this->compressed = 'yes' == $xpath('Compressed', false, $endpointNode);
-			$this->retentionManaged = 'yes' == $xpath('RetentionManaged', false, $endpointNode);
+			$this->encrypted = 'yes' === $xpath('Encrypted', false, $endpointNode);
+			$this->compressed = 'yes' === $xpath('Compressed', false, $endpointNode);
+			$this->retentionManaged = 'yes' === $xpath('RetentionManaged', false, $endpointNode);
 			
 			switch($this->type)
 			{
@@ -211,7 +215,7 @@ class ArchivingEndpoint
 			
 				case 'file-system':
 					$this->basePath = $xpath('BasePath', false, $endpointNode);
-					$this->slowMedium = $xpath('SlowMedium', false, $endpointNode);
+					$this->slowMedium = 'yes' === $xpath('SlowMedium', false, $endpointNode);
 					break;
 			
 				case 's3-emulation':
