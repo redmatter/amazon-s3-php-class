@@ -219,7 +219,7 @@ class VerifyPurgeApp extends BaseApp
 
         $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier_str, false) ? 'Available' : 'Purged';
 
-        return array($retentionStateFound, $storageStateFound, $endpoint->retentionManaged === 'yes');
+        return array($retentionStateFound, $storageStateFound, $endpoint->retentionManaged);
     }
 
     /**
