@@ -83,6 +83,8 @@ struct basic_endpoint
 
 	encryption_key_t encryption_key;
 
+	virtual ~basic_endpoint() {}
+
 	basic_endpoint(
 			const endpoint_type::endpoint_type_t type,
 			const uint64_t& identifier,
@@ -400,8 +402,8 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				enc_key,
 				access_key,
 				secret_key,
-				bucket,
 				host,
+                bucket,
 				region
 				)));
 
