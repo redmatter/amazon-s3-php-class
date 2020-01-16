@@ -42,13 +42,13 @@ Requires: fcgi
 Requires: httpd >= 2.4
 %if 0%{?el5}
 Requires: mysql++ >= 3.1.0-29693
-Requires: libs3 >= 1.4-22774
+# Requires: libs3 >= 1.4-22774
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
 %if 0%{?el7}
 Requires: mysql++ >= 3.1.0
 Requires: mariadb-libs
-Requires: libs3 = 1.4-26468.1.0.0.dc7
+# Requires: libs3 = 1.4-26468.1.0.0.dc7
 Requires: RM-bash-functions >= 1.2.0
 Requires: RM-systemd-service-helpers >= 1.2.3
 %endif
@@ -58,13 +58,13 @@ BuildRequires: gcc44-c++
 %if 0%{?el5}
 BuildRequires: mysql++-devel >= 3.1.0-29693
 BuildRequires: pugixml
-BuildRequires: libs3-devel >= 1.4-22774
+# BuildRequires: libs3-devel >= 1.4-22774
 %else
 %if 0%{?el7}
 BuildRequires: mysql++-devel >= 3.1.0
 BuildRequires: mariadb-devel
 BuildRequires: pugixml RM-legacy-pugixml-devel >= 1.2.4
-BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7
+# BuildRequires: libs3-devel = 1.4-26468.1.0.0.dc7
 BuildRequires: libuuid-devel
 %endif
 %endif
