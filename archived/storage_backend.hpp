@@ -82,6 +82,9 @@ inline S3BucketContext
 libs3_bucket_context(const boost::shared_ptr<app::storage::basic_endpoint>& p_endpoint)
 {
 	S3BucketContext bucket_context;
+
+	bucket_context.securityToken = 0;
+
 	switch (p_endpoint->type) {
 	case app::storage::endpoint_type::s3: {
 		namespace ns = app::storage::s3;
