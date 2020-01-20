@@ -953,7 +953,7 @@ abstract class ArchivingExport
 		
 		LogVerbose("{$this->context()}Getting S3 object info {$storageKey} from S3 Bucket {$bucket}");
 		
-		$infoResponse = S3::getObjectInfo($bucket, $storageKey, $s3endpoint, $s3creds);
+		$infoResponse = S3::getObjectInfo($bucket, $storageKey, true, $s3endpoint, $s3creds);
 		if (empty($infoResponse) || empty($infoResponse['x-amz-meta-clear-size']) || empty($infoResponse['size']))
 			throw new Exception("Failed to fetch {$storageKey} S3 object info");
 	
@@ -2240,8 +2240,9 @@ class ArchivingExportApp extends BaseApp
 	public $worker = false;
 	
 	public $maxRetries = 2;
-		
-	private $s3endpoints = null;
+
+	/** @var ArchivingS3Endpoints */
+	private $s3endpoints;
 	
 	public $backminutes = 0;
 	
@@ -2802,60 +2803,32 @@ class ArchivingExportApp extends BaseApp
 			LogVerbose("{$this->context()}Purging download: index {$index} for export ID {$exportID}...");
 			
 			// Get endpoint details from API
-			$bucket = $this->s3endpoints->getBucket($orgID, $policyID);
-			$s3 = $this->s3endpoints->get($orgID, $policyID);
-			
+            list($s3endpoint, $bucket, $s3creds) = $this->s3endpoints->get($orgID, $policyID);
+
 			$storageKey = "export/{$orgID}/{$exportID}/{$index}";
 			
 			LogVerbose("{$this->context()}Checking if S3 object '{$storageKey}' exists in S3 bucket '{$bucket}'");
 							
-			$exists = $this->s3ObjectExists($s3, $bucket, $storageKey);	
-			if ($exists === true)
+			if (S3::getObjectInfo($bucket, $storageKey, false, $s3endpoint, $s3creds) === true)
 			{
-				if (!$s3->deleteObject($bucket, $storageKey))
+				if (!S3::deleteObject($bucket, $storageKey, $s3endpoint, $s3creds))
+				{
 					throw new Exception("Failed to delete '{$storageKey}' S3 object from S3 bucket '{$bucket}'");
+				}
+
 				LogVerbose("{$this->context()}Deleted S3 object '{$storageKey}' from S3 bucket '{$bucket}' OK");
 			}
-			else if ($exists === false)
+			else
 			{
 				LogVerbose("{$this->context()}S3 object '{$storageKey}' not found in bucket '{$bucket}', will flag as purged");
 			}
-			else // if ($exists === null)
-			{
-				throw new Exception("Failed to check if S3 object '{$storageKey}' exists in bucket '{$bucket}'");
-			}
-								
+
 			$purged = true;
 			
 			$this->setExportDownloadAsPurged($exportID, $index);
 		}
 	}
-	
-	// this is basically a hacked version of S3::getObjectInfo lifted from S3.php
-	private function s3ObjectExists($s3, $bucket, $uri) 
-	{
-		// don't actually need to use $s3 instance for anything because all the relevant member variables in S3 object instance are static
-		
-		$rest = new S3Request('HEAD', $bucket, $uri);
-		$rest = $rest->getResponse();
-		if ($rest->error === false && ($rest->code !== 200 && $rest->code !== 404))
-			$rest->error = array('code' => $rest->code, 'message' => 'Unexpected HTTP status');
-		if ($rest->error !== false) 
-		{
-			trigger_error(sprintf("S3::getObjectInfo({$bucket}, {$uri}): [%s] %s",
-			$rest->error['code'], $rest->error['message']), E_USER_WARNING);
-			return null;
-		}
-		
-		if ($rest->code == 200)
-			return true;
-		else if ($rest->code == 404)
-			return false;
-		else
-			// unexpected?
-			return null;
-	}	
-	
+
 	private function setExportDownloadAsPurged($exportID, $index)
 	{
 		$sql = "UPDATE `Aux`.`LogsExportDownloads` SET `Purged`=1 WHERE `ExportID`={$exportID} AND `Index`={$index};";
