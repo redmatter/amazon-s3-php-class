@@ -743,9 +743,11 @@ abstract class ArchivingExport
 	{
 		$client = RestClient::createClient();
 		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.$this->getApiLogsPath());
-		$client->setMethod('POST');	
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
+		$client->setMethod('POST');
+		$client->setHeaders(array(
+			'Authorization' => API::GetToken(),
+			'Content-Type'  => 'application/xml',
+		));
 
 		$logsParamsXml = "<Parameters QID=\"{$this->queryQID}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$this->userID}\"/>";
 		$client->setParameters($logsParamsXml);
