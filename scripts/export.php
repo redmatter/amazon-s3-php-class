@@ -22,6 +22,23 @@ define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 //define('RM_CLI_APP', true);
 
+
+if (!defined('CURL_SSLVERSION_DEFAULT')) {
+    define('CURL_SSLVERSION_DEFAULT', 0);
+}
+
+if (!defined('CURL_SSLVERSION_TLSv1')) {
+    define('CURL_SSLVERSION_TLSv1', 1);
+}
+
+if (!defined('CURL_SSLVERSION_SSLv2')) {
+    define('CURL_SSLVERSION_SSLv2', 2);
+}
+
+if (!defined('CURL_SSLVERSION_SSLv3')) {
+    define('CURL_SSLVERSION_SSLv3', 3);
+}
+
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
 require_once 's3/S3.php';
