@@ -10,7 +10,14 @@ endif
 
 CRYPTOPP_VERSION=5.6.1
 
-.PHONY: sqlite cpp-netlib cryptopp clean
+LIBS3_VER_MAJOR=4
+LIBS3_VER_MINOR=1
+LIBS3_VER=$(LIBS3_VER_MAJOR).$(LIBS3_VER_MINOR)
+# latest of add-multi-delete branch within redmatter fork
+LIBS3_GIT_HASH=f70812aa283e533c59321ff3d7ac59e5d7f28450
+LIBS3_GIT_DOWNLOAD_URL=https://github.com/redmatter/libs3/tarball/$(LIBS3_GIT_HASH)
+
+.PHONY: libs3 sqlite cpp-netlib cryptopp clean
 
 sqlite: prefix=$(shell pwd)/$@
 sqlite: sqlite/sqlite-autoconf-$(SQLITE_VERSION)
@@ -58,7 +65,28 @@ cryptopp: cryptopp/cryptopp-$(CRYPTOPP_VERSION)
 cryptopp/cryptopp-$(CRYPTOPP_VERSION):
 	@mkdir -p "$@" && tar -C "$@" --strip-components=1 -xjvf cryptopp-$(CRYPTOPP_VERSION).tar.bz2
 
+libs3: libs3/libs3-$(LIBS3_VER)-$(LIBS3_GIT_HASH)
+	BUILD=libs3/build DESTDIR=.. make -C $< install VERBOSE=ON INSTALL=install && \
+	rm -vrf libs3/build && \
+	rm -vrf $< && \
+	rm -vf libs3/lib/libs3.a && \
+	sed -i 's/#define LIBS3_H/#define LIBS3_H\n\n#define LIBS3_VER_MAJOR $(LIBS3_VER_MAJOR)\n#define LIBS3_VER_MINOR $(LIBS3_VER_MINOR)/' "libs3/include/libs3.h"
+
+libs3/libs3-$(LIBS3_VER)-$(LIBS3_GIT_HASH): libs3-$(LIBS3_GIT_HASH).tar.gz
+	mkdir -p "$@" && \
+	tar -C "$@" --strip-components=1 -xzf libs3-$(LIBS3_GIT_HASH).tar.gz
+	# && \
+	# TMPDIR=/tmp patch -d "$@" -p0 < libs3-fix_compilation_error_for_mixed_sign_comparison.patch
+
+libs3-$(LIBS3_GIT_HASH).tar.gz:
+	wget -O "$@" $(LIBS3_GIT_DOWNLOAD_URL)
+
+# Alias tar-gz target for easy invocation after updating the hash
+.PHONY: libs3-download-tar-gz
+libs3-download-tar-gz: libs3-$(LIBS3_GIT_HASH).tar.gz
+
 clean:
 	rm -rf sqlite
 	rm -rf cpp-netlib
 	rm -rf cryptopp
+	rm -rf libs3

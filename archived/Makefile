@@ -61,7 +61,7 @@ LIBS += \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
 	-lcrypto -lrt\
-	-lcryptopp -lpugixml -lmysqlpp -ls3 -larchiving_common -lfcgi \
+	-lcryptopp -lpugixml -lmysqlpp -larchiving_common -lfcgi \
 	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 
 CXX_SRCS += \
@@ -75,6 +75,7 @@ BUILD_MODE=DEBUG
 include ../libs/rml/rml/Makefile.rules
 include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
+include ../external/Makefile.libs3
 
 include ../libs/Makefile.rml
 include ../libs/Makefile.rml-database-mysql

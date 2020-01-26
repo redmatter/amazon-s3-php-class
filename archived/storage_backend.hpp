@@ -78,6 +78,45 @@ struct ci_char_traits: public std::char_traits<char> {
 
 typedef std::basic_string<char, ci_char_traits> ci_string;
 
+inline S3BucketContext
+libs3_bucket_context(const boost::shared_ptr<app::storage::basic_endpoint>& p_endpoint)
+{
+	S3BucketContext bucket_context;
+
+	bucket_context.securityToken = 0;
+
+	switch (p_endpoint->type) {
+	case app::storage::endpoint_type::s3: {
+		namespace ns = app::storage::s3;
+		boost::shared_ptr<ns::endpoint> s3e = boost::static_pointer_cast<ns::endpoint>(p_endpoint);
+		bucket_context.protocol = S3ProtocolHTTPS;
+		bucket_context.uriStyle = S3UriStyleVirtualHost;
+		bucket_context.bucketName = &s3e->bucket[0];
+		bucket_context.accessKeyId = &s3e->access_key[0];
+		bucket_context.secretAccessKey = &s3e->secret_key[0];
+		bucket_context.hostName = 0;
+		bucket_context.authRegion = &s3e->region[0];
+		break;
+	}
+	case app::storage::endpoint_type::s3_compatible: {
+		namespace ns = app::storage::s3_compatible;
+		boost::shared_ptr<ns::endpoint> s3e = boost::static_pointer_cast<ns::endpoint>(p_endpoint);
+		bucket_context.protocol = S3ProtocolHTTP;
+		bucket_context.uriStyle = S3UriStylePath;
+		bucket_context.bucketName = &s3e->bucket[0];
+		bucket_context.accessKeyId = &s3e->access_key[0];
+		bucket_context.secretAccessKey = &s3e->secret_key[0];
+		bucket_context.hostName = &s3e->host[0];
+		bucket_context.authRegion = &s3e->region[0];
+		break;
+	}
+	default:
+		throw std::runtime_error("not an s3 or s3-compatible endpoint");
+	}
+
+	return bucket_context;
+}
+
 }
 
 extern "C" {
@@ -149,7 +188,7 @@ protected:
         confMap_(confMap)
     {
         static const std::string useragent("RM-HTTPClient");
-        S3Status initStatus = S3_initialize(&useragent[0], S3_INIT_ALL);
+        S3Status initStatus = S3_initialize(&useragent[0], S3_INIT_ALL, 0);
         if(S3StatusOK != initStatus)
             THROW_RML_EXCEPTION("S3 backend init failed; libs3 error:"<<S3_get_status_name(initStatus));
 
@@ -438,25 +477,7 @@ public:
             rml::utils::tmp_fstream::pointer ofs,
             types::caseless_key_string_map& headers)
     {
-        S3BucketContext bucket_context;
-
-        endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
-        bucket_context.bucketName = &s3_endpoint->bucket[0];
-        bucket_context.accessKeyId = &s3_endpoint->access_key[0];
-        bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
-        if(p_endpoint->type == endpoint_type::s3_compatible) {
-            s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
-            bucket_context.protocol = S3ProtocolHTTP;
-            bucket_context.uriStyle = S3UriStylePath;
-            bucket_context.baseHostname = &s3c_endpoint->host[0];
-            bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
-        }
-        else {
-            bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-            bucket_context.uriStyle = S3UriStyleVirtualHost;
-            bucket_context.baseHostname = 0;
-            bucket_context.serviceURI = 0;
-        }
+        const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
         S3GetObjectHandler get_handler;
         get_handler.responseHandler.completeCallback = &get_response_complete_cb_;
@@ -467,7 +488,7 @@ public:
 
         int retry = 2;
         do {
-            S3_get_object(&bucket_context, &identifier[0], 0, 0, 0, 0, &get_handler, &data);
+            S3_get_object(&bucket_context, &identifier[0], 0, 0, 0, 0, 0, &get_handler, &data);
         } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
         LogMessage(identifier<<": GET Result Status: "<<S3_get_status_name(data.status));
@@ -581,25 +602,7 @@ public:
         put_props.expires = -1;
         put_props.cannedAcl = S3CannedAclPrivate;
 
-        S3BucketContext bucket_context;
-
-        endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
-        bucket_context.bucketName = &s3_endpoint->bucket[0];
-        bucket_context.accessKeyId = &s3_endpoint->access_key[0];
-        bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
-        if(p_endpoint->type == endpoint_type::s3_compatible) {
-            s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
-            bucket_context.protocol = S3ProtocolHTTP;
-            bucket_context.uriStyle = S3UriStylePath;
-            bucket_context.baseHostname = &s3c_endpoint->host[0];
-            bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
-        }
-        else {
-            bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-            bucket_context.uriStyle = S3UriStyleVirtualHost;
-            bucket_context.baseHostname = 0;
-            bucket_context.serviceURI = 0;
-        }
+		const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
         S3PutObjectHandler put_handler;
         put_handler.responseHandler.completeCallback = &put_response_complete_cb_;
@@ -608,7 +611,7 @@ public:
 
         int retry = 2;
         do {
-            S3_put_object(&bucket_context, &identifier[0], data.to_be_copied, &put_props, 0, &put_handler, &data);
+            S3_put_object(&bucket_context, &identifier[0], data.to_be_copied, &put_props, 0, 0, &put_handler, &data);
         } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
         LogMessage(identifier<<": PUT Result Status: "<<S3_get_status_name(data.status));
@@ -624,25 +627,7 @@ public:
 
     void stat(basic_endpoint::pointer p_endpoint, const std::string& identifier, string_map_t& res)
     {
-        S3BucketContext bucket_context;
-
-        endpoint::pointer s3_endpoint = boost::static_pointer_cast<endpoint>(p_endpoint);
-        bucket_context.bucketName = &s3_endpoint->bucket[0];
-        bucket_context.accessKeyId = &s3_endpoint->access_key[0];
-        bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
-        if(p_endpoint->type == endpoint_type::s3_compatible) {
-            s3_compatible::endpoint::pointer s3c_endpoint = boost::static_pointer_cast<s3_compatible::endpoint>(p_endpoint);
-            bucket_context.protocol = S3ProtocolHTTP;
-            bucket_context.uriStyle = S3UriStylePath;
-            bucket_context.baseHostname = &s3c_endpoint->host[0];
-            bucket_context.serviceURI = &s3c_endpoint->service_uri[0];
-        }
-        else {
-            bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-            bucket_context.uriStyle = S3UriStyleVirtualHost;
-            bucket_context.baseHostname = 0;
-            bucket_context.serviceURI = 0;
-        }
+		const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
         S3ResponseHandler head_handler;
         head_handler.completeCallback = &head_response_complete_cb_;
@@ -652,7 +637,7 @@ public:
 
         int retry = 2;
         do {
-            S3_head_object(&bucket_context, &identifier[0], 0, &head_handler, &data);
+            S3_head_object(&bucket_context, &identifier[0], 0, 0, &head_handler, &data);
         } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
         LogMessage(identifier<<": HEAD Result Status: "<<S3_get_status_name(data.status));
@@ -674,24 +659,7 @@ public:
      */
     S3Status remove(const basic_endpoint::pointer p_endpoint, const std::string& identifier)
     {
-        S3BucketContext bucket_context;
-
-        boost::shared_ptr< endpoint > s3_endpoint = boost::static_pointer_cast< endpoint >(p_endpoint);
-        bucket_context.bucketName = &s3_endpoint->bucket[0];
-        bucket_context.accessKeyId = &s3_endpoint->access_key[0];
-        bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
-        if(s3_endpoint->type == endpoint_type::s3_compatible) {
-            bucket_context.protocol = S3ProtocolHTTP;
-            bucket_context.uriStyle = S3UriStylePath;
-            bucket_context.baseHostname = &((s3_compatible::endpoint*)(s3_endpoint.get()))->host[0];
-            bucket_context.serviceURI = &((s3_compatible::endpoint*)(s3_endpoint.get()))->service_uri[0];
-        }
-        else {
-            bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-            bucket_context.uriStyle = S3UriStyleVirtualHost;
-            bucket_context.baseHostname = 0;
-            bucket_context.serviceURI = 0;
-        }
+		const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
         S3ResponseHandler delete_handler;
         delete_handler.completeCallback = &delete_response_complete_cb_;
@@ -701,7 +669,7 @@ public:
 
         int retry = 2;
         do {
-            S3_delete_object(&bucket_context, &identifier[0], 0, &delete_handler, &status);
+            S3_delete_object(&bucket_context, &identifier[0], 0, 0, &delete_handler, &status);
         } while (status != S3StatusOK && S3_status_is_retryable(status) && --retry);
 
         LogMessage(identifier<<": DELETE Result Status: "<<S3_get_status_name(status));
@@ -722,24 +690,21 @@ public:
 
         ExtractIdentifier ex_identifier;
 
-        boost::shared_ptr< endpoint > s3_endpoint = boost::static_pointer_cast< endpoint >(
-                ExtractPEndpoint()(*begin));
-        if(s3_endpoint->type == endpoint_type::s3_compatible) {
-            // with s3-compatible endpoints, we cant be sure that they all support S3's later added feature of
-            // multi-object deletion; hence the range has to be iterated over and deleted individually
-            for(Iter i = begin; i != end; ++i) {
-                remove(s3_endpoint, ex_identifier(*i));
-            }
-        }
-        else {
-            S3BucketContext bucket_context;
-            bucket_context.bucketName = &s3_endpoint->bucket[0];
-            bucket_context.accessKeyId = &s3_endpoint->access_key[0];
-            bucket_context.secretAccessKey = &s3_endpoint->secret_key[0];
-            bucket_context.protocol = ( (confMap_["s3_backend.ssl_enabled"].as<std::string>() == "true")? S3ProtocolHTTPS : S3ProtocolHTTP );
-            bucket_context.uriStyle = S3UriStyleVirtualHost;
-            bucket_context.baseHostname = 0;
-            bucket_context.serviceURI = 0;
+		boost::shared_ptr<basic_endpoint> ep = ExtractPEndpoint()(*begin);
+		switch (ep->type) {
+		case endpoint_type::s3_compatible:
+		{
+			// with s3-compatible endpoints, we cant be sure that they all support S3's later added feature of
+			// multi-object deletion; hence the range has to be iterated over and deleted individually
+			for(Iter i = begin; i != end; ++i) {
+				remove(ep, ex_identifier(*i));
+			}
+
+			return;
+		}
+		case endpoint_type::s3:
+		{
+			const S3BucketContext& bucket_context = libs3_bucket_context(ep);
 
             S3ResponseHandler multidel_handler;
             multidel_handler.completeCallback = &multidelete_response_complete_cb_;
@@ -760,7 +725,7 @@ public:
 
                     S3_delete_multiple_objects(&bucket_context, nKeys, const_cast<const char**>(keys),
                             &data.results[0], &data.resultsCount, &data.errorsCount,
-                            0,
+                            0, 0,
                             &multidel_handler, &data);
                 } while (data.status != S3StatusOK && S3_status_is_retryable(data.status) && --retry);
 
@@ -781,6 +746,11 @@ public:
                     keys[nKeys] = 0;
                 }
             }
+
+			return;
+		}
+		default:
+			throw std::runtime_error("endpoint does not implement (for purge)");
         }
     }
 };

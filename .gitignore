@@ -10,6 +10,7 @@
 # Project stuff
 /external/sqlite/
 /external/cpp-netlib/
+/external/libs3/
 /collectd/collectd
 /archived/archived
 version_info
