@@ -83,6 +83,8 @@ struct basic_endpoint
 
 	encryption_key_t encryption_key;
 
+	virtual ~basic_endpoint() {}
+
 	basic_endpoint(
 			const endpoint_type::endpoint_type_t type,
 			const uint64_t& identifier,
@@ -172,6 +174,7 @@ struct endpoint : public basic_endpoint
 	const std::string access_key;
 	const std::string secret_key;
 	const std::string bucket;
+	const std::string region;
 
 	typedef boost::shared_ptr<endpoint> pointer;
 
@@ -185,15 +188,16 @@ struct endpoint : public basic_endpoint
 			const encryption_key_t& encryption_key,
 			const std::string& access_key,
 			const std::string& secret_key,
-			const std::string& bucket) :
+			const std::string& bucket,
+			const std::string& region) :
 		basic_endpoint(endpoint_type::s3, id, org, name, is_encrypted, is_compressed, is_retention_managed, encryption_key),
-		access_key(access_key), secret_key(secret_key), bucket(bucket)
+		access_key(access_key), secret_key(secret_key), bucket(bucket), region(region)
 	{
 	}
 
 	endpoint(const endpoint& t) :
 		basic_endpoint(static_cast<basic_endpoint>(t)),
-		access_key(t.access_key), secret_key(t.secret_key), bucket(t.bucket)
+		access_key(t.access_key), secret_key(t.secret_key), bucket(t.bucket), region(t.region)
 	{
 	}
 
@@ -220,10 +224,9 @@ struct endpoint : public basic_endpoint
 {
 	const std::string access_key;
 	const std::string secret_key;
-	const std::string bucket;
-
 	const std::string host;
-	const std::string service_uri;
+	const std::string bucket;
+	const std::string region;
 
 	typedef boost::shared_ptr<endpoint> pointer;
 
@@ -237,19 +240,19 @@ struct endpoint : public basic_endpoint
 			const encryption_key_t& encryption_key,
 			const std::string& access_key,
 			const std::string& secret_key,
-			const std::string& bucket,
 			const std::string& host,
-			const std::string& service_uri) :
+			const std::string& bucket,
+			const std::string& region) :
 				basic_endpoint(endpoint_type::s3_compatible, id, org, name, is_encrypted, is_compressed, is_retention_managed, encryption_key),
-				access_key(access_key), secret_key(secret_key), bucket(bucket),
-				host(host), service_uri(service_uri)
+				access_key(access_key), secret_key(secret_key),
+				host(host), bucket(bucket), region(region)
 	{
 	}
 
 	endpoint(const endpoint& t) :
 		basic_endpoint(static_cast<basic_endpoint>(t)),
-		access_key(t.access_key), secret_key(t.secret_key), bucket(t.bucket),
-		host(t.host), service_uri(t.service_uri)
+		access_key(t.access_key), secret_key(t.secret_key),
+		host(t.host), bucket(t.bucket), region(t.region)
 	{
 	}
 
@@ -260,13 +263,13 @@ struct endpoint : public basic_endpoint
 				secret_key == rhs.secret_key &&
 				bucket == rhs.bucket &&
 				host == rhs.host &&
-				service_uri == rhs.service_uri
+				region == rhs.region
 				;
 	}
 
 	std::ostream& operator<<(std::ostream& os)
 	{
-		return os << "s3c://**ak**:**sk**@"<<host<<service_uri<<'/'<<bucket<<" ("<<static_cast<basic_endpoint>(*this)<<")";
+		return os << "s3c://**ak**:**sk**@"<<host<<'/'<<bucket<<" ("<<static_cast<basic_endpoint>(*this)<<")";
 	}
 
 };
@@ -334,7 +337,8 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 		const char* access_key = endpoint_node.select_single_node("AccessKey/text()").node().value();
 		const char* secret_key = endpoint_node.select_single_node("SecretKey/text()").node().value();
 		const char* bucket = endpoint_node.select_single_node("Bucket/text()").node().value();
-		ret.reset(((basic_endpoint*)new s3::endpoint(
+		const char* region = endpoint_node.select_single_node("AwsRegion/text()").node().value();
+		ret.reset((basic_endpoint*)new s3::endpoint(
 				rml::utils::strtoull(id_str),
 				org_id_xml,
 				name_str,
@@ -344,8 +348,9 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				enc_key,
 				access_key,
 				secret_key,
-				bucket
-				)));
+				bucket,
+				region
+				));
 
 		break;
 	}
@@ -374,21 +379,16 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 		const char* access_key = endpoint_node.select_single_node("AccessKey/text()").node().value();
 		const char* secret_key = endpoint_node.select_single_node("SecretKey/text()").node().value();
 		const char* bucket = endpoint_node.select_single_node("Bucket/text()").node().value();
+		const char* region = endpoint_node.select_single_node("AwsRegion/text()").node().value();
 
 		const std::string base_uri( endpoint_node.select_single_node("BaseURI/text()").node().value() );
-		std::string host, service_uri;
+		std::string host;
 		{
 			const std::size_t& slash_pos = base_uri.find('/');
-			const std::size_t& last_slash_pos = base_uri.rfind('/');
 			if( slash_pos != std::string::npos ) {
 				host = base_uri.substr(0, slash_pos);
-				service_uri = base_uri.substr(slash_pos);
-				if(last_slash_pos == slash_pos || last_slash_pos != (base_uri.length() - 1))
-					service_uri += '/';
-			}
-			else {
+			} else {
 				host = base_uri;
-				service_uri = "/";
 			}
 		}
 
@@ -402,9 +402,9 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 				enc_key,
 				access_key,
 				secret_key,
-				bucket,
 				host,
-				service_uri
+                bucket,
+				region
 				)));
 
 		break;

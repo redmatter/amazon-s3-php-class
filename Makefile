@@ -1,4 +1,4 @@
-COMPONENTS=collect-importd eml2a collectd collect-smsd archived archived-monitor estuary convert cli
+COMPONENTS=archived archived-monitor cli collectd collect-importd collect-smsd convert eml2a estuary
 
 RECENT_COMPONENT=$(shell ls -dt $(COMPONENTS) | head -1 )
 

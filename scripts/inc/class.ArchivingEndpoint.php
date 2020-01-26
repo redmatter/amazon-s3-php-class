@@ -26,6 +26,8 @@
  */
 class ArchivingEndpoint
 {
+	const S3_EMULATION_REGION = 'eu-lon-1';
+
 	public $id;
 	public $org;
 	/** @var bool */
@@ -117,7 +119,7 @@ class ArchivingEndpoint
 		switch($this->type)
 		{
 			case 's3':
-				$res = $dbc->query("SELECT AccessKey, SecretKey, Bucket, Region FROM Archiving.StorageEndpointS3 WHERE ID={$this->id}")->fetch_all();
+				$res = $dbc->query("SELECT AccessKey, SecretKey, Bucket, AwsRegion FROM Archiving.StorageEndpointS3 WHERE ID={$this->id}")->fetch_all();
 				if (count($res))
 				{
 					$row = $res[0];
@@ -125,7 +127,7 @@ class ArchivingEndpoint
 					$this->accessKey = $row->AccessKey;
 					$this->secretKey = $row->SecretKey;
 					$this->bucket = $row->Bucket;
-					$this->region = $row->Region;
+					$this->region = $row->AwsRegion;
 
 					$details_loaded = true;
 				}
@@ -149,6 +151,7 @@ class ArchivingEndpoint
 					$this->accessKey = $row->AccessKey;
 					$this->secretKey = $row->SecretKey;
 					$this->bucket = $row->Bucket;
+					$this->region = self::S3_EMULATION_REGION;
 					$this->baseURI = $row->BaseURI;
 
 					$details_loaded = true;
@@ -210,7 +213,7 @@ class ArchivingEndpoint
 					$this->accessKey = $xpath('AccessKey', false, $endpointNode);
 					$this->secretKey = $xpath('SecretKey', false, $endpointNode);
 					$this->bucket = $xpath('Bucket', false, $endpointNode);
-					$this->region = $xpath('Region', false, $endpointNode);
+					$this->region = $xpath('AwsRegion', false, $endpointNode);
 					break;
 			
 				case 'file-system':
@@ -223,6 +226,7 @@ class ArchivingEndpoint
 					$this->secretKey = $xpath('SecretKey', false, $endpointNode);
 					$this->bucket = $xpath('Bucket', false, $endpointNode);
 					$this->baseURI = $xpath('BaseURI', false, $endpointNode);
+                    $this->region = $xpath('AwsRegion', false, $endpointNode);
 					break;
 			}
 			

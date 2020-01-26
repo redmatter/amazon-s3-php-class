@@ -22,6 +22,23 @@ define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 //define('RM_CLI_APP', true);
 
+
+if (!defined('CURL_SSLVERSION_DEFAULT')) {
+    define('CURL_SSLVERSION_DEFAULT', 0);
+}
+
+if (!defined('CURL_SSLVERSION_TLSv1')) {
+    define('CURL_SSLVERSION_TLSv1', 1);
+}
+
+if (!defined('CURL_SSLVERSION_SSLv2')) {
+    define('CURL_SSLVERSION_SSLv2', 2);
+}
+
+if (!defined('CURL_SSLVERSION_SSLv3')) {
+    define('CURL_SSLVERSION_SSLv3', 3);
+}
+
 require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
 require_once 's3/S3.php';
@@ -400,6 +417,13 @@ class ArchivingS3Endpoints
 		//$this->endpoints = array();
 	}
 
+	/**
+	 * @param $orgID
+	 * @param $policyID
+	 * @param int $policyVersion
+	 * @return ArchivingEndpoint
+	 * @throws Exception
+	 */
 	public function getDetails($orgID, $policyID, $policyVersion=0)
 	{
 		if (!isset($this->details[$policyID][$policyVersion]))
@@ -407,45 +431,44 @@ class ArchivingS3Endpoints
 			$policy = ArchivingPolicy::Get($this->app->api, $orgID, $policyID, $policyVersion);
 			$details = ArchivingEndpoint::Get($this->app->api, $orgID, $policy->storageEndpointID, true);
 
+			if ($details->type !== 's3')
+            {
+                throw new Exception('Endpoint is not on Amazon S3');
+			}
+
 			if (!isset($this->details[$policyID]))
-				$this->details[$policyID] = array();
+            {
+                $this->details[$policyID] = array();
+			}
 
 			$this->details[$policyID][$policyVersion] = $details;
 		}
 
 		return $this->details[$policyID][$policyVersion];
 	}
-	
+
 	public function getBucket($orgID, $policyID, $policyVersion=0)
 	{
 		return $this->getDetails($orgID, $policyID, $policyVersion)->bucket;
-	}	
+	}
 
+	/**
+	 * @param $orgID
+	 * @param $policyID
+	 * @param int $policyVersion
+	 * @return array(S3EndpointConfig, S3BucketConfig, S3Credentials)
+	 * @throws Exception
+	 */
 	public function get($orgID, $policyID, $policyVersion=0)
 	{
-		if (!isset($this->details[$policyID][$policyVersion]))
-		{
-			$details = $this->getDetails($orgID, $policyID, $policyVersion);
-
-			if ($details->type != 's3')
-				throw new Exception('Endpoint is not on Amazon S3');
-
-			//if (!isset($this->endpoints[$policyID]))
-			//	$this->endpoints[$policyID] = array();
-				
-			//LogDebug("{$this->context()}new S3 endpoint for policy ID {$policyID}: accessKey: {$details->accessKey}, secretKey: {$details->secretKey}");
-			
-			//return new S3($details->accessKey, $details->secretKey);
-			//$this->endpoints[$policyID][$policyVersion] = $endpoint;
-		}
-		else
-		{
-			$details = $this->details[$policyID][$policyVersion];
-		}
-		
-		return new S3($details->accessKey, $details->secretKey);
+		$details = $this->getDetails($orgID, $policyID, $policyVersion);
+		return array(
+			new S3EndpointConfig(),
+			new S3BucketConfig($details->bucket, $details->region),
+			new S3Credentials($details->accessKey, $details->secretKey)
+        );
 	}
-	
+
 	private function context()
 	{
 		return $this->context;
@@ -475,10 +498,12 @@ abstract class ArchivingExport
 	
 	protected $policyPermissions = array();
 	protected $policyNotificationList = array();
-	
+
+	/** @var ArchivingExportZip */
 	protected $zip = null;
-		
-	protected $s3endpoints = null;
+
+	/** @var ArchivingS3Endpoints */
+	protected $s3endpoints;
 	
 	protected $exportedPolicyIDs = array();
 	protected $exportedMediaUUIDs = array();
@@ -505,11 +530,11 @@ abstract class ArchivingExport
 		if (empty($this->zipPassword))
 			throw new Exception("No zip password specified");
 	}
-	
+
 	public function __destruct()
 	{
 	}
-	
+
 	abstract public function displayType();
 	public function type() { return str_replace('/', '-', strtolower($this->displayType())); }
 	
@@ -735,9 +760,11 @@ abstract class ArchivingExport
 	{
 		$client = RestClient::createClient();
 		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.$this->getApiLogsPath());
-		$client->setMethod('POST');	
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
+		$client->setMethod('POST');
+		$client->setHeaders(array(
+			'Authorization' => API::GetToken(),
+			'Content-Type'  => 'application/xml',
+		));
 
 		$logsParamsXml = "<Parameters QID=\"{$this->queryQID}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$this->userID}\"/>";
 		$client->setParameters($logsParamsXml);
@@ -939,14 +966,13 @@ abstract class ArchivingExport
 	protected function getS3ObjectContent($policyID, $policyVersion, $storageKey, &$decryptedFilePath)
 	{
 		// Get endpoint details from API
-		$bucket = $this->s3endpoints->getBucket($this->orgID, $policyID, $policyVersion);		
-		$s3 = $this->s3endpoints->get($this->orgID, $policyID, $policyVersion);
+		list($s3endpoint, $bucket, $s3creds) = $this->s3endpoints->get($this->orgID, $policyID, $policyVersion);
 		
 		// First check if size not too big
 		
 		LogVerbose("{$this->context()}Getting S3 object info {$storageKey} from S3 Bucket {$bucket}");
 		
-		$infoResponse = $s3->getObjectInfo($bucket, $storageKey);
+		$infoResponse = S3::getObjectInfo($bucket, $storageKey, true, $s3endpoint, $s3creds);
 		if (empty($infoResponse) || empty($infoResponse['x-amz-meta-clear-size']) || empty($infoResponse['size']))
 			throw new Exception("Failed to fetch {$storageKey} S3 object info");
 	
@@ -982,7 +1008,7 @@ abstract class ArchivingExport
 			}
 		});
 
-		$response = $s3->getObject($bucket, $storageKey, $s3FileFp);
+		$response = S3::getObject($bucket, $storageKey, $s3FileFp, $s3endpoint, $s3creds);
 		if (!isset($response->code) || $response->code !== 200)
 		{
 			$message = "There was a problem downloading {$storageKey} from S3";
@@ -1040,8 +1066,7 @@ abstract class ArchivingExport
 
 	public function uploadZipArchive($zipFilePath, $storageKey)
 	{
-		$bucket = $this->s3endpoints->getBucket($this->orgID, $this->policyID);		
-		$s3 = $this->s3endpoints->get($this->orgID, $this->policyID);
+		list($s3endpoint, $bucket, $s3creds) = $this->s3endpoints->get($this->orgID, $this->policyID);
 		
 		// OK REALLY REALLY important to call clearstatcache() first as filesize() is called internally by S3::putObjectFile() and:
 		// 
@@ -1053,10 +1078,12 @@ abstract class ArchivingExport
 		
 		LogVerbose("{$this->context()}Uploading export zip {$storageKey} (".filesize($zipFilePath)." bytes) to bucket {$bucket} in S3...");
 			
-		$headers = array();
-		if (!$s3->putObjectFile($zipFilePath, $bucket, $storageKey))
+		if (!S3::putObjectFile($zipFilePath, $bucket, $storageKey, S3::ACL_PRIVATE, array(), null,
+			S3::STORAGE_CLASS_STANDARD, S3::SSE_NONE, $s3endpoint, $s3creds))
+		{
 			throw new Exception("Failed to store file '{$zipFilePath}' in S3 bucket: {$bucket}, storageKey: {$storageKey}");
-		
+		}
+
 		LogVerbose("{$this->context()}Uploaded export zip to S3 OK");
 	}	
 
@@ -2232,8 +2259,9 @@ class ArchivingExportApp extends BaseApp
 	public $worker = false;
 	
 	public $maxRetries = 2;
-		
-	private $s3endpoints = null;
+
+	/** @var ArchivingS3Endpoints */
+	private $s3endpoints;
 	
 	public $backminutes = 0;
 	
@@ -2794,60 +2822,32 @@ class ArchivingExportApp extends BaseApp
 			LogVerbose("{$this->context()}Purging download: index {$index} for export ID {$exportID}...");
 			
 			// Get endpoint details from API
-			$bucket = $this->s3endpoints->getBucket($orgID, $policyID);
-			$s3 = $this->s3endpoints->get($orgID, $policyID);
-			
+            list($s3endpoint, $bucket, $s3creds) = $this->s3endpoints->get($orgID, $policyID);
+
 			$storageKey = "export/{$orgID}/{$exportID}/{$index}";
 			
 			LogVerbose("{$this->context()}Checking if S3 object '{$storageKey}' exists in S3 bucket '{$bucket}'");
 							
-			$exists = $this->s3ObjectExists($s3, $bucket, $storageKey);	
-			if ($exists === true)
+			if (S3::getObjectInfo($bucket, $storageKey, false, $s3endpoint, $s3creds) === true)
 			{
-				if (!$s3->deleteObject($bucket, $storageKey))
+				if (!S3::deleteObject($bucket, $storageKey, $s3endpoint, $s3creds))
+				{
 					throw new Exception("Failed to delete '{$storageKey}' S3 object from S3 bucket '{$bucket}'");
+				}
+
 				LogVerbose("{$this->context()}Deleted S3 object '{$storageKey}' from S3 bucket '{$bucket}' OK");
 			}
-			else if ($exists === false)
+			else
 			{
 				LogVerbose("{$this->context()}S3 object '{$storageKey}' not found in bucket '{$bucket}', will flag as purged");
 			}
-			else // if ($exists === null)
-			{
-				throw new Exception("Failed to check if S3 object '{$storageKey}' exists in bucket '{$bucket}'");
-			}
-								
+
 			$purged = true;
 			
 			$this->setExportDownloadAsPurged($exportID, $index);
 		}
 	}
-	
-	// this is basically a hacked version of S3::getObjectInfo lifted from S3.php
-	private function s3ObjectExists($s3, $bucket, $uri) 
-	{
-		// don't actually need to use $s3 instance for anything because all the relevant member variables in S3 object instance are static
-		
-		$rest = new S3Request('HEAD', $bucket, $uri);
-		$rest = $rest->getResponse();
-		if ($rest->error === false && ($rest->code !== 200 && $rest->code !== 404))
-			$rest->error = array('code' => $rest->code, 'message' => 'Unexpected HTTP status');
-		if ($rest->error !== false) 
-		{
-			trigger_error(sprintf("S3::getObjectInfo({$bucket}, {$uri}): [%s] %s",
-			$rest->error['code'], $rest->error['message']), E_USER_WARNING);
-			return null;
-		}
-		
-		if ($rest->code == 200)
-			return true;
-		else if ($rest->code == 404)
-			return false;
-		else
-			// unexpected?
-			return null;
-	}	
-	
+
 	private function setExportDownloadAsPurged($exportID, $index)
 	{
 		$sql = "UPDATE `Aux`.`LogsExportDownloads` SET `Purged`=1 WHERE `ExportID`={$exportID} AND `Index`={$index};";
