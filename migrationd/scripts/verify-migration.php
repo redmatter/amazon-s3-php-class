@@ -71,7 +71,8 @@ class VerifyMigrationApp extends BaseApp
 			
 		$checkOrgs = cli::get('--check-orgs');
 			
-		$s3 = new S3($s3AccessKey, $s3SecretKey);
+		$s3creds = new S3Credentials($s3AccessKey, $s3SecretKey);
+		$s3endpoint = new S3EndpointConfig();
 		
 		$lastID = cli::get('--start-id', 0);
 
@@ -91,7 +92,7 @@ class VerifyMigrationApp extends BaseApp
 			{
 				$s3Key = "recording/{$row[3]}/{$row[1]}";
 				
-				$savedToS3 = ( false !== $s3->getObjectInfo($s3Bucket, $s3Key, false) );
+				$savedToS3 = ( false !== S3::getObjectInfo($s3Bucket, $s3Key, false, $s3endpoint, $s3creds) );
 
 				$retRes = $retDb->Execute("SELECT ID FROM Retention_{$row[3]} WHERE UUID=0x{$row[2]}");
 				$retentionSaved = ( 0 != $retRes->RecordCount() );
