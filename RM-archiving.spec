@@ -217,6 +217,7 @@ Group: RedMatter/Archiving
 Requires: RM-%{appname}-scripts
 Requires: RM-%{appname}-purge-verify
 Requires: RM-syslogger >= 0.0.1-22449
+Requires: php54-cli
 Requires: php-gd
 Requires: sox
 
