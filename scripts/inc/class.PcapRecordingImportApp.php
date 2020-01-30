@@ -888,6 +888,8 @@ HELP;
 
                 $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
                 $s3endpoint = new S3EndpointConfig($matches[1], $endpoint->region);
+                // here, for now we only expect storage-gateway (agw), which does not yet talk HTTPS
+                $s3endpoint->withSSLEnabled(false);
                 break;
 
             default:

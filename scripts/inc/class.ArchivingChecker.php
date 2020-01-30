@@ -115,6 +115,8 @@ class ArchivingChecker
 				case 's3-emulation':
 					list($hostname) = explode('/', $endpoint->baseURI, 2);
 					$s3endpoint = new S3EndpointConfig($hostname, $endpoint->region);
+                    // here, for now we only expect storage-gateway (agw), which does not yet talk HTTPS
+                    $s3endpoint->withSSLEnabled(false);
 					break;
 				default:
 					throw new RuntimeException("Endpoint type '{$endpoint->type}' not supported");
