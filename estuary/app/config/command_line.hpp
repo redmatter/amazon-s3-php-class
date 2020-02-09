@@ -39,9 +39,9 @@ struct command_line
     {
         options_desc.add_options()
                 ("conf", bpo::value<std::string>()->default_value(std::string(CONFIG_FILE_PATH)),
-                 "alternate location of conf file ( default: "CONFIG_FILE_PATH" )")
+                 "alternate location of conf file ( default: " CONFIG_FILE_PATH " )")
                 ("pid", bpo::value<std::string>()->default_value(std::string(PID_FILE_PATH)),
-                 "alternate location of pid file ( default: "PID_FILE_PATH" )")
+                 "alternate location of pid file ( default: " PID_FILE_PATH " )")
                 ("help", "this help")
                 ("help-conf", "config file help")
                 ("version", "shows version information");

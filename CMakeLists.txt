@@ -8,8 +8,6 @@ if (USE_CLANG)
     set(CMAKE_C_COMPILER clang)
 endif (USE_CLANG)
 
-set(CMAKE_CXX_STANDARD 98)
-
 project(archiving)
 
 include(CheckCXXCompilerFlag)
@@ -88,7 +86,7 @@ FetchContent_Populate(rml-statistics)
 
 add_subdirectory(common)
 add_subdirectory(archived)
-#add_subdirectory(archived-monitor)
+add_subdirectory(archived-monitor)
 #add_subdirectory(cli)
 add_subdirectory(collectd)
 add_subdirectory(collect-smsd)

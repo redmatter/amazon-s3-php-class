@@ -12,81 +12,20 @@
 #define SHM_NAME "SHMArchiveDMonitor"
 #endif
 
-#include <string.h>
-
-#include <iostream>
+#include "../common/archived/stats/item.hpp"
 
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/thread/mutex.hpp>
 
+#include <iostream>
+
 namespace app {
-
 namespace monitor {
-
 
 struct monitor_t
 {
-	struct counter_t
-	{
-		size_t put;
-		size_t cached_only;
-		size_t stored;
-		size_t stored_size;
-		size_t call_buffering;
-		
-		counter_t() : put(0), cached_only(0), stored(0), stored_size(0), call_buffering(0)
-		{
-		}
-	};
-	
-	struct item_t
-	{
-		time_t sample_time;
-
-		size_t convert_waiting;
-		size_t convert_done_waiting;
-		size_t storage_ops_waiting;
-		size_t retention_store_waiting;
-		size_t purge_waiting;
-		size_t whisper_waiting;
-
-		bool is_db_loading;
-
-		size_t store_put_count;
-		size_t store_put_size;
-		size_t store_convert_count;
-		size_t store_save_count;
-		size_t store_retention_count;
-		
-		counter_t counter;
-
-		item_t() :
-			sample_time(0),
-
-			convert_waiting(0),
-			convert_done_waiting(0),
-			storage_ops_waiting(0),
-			retention_store_waiting(0),
-			purge_waiting(0),
-			whisper_waiting(0),
-
-			is_db_loading(false),
-
-			store_put_count(0),
-			store_put_size(0),
-			store_convert_count(0),
-			store_save_count(0),
-			store_retention_count(0),
-
-			counter()
-		{
-		}
-		
-		friend inline_ std::ostream& operator << (std::ostream& ostr, const item_t& item)
-		{
-			return ostr << item.sample_time<<" Convert:"<<item.convert_waiting<<" ConvertDone:"<<item.convert_done_waiting<<" StorageOps:"<<item.storage_ops_waiting<<" RetentionData:"<<item.retention_store_waiting<<" Purge:"<<item.purge_waiting<<" Whisper:"<<item.whisper_waiting<<" DBLoading:"<<(item.is_db_loading? "yes": "no")<<" counters:"<<item.counter.put<<'/'<<item.counter.cached_only<<'/'<<item.counter.stored<<' '<<item.counter.stored_size<<" CallBuffering:"<<item.counter.call_buffering;
-		}
-	};
+    typedef common::archived::stats::item_t item_t;
+    typedef common::archived::stats::counter_t counter_t;
 
 	size_t n_items;
 	item_t items[60];
@@ -128,7 +67,7 @@ struct counter_accessor
 	};
 };
 
-inline_ void increment_counter(const counter_accessor::counter_accessor_t& accessor, const size_t step = 1)
+inline void increment_counter(const counter_accessor::counter_accessor_t& accessor, const size_t step = 1)
 {
 	boost::unique_lock<boost::mutex> lock(counter_mutex);
 
@@ -156,7 +95,7 @@ inline_ void increment_counter(const counter_accessor::counter_accessor_t& acces
 	}
 }
 
-inline_ monitor_t::counter_t get_counter(const bool reset = false)
+inline monitor_t::counter_t get_counter(const bool reset = false)
 {
 	boost::unique_lock<boost::mutex> lock(counter_mutex);
 	if (reset) {
@@ -170,7 +109,6 @@ inline_ monitor_t::counter_t get_counter(const bool reset = false)
 }
 
 }  // namespace monitor
-
 }  // namespace app
 
 
