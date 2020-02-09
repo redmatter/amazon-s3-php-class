@@ -5,6 +5,9 @@ IndentWidth: 4
 ColumnLimit: 120
 # AllowAllConstructorInitializersOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
+UseTab: Always
+ConstructorInitializerIndentWidth: 4
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
 BraceWrapping:
   AfterNamespace: true
 

@@ -702,7 +702,7 @@ private:
 
 						if(!p_policy) {
 							// nudge the monitor's cached_only counter
-							monitor::increment_counter(monitor::counter_accessor::cached_only);
+							monitor::increment_cached_only();
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 						}
 					}
@@ -732,14 +732,14 @@ private:
 											luuid, creation_time_, ofs_)));
 
 							// nudge the monitor's call_buffering counter
-							monitor::increment_counter(monitor::counter_accessor::call_buffering);
+							monitor::increment_call_buffering();
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; (call-buffering)");
 						}
 					}
 				}
 
 				// nudge the monitor's PUT counter (for all)
-				monitor::increment_counter(monitor::counter_accessor::put);
+				monitor::increment_put();
 
 				if(p_policy) // if PolicyID < 0; it only needs to be local cached
 					pc_produce(channel_, opdata);

@@ -14,6 +14,7 @@
 namespace common {
 namespace archived {
 namespace stats {
+
 struct counter_t
 {
     std::size_t put;
@@ -29,6 +30,16 @@ struct counter_t
       , stored_size(0)
       , call_buffering(0)
     {}
+
+    inline void increment_put(std::size_t step = 1) { put += step; }
+
+    inline void increment_cached_only(std::size_t step = 1) { cached_only += step; }
+
+    inline void increment_stored(std::size_t step = 1) { stored += step; }
+
+    inline void increment_stored_size(std::size_t step = 1) { stored_size += step; }
+
+    inline void increment_call_buffering(std::size_t step = 1) { call_buffering += step; }
 };
 
 struct item_t
