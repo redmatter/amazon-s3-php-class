@@ -32,12 +32,6 @@ struct averaged_item
 
     bool is_db_loading;
 
-    float store_put_count;
-    float store_put_size;
-    float store_convert_count;
-    float store_save_count;
-    float store_retention_count;
-
     float counter_put;
     float counter_cached_only;
     float counter_stored;
@@ -55,11 +49,6 @@ struct averaged_item
       , purge_waiting(0.0)
       , whisper_waiting(0.0)
       , is_db_loading(false)
-      , store_put_count(0.0)
-      , store_put_size(0.0)
-      , store_convert_count(0.0)
-      , store_save_count(0.0)
-      , store_retention_count(0.0)
       , counter_put(0.0)
       , counter_cached_only(0.0)
       , counter_stored(0.0)
@@ -85,12 +74,6 @@ struct averaged_item
         retention_store_waiting += (i.retention_store_waiting / n_samples);
         purge_waiting += (i.purge_waiting / n_samples);
         whisper_waiting += (i.whisper_waiting / n_samples);
-
-        store_put_count += (i.store_put_count / n_samples);
-        store_put_size += (i.store_put_size / n_samples);
-        store_convert_count += (i.store_convert_count / n_samples);
-        store_save_count += (i.store_save_count / n_samples);
-        store_retention_count += (i.store_retention_count / n_samples);
 
         counter_put += (i.counter.put / n_samples);
         counter_cached_only += (i.counter.cached_only / n_samples);

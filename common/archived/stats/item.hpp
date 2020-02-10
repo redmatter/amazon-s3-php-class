@@ -55,12 +55,6 @@ struct item_t
 
     bool is_db_loading;
 
-    std::size_t store_put_count;
-    std::size_t store_put_size;
-    std::size_t store_convert_count;
-    std::size_t store_save_count;
-    std::size_t store_retention_count;
-
     counter_t counter;
 
     item_t()
@@ -74,12 +68,6 @@ struct item_t
       , whisper_waiting(0)
 
       , is_db_loading(false)
-
-      , store_put_count(0)
-      , store_put_size(0)
-      , store_convert_count(0)
-      , store_save_count(0)
-      , store_retention_count(0)
 
       , counter()
     {}
