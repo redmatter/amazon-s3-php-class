@@ -503,9 +503,13 @@ int main(int argc, char *argv[]) try
 					item.counter = app::monitor::get_counter(true);
 
 					monitor_data->add_item(item);
+
+					// capture trend snapshots everytime monitoring data is updated, which is roughly every minute
+					app::monitor::make_trend_snapshot(monitor_data, boost::chrono::minutes(20));
 					
 					LogMessage("[statistics] "<<item);
-					
+					LogMessage("[statistics] "<<app::monitor::get_trend());
+
 					monitor_pending = false;
 				}
 				else {

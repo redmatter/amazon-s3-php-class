@@ -99,7 +99,7 @@ struct trend
 std::ostream&
 operator<<(std::ostream& os, const trend& t)
 {
-	return os << trend::value_str(t.value) << " convert-waiting:" << t.convert_waiting
+	return os << "trend:" << trend::value_str(t.value) << " convert-waiting:" << t.convert_waiting
 			  << " convert-done-waiting:" << t.convert_done_waiting << " storage-ops-waiting:" << t.storage_ops_waiting
 			  << " retention-store-waiting:" << t.retention_store_waiting;
 }

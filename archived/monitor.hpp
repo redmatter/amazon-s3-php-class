@@ -13,11 +13,21 @@
 #endif
 
 #include "../common/archived/stats/item.hpp"
+#include "../common/archived/stats/snapshot.hpp"
 
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/make_shared.hpp>
 
 #include <iostream>
+
+namespace {
+boost::shared_ptr<common::archived::stats::snapshot>& get_snapshot_ptr()
+{
+	static boost::shared_ptr<common::archived::stats::snapshot> snapshot;
+	return snapshot;
+}
+} // namespace
 
 namespace app {
 namespace monitor {
@@ -45,6 +55,16 @@ struct monitor_t
 		n_items = std::min<size_t>(n_items + 1, 60);
 	}
 };
+
+inline void make_trend_snapshot(const monitor_t* m, const boost::chrono::minutes& mins)
+{
+	get_snapshot_ptr() = boost::make_shared<common::archived::stats::snapshot>(mins, m->n_items, m->items);
+}
+
+inline common::archived::stats::trend get_trend()
+{
+	return get_snapshot_ptr()->get_trend();
+}
 
 } // namespace monitor
 
