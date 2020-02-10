@@ -56,7 +56,12 @@ set(HEADER_FILES
         net/archived/detail/ip_pool_map.hpp
         archivable/group.hpp
         hostname.hpp
-        archived/stats/averaged_item.hpp archived/stats/item.hpp)
+        archived/stats/averaged_item.hpp
+        archived/stats/item.hpp
+        archived/stats/snapshot.hpp
+        ../external/runstats/regression.hpp
+        ../external/runstats/stats.hpp
+        )
 
 set(SOURCE_FILES
         archived_client.cpp
