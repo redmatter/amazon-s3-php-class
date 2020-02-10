@@ -9,7 +9,7 @@
 #ifndef ARCHIVING_COMMON_ARCHIVED_STATS_SNAPSHOT_HPP
 #define ARCHIVING_COMMON_ARCHIVED_STATS_SNAPSHOT_HPP
 
-#include "../../../../external/runstats/regression.hpp"
+#include "../../../external/runstats/regression.hpp"
 #include "item.hpp"
 
 #include <algorithm>
@@ -58,6 +58,8 @@ struct trend
 			case down:
 				return "down";
 		}
+
+		return "unknown";
 	}
 
 	static type_t from_slope(double slope)
