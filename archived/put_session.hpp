@@ -130,6 +130,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 
 	policy::cached_finder_t& cached_policy_finder_;
 	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
+	const boost::function<bool()>& neglect_pcaps_;
 
 	database::internal& internal_db_;
 	database::cdrmunch& cdrmunch_db_;
@@ -171,6 +172,7 @@ public:
 			call_buffering_recording::channel_t& cbr_channel,
 			policy::cached_finder_t& cached_policy_finder,
 			storage::cached_endpoint_finder_t& cached_endpoint_finder,
+			const boost::function<bool()>& neglect_pcaps,
 			database::internal& internal_db,
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
@@ -180,6 +182,7 @@ public:
 				strand_(io_service_),
 				cached_policy_finder_(cached_policy_finder),
 				cached_endpoint_finder_(cached_endpoint_finder),
+				neglect_pcaps_(neglect_pcaps),
 				internal_db_(internal_db),
 				cdrmunch_db_(cdrmunch_db),
 				clear_cache_(clear_cache),
@@ -425,6 +428,11 @@ private:
 							LogError(remote_ep_<<" Invalid Org ID:"<<orgID);
 							current_state_ = states::put_received_ack_err;
 							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
+						}
+						else if (file_type == archiving::file_type::pcap && neglect_pcaps_()) {
+							LogError(remote_ep_<<" Neglecting PCAP "<<file_type<<'/'<<orgID<<'/'<<uuid);
+							current_state_ = states::put_received_ack_err;
+							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" neglecting PCAPs for now; try again later\r\n";
 						}
 						else {
 							try {

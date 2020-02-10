@@ -38,6 +38,7 @@ class put_server
 	clear_cache& clear_cache_;
 	boost::asio::io_service& io_service_;
 	boost::asio::ip::tcp::acceptor acceptor_;
+	const boost::function<bool()> neglect_pcaps_;
 
 public:
 	typedef boost::shared_ptr<put_server> pointer;
@@ -59,7 +60,8 @@ public:
 			database::internal& internal_db,
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
-			boost::asio::io_service& io_service ) :
+			boost::asio::io_service& io_service,
+			const boost::function<bool()>& neglect_pcaps) :
 				confMap_(confMap),
 				channel_(channel),
 				whisper_channel_(whisper_channel),
@@ -70,7 +72,8 @@ public:
 				cdrmunch_db_(cdrmunch_db),
 				clear_cache_(clear_cache),
 				io_service_(io_service),
-				acceptor_(io_service)
+				acceptor_(io_service),
+				neglect_pcaps_(neglect_pcaps)
 	{
 	}
 	
@@ -101,7 +104,7 @@ public:
 
 		LogMessage("PUT Listening on port "<<put_port);
 
-		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
+		put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, neglect_pcaps_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 		acceptor_.async_accept(new_session->socket(),
 				boost::bind(&put_server::handle_accept, this, new_session,
 						boost::asio::placeholders::error));
@@ -124,7 +127,7 @@ public:
 	{
 		if (!error) {
 			session->start();
-			put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
+			put_session::pointer new_session(new put_session(confMap_, channel_, whisper_channel_, cbr_channel_, cached_policy_finder_, cached_endpoint_finder_, neglect_pcaps_, internal_db_, cdrmunch_db_, clear_cache_, io_service_));
 			acceptor_.async_accept(new_session->socket(),
 					boost::bind(&put_server::handle_accept, this, new_session,
 							boost::asio::placeholders::error));

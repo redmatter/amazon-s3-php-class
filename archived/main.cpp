@@ -338,8 +338,10 @@ int main(int argc, char *argv[]) try
 		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
 				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
+		const std::size_t queue_combined_watermark = app::confMap["archived.queue_combined_watermark"].as<std::size_t>();
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
-				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
+				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service,
+				boost::bind(app::monitor::should_neglect_pcaps, queue_combined_watermark));
 
 		const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
 				app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
@@ -392,8 +394,6 @@ int main(int argc, char *argv[]) try
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
 
-		const std::size_t queue_combined_watermark = app::confMap["archived.queue_combined_watermark"].as<std::size_t>();
-		
 		rml::fcgi::server fcgi_server(app::confMap, app::quit);
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
 				boost::ref(cached_retention_record_finder), boost::ref(retention_record_is_expired),
