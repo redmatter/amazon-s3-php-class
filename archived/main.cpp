@@ -219,6 +219,7 @@ int main(int argc, char *argv[]) try
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
+				("archived.queue_combined_watermark",  boost::program_options::value<std::size_t>()->default_value(1500), "water mark for combined-queue-counts to enable PCAP neglect")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
 		rml::daemon::describe_config(optsDesc);
@@ -289,7 +290,6 @@ int main(int argc, char *argv[]) try
 	}
 
 	try {
-
 		app::database::internal internal_db(app::confMap);
 		app::database::retention retention_db(app::confMap);
 		app::database::retention_delete retention_delete_db(app::confMap);
@@ -391,6 +391,8 @@ int main(int argc, char *argv[]) try
 		shm.truncate(sizeof(app::monitor::monitor_t));
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
+
+		const std::size_t queue_combined_watermark = app::confMap["archived.queue_combined_watermark"].as<std::size_t>();
 		
 		rml::fcgi::server fcgi_server(app::confMap, app::quit);
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
@@ -509,6 +511,7 @@ int main(int argc, char *argv[]) try
 					
 					LogMessage("[statistics] "<<item);
 					LogMessage("[statistics] "<<app::monitor::get_trend());
+					LogMessage("Neglecting PCAPs - "<<(app::monitor::should_neglect_pcaps(queue_combined_watermark) ? "YES" : "NO"));
 
 					monitor_pending = false;
 				}

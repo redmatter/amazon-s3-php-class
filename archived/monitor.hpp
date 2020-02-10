@@ -66,6 +66,17 @@ inline common::archived::stats::trend get_trend()
 	return get_snapshot_ptr()->get_trend();
 }
 
+inline bool should_neglect_pcaps(std::size_t watermark)
+{
+	using common::archived::stats::trend;
+
+	const trend& t = get_trend();
+	std::size_t combined_queue_levels =
+	  t.convert_waiting + t.convert_done_waiting + t.storage_ops_waiting + t.retention_store_waiting;
+
+	return combined_queue_levels > watermark && t.value != trend::down;
+}
+
 } // namespace monitor
 
 extern monitor::monitor_t::counter_t counter;
