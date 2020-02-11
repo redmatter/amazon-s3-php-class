@@ -102,7 +102,7 @@ in_array() {
 }
 
 is_valid_variation() {
-    if [[ "$1" == pcap ]]; then
+    if [[ "$1" = */pcap ]]; then
         return 0
     fi
 
