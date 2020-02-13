@@ -876,7 +876,9 @@ HELP;
         switch ($endpoint->type)
         {
             case 's3':
-                $s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+                $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
+                $s3endpoint = new S3EndpointConfig();
+                $s3endpoint->withDefaultRegion($endpoint->region);
                 break;
 
             case 's3-emulation':
@@ -884,13 +886,19 @@ HELP;
                 {
                     throw new Exception("Malformed BaseURI '{$endpoint->baseURI}' in storage endpoint");
                 }
-                $s3 = new S3($endpoint->accessKey, $endpoint->secretKey, false, S3::BUCKET_URI_STYLE_PATH, $matches[1], $matches[2]);
+
+                $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
+                $s3endpoint = new S3EndpointConfig($matches[1], $endpoint->region);
+                // here, for now we only expect storage-gateway (agw), which does not yet talk HTTPS
+                $s3endpoint->withSSLEnabled(false);
                 break;
 
             default:
                 throw new SkipCsvRecordException("Storage Endpoint Type '{$endpoint->type}' not supported");
         }
-        return $s3->putObjectFile($file, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers);
+
+        return S3::putObjectFile($file, $endpoint->bucket, $identifier, S3::ACL_PRIVATE, $headers, null,
+            S3::STORAGE_CLASS_STANDARD, S3::SSE_NONE, $s3endpoint, $s3creds);
     }
 
     /**

@@ -66,12 +66,15 @@ class VerifyMigrationApp extends BaseApp
 		$s3AccessKey = cli::get('--s3-access-key');
 		$s3SecretKey = cli::get('--s3-secret-key');
 		$s3Bucket = cli::get('--s3-bucket', $conf->get('s3.bucket', 'rm-archiving'));
+		$s3BucketRegion = cli::get('--s3-bucket-region', $conf->get('s3.bucket-region', 'eu-west-1'));
 		if (!isset($s3AccessKey, $s3SecretKey))
 			$this->showUsage(1, "S3 Credentials NOT given");
 			
 		$checkOrgs = cli::get('--check-orgs');
 			
-		$s3 = new S3($s3AccessKey, $s3SecretKey);
+		$s3creds = new S3Credentials($s3AccessKey, $s3SecretKey);
+		$s3endpoint = new S3EndpointConfig();
+		$s3endpoint->withDefaultRegion($s3BucketRegion);
 		
 		$lastID = cli::get('--start-id', 0);
 
@@ -91,7 +94,7 @@ class VerifyMigrationApp extends BaseApp
 			{
 				$s3Key = "recording/{$row[3]}/{$row[1]}";
 				
-				$savedToS3 = ( false !== $s3->getObjectInfo($s3Bucket, $s3Key, false) );
+				$savedToS3 = ( false !== S3::getObjectInfo($s3Bucket, $s3Key, false, $s3endpoint, $s3creds) );
 
 				$retRes = $retDb->Execute("SELECT ID FROM Retention_{$row[3]} WHERE UUID=0x{$row[2]}");
 				$retentionSaved = ( 0 != $retRes->RecordCount() );

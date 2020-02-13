@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/php54
 <?php
 
 /**
@@ -203,21 +203,26 @@ class VerifyPurgeApp extends BaseApp
         switch ($endpoint->type)
         {
             case 's3':
-                $s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+                $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
+                $s3endpoint = new S3EndpointConfig();
+                $s3endpoint->withDefaultRegion($endpoint->region);
                 break;
             case 's3-emulation':
                 if (1 !== preg_match('/^([^\/]+)(.*)$/', $endpoint->baseURI, $matches))
                 {
                     throw new Exception("Malformed BaseURI '{$endpoint->baseURI}' in storage endpoint");
                 }
-                $s3 = new S3($endpoint->accessKey, $endpoint->secretKey, false, S3::BUCKET_URI_STYLE_PATH, $matches[1], $matches[2]);
+                $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
+                $s3endpoint = new S3EndpointConfig($matches[1], $endpoint->region);
+                // here, for now we only expect storage-gateway (agw), which does not yet talk HTTPS
+                $s3endpoint->withSSLEnabled(false);
                 break;
             default:
                 throw new Exception("Storage Endpoint Type '{$endpoint->type}' not supported");
                 break;
         }
 
-        $storageStateFound = $s3->getObjectInfo($endpoint->bucket, $identifier_str, false) ? 'Available' : 'Purged';
+        $storageStateFound = S3::getObjectInfo($endpoint->bucket, $identifier_str, false, $s3endpoint, $s3creds) ? 'Available' : 'Purged';
 
         return array($retentionStateFound, $storageStateFound, $endpoint->retentionManaged);
     }

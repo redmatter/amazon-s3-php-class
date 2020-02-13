@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/php54
 <?php
 
 /**
@@ -98,7 +98,23 @@ class ArchivingExportAny
 
             $retention = ArchivingRetention::Find(MySQLiConnection::Get('retention_ro'), $this->rmOrgID, $this->fileType, $this->uuid_hex);
             $endpoint = ArchivingEndpoint::Get(array($api->URL, $api->Token), $this->rmOrgID, $retention->EndpointID);
-            $s3 = new S3($endpoint->accessKey, $endpoint->secretKey);
+
+            $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
+            $s3bucket = new S3BucketConfig($endpoint->bucket, $endpoint->region);
+            switch ($endpoint->type) {
+                case 's3':
+                    $s3endpoint = new S3EndpointConfig();
+                    $s3endpoint->withDefaultRegion($endpoint->region);
+                    break;
+				case 's3-emulation':
+				    list($hostname) = explode('/', $endpoint->baseURI, 2);
+					$s3endpoint = new S3EndpointConfig($hostname, $endpoint->region);
+                    // here, for now we only expect storage-gateway (agw), which does not yet talk HTTPS
+                    $s3endpoint->withSSLEnabled(false);
+					break;
+                default:
+                    throw new RuntimeException("Endpoint type '{$endpoint->type}' not supported");
+            }
 
             $resPathS3 = new TempPath($identifier.'.', null, $keepTemp);
 
@@ -108,7 +124,7 @@ class ArchivingExportAny
             while (true)
             {
                 $s3_start_time = microtime(true);
-                if (false !== ($resS3 = $s3->getObject($endpoint->bucket, $identifier, $resPathS3->getPath())))
+                if (false !== ($resS3 = S3::getObject($s3bucket, $identifier, $resPathS3->getPath(), $s3endpoint, $s3creds)))
                 {
                     $lc->LogMessage('Downloaded from S3');
                     break;

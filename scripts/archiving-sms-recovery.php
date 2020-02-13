@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/php54
 <?php
 
 /**
@@ -182,8 +182,7 @@ class ArchivingSmsRecoveryApp extends BaseApp
 					'-' . substr($uuid, 20);
 
 				// Get endpoint details from API
-				$s3 = $this->getS3Endpoint($result['PolicyID'], $result['PolicyVersion']);
-				$bucket = $this->getEndpointDetails($result['PolicyID'], $result['PolicyVersion'])->bucket;
+                list($bucket, $s3creds) = $this->getS3Endpoint($result['PolicyID'], $result['PolicyVersion']);
 
 				// Construct storage key from UUID
 				$storage_key = Archiving::FILE_TYPE_STR_SMS . "/{$this->org}/{$uuid}";
@@ -191,7 +190,7 @@ class ArchivingSmsRecoveryApp extends BaseApp
 				// GET record from S3
 				LogMessage("Downloading {$storage_key} from S3 Bucket {$bucket}");
 
-				$response = $s3->getObject($bucket, $storage_key);
+				$response = S3::getObject($bucket, $storage_key, false, null, $s3creds);
 				if (!isset($response->code) || $response->code !== 200)
 				{
 					$message = "There was a problem downloading {$storage_key} from S3";
@@ -322,7 +321,7 @@ class ArchivingSmsRecoveryApp extends BaseApp
      *
      * @throws Exception
      *
-     * @return S3
+     * @return [S3BucketConfig, S3Credentials]
      */
     protected function getS3Endpoint($policy_id, $policy_version)
     {
@@ -330,7 +329,7 @@ class ArchivingSmsRecoveryApp extends BaseApp
 		{
             $endpoint_details = $this->getEndpointDetails($policy_id, $policy_version);
 
-            if ($endpoint_details->type != 's3')
+            if ($endpoint_details->type !== 's3')
 			{
                 throw new Exception('Endpoint is not on Amazon S3');
             }
@@ -340,8 +339,10 @@ class ArchivingSmsRecoveryApp extends BaseApp
                 $this->endpoints[$policy_id] = array();
             }
 
-            $endpoint = new S3($endpoint_details->accessKey, $endpoint_details->secretKey);
-            $this->endpoints[$policy_id][$policy_version] = $endpoint;
+			$this->endpoints[$policy_id][$policy_version] = array(
+				new S3BucketConfig($endpoint_details->bucket, $endpoint_details->region),
+				new S3Credentials($endpoint_details->accessKey, $endpoint_details->secretKey)
+			);
         }
 
         return $this->endpoints[$policy_id][$policy_version];
