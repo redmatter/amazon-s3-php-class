@@ -205,6 +205,7 @@ class VerifyPurgeApp extends BaseApp
             case 's3':
                 $s3creds = new S3Credentials($endpoint->accessKey, $endpoint->secretKey);
                 $s3endpoint = new S3EndpointConfig();
+                $s3endpoint->withDefaultRegion($endpoint->region);
                 break;
             case 's3-emulation':
                 if (1 !== preg_match('/^([^\/]+)(.*)$/', $endpoint->baseURI, $matches))

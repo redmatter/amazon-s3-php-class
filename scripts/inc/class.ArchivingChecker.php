@@ -111,6 +111,7 @@ class ArchivingChecker
 			switch ($endpoint->type) {
 				case 's3':
 					$s3endpoint = new S3EndpointConfig();
+                    $s3endpoint->withDefaultRegion($endpoint->region);
 					break;
 				case 's3-emulation':
 					list($hostname) = explode('/', $endpoint->baseURI, 2);
