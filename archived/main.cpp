@@ -220,6 +220,8 @@ int main(int argc, char *argv[]) try
 		optsDesc.add_options()
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
 				("archived.queue_combined_watermark",  boost::program_options::value<std::size_t>()->default_value(1500), "water mark for combined-queue-counts to enable PCAP neglect")
+				("archived.pcap_neglect_timeout_minutes",  boost::program_options::value<unsigned>()->default_value(10), "constant backoff duration for PCAPs (minutes)")
+				("archived.trend_duration_minutes",  boost::program_options::value<unsigned>()->default_value(20), "duration for which trend is tracked")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
 		rml::daemon::describe_config(optsDesc);
@@ -338,10 +340,17 @@ int main(int argc, char *argv[]) try
 		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
 				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
-		const std::size_t queue_combined_watermark = app::confMap["archived.queue_combined_watermark"].as<std::size_t>();
+		const unsigned pcap_neglect_timeout(
+			std::min(5U, app::confMap["archived.pcap_neglect_timeout_minutes"].as<unsigned>()));
+		const boost::chrono::minutes trend_duration(
+			std::min(2U * pcap_neglect_timeout, app::confMap["archived.trend_duration_minutes"].as<unsigned>()));
+		const boost::function<bool()> should_neglect_pcaps =
+			boost::bind(app::monitor::should_neglect_pcaps,
+						app::confMap["archived.queue_combined_watermark"].as<std::size_t>(),
+						pcap_neglect_timeout);
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
 				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service,
-				boost::bind(app::monitor::should_neglect_pcaps, queue_combined_watermark));
+				should_neglect_pcaps);
 
 		const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
 				app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
@@ -381,13 +390,13 @@ int main(int argc, char *argv[]) try
 			{
 				boost::interprocess::shared_memory_object::remove(SHM_NAME);
 			}
-			
+
 			~shm_remove()
 			{
 				boost::interprocess::shared_memory_object::remove(SHM_NAME);
 			}
 		} remover;
-		
+
 		boost::interprocess::shared_memory_object shm(boost::interprocess::create_only, SHM_NAME, boost::interprocess::read_write);
 
 		shm.truncate(sizeof(app::monitor::monitor_t));
@@ -506,12 +515,12 @@ int main(int argc, char *argv[]) try
 
 					monitor_data->add_item(item);
 
-					// capture trend snapshots everytime monitoring data is updated, which is roughly every minute
-					app::monitor::make_trend_snapshot(monitor_data, boost::chrono::minutes(20));
+					// capture trend every time monitoring data is updated, which is roughly every minute
+					app::monitor::capture_trend(monitor_data, trend_duration);
 					
 					LogMessage("[statistics] "<<item);
-					LogMessage("[statistics] "<<app::monitor::get_trend());
-					LogMessage("Neglecting PCAPs - "<<(app::monitor::should_neglect_pcaps(queue_combined_watermark) ? "YES" : "NO"));
+					LogMessage("[statistics] trend: "<<app::monitor::get_trend());
+					LogMessage("Neglecting PCAPs - "<<(should_neglect_pcaps() ? "YES" : "NO"));
 
 					monitor_pending = false;
 				}

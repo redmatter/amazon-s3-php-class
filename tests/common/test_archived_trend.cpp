@@ -8,7 +8,7 @@
 
 #include "gtest/gtest.h"
 
-#include "../../common/archived/stats/snapshot.hpp"
+#include "archived/stats/trend.hpp"
 
 TEST(Trend, LessThanIdealNumberOfSamples)
 {
@@ -57,12 +57,10 @@ TEST(Trend, LessThanIdealNumberOfSamples)
 	samples[4].purge_waiting = 5;
 	samples[4].whisper_waiting = 5;
 
-	ns::snapshot s(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
-	ASSERT_LE(s.n_items, 6 /* mins */);
-	ASSERT_EQ(s.n_items, 5);
-
-	const ns::trend& t = s.get_trend();
+	const ns::trend& t =
+		ns::trend::make_from_samples(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
 	ASSERT_EQ(t.value, ns::trend::down);
+	ASSERT_EQ(t.get_backlog(), 4);
 }
 
 TEST(Trend, MoreThanIdealNumberOfSamples)
@@ -128,12 +126,10 @@ TEST(Trend, MoreThanIdealNumberOfSamples)
 	samples[6].purge_waiting = 7;
 	samples[6].whisper_waiting = 7;
 
-	ns::snapshot s(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
-	ASSERT_LE(s.n_items, 6 /* mins */);
-	ASSERT_EQ(s.n_items, 6);
-
-	const ns::trend& t = s.get_trend();
+	const ns::trend& t =
+		ns::trend::make_from_samples(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
 	ASSERT_EQ(t.value, ns::trend::down);
+	ASSERT_EQ(t.get_backlog(), 4);
 }
 
 TEST(Trend, LessThanNecessaryNumberOfSamples)
@@ -159,10 +155,9 @@ TEST(Trend, LessThanNecessaryNumberOfSamples)
 	samples[1].purge_waiting = 2;
 	samples[1].whisper_waiting = 2;
 
-	ns::snapshot s(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
-	ASSERT_EQ(s.n_items, 2);
-
-	const ns::trend& t = s.get_trend();
+	const ns::trend& t =
+		ns::trend::make_from_samples(boost::chrono::minutes(6), sizeof(samples) / sizeof(ns::item_t), samples);
 	ASSERT_EQ(t.value, ns::trend::unchanged);
+	ASSERT_EQ(t.get_backlog(), 0);
 	ASSERT_FALSE(t.is_valid());
 }

@@ -41,6 +41,7 @@ struct trend
 	};
 
 	type_t value;
+	double slope;
 
 	std::time_t time;
 	std::size_t convert_waiting;
@@ -77,6 +78,7 @@ struct trend
 
 	trend(double slope, const item_t& i)
 		: value(from_slope(slope))
+		, slope(slope)
 		, time(i.sample_time)
 		, convert_waiting(i.convert_waiting)
 		, convert_done_waiting(i.convert_done_waiting)
@@ -86,6 +88,7 @@ struct trend
 
 	trend()
 		: value(unchanged)
+		, slope(0)
 		, time(0)
 		, convert_waiting(0)
 		, convert_done_waiting(0)
@@ -93,44 +96,43 @@ struct trend
 		, retention_store_waiting(0)
 	{}
 
-	bool is_valid() const { return time != 0; }
+	inline bool is_valid() const { return time != 0; }
+
+	inline std::size_t get_backlog() const
+	{
+		return convert_waiting + convert_done_waiting + storage_ops_waiting + retention_store_waiting;
+	}
+
+	inline static trend make_from_samples(const boost::chrono::minutes& mins,
+												std::size_t n_samples,
+												const item_t* samples)
+	{
+		std::size_t n = std::min(std::min(n_samples, std::size_t(mins.count())), std::size_t(60));
+
+		if (n < 3) {
+			return trend();
+		}
+
+		runstats::regression regression;
+		for (int i = 0; i < n; i++) {
+			regression.push(i + 1, get_processing_count(samples[std::size_t(n - i - 1)]));
+		}
+
+		return trend(regression.slope(), samples[0]);
+	}
 };
 
 std::ostream&
 operator<<(std::ostream& os, const trend& t)
 {
-	return os << "trend:" << trend::value_str(t.value) << " convert-waiting:" << t.convert_waiting
+	if (!t.is_valid()) {
+		return os << "<unknown>";
+	}
+
+	return os << trend::value_str(t.value) << " [slope:" << t.slope << " convert-waiting:" << t.convert_waiting
 			  << " convert-done-waiting:" << t.convert_done_waiting << " storage-ops-waiting:" << t.storage_ops_waiting
-			  << " retention-store-waiting:" << t.retention_store_waiting;
+			  << " retention-store-waiting:" << t.retention_store_waiting << " total:" << t.get_backlog() << ']';
 }
-
-struct snapshot
-{
-	std::size_t n_items;
-	item_t items[60];
-
-	snapshot() : n_items(0) {}
-
-	snapshot(const boost::chrono::minutes& mins, std::size_t n, const item_t* items)
-		: n_items(std::min(n, std::size_t(mins.count())))
-	{
-		std::memcpy(this->items, items, sizeof(item_t) * n_items);
-	}
-
-	trend get_trend()
-	{
-		if (n_items < 3) {
-			return trend();
-		}
-
-		runstats::regression regression;
-		for (double i = 0; i < n_items; i++) {
-			regression.push(i + 1, get_processing_count(items[std::size_t(n_items - 1 - i)]));
-		}
-
-		return trend(regression.slope(), items[0]);
-	}
-};
 
 } // namespace stats
 } // namespace archived

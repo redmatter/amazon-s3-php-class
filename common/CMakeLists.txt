@@ -58,7 +58,7 @@ set(HEADER_FILES
         hostname.hpp
         archived/stats/averaged_item.hpp
         archived/stats/item.hpp
-        archived/stats/snapshot.hpp
+        archived/stats/trend.hpp
         ../external/runstats/regression.hpp
         ../external/runstats/stats.hpp
         )

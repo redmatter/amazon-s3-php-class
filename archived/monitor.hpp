@@ -13,19 +13,20 @@
 #endif
 
 #include "../common/archived/stats/item.hpp"
-#include "../common/archived/stats/snapshot.hpp"
+#include "archived/stats/trend.hpp"
 
+#include <boost/atomic.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/thread/mutex.hpp>
-#include <boost/make_shared.hpp>
 
 #include <iostream>
 
 namespace {
-boost::shared_ptr<common::archived::stats::snapshot>& get_snapshot_ptr()
+inline common::archived::stats::trend&
+trend_()
 {
-	static boost::shared_ptr<common::archived::stats::snapshot> snapshot;
-	return snapshot;
+	static common::archived::stats::trend trend;
+	return trend;
 }
 } // namespace
 
@@ -44,6 +45,8 @@ struct monitor_t
 
 	monitor_t() : n_items(0) {}
 
+	inline static std::size_t max_samples() { return sizeof(monitor_t::items) / sizeof(monitor_t::item_t); }
+
 	void add_item(const item_t& item)
 	{
 		if (n_items) {
@@ -52,29 +55,58 @@ struct monitor_t
 		}
 
 		memcpy(&items[0], &item, sizeof(item_t));
-		n_items = std::min<size_t>(n_items + 1, 60);
+		n_items = std::min<size_t>(n_items + 1, max_samples());
 	}
 };
 
-inline void make_trend_snapshot(const monitor_t* m, const boost::chrono::minutes& mins)
+inline common::archived::stats::trend const&
+capture_trend(const monitor_t* m, const boost::chrono::minutes& mins)
 {
-	get_snapshot_ptr() = boost::make_shared<common::archived::stats::snapshot>(mins, m->n_items, m->items);
+	return trend_() = common::archived::stats::trend::make_from_samples(mins, m->n_items, m->items);
 }
 
-inline common::archived::stats::trend get_trend()
+inline common::archived::stats::trend const&
+get_trend()
 {
-	return get_snapshot_ptr()->get_trend();
+	return trend_();
 }
 
-inline bool should_neglect_pcaps(std::size_t watermark)
+inline bool
+should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minutes)
 {
 	using common::archived::stats::trend;
 
-	const trend& t = get_trend();
-	std::size_t combined_queue_levels =
-	  t.convert_waiting + t.convert_done_waiting + t.storage_ops_waiting + t.retention_store_waiting;
+	static boost::atomic<std::time_t> neglect_until(0);
 
-	return combined_queue_levels > watermark && t.value != trend::down;
+	// till we have a trend, don't neglect PCAPs
+	const trend& t = get_trend();
+	if (!t.is_valid()) {
+		return false;
+	}
+
+	// once we start neglecting, continue neglecting for set duration
+	std::time_t neglect_until_ = neglect_until.load(boost::memory_order_relaxed);
+	if (neglect_until_ != 0 && t.time < neglect_until_) {
+		return true;
+	}
+
+	// see if we can stop neglecting (or start to, if we haven't been already)
+	bool neglect = true;
+	if (t.get_backlog() < watermark) { // if the backlog is below watermark
+		neglect = false;
+	} else if (t.value == trend::down &&
+			   t.slope < -15) { // though above watermark, if the backlog has been  consistently coming down for the
+								// past X minutes, at a considerable rate
+		neglect = false;
+	}
+
+	if (neglect) {
+		neglect_until = std::time(0) + neglect_duration_minutes * 60;
+	} else {
+		neglect_until = 0;
+	}
+
+	return neglect;
 }
 
 } // namespace monitor
