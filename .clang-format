@@ -8,6 +8,7 @@ AllowAllParametersOfDeclarationOnNextLine: true
 UseTab: Always
 ConstructorInitializerIndentWidth: 4
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ContinuationIndentWidth: 4
 BraceWrapping:
   AfterNamespace: true
 
