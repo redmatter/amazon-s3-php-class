@@ -430,7 +430,7 @@ private:
 							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
 						}
 						else if (file_type == archiving::file_type::pcap && neglect_pcaps_()) {
-							LogError(remote_ep_<<" Neglecting PCAP "<<file_type<<'/'<<orgID<<'/'<<uuid);
+							LogMessage(remote_ep_<<" Neglecting PCAP "<<file_type<<'/'<<orgID<<'/'<<uuid);
 							current_state_ = states::put_received_ack_err;
 							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" neglecting PCAPs for now; try again later\r\n";
 						}
