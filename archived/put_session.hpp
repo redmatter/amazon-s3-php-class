@@ -374,6 +374,8 @@ private:
 		}
 
 		std::istream istr(&recv_buffer_);
+		istr.unsetf(std::ios_base::skipws);
+
 		// Get resource ID
 		{
 			std::ostringstream os;
@@ -442,6 +444,7 @@ private:
 	void next_command(const boost::system::error_code& error) try
 	{
 		std::istream istr(&recv_buffer_);
+		istr.unsetf(std::ios_base::skipws);
 
 		std::string verb;
 		char cr, lf;
