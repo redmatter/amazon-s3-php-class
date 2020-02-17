@@ -197,6 +197,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 
 		return boost::lexical_cast<T>(itr->second);
 	} catch (const boost::bad_lexical_cast& e) {
+		LogDWarning(e.what(), "IGNO");
 		throw bad_request(key + " has no/invalid value");
 	}
 
