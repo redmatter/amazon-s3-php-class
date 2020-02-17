@@ -455,7 +455,7 @@ private:
 	void next_command(const boost::system::error_code& error) try
 	{
 		if (error) {
-			LogError(remote_ep_ << " state:" << states::to_string(current_state_)
+			LogMessage(remote_ep_ << " state:" << states::to_string(current_state_)
 								<< " error while waiting for next-command err:" << error.message());
 			current_state_ = states::general_err;
 			async_do(boost::bind(&put_session::do_close, shared_from_this()));
@@ -540,7 +540,7 @@ private:
 
 		case states::handshake_recv:
 		{
-			std::string OK_or_ERR, CollectD, version_number, protocol, protocol_version_number, message;
+			std::string OK_or_ERR, CollectD, version, protocol, protocol_version_number, message;
 			char sp1, sp2, sp3, sp4, v, cr, lf;
 
 			SetupRecvStream(remote_ep_, "CollectD", istr, recv_buffer_);
@@ -549,20 +549,19 @@ private:
 
 			istr >> OK_or_ERR;
 			if(OK_or_ERR == "OK") {
-				istr >> sp1 >> CollectD >> sp2 >> v >> version_number >> sp3 >> protocol >> sp4 >> protocol_version_number >> cr >> lf;
-				if(!((CollectD == "CollectD") && (v == 'v') && (protocol == "protocol"))) {
+				istr >> sp1 >> CollectD >> sp2 >> v >> version >> sp3 >> protocol >> sp4 >> protocol_version_number >> cr >> lf;
+				if (!((CollectD == "CollectD") && (v == 'v') && (protocol == "protocol"))) {
 					LogError(remote_ep_<<" Invalid response from client; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR invalid response\r\n";
-				}
-				else if(protocol_version_number != archiving::put_protocol_version_str) {
+				} else if (protocol_version_number != archiving::put_protocol_version_str) {
 					LogError(remote_ep_<<" Client protocol version mismatch; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR protocol mismatch\r\n";
-				}
-				else {
-					if(version_number != version_number_only_string)
-						LogWarning(remote_ep_<<" Warning: Client differs in version from server");
+				} else {
+					if (version != version_number_only_string) {
+						LogWarning(remote_ep_ << " client differs in version [cv:" << version << " sv:" << version_number_only_string << "]");
+					}
 
 					current_state_ = states::ready_for_put;
 					ostr << "OK\r\n";
