@@ -53,3 +53,8 @@ modules.xml
 /collect-importd/cronjobs/phonero/src/vendor/
 /collect-importd/collect-importd
 /archived-monitor/archived-monitor
+
+**/test_*
+!**/test_*.cpp
+**/*.d
+**/*.o

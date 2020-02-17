@@ -454,6 +454,14 @@ private:
 
 	void next_command(const boost::system::error_code& error) try
 	{
+		if (error) {
+			LogError(remote_ep_ << " state:" << states::to_string(current_state_)
+								<< " error while waiting for next-command err:" << error.message());
+			current_state_ = states::general_err;
+			async_do(boost::bind(&put_session::do_close, shared_from_this()));
+			return;
+		}
+
 		std::istream istr(&recv_buffer_);
 		istr.unsetf(std::ios_base::skipws);
 
