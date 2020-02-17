@@ -162,6 +162,43 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	whisper::channel_t& whisper_channel_;
 	call_buffering_recording::channel_t& cbr_channel_;
 
+	template<typename T>
+	inline boost::optional<T> optional_metadata(const std::string& key) const
+	{
+		if (!metadata_) {
+			throw std::runtime_error("no metadata");
+		}
+
+		types::metadata::const_iterator itr = metadata_->find(key);
+		if (itr == metadata_->end()) {
+			return boost::none;
+		}
+
+		return boost::lexical_cast<T>(itr->second);
+	}
+
+	template<typename T>
+	inline T get_metadata(const std::string& key, const T& default_value) const
+	{
+		const boost::optional<T>& value = optional_metadata<T>(key);
+		if (value != boost::none) {
+			return *value;
+		}
+
+		return default_value;
+	}
+
+	template<typename T>
+	inline T get_metadata(const std::string& key) const
+	{
+		const boost::optional<T>& value = optional_metadata<T>(key);
+		if (value != boost::none) {
+			return *value;
+		}
+
+		throw protocol_exception(key + " not found in metadata");
+	}
+
 public:
 	typedef boost::shared_ptr<put_session> pointer;
 
@@ -445,16 +482,10 @@ private:
 								}
 
 								// read metadata from stream
-								metadata_.reset(new types::metadata(istr));
+								metadata_ = boost::make_shared<types::metadata>(istr);
 
 								// make sure we have CreateTime in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("CreateTime");
-									if(itr == metadata_->end())
-										throw rml::exception("No CreateTime given");
-
-									creation_time_ = rml::utils::strtoull(itr->second.c_str());
-								}
+								creation_time_ = get_metadata<std::time_t>("CreateTime");
 
 								creation_date_yyyymmdd_.clear();
 								{
@@ -467,21 +498,13 @@ private:
 
 								// make sure we have MD5 in headers
 								{
-									types::metadata::const_iterator itr = metadata_->find("MD5");
-									if(itr == metadata_->end())
-										throw rml::exception("No MD5 given");
-
-									std::istringstream istr(itr->second);
+									std::istringstream istr(get_metadata<std::string>("MD5"));
 									istr >> md5_;
 								}
 
 								// make sure we have PolicyID in headers
 								{
-									types::metadata::const_iterator itr = metadata_->find("RetentionPolicyID");
-									if(itr == metadata_->end())
-										throw rml::exception("No RetentionPolicyID given");
-
-									policy_id_ = rml::utils::strtoll(itr->second.c_str());
+									policy_id_ = get_metadata<policy::id_type>("RetentionPolicyID");
 									if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 										// make sure we can handle this PolicyID before CollectD start sending data
 										if(!cached_policy_finder_(std::make_pair(orgID, policy_id_))) {
@@ -494,13 +517,7 @@ private:
 								}
 
 								// make sure we have DataFormat in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("DataFormat");
-									if(itr == metadata_->end())
-										throw rml::exception("No DataFormat given");
-
-									data_type_ = types::data_sub_format::from_string(itr->second);
-								}
+								data_type_ = types::data_sub_format::from_string(get_metadata<std::string>("DataFormat"));
 
 								// open the file
 								ofs_ = rml::utils::tmp_fstream::create(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
