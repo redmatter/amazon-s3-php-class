@@ -18,6 +18,7 @@
 #include <boost/atomic.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/optional.hpp>
 
 #include <iostream>
 
@@ -71,7 +72,7 @@ get_trend()
 	return trend_();
 }
 
-inline bool
+inline boost::optional<std::time_t>
 should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minutes)
 {
 	using common::archived::stats::trend;
@@ -81,13 +82,13 @@ should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minute
 	// till we have a trend, don't neglect PCAPs
 	const trend& t = get_trend();
 	if (!t.is_valid()) {
-		return false;
+		return boost::none;
 	}
 
 	// once we start neglecting, continue neglecting for set duration
 	std::time_t neglect_until_ = neglect_until.load(boost::memory_order_relaxed);
 	if (neglect_until_ != 0 && t.time < neglect_until_) {
-		return true;
+		return neglect_until.load();
 	}
 
 	// see if we can stop neglecting (or start to, if we haven't been already)
@@ -106,7 +107,7 @@ should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minute
 		neglect_until = 0;
 	}
 
-	return neglect;
+	return neglect_until.load();
 }
 
 } // namespace monitor

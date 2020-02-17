@@ -38,7 +38,7 @@ class put_server
 	clear_cache& clear_cache_;
 	boost::asio::io_service& io_service_;
 	boost::asio::ip::tcp::acceptor acceptor_;
-	const boost::function<bool()> neglect_pcaps_;
+	const boost::function<boost::optional<std::time_t>()> neglect_pcaps_;
 
 public:
 	typedef boost::shared_ptr<put_server> pointer;
@@ -61,7 +61,7 @@ public:
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
 			boost::asio::io_service& io_service,
-			const boost::function<bool()>& neglect_pcaps) :
+			const boost::function<boost::optional<std::time_t>()>& neglect_pcaps) :
 				confMap_(confMap),
 				channel_(channel),
 				whisper_channel_(whisper_channel),

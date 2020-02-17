@@ -9,6 +9,7 @@ UseTab: Always
 ConstructorInitializerIndentWidth: 4
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ContinuationIndentWidth: 4
+AccessModifierOffset: -4
 BraceWrapping:
   AfterNamespace: true
 

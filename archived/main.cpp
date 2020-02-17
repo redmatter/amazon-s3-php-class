@@ -344,7 +344,7 @@ int main(int argc, char *argv[]) try
 			std::min(5U, app::confMap["archived.pcap_neglect_timeout_minutes"].as<unsigned>()));
 		const boost::chrono::minutes trend_duration(
 			std::min(2U * pcap_neglect_timeout, app::confMap["archived.trend_duration_minutes"].as<unsigned>()));
-		const boost::function<bool()> should_neglect_pcaps =
+		const boost::function<boost::optional<std::time_t>()> should_neglect_pcaps =
 			boost::bind(app::monitor::should_neglect_pcaps,
 						app::confMap["archived.queue_combined_watermark"].as<std::size_t>(),
 						pcap_neglect_timeout);

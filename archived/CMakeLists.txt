@@ -42,7 +42,8 @@ set(HEADER_FILES
         file_format/policies.hpp
         file_format/detail/parameter.hpp config/purge_restrictions.hpp
         legal_hold/cache.hpp
-        legal_hold/status.hpp)
+        legal_hold/status.hpp
+        put/response.hpp)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)
