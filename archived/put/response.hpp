@@ -9,7 +9,7 @@
 #ifndef ARCHIVED_PUT_RESPONSE_HPP
 #define ARCHIVED_PUT_RESPONSE_HPP
 
-#include "../common/types.hpp"
+#include "../../common/types.hpp"
 #include <boost/chrono/chrono.hpp>
 #include <boost/optional.hpp>
 #include <ctime>

@@ -13,7 +13,7 @@
 #endif
 
 #include "../common/archived/stats/item.hpp"
-#include "archived/stats/trend.hpp"
+#include "../common/archived/stats/trend.hpp"
 
 #include <boost/atomic.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
