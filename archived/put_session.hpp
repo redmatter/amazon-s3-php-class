@@ -400,7 +400,10 @@ private:
 		}
 
 		// make sure we have MD5 in headers
-		md5_ = get_metadata<archiving::hash_vector>("MD5");
+		{
+			std::istringstream md5_istr(get_metadata<std::string>("MD5"));
+			md5_istr >> md5_;
+		}
 
 		// make sure we have PolicyID in headers
 		{
@@ -409,9 +412,8 @@ private:
 				// make sure we can handle this PolicyID before CollectD start sending data
 				if(!cached_policy_finder_(std::make_pair(org_id, policy_id_))) {
 					cached_policy_finder_.forget(std::make_pair(org_id, policy_id_));
-					throw protocol_exception(
-						boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
-								   % org_id % policy_id_));
+					LogWarning(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " failed to lookup policy:" << org_id << '/' << policy_id_);
+					throw bad_request("policy not found");
 				}
 			}
 		}
@@ -434,12 +436,21 @@ private:
 		async_send(put::continue_(file_type, org_id, uuid));
 	} catch (const bad_request& e) {
 		LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " bad_request:"<<e.what());
+
+		discard_current_put_request();
 		current_state_ = states::put_received_ack_err;
 		async_send(put::bad_request(file_type, org_id, uuid, e.what()));
 	} catch (const server_busy& e) {
 		LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " server_busy:"<<e.what());
+
+		discard_current_put_request();
 		current_state_ = states::put_received_ack_err;
 		async_send(put::server_busy(file_type, org_id, uuid, e.until));
+	}
+
+	inline void discard_current_put_request()
+	{
+		recv_buffer_.consume(boost::asio::read_until(socket_, recv_buffer_, "\r\n\r\n"));
 	}
 
 	void next_command(const boost::system::error_code& error) try
@@ -490,17 +501,16 @@ private:
 			return;
 		}
 
-		// consume and discard stream
-		std::string str;
-		std::getline(istr, str, '\r'); istr >> lf;
-
-		LogWarning(remote_ep_ << " Invalid request received '" << verb << str << '\'');
+		LogWarning(remote_ep_ << " Invalid request received; verb found was '" << verb << '\'');
 		throw bad_protocol("invalid request");
 	} catch (const bad_protocol& e) {
+		discard_current_put_request();
 		current_state_ = states::put_received_ack_err_close;
 		async_send(put::bad_request(e.what()));
 	} catch(const std::exception& e) {
 		LogError(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " std::exception:"<<e.what());
+
+		discard_current_put_request();
 		current_state_ = states::put_received_ack_err_close;
 		async_send(put::internal_error(e.what()));
 	}
@@ -709,7 +719,10 @@ private:
 							}
 
 							// make sure we have MD5 in headers
-							md5_ = get_metadata<archiving::hash_vector>("MD5");
+							{
+								std::istringstream md5_istr(get_metadata<std::string>("MD5"));
+								md5_istr >> md5_;
+							}
 
 							// make sure we have PolicyID in headers
 							{
