@@ -79,9 +79,16 @@ try {
 
 	r.ok = outcome == "OK";
 	if (r.ok) {
+		if (r.verb == "PUT") {
+			r.code = put_response::continue_;
+		} else if (r.verb == "RECV") {
+			r.code = put_response::accepted;
+		} else {
+			throw cannot_decode();
+		}
+
 		is >> r.file_type >> space >> r.org_id >> space >> r.uuid;
 
-		r.code = unknown;
 		r.message.clear();
 		r.retry_after = 0;
 

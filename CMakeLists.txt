@@ -8,12 +8,12 @@ if (USE_CLANG)
     set(CMAKE_C_COMPILER clang)
 endif (USE_CLANG)
 
-project(archiving)
+# Always build with coverage when build-type is Debug.
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+set(CMAKE_CXX_FLAGS "--coverage")
+endif()
 
-option(WITH_COVERAGE "Build with coverage" OFF)
-if (WITH_COVERAGE)
-    set(CMAKE_CXX_FLAGS "--coverage")
-endif (WITH_COVERAGE)
+project(archiving)
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wunnamed-type-template-args

@@ -94,3 +94,70 @@ TEST(PutResponse, ParseLegacyNoIdentifier)
 	ASSERT_EQ(pr.message, AN_ERROR_MESSAGE);
 	ASSERT_EQ(pr.code, ns::internal_error);
 }
+
+TEST(PutResponse, ParseLegacyInvalidOrgID)
+{
+	std::stringstream ss;
+	ss << "ERR PUT cdr 0x01 " << UUID1 << " " << AN_ERROR_MESSAGE << "\r\n";
+
+	ns::parsed_response pr;
+	ss >> pr;
+
+	ASSERT_FALSE(ss.good());
+}
+
+TEST(PutResponse, ParseLegacyInvalidLineEndingNoNL)
+{
+	std::stringstream ss;
+	ss << "ERR PUT cdr 1 " << UUID1 << " " << AN_ERROR_MESSAGE << "\r";
+
+	ns::parsed_response pr;
+	ss >> pr;
+
+	ASSERT_FALSE(ss.good());
+}
+
+TEST(PutResponse, ParseLegacyInvalidLineEndingNoCR)
+{
+	std::stringstream ss;
+	ss << "ERR PUT cdr 1 " << UUID1 << " " << AN_ERROR_MESSAGE << "\n";
+
+	ns::parsed_response pr;
+	ss >> pr;
+
+	ASSERT_FALSE(ss.good());
+}
+
+TEST(PutResponse, ParseContinue)
+{
+	std::stringstream ss;
+	ss << put::continue_(file_type::cdr, 1, UUID1) << "\r\n";
+
+	ns::parsed_response pr;
+	ss >> pr;
+
+	ASSERT_TRUE(ss.good());
+	ASSERT_EQ(pr.file_type, file_type::cdr);
+	ASSERT_EQ(pr.org_id, 1);
+	ASSERT_EQ(pr.uuid, UUID1);
+	ASSERT_EQ(pr.verb, "PUT");
+	ASSERT_EQ(pr.message, "");
+	ASSERT_EQ(pr.code, ns::continue_);
+}
+
+TEST(PutResponse, ParseAccepted)
+{
+	std::stringstream ss;
+	ss << put::accepted(file_type::cdr, 1, UUID1) << "\r\n";
+
+	ns::parsed_response pr;
+	ss >> pr;
+
+	ASSERT_TRUE(ss.good());
+	ASSERT_EQ(pr.file_type, file_type::cdr);
+	ASSERT_EQ(pr.org_id, 1);
+	ASSERT_EQ(pr.uuid, UUID1);
+	ASSERT_EQ(pr.verb, "RECV");
+	ASSERT_EQ(pr.message, "");
+	ASSERT_EQ(pr.code, ns::accepted);
+}
