@@ -10,6 +10,11 @@ endif (USE_CLANG)
 
 project(archiving)
 
+option(WITH_COVERAGE "Build with coverage" OFF)
+if (WITH_COVERAGE)
+    set(CMAKE_CXX_FLAGS "--coverage")
+endif (WITH_COVERAGE)
+
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-Wunnamed-type-template-args
         HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)

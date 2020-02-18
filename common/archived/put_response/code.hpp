@@ -8,6 +8,7 @@
 
 #ifndef ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_HPP
 #define ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_HPP
+#include <iostream>
 namespace common {
 namespace archived {
 namespace put_response {
@@ -33,6 +34,43 @@ enum code_t
 	server_busy = 503,	  // similar to HTTP Service Unavailable with Retry-After
 	insufficient_storage = 507
 };
+
+inline std::istream&
+operator>>(std::istream& is, code_t& c) {
+	unsigned short code_;
+	if (!(is >> code_)) {
+		return is;
+	}
+
+	switch (code_) {
+		case 100:
+			c = continue_;
+			break;
+		case 202:
+			c = accepted;
+			break;
+
+		case 400:
+			c = bad_request;
+			break;
+
+		case 500:
+			c = internal_error;
+			break;
+		case 503:
+			c = server_busy;
+			break;
+		case 507:
+			c = insufficient_storage;
+			break;
+
+		default:
+			is.setstate(std::ios::failbit);
+			break;
+	}
+
+	return is;
+}
 
 } // namespace put_response
 } // namespace archived

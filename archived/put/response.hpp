@@ -93,16 +93,17 @@ operator<<(std::ostream& os, const response& r)
 		case response_code::server_busy:
 		case response_code::insufficient_storage:
 			if (r.uuid.empty()) {
-				os << "ERR PUT [" << r.code;
+				os << "ERR PUT <unknown> ";
 			} else {
-				os << "ERR PUT " << r.file_type << ' ' << r.org_id << ' ' << r.uuid << " [" << r.code;
+				os << "ERR PUT " << r.file_type << ' ' << r.org_id << ' ' << r.uuid << ' ';
 			}
 
+			os << "[ " << r.code;
 			if (r.retry_after) {
 				os << " retry-after:" << r.retry_after;
 			}
 
-			return os << "] " << r.message;
+			return os << " ] " << r.message;
 
 		default:
 			// nothing will be inserted into the stream as we don't know why we are here!

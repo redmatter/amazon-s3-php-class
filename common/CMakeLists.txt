@@ -3,15 +3,15 @@ project(archiving-common)
 include(SetupVersion)
 setup_version_c()
 
-if (NOT EXISTS ../external/cpp-netlib)
-    execute_process(COMMAND make -C ../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
+    execute_process(COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
             RESULT_VARIABLE res)
-    if (NOT res STREQUAL "0" OR NOT EXISTS ../external/cpp-netlib)
+    if (NOT res STREQUAL "0" OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
         message(FATAL_ERROR "Failed to setup cpp-netlib")
     endif()
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH ../external/cpp-netlib)
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
 find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 set(LIBS3_LIBRARY ${CMAKE_CURRENT_SOURCE_DIR}/../external/libs3/lib/libs3.so.4.1)
@@ -61,7 +61,8 @@ set(HEADER_FILES
         archived/stats/trend.hpp
         ../external/runstats/regression.hpp
         ../external/runstats/stats.hpp
-        archived/put_response/code.hpp)
+        archived/put_response/code.hpp
+        archived/put_response/parsed.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp
