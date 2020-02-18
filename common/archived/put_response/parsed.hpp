@@ -36,19 +36,6 @@ operator>>(std::basic_istream<Char>& is, verify_char<Char>& wss)
 	}
 
 	return is;
-
-//	bool ok;
-//	if (std::isspace(wss.c) && is.flags() & std::ios::skipws) {
-//		ok = wss.c == is.peek();
-//	} else {
-//		ok = wss.c == is.get();
-//	}
-//
-//	if (!ok) {
-//		is.setstate(std::ios::failbit);
-//	}
-//
-//	return is;
 }
 
 struct cannot_decode : public std::runtime_error
