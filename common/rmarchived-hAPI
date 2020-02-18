@@ -124,7 +124,7 @@ fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
 	ChangeConfig $CONFIG_COLLECTSMSD archived_client.server_host "archived.${SEARCHDOMAIN}"
-	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://api.${SEARCHDOMAIN}/"
+	ChangeConfig $CONFIG_COLLECTSMSD coreapi.url "http://cdr.coreapi.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_COLLECTSMSD sms.directory "/mnt/rmfs/archiving-import-sms/$LOCNAME/"
 	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTSMSD log.level 6
 	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTSMSD debug.disable_restart true
@@ -133,7 +133,7 @@ fi
 
 if [ -f $CONFIG_COLLECTIMPORTD ]; then
 	ChangeConfig $CONFIG_COLLECTIMPORTD archived_client.server_host "archived.${SEARCHDOMAIN}"
-	ChangeConfig $CONFIG_COLLECTIMPORTD coreapi.url "http://api.${SEARCHDOMAIN}/"
+	ChangeConfig $CONFIG_COLLECTIMPORTD coreapi.url "http://cdr.coreapi.${SEARCHDOMAIN}/"
 	ChangeConfig $CONFIG_COLLECTIMPORTD import.directory "/mnt/rmfs/archiving-import/$LOCNAME/"
 	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTIMPORTD log.level 6
 	IsHapiHostType DEV QA && ChangeConfig $CONFIG_COLLECTIMPORTD debug.disable_restart true
