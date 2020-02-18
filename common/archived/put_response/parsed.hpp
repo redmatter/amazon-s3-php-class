@@ -65,21 +65,21 @@ struct parsed_response
 };
 
 inline std::istream&
-operator>>(std::istream& is, parsed_response& r) try
-{
-	verify_char<char> vws(' ');
-	verify_char<char> vlb('[');
-	verify_char<char> vrb(']');
-	verify_char<char> vnl('\n');
+operator>>(std::istream& is, parsed_response& r)
+try {
+	verify_char<char> space(' ');
+	verify_char<char> left_bracket('[');
+	verify_char<char> right_bracket(']');
+	verify_char<char> newline('\n');
 
 	std::string outcome;
-	if (!(is >> outcome >> vws >> r.verb >> vws)) {
+	if (!(is >> outcome >> space >> r.verb >> space)) {
 		throw cannot_decode();
 	}
 
 	r.ok = outcome == "OK";
 	if (r.ok) {
-		is >> r.file_type >> vws >> r.org_id >> vws >> r.uuid;
+		is >> r.file_type >> space >> r.org_id >> space >> r.uuid;
 
 		r.code = unknown;
 		r.message.clear();
@@ -112,7 +112,7 @@ operator>>(std::istream& is, parsed_response& r) try
 		if (!next_word_unknown) {
 			std::string remaining_message;
 			std::getline(is, remaining_message, '\r');
-			is >> vnl;
+			is >> newline;
 
 			r.message = next_word + remaining_message;
 			r.code = internal_error;
@@ -122,13 +122,13 @@ operator>>(std::istream& is, parsed_response& r) try
 		}
 	} else {
 		// extract the remainder of identifier-parts; we have already extracted file-type
-		if (!(is >> vws >> r.org_id >> vws >> r.uuid)) {
+		if (!(is >> space >> r.org_id >> space >> r.uuid)) {
 			throw cannot_decode();
 		}
 	}
 
 	// whitespace after identifier-parts
-	if (!(is >> vws )) {
+	if (!(is >> space)) {
 		throw cannot_decode();
 	}
 
@@ -140,7 +140,7 @@ operator>>(std::istream& is, parsed_response& r) try
 	// if there is "[ <code> ... ]", then we are dealing with the new version of the protocol, otherwise we need to
 	// continue working as we do now; i.e reconnect on any ERR
 	if (next_char == '[') {
-		if (!(is >> vlb >> vws >> r.code >> vws)) {
+		if (!(is >> left_bracket >> space >> r.code >> space)) {
 			throw cannot_decode();
 		}
 
@@ -159,25 +159,24 @@ operator>>(std::istream& is, parsed_response& r) try
 				throw cannot_decode();
 			}
 
-			if (!(is >> r.retry_after >> vws)) {
+			if (!(is >> r.retry_after >> space)) {
 				throw cannot_decode();
 			}
 		}
 
-		if (!(is >> vrb >> vws)) {
+		if (!(is >> right_bracket >> space)) {
 			throw cannot_decode();
 		}
 	}
 
 	std::getline(is, r.message, '\r');
-	is >> vnl;
+	is >> newline;
 
 	return is;
 } catch (...) {
 	is.setstate(std::ios::failbit);
 	return is;
 }
-
 
 } // namespace put_response
 } // namespace archived
