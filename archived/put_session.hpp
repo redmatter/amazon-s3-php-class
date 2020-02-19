@@ -177,7 +177,6 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	std::string creation_date_yyyymmdd_;
 	archiving::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
-	bool xfrd_ok_;
 
 	operation_data::channel_t& channel_;
 	whisper::channel_t& whisper_channel_;
@@ -455,7 +454,6 @@ private:
 		file_type_ = file_type;
 		content_length_ = content_length;
 		xfrd_content_length_ = 0;
-		xfrd_ok_ = false;
 
 		current_state_ = states::put_received_ack_ok;
 		async_send(put::continue_(file_type, org_id, uuid));
@@ -555,7 +553,6 @@ private:
 		policy_id_ = 0;
 		creation_time_ = 0;
 		xfrd_content_length_ = 0;
-		xfrd_ok_ = false;
 	}
 
 	void run_statemachine(const boost::system::error_code& error)
@@ -700,11 +697,6 @@ private:
 		{
 			std::ostream ostr(&send_buffer_);
 			try {
-				if(!xfrd_ok_) {
-					LogError(remote_ep_<<" "<<resource_id_<<": general failure during transfer");
-					throw protocol_exception("general failure during transfer");
-				}
-
 				ofs_->re_open();
 
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
@@ -870,19 +862,16 @@ private:
 				LogMessage("Protocol Exception: "<<e.what());
 				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<' '<<e.what()<<"\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
 			}
 			catch(const std::exception& e) {
 				LogWarning("Exception: "<<e.what());
 				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
 			}
 			catch(...) {
 				LogWarning("Unexpected exception");
 				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
 			}
 
 			reset();
