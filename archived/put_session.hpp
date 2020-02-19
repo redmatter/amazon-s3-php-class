@@ -351,6 +351,28 @@ private:
 		io_service_.post(strand_.wrap(f));
 	}
 
+	inline void async_close()
+	{
+		async_do(boost::bind(&put_session::do_close, shared_from_this()));
+	}
+
+	inline void async_continue_statemachine()
+	{
+		async_do(boost::bind(&put_session::run_statemachine, shared_from_this(), boost::system::error_code()));
+	}
+
+	void async_receive_file_chunks()
+	{
+		recv_buffer_.prepare(8192);
+		boost::asio::async_read(socket_,
+								recv_buffer_,
+								boost::asio::transfer_at_least(1),
+								strand_.wrap(boost::bind(&put_session::put_receive_file,
+														 shared_from_this(),
+														 boost::asio::placeholders::error,
+														 boost::asio::placeholders::bytes_transferred)));
+	}
+
 	void handle_put(archiving::file_type::file_type_t file_type,
 					archiving::org_id_t org_id,
 					const std::string& uuid,
@@ -458,7 +480,7 @@ private:
 			LogMessage(remote_ep_ << " state:" << states::to_string(current_state_)
 								<< " error while waiting for next-command err:" << error.message());
 			current_state_ = states::general_err;
-			async_do(boost::bind(&put_session::do_close, shared_from_this()));
+			async_close();
 			return;
 		}
 
@@ -502,7 +524,7 @@ private:
 
 			if (current_state_ == states::closing) {
 				LogMessage(remote_ep_ << ' ' << verb << " received; Closing");
-				async_do(boost::bind(&put_session::do_close, shared_from_this()));
+				async_close();
 			}
 
 			return;
@@ -643,7 +665,7 @@ private:
 		{
 			LogError(remote_ep_<<" : state 'put_received' unexpected (refactored to next_command + handle_put)");
 			current_state_ = states::closing;
-			async_do(boost::bind(&put_session::do_close, shared_from_this()));
+			async_close();
 			return;
 		}
 
@@ -652,14 +674,7 @@ private:
 			assert(recv_buffer_.size() == 0);
 
 			current_state_ = states::put_receiving_file;
-
-			recv_buffer_.prepare(8192);
-			boost::asio::async_read(socket_, recv_buffer_,
-					boost::asio::transfer_at_least(1),
-					strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
-							boost::asio::placeholders::error,
-							boost::asio::placeholders::bytes_transferred)));
-
+			async_receive_file_chunks();
 			break;
 		}
 
@@ -889,76 +904,54 @@ private:
 		LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_: "<<content_length_);
 		 */
 
-		std::size_t chunk_remaining = bytes_transferred;
+		if (error) {
+			LogWarning(remote_ep_ << " Error while receiving PUT data: " << error.message());
+			current_state_ = states::general_err;
+			async_close();
+			return;
+		}
 
-		if(!error) {
-			while(chunk_remaining) {
-
-				std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
-				if(buf_length) {
-					std::vector<char> buf(buf_length);
-					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
-					ofs_->rdbuf()->sputn(&buf[0], buf_length);
-					xfrd_content_length_ += buf_length;
-					chunk_remaining -= buf_length;
-
-//					LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
-				}
-				else {
-					if ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_)) {
-
-						char eof[4];
-						std::streamsize eof_len = recv_buffer_.sgetn(eof, 4);
-
-						//LogDebug(remote_ep_<<' '<<resource_id_<<" eof_len: "<<eof_len);
-						//LogDebug(remote_ep_<<' '<<resource_id_<<" eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
-
-						if((1 == eof_len) && (eof[0] == '\x1a')) {
-							xfrd_ok_ = true;
-							chunk_remaining = 0;
-							LogMessage(remote_ep_<<' '<<resource_id_<<" PUT; File transfer completed ok");
-						}
-						else {
-							LogError(remote_ep_<<' '<<resource_id_<<" Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
-							break;
-						}
-					}
-					else {
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" chunk_remaining:"<<chunk_remaining);
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_:"<<content_length_);
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_:"<<xfrd_content_length_);
-						LogError(remote_ep_<<' '<<resource_id_<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
+		while (bytes_transferred) {
+			// if we have transferred the object fully, the next character should be EOF
+			if (content_length_ == xfrd_content_length_) {
+				char eof;
+				if (1 == recv_buffer_.sgetn(&eof, 1)) {
+					bytes_transferred--;
+					if (eof == '\x1a') {
+						current_state_ = states::put_receiving_file_ok;
+						LogMessage(remote_ep_<<' '<<resource_id_<<" PUT; File transfer completed ok");
 						break;
 					}
 				}
+
+				current_state_ = states::put_receiving_file_err;
+				LogWarning(remote_ep_<<' '<<resource_id_<<" Unexpected data; No EOF found.");
+				break;
 			}
 
-			if((xfrd_content_length_ == content_length_) && xfrd_ok_) {
-				current_state_ = states::put_receiving_file_ok;
-				io_service_.post(
-						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
-			}
-			else if(chunk_remaining != 0) {
-				LogError(remote_ep_<<" Invalid state; chunk_remaining != 0");
-				current_state_ = states::put_receiving_file_err;
-				io_service_.post(
-						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
-			}
-			else {
-				recv_buffer_.prepare(8192);
-				boost::asio::async_read(socket_, recv_buffer_,
-						boost::asio::transfer_at_least(1),
-						strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
-								boost::asio::placeholders::error,
-								boost::asio::placeholders::bytes_transferred)));
-			}
+			std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
+			std::vector<char> buf(buf_length);
+			buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
+			ofs_->rdbuf()->sputn(&buf[0], buf_length);
+			xfrd_content_length_ += buf_length;
+			bytes_transferred -= buf_length;
+
+//			LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
 		}
-		else {
-			LogError(remote_ep_<<" Error while receiving PUT data: "<<error.message());
+
+		// if we haven't finished receiving data and have fully consumed the current chunk, continue receiving more...
+		if (bytes_transferred == 0 && current_state_ == states::put_receiving_file) {
+			async_receive_file_chunks();
+			return;
+		}
+
+		// if we have seen up to EOF, nothing more is expected to turn up from Collect*D until ACK / nACK
+		if (bytes_transferred > 0) {
+			LogWarning(remote_ep_<<" Invalid state; Bytes found beyond EOF");
 			current_state_ = states::put_receiving_file_err;
-			io_service_.post(
-					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
 		}
+
+		async_continue_statemachine();
 	}
 
 	void do_close()
