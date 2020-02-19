@@ -8,14 +8,14 @@
 
 #include "gtest/gtest.h"
 
-#include "../../archived/put/response.hpp"
-#include "../../common/archived/put_response/parsed.hpp"
+#include "../../archived/net/put/response.hpp"
+#include "../../common/net/archived/response/parsed.hpp"
 
 const char* UUID1 = "00000000-0000-0000-0000-000000000001";
 const char* AN_ERROR_MESSAGE = "silly bugs";
 
-namespace ns = common::archived::put_response;
-namespace put = archiving::archived::put;
+namespace ns = common::net::archived::response;
+namespace put = archiving::archived::net::put;
 using archiving::file_type;
 
 TEST(PutResponse, ParseNoIdentifier)

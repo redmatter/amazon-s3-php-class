@@ -6,12 +6,13 @@
 // Created by Dino Korah on 17/02/2020.
 //
 
-#ifndef ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_HPP
-#define ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_HPP
+#ifndef COMMON_NET_ARCHIVED_RESPONSE_HPP
+#define COMMON_NET_ARCHIVED_RESPONSE_HPP
 #include <iostream>
 namespace common {
+namespace net {
 namespace archived {
-namespace put_response {
+namespace response {
 
 // Response codes for PUT
 // Semantics are kept as close as possible to that of HTTP status codes.
@@ -72,7 +73,8 @@ operator>>(std::istream& is, code_t& c) {
 	return is;
 }
 
-} // namespace put_response
+} // namespace response
 } // namespace archived
+} // namespace net
 } // namespace common
-#endif // ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_HPP
+#endif // COMMON_NET_ARCHIVED_RESPONSE_HPP

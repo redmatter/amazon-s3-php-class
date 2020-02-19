@@ -18,7 +18,7 @@
 #include "call_buffering_recording.hpp"
 #include "whisper_client.hpp"
 #include "monitor.hpp"
-#include "put/response.hpp"
+#include "net/put/response.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
@@ -60,7 +60,7 @@ struct server_busy : public std::runtime_error
 
 namespace app {
 
-namespace put = archiving::archived::put;
+namespace put = archiving::archived::net::put;
 
 class put_session : public boost::enable_shared_from_this<put_session>
 {

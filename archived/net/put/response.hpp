@@ -9,8 +9,9 @@
 #ifndef ARCHIVED_PUT_RESPONSE_HPP
 #define ARCHIVED_PUT_RESPONSE_HPP
 
-#include "../../common/archived/put_response/code.hpp"
-#include "../../common/types.hpp"
+#include "../../../common/net/archived/response/code.hpp"
+#include "../../../common/types.hpp"
+#include "../../../common/utils/time.hpp"
 
 #include <boost/chrono/chrono.hpp>
 #include <boost/optional.hpp>
@@ -19,41 +20,16 @@
 
 namespace archiving {
 namespace archived {
-
-namespace detail {
-
-template<typename Clock>
-inline boost::chrono::system_clock::time_point
-to_system_clock(const boost::chrono::time_point<Clock>& t)
-{
-	return boost::chrono::system_clock::now() + (t - Clock::now());
-}
-
-template<>
-inline boost::chrono::system_clock::time_point
-to_system_clock<boost::chrono::system_clock>(const boost::chrono::time_point<boost::chrono::system_clock>& t)
-{
-	return t;
-}
-
-template<typename Clock>
-inline std::time_t
-to_time_t(const boost::chrono::time_point<Clock>& t)
-{
-	return boost::chrono::system_clock::to_time_t(to_system_clock(t));
-}
-
-} // namespace detail
-
+namespace net {
 namespace put {
 
-using archived::detail::to_time_t;
+using common::utils::to_time_t;
 
-namespace response_code = common::archived::put_response;
+namespace response_code = common::net::archived::response;
 
 struct response
 {
-	typedef common::archived::put_response::code_t code_t;
+	typedef response_code::code_t code_t;
 
 	archiving::file_type::file_type_t file_type;
 	archiving::org_id_t org_id;
@@ -191,6 +167,7 @@ insufficient_storage(archiving::file_type::file_type_t file_type, archiving::org
 }
 
 } // namespace put
+} // namespace net
 } // namespace archived
 } // namespace archiving
 #endif // ARCHIVED_PUT_RESPONSE_HPP

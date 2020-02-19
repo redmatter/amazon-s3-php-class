@@ -61,8 +61,9 @@ set(HEADER_FILES
         archived/stats/trend.hpp
         ../external/runstats/regression.hpp
         ../external/runstats/stats.hpp
-        archived/put_response/code.hpp
-        archived/put_response/parsed.hpp)
+        net/archived/response/code.hpp
+        net/archived/response/parsed.hpp
+        utils/time.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

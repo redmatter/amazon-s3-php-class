@@ -6,12 +6,12 @@
 // Created by Dino Korah on 18/02/2020.
 //
 
-#ifndef ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_PARSED_HPP
-#define ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_PARSED_HPP
+#ifndef COMMON_NET_ARCHIVED_RESPONSE_PARSED_HPP
+#define COMMON_NET_ARCHIVED_RESPONSE_PARSED_HPP
 
 #include "code.hpp"
 
-#include "../../types.hpp"
+#include "../../../types.hpp"
 
 #include <boost/io/ios_state.hpp>
 
@@ -46,8 +46,9 @@ struct cannot_decode : public std::runtime_error
 }
 
 namespace common {
+namespace net {
 namespace archived {
-namespace put_response {
+namespace response {
 
 struct parsed_response
 {
@@ -80,9 +81,9 @@ try {
 	r.ok = outcome == "OK";
 	if (r.ok) {
 		if (r.verb == "PUT") {
-			r.code = put_response::continue_;
+			r.code = response::continue_;
 		} else if (r.verb == "RECV") {
-			r.code = put_response::accepted;
+			r.code = response::accepted;
 		} else {
 			throw cannot_decode();
 		}
@@ -185,7 +186,8 @@ try {
 	return is;
 }
 
-} // namespace put_response
+} // namespace response
 } // namespace archived
+} // namespace net
 } // namespace common
-#endif // ARCHIVING_COMMON_ARCHIVED_PUT_RESPONSE_PARSED_HPP
+#endif // COMMON_NET_ARCHIVED_RESPONSE_PARSED_HPP
