@@ -519,6 +519,23 @@ private:
 		async_send(put::internal_error(e.what()));
 	}
 
+	inline void reset()
+	{
+		ofs_.reset();
+		md5_.assign((byte)0);
+		resource_id_.clear();
+		uuid_.clear();
+		orgID_ = 0;
+		metadata_.reset();
+		data_type_ = types::data_sub_format::unknown;
+		file_type_ = archiving::file_type::unknown;
+		content_length_ = 0;
+		policy_id_ = 0;
+		creation_time_ = 0;
+		xfrd_content_length_ = 0;
+		xfrd_ok_ = false;
+	}
+
 	void run_statemachine(const boost::system::error_code& error)
 	{
 		if(error) {
@@ -613,19 +630,7 @@ private:
 		case states::ready_for_put:
 		case states::put_check_received_file_ack_ok:
 		{
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			current_state_ = states::put_received;
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n\r\n",
@@ -668,19 +673,7 @@ private:
 			ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
 			current_state_ = states::put_check_received_file_ack_err;
 
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			boost::asio::async_write(socket_, send_buffer_,
 					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
@@ -877,19 +870,7 @@ private:
 				xfrd_ok_ = false;
 			}
 
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			boost::asio::async_write(socket_, send_buffer_,
 					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
