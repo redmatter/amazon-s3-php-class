@@ -9,6 +9,7 @@
 #ifndef ARCHIVING_COLLECTD_NET_ARCHIVED_CLIENT_HPP
 #define ARCHIVING_COLLECTD_NET_ARCHIVED_CLIENT_HPP
 
+#include "detail/retry.hpp"
 #include "../../common/collectd/callbacks.hpp"
 #include "../../common/net/archived/connection_manager.hpp"
 #include "../../common/net/archived/send_file.hpp"
@@ -16,6 +17,7 @@
 #include <rml/logger.hpp>
 #include <rml/sentry.h>
 
+#include <boost/asio/steady_timer.hpp>
 #include <boost/bind.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
@@ -25,6 +27,10 @@ namespace net
 {
 class archived_client : public boost::enable_shared_from_this<archived_client>
 {
+    typedef boost::asio::basic_waitable_timer<boost::chrono::steady_clock> timer_type;
+
+    detail::retry_manager retry_manager;
+
     boost::shared_ptr<common::net::archived::connection_manager> connection_manager;
     const common::collectd::fn_produce_type fn_produce;
     const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_consume;
@@ -69,8 +75,10 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
         }
     }
 
-    void send_file_finished(const boost::shared_ptr<archiving::archivable>& archivable, const boost::system::error_code& ec) try
-    {
+    void send_file_finished(const boost::shared_ptr<archiving::archivable>& archivable,
+                            const boost::system::error_code& ec,
+                            const boost::optional<boost::chrono::steady_clock::time_point>& retry_after)
+    try {
         archivable->hibernate();
 
         if (!ec) {
@@ -88,7 +96,12 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
         }
 
         LogMessage(archivable << " finished with error:" << ec.message());
-        fn_produce(archivable, false /* already in catalogue */);
+        if (retry_after == boost::none) {
+            fn_produce(archivable, false /* already in catalogue */);
+        } else {
+            LogMessage(archivable << " rescheduling ...");
+            retry_manager.add(*retry_after, archivable);
+        }
     } catch (const std::exception& e) {
         LogWarning(archivable << ' ' << e.what());
     }
@@ -124,9 +137,32 @@ public:
         LogError(archivable << " : failed to setup retry; error: " << e.what());
     }
 
-    void run()
+    void scheduled_setup_archivable_retry(const boost::system::error_code& ec,
+                                          const boost::shared_ptr<timer_type>& timer)
+    {
+        // timer was cancelled (during shutdown)
+        if (ec == boost::asio::error::operation_aborted || shutting_down) {
+            LogVerbose("archivable retry manager shutting down");
+            return;
+        }
+
+        std::size_t count = retry_manager.schedule_batch(100, boost::bind(boost::protect(fn_produce), _1, false));
+        LogMessage("rescheduled " << count << " archivable items");
+
+        timer->expires_from_now(boost::chrono::seconds(5));
+        timer->async_wait(boost::bind(&archived_client::scheduled_setup_archivable_retry,
+                                      shared_from_this(),
+                                      boost::asio::placeholders::error,
+                                      timer));
+    }
+
+    void run(boost::asio::io_service& io_service)
     {
         LogMessage("archived_client scheduler thread starting");
+
+        io_service.post(
+            boost::bind(&archived_client::scheduled_setup_archivable_retry, shared_from_this(),
+            boost::system::error_code(), boost::make_shared<timer_type>(boost::ref(io_service))));
 
         while (!shutting_down) {
             try {
@@ -179,7 +215,7 @@ public:
                 fn_set_put_group_archived_ip(put_group_id, ip);
                 LogVerbose(archivable<<" IP set to " << ip);
                 common::net::archived::send_file(conn, archivable,
-                        boost::bind(&archived_client::send_file_finished, shared_from_this(), archivable, _1),
+                        boost::bind(&archived_client::send_file_finished, shared_from_this(), archivable, _1, _2),
                         boost::bind(&archived_client::is_shutting_down, shared_from_this()));
 
                 archivable_sentry.cancel();

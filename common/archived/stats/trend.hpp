@@ -114,8 +114,8 @@ struct trend
 		}
 
 		runstats::regression regression;
-		for (int i = 0; i < n; i++) {
-			regression.push(i + 1, get_processing_count(samples[std::size_t(n - i - 1)]));
+		for (std::size_t i = 0; i < n; i++) {
+			regression.push(i + 1, get_processing_count(samples[n - i - 1]));
 		}
 
 		return trend(regression.slope(), samples[0]);

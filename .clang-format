@@ -5,7 +5,7 @@ IndentWidth: 4
 ColumnLimit: 120
 # AllowAllConstructorInitializersOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
-UseTab: Always
+#UseTab: Always
 ConstructorInitializerIndentWidth: 4
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ContinuationIndentWidth: 4

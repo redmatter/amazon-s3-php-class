@@ -10,6 +10,7 @@
 #define COMMON_NET_ARCHIVED_RESPONSE_PARSED_HPP
 
 #include "code.hpp"
+#include "../verb.hpp"
 
 #include "../../../types.hpp"
 
@@ -48,13 +49,17 @@ struct cannot_decode : public std::runtime_error
 namespace common {
 namespace net {
 namespace archived {
-namespace response {
+namespace detail {
 
-struct parsed_response
+namespace response_code = common::net::archived::response;
+using response_code::code_t;
+
+template <typename Verb>
+struct response
 {
-	bool ok;
+	typedef Verb verb_type;
 
-	std::string verb;
+	bool ok;
 
 	archiving::file_type::file_type_t file_type;
 	archiving::org_id_t org_id;
@@ -65,28 +70,49 @@ struct parsed_response
 	std::time_t retry_after;
 };
 
+template <typename Verb>
+inline std::ostream&
+operator<<(std::ostream& os, const response<Verb>& r)
+{
+	typename response<Verb>::verb_type verb;
+
+	os << (r.ok ? "OK " : "ERR ") << verb;
+	if (!r.uuid.empty()) {
+		os << ' ' << r.file_type << ' ' << r.org_id << ' ' << r.uuid;
+	}
+
+	os << " [ code:" << r.code;
+	if (r.retry_after) {
+		os << " retry-after:" << r.retry_after;
+	}
+	if (!r.message.empty()) {
+		os << " message:" << r.message;
+	}
+
+	return os << " ]";
+}
+
+template <typename Verb>
 inline std::istream&
-operator>>(std::istream& is, parsed_response& r)
+operator>>(std::istream& is, response<Verb>& r)
 try {
+	typedef typename Verb::ok ok;
+
+	Verb verb;
+
 	verify_char<char> space(' ');
 	verify_char<char> left_bracket('[');
 	verify_char<char> right_bracket(']');
 	verify_char<char> newline('\n');
 
 	std::string outcome;
-	if (!(is >> outcome >> space >> r.verb >> space)) {
+	if (!(is >> outcome >> space >> verb >> space)) {
 		throw cannot_decode();
 	}
 
 	r.ok = outcome == "OK";
 	if (r.ok) {
-		if (r.verb == "PUT") {
-			r.code = response::continue_;
-		} else if (r.verb == "RECV") {
-			r.code = response::accepted;
-		} else {
-			throw cannot_decode();
-		}
+		r.code = ok::code;
 
 		is >> r.file_type >> space >> r.org_id >> space >> r.uuid;
 
@@ -123,7 +149,7 @@ try {
 			is >> newline;
 
 			r.message = next_word + remaining_message;
-			r.code = internal_error;
+			r.code = response_code::internal_error;
 			r.retry_after = 0;
 
 			return is;
@@ -185,8 +211,18 @@ try {
 	is.setstate(std::ios::failbit);
 	return is;
 }
+} // namespace detail
 
-} // namespace response
+namespace put {
+typedef common::net::archived::verb::PUT verb_type;
+typedef detail::response<verb_type> response;
+} // namespace put
+
+namespace recv {
+typedef common::net::archived::verb::RECV verb_type;
+typedef detail::response<verb_type> response;
+} // namespace recv
+
 } // namespace archived
 } // namespace net
 } // namespace common

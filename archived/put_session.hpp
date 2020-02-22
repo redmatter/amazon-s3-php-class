@@ -18,7 +18,7 @@
 #include "call_buffering_recording.hpp"
 #include "whisper_client.hpp"
 #include "monitor.hpp"
-#include "net/put/response.hpp"
+#include "net/response.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
@@ -36,19 +36,20 @@
 #include <boost/format.hpp>
 
 namespace {
-struct protocol_exception : public rml::exception
-{
-	protocol_exception(const std::string& message) : rml::exception(message) {}
-};
 
 struct bad_protocol : public std::runtime_error
 {
-	bad_protocol(const std::string& message) : std::runtime_error(message) {}
+	explicit bad_protocol(const std::string& message) : std::runtime_error(message) {}
 };
 
 struct bad_request : public std::runtime_error
 {
-	bad_request(const std::string& message) : std::runtime_error(message) {}
+	explicit bad_request(const std::string& message) : std::runtime_error(message) {}
+};
+
+struct internal_error : public std::runtime_error
+{
+	explicit internal_error(const std::string& message) : std::runtime_error(message) {}
 };
 
 struct server_busy : public std::runtime_error
@@ -61,6 +62,7 @@ struct server_busy : public std::runtime_error
 namespace app {
 
 namespace put = archiving::archived::net::put;
+namespace recv = archiving::archived::net::recv;
 
 class put_session : public boost::enable_shared_from_this<put_session>
 {
@@ -92,6 +94,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 //			put_check_received_file,
 			put_check_received_file_ack_ok,
 			put_check_received_file_ack_err,
+			put_check_received_file_ack_err_close,
 
 			general_err,
 
@@ -128,6 +131,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 		//			"put_check_received_file",
 					"put_check_received_file_ack_ok",
 					"put_check_received_file_ack_err",
+					"put_check_received_file_ack_err_close",
 
 					"general_err",
 
@@ -472,6 +476,11 @@ private:
 		recv_buffer_.consume(boost::asio::read_until(socket_, recv_buffer_, "\r\n\r\n"));
 	}
 
+	inline void discard_current_put_data()
+	{
+		recv_buffer_.consume(boost::asio::read_until(socket_, recv_buffer_, "\x1a"));
+	}
+
 	void next_command(const boost::system::error_code& error) try
 	{
 		if (error) {
@@ -637,7 +646,7 @@ private:
 		case states::handshake_err:
 		case states::handshake_recv_err:
 		case states::put_received_ack_err_close:
-		case states::put_check_received_file_ack_err:
+		case states::put_check_received_file_ack_err_close:
 		{
 			current_state_ = states::closing;
 			io_service_.post(
@@ -648,6 +657,7 @@ private:
 		case states::put_received_ack_err:
 		case states::ready_for_put:
 		case states::put_check_received_file_ack_ok:
+		case states::put_check_received_file_ack_err:
 		{
 			reset();
 
@@ -682,8 +692,8 @@ private:
 		{
 			std::ostream ostr(&send_buffer_);
 			LogError(remote_ep_<<" "<<resource_id_<<": PUT failed; general failure during transfer");
-			ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-			current_state_ = states::put_check_received_file_ack_err;
+			ostr << recv::internal_error(file_type_, orgID_, uuid_, "general failure during transfer") << "\r\n";
+			current_state_ = states::put_check_received_file_ack_err_close;
 
 			reset();
 
@@ -701,8 +711,7 @@ private:
 
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
 				if(md5 != md5_) {
-					LogError(remote_ep_<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
-					throw protocol_exception("md5 mismatch");
+					throw bad_request("MD5 did not match");
 				}
 
 				app::policy::pointer p_policy;
@@ -711,9 +720,7 @@ private:
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
 					if(!p_policy) {
 						cached_policy_finder_.forget(std::make_pair(orgID_, policy_id_));
-						throw protocol_exception(
-								boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
-										% orgID_ % policy_id_));
+						throw bad_request(boost::str(boost::format("policy not found policy: %1%") % policy_id_));
 					}
 				}
 
@@ -746,11 +753,11 @@ private:
 				// save the state of operation data only if we need to process it further ( not if policy == do_not_archive )
 				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 					if (!internal_db_.save(opdata)) {
-						throw protocol_exception("failed to save to database");
+						throw internal_error("failed to save to database");
 					}
 				}
 
-				ostr << put::accepted(file_type_, orgID_, uuid_) << "\r\n";
+				ostr << recv::accepted(file_type_, orgID_, uuid_) << "\r\n";
 
 				// Looks like we have the file intact; lets make it temporarily not temporary
 				ofs_->set_persistent();
@@ -855,23 +862,22 @@ private:
 				// nudge the monitor's PUT counter (for all)
 				monitor::increment_put();
 
-				if(p_policy) // if PolicyID < 0; it only needs to be local cached
+
+				// If PolicyID < 0 we wouldn't have got a policy.
+				// It means that this item is meant only for the local cache
+				if (p_policy) {
 					pc_produce(channel_, opdata);
-			}
-			catch(const protocol_exception& e) {
-				LogMessage("Protocol Exception: "<<e.what());
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<' '<<e.what()<<"\r\n";
+				}
+			} catch (const bad_request& e) {
+				LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " bad_request:"<<e.what());
+				ostr << recv::bad_request(file_type_, orgID_, uuid_, e.what()) << "\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
-			}
-			catch(const std::exception& e) {
-				LogWarning("Exception: "<<e.what());
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-				current_state_ = states::put_check_received_file_ack_err;
-			}
-			catch(...) {
-				LogWarning("Unexpected exception");
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-				current_state_ = states::put_check_received_file_ack_err;
+			} catch(const std::exception& e) {
+				LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " exception:"<<e.what());
+				ostr << recv::internal_error(file_type_, orgID_, uuid_, e.what()) << "\r\n";
+				current_state_ = states::put_check_received_file_ack_err_close;
+			} catch (...) {
+
 			}
 
 			reset();
@@ -885,7 +891,7 @@ private:
 		}
 	}
 
-	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
 		/*
 		LogDebug(remote_ep_<<' '<<resource_id_<<" error: "<<error<<" ---------------------------------------");
@@ -894,7 +900,7 @@ private:
 		 */
 
 		if (error) {
-			LogWarning(remote_ep_ << " Error while receiving PUT data: " << error.message());
+			LogWarning(remote_ep_ << ' ' << resource_id_ << " Error while receiving PUT data: " << error.message());
 			current_state_ = states::general_err;
 			async_close();
 			return;
@@ -936,10 +942,14 @@ private:
 
 		// if we have seen up to EOF, nothing more is expected to turn up from Collect*D until ACK / nACK
 		if (bytes_transferred > 0) {
-			LogWarning(remote_ep_<<" Invalid state; Bytes found beyond EOF");
+			LogWarning(remote_ep_ << ' ' << resource_id_ << " Invalid state; Bytes found beyond EOF");
 			current_state_ = states::put_receiving_file_err;
 		}
 
+		async_continue_statemachine();
+	} catch (const std::exception& e) {
+		LogWarning(remote_ep_ << ' ' << resource_id_ << " exception; " << e.what());
+		current_state_ = states::put_receiving_file_err;
 		async_continue_statemachine();
 	}
 

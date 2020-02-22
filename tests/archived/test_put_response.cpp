@@ -6,15 +6,18 @@
 // Created by Dino Korah on 16/02/2020.
 //
 
-#include "../archived/net/put/response.hpp"
+#include "../archived/net/response.hpp"
+
 #include "gtest/gtest.h"
 
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 
-TEST(PutResponse, Basics)
+TEST(Response, Basics)
 {
-	namespace ns = archiving::archived::net::put;
+	namespace ns_put = archiving::archived::net::put;
+	namespace response_code = common::net::archived::response;
+
 	using archiving::file_type;
 	using common::utils::to_system_clock;
 	using common::utils::to_time_t;
@@ -35,34 +38,38 @@ TEST(PutResponse, Basics)
 	const system_clock::time_point sys_retry_after = to_system_clock(steady_retry_after);
 	const std::time_t time_t_retry_after = to_time_t(steady_retry_after);
 
-	ASSERT_EQ(lexical_cast<std::string>(ns::continue_(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
+	ASSERT_EQ(lexical_cast<std::string>(ns_put::continue_(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
 			  "OK PUT cdr 1 00000000-0000-0000-0000-000000000001");
 
-	ASSERT_EQ(lexical_cast<std::string>(ns::accepted(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
-			  "OK RECV cdr 1 00000000-0000-0000-0000-000000000001");
-
-	ASSERT_EQ(lexical_cast<std::string>(ns::bad_request("unknown error")),
-			  str(format(err_basic) % ns::response_code::bad_request % "unknown error"));
+	ASSERT_EQ(lexical_cast<std::string>(ns_put::bad_request("unknown error")),
+			  str(format(err_basic) % response_code::bad_request % "unknown error"));
 	ASSERT_EQ(lexical_cast<std::string>(
-				  ns::bad_request(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", "unknown error")),
-			  str(format(err) % ns::response_code::bad_request % "unknown error"));
+				  ns_put::bad_request(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", "unknown error")),
+			  str(format(err) % response_code::bad_request % "unknown error"));
 
-	ASSERT_EQ(lexical_cast<std::string>(ns::internal_error(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
-			  str(format(err) % ns::response_code::internal_error % "internal server error"));
-	ASSERT_EQ(lexical_cast<std::string>(ns::internal_error(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", "unknown error")),
-			  str(format(err) % ns::response_code::internal_error % "unknown error"));
-	ASSERT_EQ(lexical_cast<std::string>(ns::internal_error("unknown error")),
-			  str(format(err_basic) % ns::response_code::internal_error % "unknown error"));
+	ASSERT_EQ(lexical_cast<std::string>(ns_put::internal_error(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
+			  str(format(err) % response_code::internal_error % "internal server error"));
+	ASSERT_EQ(lexical_cast<std::string>(
+				  ns_put::internal_error(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", "unknown error")),
+			  str(format(err) % response_code::internal_error % "unknown error"));
+	ASSERT_EQ(lexical_cast<std::string>(ns_put::internal_error("unknown error")),
+			  str(format(err_basic) % response_code::internal_error % "unknown error"));
 
 	ASSERT_EQ(lexical_cast<std::string>(
-				  ns::server_busy(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", sys_retry_after)),
-			  str(format(err_with_retry_after) % ns::response_code::server_busy % time_t_retry_after % "server busy"));
+				  ns_put::server_busy(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", sys_retry_after)),
+			  str(format(err_with_retry_after) % response_code::server_busy % time_t_retry_after % "server busy"));
 
 	ASSERT_EQ(lexical_cast<std::string>(
-				  ns::server_busy(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", steady_retry_after)),
-			  str(format(err_with_retry_after) % ns::response_code::server_busy % time_t_retry_after % "server busy"));
+				  ns_put::server_busy(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001", steady_retry_after)),
+			  str(format(err_with_retry_after) % response_code::server_busy % time_t_retry_after % "server busy"));
 
 	ASSERT_EQ(
-		lexical_cast<std::string>(ns::insufficient_storage(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
-		str(format(err) % ns::response_code::insufficient_storage % "not enough space on disk"));
+		lexical_cast<std::string>(
+				  ns_put::insufficient_storage(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
+		str(format(err) % response_code::insufficient_storage % "not enough space on disk"));
+
+	// RECV
+	namespace ns_recv = archiving::archived::net::recv;
+	ASSERT_EQ(lexical_cast<std::string>(ns_recv::accepted(file_type::cdr, 1, "00000000-0000-0000-0000-000000000001")),
+			  "OK RECV cdr 1 00000000-0000-0000-0000-000000000001");
 }

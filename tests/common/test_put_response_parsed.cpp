@@ -8,35 +8,41 @@
 
 #include "gtest/gtest.h"
 
-#include "../../archived/net/put/response.hpp"
+#include "../../archived/net/response.hpp"
 #include "../../common/net/archived/response/parsed.hpp"
 
 const char* UUID1 = "00000000-0000-0000-0000-000000000001";
 const char* AN_ERROR_MESSAGE = "silly bugs";
 
-namespace ns = common::net::archived::response;
 namespace put = archiving::archived::net::put;
+namespace recv = archiving::archived::net::recv;
+namespace response = common::net::archived::response;
+
 using archiving::file_type;
 
 TEST(PutResponse, ParseNoIdentifier)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << put::internal_error(AN_ERROR_MESSAGE) << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
 	ASSERT_EQ(pr.message, AN_ERROR_MESSAGE);
-	ASSERT_EQ(pr.code, ns::internal_error);
+	ASSERT_EQ(pr.code, response::internal_error);
 }
 
 TEST(PutResponse, ParseWithIdentifierNoMessage)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << put::internal_error(file_type::cdr, 1, UUID1) << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
@@ -44,15 +50,17 @@ TEST(PutResponse, ParseWithIdentifierNoMessage)
 	ASSERT_EQ(pr.org_id, 1);
 	ASSERT_EQ(pr.uuid, UUID1);
 	ASSERT_EQ(pr.message, "internal server error");
-	ASSERT_EQ(pr.code, ns::internal_error);
+	ASSERT_EQ(pr.code, response::internal_error);
 }
 
 TEST(PutResponse, ParseWithIdentifierWithMessage)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << put::internal_error(file_type::cdr, 1, UUID1, AN_ERROR_MESSAGE) << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
@@ -60,15 +68,17 @@ TEST(PutResponse, ParseWithIdentifierWithMessage)
 	ASSERT_EQ(pr.org_id, 1);
 	ASSERT_EQ(pr.uuid, UUID1);
 	ASSERT_EQ(pr.message, AN_ERROR_MESSAGE);
-	ASSERT_EQ(pr.code, ns::internal_error);
+	ASSERT_EQ(pr.code, response::internal_error);
 }
 
 TEST(PutResponse, ParseLegacyWithIdentifier)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << "ERR PUT cdr 1 " << UUID1 << " " << AN_ERROR_MESSAGE << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
@@ -76,15 +86,17 @@ TEST(PutResponse, ParseLegacyWithIdentifier)
 	ASSERT_EQ(pr.org_id, 1);
 	ASSERT_EQ(pr.uuid, UUID1);
 	ASSERT_EQ(pr.message, AN_ERROR_MESSAGE);
-	ASSERT_EQ(pr.code, ns::internal_error);
+	ASSERT_EQ(pr.code, response::internal_error);
 }
 
 TEST(PutResponse, ParseLegacyNoIdentifier)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << "ERR PUT " << AN_ERROR_MESSAGE << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
@@ -92,15 +104,17 @@ TEST(PutResponse, ParseLegacyNoIdentifier)
 	ASSERT_EQ(pr.org_id, 0);
 	ASSERT_EQ(pr.uuid, "");
 	ASSERT_EQ(pr.message, AN_ERROR_MESSAGE);
-	ASSERT_EQ(pr.code, ns::internal_error);
+	ASSERT_EQ(pr.code, response::internal_error);
 }
 
 TEST(PutResponse, ParseLegacyInvalidOrgID)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << "ERR PUT cdr 0x01 " << UUID1 << " " << AN_ERROR_MESSAGE << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_FALSE(ss.good());
@@ -108,10 +122,12 @@ TEST(PutResponse, ParseLegacyInvalidOrgID)
 
 TEST(PutResponse, ParseLegacyInvalidLineEndingNoNL)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << "ERR PUT cdr 1 " << UUID1 << " " << AN_ERROR_MESSAGE << "\r";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_FALSE(ss.good());
@@ -119,10 +135,12 @@ TEST(PutResponse, ParseLegacyInvalidLineEndingNoNL)
 
 TEST(PutResponse, ParseLegacyInvalidLineEndingNoCR)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << "ERR PUT cdr 1 " << UUID1 << " " << AN_ERROR_MESSAGE << "\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_FALSE(ss.good());
@@ -130,34 +148,36 @@ TEST(PutResponse, ParseLegacyInvalidLineEndingNoCR)
 
 TEST(PutResponse, ParseContinue)
 {
+	namespace ns = common::net::archived::put;
+
 	std::stringstream ss;
 	ss << put::continue_(file_type::cdr, 1, UUID1) << "\r\n";
 
-	ns::parsed_response pr;
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
 	ASSERT_EQ(pr.file_type, file_type::cdr);
 	ASSERT_EQ(pr.org_id, 1);
 	ASSERT_EQ(pr.uuid, UUID1);
-	ASSERT_EQ(pr.verb, "PUT");
 	ASSERT_EQ(pr.message, "");
-	ASSERT_EQ(pr.code, ns::continue_);
+	ASSERT_EQ(pr.code, response::continue_);
 }
 
-TEST(PutResponse, ParseAccepted)
+TEST(RecvResponse, ParseAccepted)
 {
-	std::stringstream ss;
-	ss << put::accepted(file_type::cdr, 1, UUID1) << "\r\n";
+	namespace ns = common::net::archived::recv;
 
-	ns::parsed_response pr;
+	std::stringstream ss;
+	ss << recv::accepted(file_type::cdr, 1, UUID1) << "\r\n";
+
+	ns::response pr;
 	ss >> pr;
 
 	ASSERT_TRUE(ss.good());
 	ASSERT_EQ(pr.file_type, file_type::cdr);
 	ASSERT_EQ(pr.org_id, 1);
 	ASSERT_EQ(pr.uuid, UUID1);
-	ASSERT_EQ(pr.verb, "RECV");
 	ASSERT_EQ(pr.message, "");
-	ASSERT_EQ(pr.code, ns::accepted);
+	ASSERT_EQ(pr.code, response::accepted);
 }

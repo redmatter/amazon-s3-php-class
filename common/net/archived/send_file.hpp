@@ -11,6 +11,7 @@
 
 #include "connection.hpp"
 #include "detail/put_file_session.hpp"
+#include "response/parsed.hpp"
 
 #include "../../archivable.hpp"
 
@@ -36,7 +37,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
     if (ec) {
         conn->fault = ec;
-        LogWarning(*conn << ' ' << *session << " network/protocl error; err:" << ec.message());
+        LogWarning(*conn << ' ' << *session << " network/protocol error; err:" << ec.message());
         session->post_error(conn->io_service, ec);
         return;
     }
@@ -59,27 +60,28 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     }
 
     case detail::put_state::init_ack_waiting: {
-        std::string line;
+    	namespace response = common::net::archived::response;
+
         std::istream istr(&conn->recv_buffer);
 
-        // if we can't get the response line from buffer
-        if (!std::getline(istr, line)) {
-            LogMessage(*conn << ' ' << *session << " no ack received for PUT");
+        put::response res;
+
+        // if we can't get the response from recv stream
+        if (!(istr >> res)) {
+            LogMessage(*conn << ' ' << *session << " no or invalid ack received for PUT");
             session->post_error(conn->io_service, error::put_initialisation_ack_not_received);
             return;
         }
 
-        DevDebug(*conn << ' ' << *session << " PUT (init) ACK [" << line << "]");
-
-        // if we have an ERR (line does not start with "OK PUT ")
-        if (line.compare(0, 7, "OK PUT ") != 0) {
-            // here we have an error response from ArchiveD
-            // "ERR PUT <type> <org-id> <uuid> <error-message>\r\n"
-            boost::iterator_range<std::string::iterator> r = boost::find_nth(line, " ", 4);
-            std::string message(line, std::distance(line.begin(), r.end()), std::distance(r.end(), line.end()) - 1);
-            LogWarning(*conn << ' ' << *session << " (PUT) negative ACK from ArchiveD; err:" << message);
-            conn->fault = error::make_error_code(error::put_initialisation_ack_negative);
-            session->post_error(conn->io_service, conn->fault);
+        DevDebug(*conn << ' ' << *session << " PUT (init) ACK: " << res);
+        if (!res.ok) {
+			LogMessage(*conn << ' ' << *session << " (PUT) nACK from ArchiveD; response:" << res);
+        	if (res.code == response::server_busy) {
+				session->post_error(conn->io_service, error::put_initialisation_ack_server_busy, res.retry_after);
+			} else {
+				conn->fault = error::make_error_code(error::put_initialisation_ack_negative);
+				session->post_error(conn->io_service, conn->fault);
+        	}
             return;
         }
 
@@ -138,25 +140,21 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         std::string line;
         std::istream istr(&conn->recv_buffer);
 
-        // if we can't get the response line from buffer
-        if (!std::getline(istr, line)) {
-            LogMessage(*conn << ' ' << *session << " no ack received for PUT");
-            conn->fault = error::make_error_code(error::put_send_file_failure_ack_not_received);
-            session->post_error(conn->io_service, conn->fault);
-            return;
+        recv::response res;
+
+        if (!(istr >> res)) {
+			LogMessage(*conn << ' ' << *session << " no or invalid ack received for PUT");
+			conn->fault = error::make_error_code(error::put_send_file_failure_ack_not_received);
+			session->post_error(conn->io_service, conn->fault);
+			return;
         }
 
-        DevDebug(*conn << ' ' << *session << " PUT (file-sent) ACK [" << line << "]");
+        DevDebug(*conn << ' ' << *session << " PUT (file-sent) ACK:" << res);
 
-        // if we have an ERR (line does not start with "OK RECV ")
-        if (line.compare(0, 8, "OK RECV ") != 0) {
-            // here we have an error response from ArchiveD
-            // "ERR RECV <type> <org-id> <uuid> <error-message>\r\n"
-            boost::iterator_range<std::string::iterator> r = boost::find_nth(line, " ", 4);
-            std::string message(line, std::distance(line.begin(), r.end()), std::distance(r.end(), line.end()) - 1);
-            LogWarning(*conn << ' ' << *session << " (RECV) negative ACK from ArchiveD; err:" << message);
-            session->post_error(conn->io_service, error::put_send_file_failure_ack_negative);
-            return;
+        if (!res.ok) {
+			LogWarning(*conn << ' ' << *session << " (RECV) negative ACK from ArchiveD; err:" << res.message);
+			session->post_error(conn->io_service, error::put_send_file_failure_ack_negative);
+			return;
         }
 
         session->state = detail::put_state::done;

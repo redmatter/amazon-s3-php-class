@@ -13,18 +13,49 @@
 
 namespace common {
 namespace utils {
+
+namespace detail {
+
+template<typename ClockTo, typename ClockFrom>
+inline typename boost::enable_if<typename boost::is_same<ClockTo, ClockFrom>, boost::chrono::time_point<ClockTo> >::type
+to_clock(const boost::chrono::time_point<ClockTo>& t)
+{
+	return t;
+}
+
+template<typename ClockTo, typename ClockFrom>
+inline typename boost::disable_if<typename boost::is_same<ClockTo, ClockFrom>, boost::chrono::time_point<ClockTo> >::type
+to_clock(const boost::chrono::time_point<ClockFrom>& t)
+{
+	return ClockTo::now() + (t - ClockFrom::now());
+}
+
+} // namespace detail
+
 template<typename Clock>
 inline boost::chrono::system_clock::time_point
 to_system_clock(const boost::chrono::time_point<Clock>& t)
 {
-	return boost::chrono::system_clock::now() + (t - Clock::now());
+	return detail::to_clock<boost::chrono::system_clock, Clock>(t);
 }
 
-template<>
 inline boost::chrono::system_clock::time_point
-to_system_clock<boost::chrono::system_clock>(const boost::chrono::time_point<boost::chrono::system_clock>& t)
+to_system_clock(const std::time_t& t)
 {
-	return t;
+	return boost::chrono::system_clock::from_time_t(t);
+}
+
+template<typename Clock>
+inline boost::chrono::steady_clock::time_point
+to_steady_clock(const boost::chrono::time_point<Clock>& t)
+{
+	return detail::to_clock<boost::chrono::steady_clock, Clock>(t);
+}
+
+inline boost::chrono::steady_clock::time_point
+to_steady_clock(const std::time_t& t)
+{
+	return detail::to_clock<boost::chrono::steady_clock, boost::chrono::system_clock>(to_system_clock(t));
 }
 
 template<typename Clock>

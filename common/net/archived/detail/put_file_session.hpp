@@ -11,12 +11,14 @@
 
 #include "../../../archivable.hpp"
 #include "put_state.hpp"
+#include "../../../utils/time.hpp"
 
 #include <rml/utils/wall_timer.hpp>
 
-#include <boost/shared_ptr.hpp>
 #include <boost/bind.hpp>
 #include <boost/bind/protect.hpp>
+#include <boost/optional.hpp>
+#include <boost/shared_ptr.hpp>
 
 namespace common
 {
@@ -35,7 +37,9 @@ struct put_file_session
 {
     typedef boost::array<char, 16 * 1024> file_buffer_type;
     const boost::shared_ptr<archiving::archivable> file;
-    const boost::function<void(boost::system::error_code& ec)> done_callback;
+    const boost::function<void(const boost::system::error_code& ec,
+                               const boost::optional<boost::chrono::steady_clock::time_point>& retry_after)>
+        done_callback;
     const boost::function<bool()> is_interrupted;
     boost::shared_ptr<rml::utils::tmp_fstream> file_stream;
     std::size_t file_size;
@@ -45,25 +49,40 @@ struct put_file_session
     rml::utils::wall_timer timer;
     file_buffer_type file_buffer;
 
-    put_file_session(const boost::shared_ptr<archiving::archivable>& file,
-                     const boost::function<void(boost::system::error_code& ec)> done_callback,
-                     const boost::function<bool()>& is_interrupted) :
-            file(file), done_callback(done_callback), is_interrupted(is_interrupted),
-            file_size_remaining(0), state(detail::put_state::init)
+    put_file_session(
+        const boost::shared_ptr<archiving::archivable>& file,
+        const boost::function<void(const boost::system::error_code& ec,
+                                   const boost::optional<boost::chrono::steady_clock::time_point>& retry_after)>
+            done_callback,
+        const boost::function<bool()>& is_interrupted)
+        : file(file)
+        , done_callback(done_callback)
+        , is_interrupted(is_interrupted)
+        , file_size(0)
+        , file_size_remaining(0)
+        , state(detail::put_state::init)
     {}
 
-    void post_error(boost::asio::io_service& ios, const boost::system::error_code& ec)
+    void post_error(boost::asio::io_service& ios,
+                    const boost::system::error_code& ec,
+                    const std::time_t retry_after = 0)
     {
         timer.stop();
-        ios.post(boost::bind(boost::protect(done_callback), ec));
+
+        boost::optional<boost::chrono::steady_clock::time_point> retry_after_(boost::none);
+        if (retry_after != 0) {
+            retry_after_ = common::utils::to_steady_clock(retry_after);
+        }
+
+        ios.post(boost::bind(boost::protect(done_callback), ec, retry_after_));
         if (!ec) {
             LogMessage(*this << " - transfer completed " << file_size << " bytes in " << timer);
         }
     }
 
-    void post_error(boost::asio::io_service& ios, const error::enum_t& e)
+    void post_error(boost::asio::io_service& ios, const error::enum_t& e, const std::time_t retry_after = 0)
     {
-        post_error(ios, error::make_error_code(e));
+        post_error(ios, error::make_error_code(e), retry_after);
     }
 
     void post_success(boost::asio::io_service& ios)

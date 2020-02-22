@@ -40,10 +40,13 @@ set(HEADER_FILES
         macros.h
         file_format/headers.hpp
         file_format/policies.hpp
-        file_format/detail/parameter.hpp config/purge_restrictions.hpp
+        file_format/detail/parameter.hpp
+        config/purge_restrictions.hpp
         legal_hold/cache.hpp
         legal_hold/status.hpp
-        net/put/response.hpp
+        net/response.hpp
+        net/detail/make_response.hpp
+        net/detail/response.hpp
         )
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
