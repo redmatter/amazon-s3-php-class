@@ -37,8 +37,8 @@ struct put_file_session
 {
     typedef boost::array<char, 16 * 1024> file_buffer_type;
     const boost::shared_ptr<archiving::archivable> file;
-    const boost::function<void(const boost::system::error_code& ec,
-                               const boost::optional<boost::chrono::steady_clock::time_point>& retry_after)>
+    const boost::function<void(const boost::system::error_code&,
+                               const boost::optional<boost::chrono::steady_clock::time_point>&)>
         done_callback;
     const boost::function<bool()> is_interrupted;
     boost::shared_ptr<rml::utils::tmp_fstream> file_stream;
