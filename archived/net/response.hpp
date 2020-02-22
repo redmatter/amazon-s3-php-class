@@ -133,7 +133,7 @@ internal_error(archiving::file_type::file_type_t file_type,
 	return detail::internal_error<RECV>(file_type, org_id, uuid, message);
 }
 
-} // namespace put
+} // namespace recv
 
 } // namespace net
 } // namespace archived
