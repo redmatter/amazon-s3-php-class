@@ -132,7 +132,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     case detail::put_state::file_sent_ok: {
         session->state = detail::put_state::file_sent_ack_waiting;
         boost::asio::async_read_until(conn->socket, conn->recv_buffer, "\r\n", conn->strand.wrap(
-                boost::bind(send_file_impl, boost::asio::placeholders::error, 0, conn, session)));
+                boost::bind(send_file_impl, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred, conn, session)));
         break;
     }
 
