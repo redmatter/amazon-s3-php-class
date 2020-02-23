@@ -41,7 +41,8 @@ operator>>(std::basic_istream<Char>& is, verify_char<Char>& wss)
 
 struct cannot_decode : public std::runtime_error
 {
-	cannot_decode() : std::runtime_error("cannot_decode") {}
+	int line;
+	explicit cannot_decode(int line) : std::runtime_error("cannot_decode"), line(line) {}
 };
 
 }
@@ -107,7 +108,7 @@ try {
 
 	std::string outcome;
 	if (!(is >> outcome >> space >> verb >> space)) {
-		throw cannot_decode();
+		throw cannot_decode(__LINE__);
 	}
 
 	r.ok = outcome == "OK";
@@ -157,30 +158,30 @@ try {
 	} else {
 		// extract the remainder of identifier-parts; we have already extracted file-type
 		if (!(is >> space >> r.org_id >> space >> r.uuid)) {
-			throw cannot_decode();
+			throw cannot_decode(__LINE__);
 		}
 	}
 
 	// whitespace after identifier-parts
 	if (!(is >> space)) {
-		throw cannot_decode();
+		throw cannot_decode(__LINE__);
 	}
 
 	char next_char = is.peek();
 	if (next_char == EOF) {
-		throw cannot_decode();
+		throw cannot_decode(__LINE__);
 	}
 
 	// if there is "[ <code> ... ]", then we are dealing with the new version of the protocol, otherwise we need to
 	// continue working as we do now; i.e reconnect on any ERR
 	if (next_char == '[') {
 		if (!(is >> left_bracket >> space >> r.code >> space)) {
-			throw cannot_decode();
+			throw cannot_decode(__LINE__);
 		}
 
 		next_char = is.peek();
 		if (next_char == EOF) {
-			throw cannot_decode();
+			throw cannot_decode(__LINE__);
 		}
 
 		if (next_char != ']') {
@@ -190,16 +191,16 @@ try {
 			}
 
 			if (label != "retry-after") {
-				throw cannot_decode();
+				throw cannot_decode(__LINE__);
 			}
 
 			if (!(is >> r.retry_after >> space)) {
-				throw cannot_decode();
+				throw cannot_decode(__LINE__);
 			}
 		}
 
 		if (!(is >> right_bracket >> space)) {
-			throw cannot_decode();
+			throw cannot_decode(__LINE__);
 		}
 	}
 
@@ -207,7 +208,12 @@ try {
 	is >> newline;
 
 	return is;
+} catch (const cannot_decode& e) {
+	DevDebug("response-parsing: cannot_decode on line " << e.line);
+	is.setstate(std::ios::failbit);
+	return is;
 } catch (...) {
+	DevDebug("response-parsing: unknown exception");
 	is.setstate(std::ios::failbit);
 	return is;
 }

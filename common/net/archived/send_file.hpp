@@ -137,7 +137,6 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     }
 
     case detail::put_state::file_sent_ack_waiting: {
-        std::string line;
         std::istream istr(&conn->recv_buffer);
 
         recv::response res;
