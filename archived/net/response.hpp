@@ -17,120 +17,120 @@ namespace archived {
 namespace net {
 namespace put {
 
-using common::net::archived::verb::PUT;
-using detail::response;
+typedef common::net::archived::verb::PUT verb;
+typedef detail::response<verb> response;
 
-inline response<PUT>
+inline response
 continue_(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::continue_<PUT>(file_type, org_id, uuid);
+	return detail::continue_<verb>(file_type, org_id, uuid);
 }
 
-inline response<PUT>
+inline response
 bad_request(archiving::file_type::file_type_t file_type,
 			archiving::org_id_t org_id,
 			const std::string& uuid,
 			const std::string& message)
 {
-	return detail::bad_request<PUT>(file_type, org_id, uuid, message);
+	return detail::bad_request<verb>(file_type, org_id, uuid, message);
 }
 
-inline response<PUT>
+inline response
 bad_request(const std::string& message)
 {
-	return detail::bad_request<PUT>(message);
+	return detail::bad_request<verb>(message);
 }
 
-inline response<PUT>
+inline response
 internal_error(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::internal_error<PUT>(file_type, org_id, uuid);
+	return detail::internal_error<verb>(file_type, org_id, uuid);
 }
 
-inline response<PUT>
+inline response
 internal_error(const std::string& message)
 {
-	return detail::internal_error<PUT>(message);
+	return detail::internal_error<verb>(message);
 }
 
-inline response<PUT>
+inline response
 internal_error(archiving::file_type::file_type_t file_type,
 			   archiving::org_id_t org_id,
 			   const std::string& uuid,
 			   const std::string& message)
 {
-	return detail::internal_error<PUT>(file_type, org_id, uuid, message);
+	return detail::internal_error<verb>(file_type, org_id, uuid, message);
 }
 
-inline response<PUT>
+inline response
 server_busy(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::server_busy<PUT>(file_type, org_id, uuid);
+	return detail::server_busy<verb>(file_type, org_id, uuid);
 }
 
 template<typename Time>
-inline response<PUT>
+inline response
 server_busy(archiving::file_type::file_type_t file_type,
 			archiving::org_id_t org_id,
 			const std::string& uuid,
 			const Time& retry_after)
 {
-	return detail::server_busy<PUT>(file_type, org_id, uuid, retry_after);
+	return detail::server_busy<verb>(file_type, org_id, uuid, retry_after);
 }
 
-inline response<PUT>
+inline response
 insufficient_storage(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::insufficient_storage<PUT>(file_type, org_id, uuid);
+	return detail::insufficient_storage<verb>(file_type, org_id, uuid);
 }
 
 } // namespace put
 
 namespace recv {
 
-using common::net::archived::verb::RECV;
-using detail::response;
+typedef common::net::archived::verb::RECV verb;
+typedef detail::response<verb> response;
 
-inline response<RECV>
+inline response
 accepted(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::accepted<RECV>(file_type, org_id, uuid);
+	return detail::accepted<verb>(file_type, org_id, uuid);
 }
 
-inline response<RECV>
+inline response
 bad_request(archiving::file_type::file_type_t file_type,
 			archiving::org_id_t org_id,
 			const std::string& uuid,
 			const std::string& message)
 {
-	return detail::bad_request<RECV>(file_type, org_id, uuid, message);
+	return detail::bad_request<verb>(file_type, org_id, uuid, message);
 }
 
-inline response<RECV>
+inline response
 bad_request(const std::string& message)
 {
-	return detail::bad_request<RECV>(message);
+	return detail::bad_request<verb>(message);
 }
 
-inline response<RECV>
+inline response
 internal_error(archiving::file_type::file_type_t file_type, archiving::org_id_t org_id, const std::string& uuid)
 {
-	return detail::internal_error<RECV>(file_type, org_id, uuid);
+	return detail::internal_error<verb>(file_type, org_id, uuid);
 }
 
-inline response<RECV>
+inline response
 internal_error(const std::string& message)
 {
-	return detail::internal_error<RECV>(message);
+	return detail::internal_error<verb>(message);
 }
 
-inline response<RECV>
+inline response
 internal_error(archiving::file_type::file_type_t file_type,
 			   archiving::org_id_t org_id,
 			   const std::string& uuid,
 			   const std::string& message)
 {
-	return detail::internal_error<RECV>(file_type, org_id, uuid, message);
+	return detail::internal_error<verb>(file_type, org_id, uuid, message);
 }
 
 } // namespace recv
