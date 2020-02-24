@@ -88,7 +88,7 @@ should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minute
 	// once we start neglecting, continue neglecting for set duration
 	std::time_t neglect_until_ = neglect_until.load(boost::memory_order_relaxed);
 	if (neglect_until_ != 0 && t.time < neglect_until_) {
-		return neglect_until.load();
+		return neglect_until_;
 	}
 
 	// see if we can stop neglecting (or start to, if we haven't been already)
@@ -101,13 +101,17 @@ should_neglect_pcaps(std::size_t watermark, unsigned int neglect_duration_minute
 		neglect = false;
 	}
 
+	neglect_until_ = 0;
 	if (neglect) {
-		neglect_until = std::time(0) + neglect_duration_minutes * 60;
-	} else {
-		neglect_until = 0;
+		neglect_until_ = std::time(0) + neglect_duration_minutes * 60;
 	}
 
-	return neglect_until.load();
+	neglect_until = neglect_until_;
+	if (!neglect_until_) {
+		return boost::none;
+	}
+
+	return neglect_until_;
 }
 
 } // namespace monitor

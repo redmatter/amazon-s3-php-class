@@ -520,7 +520,16 @@ int main(int argc, char *argv[]) try
 					
 					LogMessage("[statistics] "<<item);
 					LogMessage("[statistics] trend: "<<app::monitor::get_trend());
-					LogMessage("Neglecting PCAPs - "<<(should_neglect_pcaps() ? "YES" : "NO"));
+					boost::optional<std::time_t> neglect_pcaps_until = should_neglect_pcaps();
+					if (neglect_pcaps_until != boost::none) {
+						LogMessage("Neglecting PCAPs - YES; for "
+								   << rml::utils::prettify_duration<rml::utils::duration_format_ms>(
+										  common::utils::to_system_clock(*neglect_pcaps_until) -
+										  boost::chrono::system_clock::now())
+								   << " from now");
+					} else {
+						LogMessage("Neglecting PCAPs - NO");
+					}
 
 					monitor_pending = false;
 				}
