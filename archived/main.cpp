@@ -341,9 +341,9 @@ int main(int argc, char *argv[]) try
 				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
 		const unsigned pcap_neglect_timeout(
-			std::min(5U, app::confMap["archived.pcap_neglect_timeout_minutes"].as<unsigned>()));
+			std::max(2U, app::confMap["archived.pcap_neglect_timeout_minutes"].as<unsigned>()));
 		const boost::chrono::minutes trend_duration(
-			std::min(2U * pcap_neglect_timeout, app::confMap["archived.trend_duration_minutes"].as<unsigned>()));
+			std::max(2U * pcap_neglect_timeout, app::confMap["archived.trend_duration_minutes"].as<unsigned>()));
 		const boost::function<boost::optional<std::time_t>()> should_neglect_pcaps =
 			boost::bind(app::monitor::should_neglect_pcaps,
 						app::confMap["archived.queue_combined_watermark"].as<std::size_t>(),
