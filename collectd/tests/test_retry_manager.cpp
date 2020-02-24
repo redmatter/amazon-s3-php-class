@@ -51,4 +51,8 @@ TEST(RetryManager, Schedule)
     c = rm.schedule_batch(t - seconds(5), 10, print_int);
     ASSERT_EQ(c, 1);
     ASSERT_EQ(rm.count(), 4);
+
+    c = rm.schedule_batch(t, 100, print_int);
+    ASSERT_EQ(c, 4);
+    ASSERT_EQ(rm.count(), 0);
 }

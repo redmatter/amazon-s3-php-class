@@ -38,8 +38,9 @@ template<typename T>
 struct base_retry_manager
 {
     typedef retry_item<T> item_type;
+    typedef std::multiset<item_type> item_set;
 
-    std::multiset<item_type> items;
+    item_set items;
     mutable boost::mutex mutex;
 
     inline void add(const boost::chrono::steady_clock::time_point& when, const T& archivable)
@@ -64,7 +65,16 @@ struct base_retry_manager
         }
 
         std::size_t count = 0;
-        while (items.begin()->when <= upto_when && count < size) {
+        while (count < size) {
+            typename item_set::iterator begin = items.begin();
+            if (begin == items.end()) {
+                break;
+            }
+
+            if (items.begin()->when > upto_when) {
+                break;
+            }
+
             callback(items.begin()->archivable);
             items.erase(items.begin());
             count++;
