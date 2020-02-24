@@ -11,6 +11,7 @@
 
 #include "error.hpp"
 #include "../../defines.h"
+#include "../../stream_debug.hpp"
 
 #include <rml/version.h>
 #include <rml/logger.hpp>
@@ -152,7 +153,7 @@ private:
             return;
         }
 
-        std::istream is(&recv_buffer);
+        make_istream(is, &recv_buffer);
         std::string line;
         if (!std::getline(is, line)) {
             LogVerbose(*this << " no handshake read from server");
@@ -184,7 +185,7 @@ private:
     {
         bool handshake_error = false;
         receive_and_check_archived_greeting(ec);
-        std::ostream os(&send_buffer);
+        make_ostream(os, &send_buffer);
         if (ec) {
             if (ec.category() != error::get_category()) {
                 return;
@@ -209,7 +210,7 @@ private:
             return;
         }
 
-        std::istream is(&recv_buffer);
+		make_istream(is, &recv_buffer);
         std::string line;
         if (!std::getline(is, line)) {
             LogVerbose(*this << " no handshake-response read from server");

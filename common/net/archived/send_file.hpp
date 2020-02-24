@@ -14,6 +14,7 @@
 #include "response/parsed.hpp"
 
 #include "../../archivable.hpp"
+#include "../../stream_debug.hpp"
 
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
@@ -62,7 +63,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     case detail::put_state::init_ack_waiting: {
     	namespace response = common::net::archived::response;
 
-        std::istream istr(&conn->recv_buffer);
+        make_istream(istr, &conn->recv_buffer);
 
         put::response res;
 
@@ -111,7 +112,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         session->file_size_remaining -= static_cast<std::size_t>(bytes_read);
         // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
 
-        std::ostream ostr(&conn->send_buffer);
+        make_ostream(ostr, &conn->send_buffer);
         ostr.write(session->file_buffer.c_array(), buf_length);
 
         // have we finished copying data from the file?
@@ -137,7 +138,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
     }
 
     case detail::put_state::file_sent_ack_waiting: {
-        std::istream istr(&conn->recv_buffer);
+		make_istream(istr, &conn->recv_buffer);
 
         recv::response res;
 
@@ -181,7 +182,7 @@ send_file(const boost::shared_ptr<connection>& conn,
                                      const boost::optional<boost::chrono::steady_clock::time_point>&)>& done_callback,
           const boost::function<bool()>& is_interrupted)
 try {
-    std::ostream ostr(&conn->send_buffer);
+	make_ostream(ostr, &conn->send_buffer);
     if (!file->inject_put_request(ostr)) {
         conn->io_service.post(boost::bind(
             boost::protect(done_callback), error::make_error_code(error::put_initialisation_failed), boost::none));

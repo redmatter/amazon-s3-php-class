@@ -63,7 +63,9 @@ set(HEADER_FILES
         ../external/runstats/stats.hpp
         net/archived/response/code.hpp
         net/archived/response/parsed.hpp
-        utils/time.hpp)
+        utils/time.hpp
+        utils/tee_stream.hpp
+        stream_debug.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

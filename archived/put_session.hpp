@@ -23,6 +23,7 @@
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
 #include "../common/policy.hpp"
+#include "../common/stream_debug.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -312,7 +313,7 @@ public:
 		}
 
 		current_state_ = states::handshake_sent;
-		std::ostream ostr(&send_buffer_);
+		make_ostream(ostr, &send_buffer_);
 		ostr << "ArchiveD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 		boost::asio::async_write(socket_, send_buffer_,
 				strand_.wrap(boost::bind(
@@ -335,7 +336,7 @@ private:
 	template<typename T, typename Handler>
 	inline void async_send(const T& t, const Handler& handler)
 	{
-		std::ostream ostr(&send_buffer_);
+		make_ostream(ostr, &send_buffer_);
 		ostr << t << "\r\n";
 		async_send_buffer(handler);
 	}
@@ -343,7 +344,7 @@ private:
 	template<typename T>
 	inline void async_send(const T& t)
 	{
-		std::ostream ostr(&send_buffer_);
+		make_ostream(ostr, &send_buffer_);
 		ostr << t << "\r\n";
 		async_send_buffer();
 	}
@@ -402,7 +403,7 @@ private:
 			}
 		}
 
-		std::istream istr(&recv_buffer_);
+		make_istream(istr, &recv_buffer_);
 		istr.unsetf(std::ios_base::skipws);
 
 		// Get resource ID
@@ -491,7 +492,7 @@ private:
 			return;
 		}
 
-		std::istream istr(&recv_buffer_);
+		make_istream(istr, &recv_buffer_);
 		istr.unsetf(std::ios_base::skipws);
 
 		std::string verb;
@@ -590,7 +591,7 @@ private:
 
 			SetupRecvStream(remote_ep_, "CollectD", istr, recv_buffer_);
 
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 
 			istr >> OK_or_ERR;
 			if(OK_or_ERR == "OK") {
@@ -690,7 +691,7 @@ private:
 			/* no break */
 		case states::put_receiving_file_err:
 		{
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 			LogError(remote_ep_<<" "<<resource_id_<<": PUT failed; general failure during transfer");
 			ostr << recv::internal_error(file_type_, orgID_, uuid_, "general failure during transfer") << "\r\n";
 			current_state_ = states::put_check_received_file_ack_err_close;
@@ -705,7 +706,7 @@ private:
 
 		case states::put_receiving_file_ok:
 		{
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 			try {
 				ofs_->re_open();
 
