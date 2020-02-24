@@ -20,6 +20,11 @@
 #include <iostream>
 #include <string>
 
+#ifndef DevDebug
+#define DevDebug(line) \
+	std::cerr << "DevDebug: " << line << std::endl
+#endif
+
 namespace {
 template<typename Char>
 struct verify_char
@@ -30,7 +35,7 @@ struct verify_char
 
 template<typename Char>
 inline std::istream&
-operator>>(std::basic_istream<Char>& is, verify_char<Char>& wss)
+operator>>(std::basic_istream<Char>& is, const verify_char<Char>& wss)
 {
 	if (wss.c != is.get()) {
 		is.setstate(std::ios::failbit);
@@ -38,6 +43,25 @@ operator>>(std::basic_istream<Char>& is, verify_char<Char>& wss)
 
 	return is;
 }
+
+struct disable_skipws
+{
+	explicit disable_skipws(std::istream& is) : is(is), was_enabled(is.flags() & std::ios::skipws)
+	{
+		is.unsetf(std::ios::skipws);
+	}
+
+	~disable_skipws()
+	{
+		if (was_enabled) {
+			is.setf(std::ios::skipws);
+		}
+	}
+
+private:
+	std::istream& is;
+	bool was_enabled;
+};
 
 struct cannot_decode : public std::runtime_error
 {
@@ -101,10 +125,13 @@ try {
 
 	Verb verb;
 
-	verify_char<char> space(' ');
-	verify_char<char> left_bracket('[');
-	verify_char<char> right_bracket(']');
-	verify_char<char> newline('\n');
+	const verify_char<char> space(' ');
+	const verify_char<char> left_bracket('[');
+	const verify_char<char> right_bracket(']');
+	const verify_char<char> cr('\r');
+	const verify_char<char> newline('\n');
+
+	disable_skipws skipws_off(is);
 
 	std::string outcome;
 	if (!(is >> outcome >> space >> verb >> space)) {
@@ -115,7 +142,7 @@ try {
 	if (r.ok) {
 		r.code = ok::code;
 
-		is >> r.file_type >> space >> r.org_id >> space >> r.uuid;
+		is >> r.file_type >> space >> r.org_id >> space >> r.uuid >> cr >> newline;
 
 		r.message.clear();
 		r.retry_after = 0;
