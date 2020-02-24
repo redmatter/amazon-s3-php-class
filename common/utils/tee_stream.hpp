@@ -34,8 +34,16 @@ private:
 	io::inverse<io::tee_filter<std::ostream> > tee_;
 };
 
-typedef io::tee_device<std::ostream, std::ostream> tee_ostream_device;
-typedef io::stream<tee_ostream_device> tee_ostream;
+struct tee_ostream : public io::sink
+{
+	tee_ostream(std::ostream& out, std::ostream& tee_out) : out_(out), tee_(tee_out) {}
+
+	std::streamsize write(const char* s, std::streamsize n) { return tee_.write(out_, s, n); }
+
+private:
+	std::ostream& out_;
+	io::tee_filter<std::ostream> tee_;
+};
 
 } // namespace detail
 
@@ -44,10 +52,9 @@ struct tee_istream : public io::filtering_istream
 	tee_istream(std::istream& in, std::ostream& tee_out) : io::filtering_istream(detail::tee_istream(in, tee_out), 0) {}
 };
 
-struct tee_ostream : public detail::tee_ostream
+struct tee_ostream : public io::filtering_ostream
 {
-	tee_ostream(std::ostream& out, std::ostream& tee_out)
-		: detail::tee_ostream(detail::tee_ostream_device(out, tee_out))
+	tee_ostream(std::ostream& out, std::ostream& tee_out) : io::filtering_ostream(detail::tee_ostream(out, tee_out), 0)
 	{}
 };
 

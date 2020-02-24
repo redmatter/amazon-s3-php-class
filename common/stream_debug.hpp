@@ -24,11 +24,13 @@
 
 #define make_istream(name, buf) \
 	std::istream BOOST_PP_CAT(name, _std)(buf); \
-	common::utils::tee_istream name(BOOST_PP_CAT(name, _std), std::cerr)
+	common::utils::tee_istream name(BOOST_PP_CAT(name, _std), std::cerr); \
+	name.set_auto_close(false)
 
 #define make_ostream(name, buf) \
 	std::ostream BOOST_PP_CAT(name, _std)(buf); \
-	common::utils::tee_ostream name(BOOST_PP_CAT(name, _std), std::cerr)
+	common::utils::tee_ostream name(BOOST_PP_CAT(name, _std), std::cerr); \
+	name.set_auto_close(false)
 
 #endif // ifndef RML_DEV_DEBUG
 
