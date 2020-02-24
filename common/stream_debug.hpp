@@ -23,11 +23,11 @@
 #include <boost/preprocessor/cat.hpp>
 
 #define make_istream(name, buf) \
-	std::istream BOOST_PP_CAT(name, _std)(buf);
+	std::istream BOOST_PP_CAT(name, _std)(buf); \
 	common::utils::tee_istream name(BOOST_PP_CAT(name, _std), std::cerr)
 
 #define make_ostream(name, buf) \
-	std::ostream BOOST_PP_CAT(name, _std)(buf);
+	std::ostream BOOST_PP_CAT(name, _std)(buf); \
 	common::utils::tee_ostream name(BOOST_PP_CAT(name, _std), std::cerr)
 
 #endif // ifndef RML_DEV_DEBUG
