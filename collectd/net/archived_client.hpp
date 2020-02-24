@@ -156,13 +156,18 @@ public:
                                       timer));
     }
 
-    void run(boost::asio::io_service& io_service)
+    void start_retry_scheduler(boost::asio::io_service& io_service)
     {
-        LogMessage("archived_client scheduler thread starting");
+        LogMessage("archived_client: starting retry scheduler");
+        io_service.post(boost::bind(&archived_client::scheduled_setup_archivable_retry,
+                                    shared_from_this(),
+                                    boost::system::error_code(),
+                                    boost::make_shared<timer_type>(boost::ref(io_service))));
+    }
 
-        io_service.post(
-            boost::bind(&archived_client::scheduled_setup_archivable_retry, shared_from_this(),
-            boost::system::error_code(), boost::make_shared<timer_type>(boost::ref(io_service))));
+    void run()
+    {
+        LogMessage("archived_client: scheduler thread starting");
 
         while (!shutting_down) {
             try {
@@ -224,7 +229,7 @@ public:
             }
         }
 
-        LogMessage("archived_client scheduler thread closing");
+        LogMessage("archived_client: scheduler thread closing");
     }
 
     void shutdown()

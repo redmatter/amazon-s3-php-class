@@ -604,8 +604,10 @@ int main(int argc, char* argv[]) try
 		const unsigned n_send_schedulers = 2;
 		LogMessage("Starting " << n_send_schedulers << " scheduler threads");
 		for(unsigned int i = 0; i < n_send_schedulers; i++) {
-			threads.create_thread(boost::bind(&collectd::net::archived_client::run, archived_client, boost::ref(io_service)));
+			threads.create_thread(boost::bind(&collectd::net::archived_client::run, archived_client));
 		}
+
+        archived_client->start_retry_scheduler(io_service);
 
 		// setup the save_run thread
 		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db)));
