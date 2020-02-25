@@ -473,7 +473,12 @@ for file in $( find scripts/inc -type f -not \( -path "scripts/inc/JsonSchema/*"
 	install -m 644 -D ${file} %{buildroot}/usr/share/php/archiving/${file#scripts/inc/}
 done
 ln -sf /usr/share/php/archiving/aws-2.7.17.phar %{buildroot}/usr/share/php/archiving/aws.phar
+%if 0%{?el5}
 cp scripts/archiving.sh %{buildroot}/usr/bin/archiving
+%endif
+%if 0%{?el7}
+cp scripts/archiving-systemd.sh %{buildroot}/usr/bin/archiving
+%endif
 cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
