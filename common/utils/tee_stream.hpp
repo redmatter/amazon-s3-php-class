@@ -9,12 +9,10 @@
 #ifndef ARCHIVING_TEE_ISTREAM_HPP
 #define ARCHIVING_TEE_ISTREAM_HPP
 
-#include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/invert.hpp>
-#include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/tee.hpp>
-#include <boost/tr1/memory.hpp>
+
 #include <iostream>
 
 namespace common {
