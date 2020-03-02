@@ -657,8 +657,24 @@ class importPhonero extends BaseApp
         $config->not_handled_dir .= '/'.$this->hAPILocName;
         $config->import_dir      .= '/'.$this->hAPILocName;
 
-        // set uid and gid to cdrmunch
+        // Find out if PHP phar has extracted us to a /tmp file
+        // If so, try and change the file ownership to cdrmunch
+        // Otherwise PHP will not have the permission to cleanup after privilege drop
+        if ($fd_handle = opendir('/proc/self/fd')) {
+                while (($fd_id = readdir($fd_handle)) !== false) {
+                        if (in_array($fd_id, array('0', '1', '2', '.', '..'))) {
+                                continue;
+                        }
+                        $fd_path = realpath("/proc/self/fd/{$fd_id}");
+                        if ($fd_path && substr($fd_path, 0, 8) === "/tmp/php") {
+                                chown($fd_path, "cdrmunch");
+                                break;
+                        }
+                    }
+                closedir($fd_handle);
+        }
 
+        // set uid and gid to cdrmunch
         if (!is_array($userinfo = posix_getpwnam("cdrmunch")))
             throw new Exception("posix_getpwnam(cdrmunch) failed: ".posix_strerror(posix_get_last_error()));
         elseif (!posix_setgid($userinfo['gid']))
