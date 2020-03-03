@@ -3,10 +3,20 @@ project(archiving-common)
 include(SetupVersion)
 setup_version_c()
 
+if (NOT EXISTS ../external/cpp-netlib)
+    execute_process(COMMAND make -C ../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
+            RESULT_VARIABLE res)
+    if (NOT res STREQUAL "0" OR NOT EXISTS ../external/cpp-netlib)
+        message(FATAL_ERROR "Failed to setup cpp-netlib")
+    endif()
+endif()
+
+list(APPEND CMAKE_PREFIX_PATH ../external/cpp-netlib)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
+
 set(HEADER_FILES
         archivable.hpp
         archived_client.hpp
-        basic_database.hpp
         cache.hpp
         coreapi_eventlog.hpp
         database.hpp
@@ -54,7 +64,7 @@ add_definitions(
         -DCRYPTOPP_ENABLE_NAMESPACE_WEAK=1)
 
 include_directories(
-        /usr/include/cpp-netlib
+        ${CPPNETLIB_INCLUDE_DIRS}
         /usr/include/threadpool
         ${rml-database-mysql_SOURCE_DIR}
         ${librml_INC_DIR}
