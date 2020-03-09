@@ -674,7 +674,7 @@ abstract class ArchivingExport
 	protected function getUserTimeZone($userID)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.'/profiles/User/'.$userID);
+		$client->setUrl("{$this->coreApiUrl}/profiles/User/{$userID}");
 		$client->setMethod('GET');
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -718,7 +718,7 @@ abstract class ArchivingExport
 	protected function getUserDetails($userID)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.'/users/'.$userID);
+		$client->setUrl("{$this->coreApiUrl}/users/{$userID}");
 		$client->setMethod('GET');
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -759,7 +759,7 @@ abstract class ArchivingExport
 	protected function getApiLogsData(&$searchStartTime, &$searchEndTime, array &$logsData)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.$this->getApiLogsPath());
+		$client->setUrl($this->coreApiUrl.$this->getApiLogsPath());
 		$client->setMethod('POST');
 		$client->setHeaders(array(
 			'Authorization' => API::GetToken(),
@@ -813,7 +813,7 @@ abstract class ArchivingExport
 	protected function getOrgBranding($orgID)
 	{
 		$client = RestClient::createClient();
-		$client->setUrl("http://cdr.coreapi.{$this->app->hAPISearchDomain}/branding/{$this->orgID}");
+		$client->setUrl("{$this->coreApiUrl}/branding/{$this->orgID}");
 		$client->setMethod('GET');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -882,7 +882,7 @@ abstract class ArchivingExport
 		}
 		
 		$client = RestClient::createClient();
-		$client->setUrl("http://cdr.coreapi.{$this->app->hAPISearchDomain}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
+		$client->setUrl("{$this->coreApiUrl}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
 		$client->setMethod('GET');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);
@@ -1298,7 +1298,7 @@ The stated reason for the export was:
 	private function writePortalNotification()
 	{
 		$client = RestClient::createClient();
-		$client->setUrl('http://api.'.$this->app->hAPISearchDomain.'/notifications');
+		$client->setUrl("{$this->coreApiUrl}/notifications");
 		$client->setMethod('PUT');	
 		$headers = array("Authorization" => API::GetToken());
 		$client->setHeaders($headers);

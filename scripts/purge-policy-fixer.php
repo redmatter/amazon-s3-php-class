@@ -310,7 +310,7 @@ class PurgePolicyFixerApp extends BaseApp
 			return $sql;
 		};
 
-		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
+		$coreapi = $config->get('api.base_url', 'http://cdr.coreapi.redmatter.com');
 		API::Init($coreapi, new ArrayStorage(), APP_NAME_.':1.0');
 		if ($authCreds)
 			API::LoginBasicAuth($authCreds, null/*mfa*/, true/*re_authenticate*/);

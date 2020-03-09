@@ -96,7 +96,7 @@ class PcapRecordingImportApp extends BaseDaemonApp
             throw new \Exception('No authorization creds or hash specified');
         }
 
-        $this->_coreApiLogin($this->getConf()->get('api.base_url', 'http://api.redmatter.com'), $authCreds);
+        $this->_coreApiLogin($this->getConf()->get('api.base_url', 'http://cdr.coreapi.redmatter.com'), $authCreds);
 
         $orgOneEncKey = ArchivingEndpoint::Get(
             $this->_apiAuth,
