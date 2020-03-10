@@ -43,7 +43,6 @@ require_once 'rmapp/class.BaseApp.php';
 require_once 'rmdaemonscripts/DaemonScripts.php';
 require_once 's3/S3.php';
 require_once 'archiving/class.ArchivingProcessFile.php';
-require_once 'restclient/RestClient.class.php';
 require_once 'hPHP/hapi.php';
 require_once 'eventlog/class.EventLog.php';
 require_once 'rmbranding/Brand.php';
@@ -59,7 +58,7 @@ function formatTime($time, $timeZone, $format)
 function cleanDirectory($dir)
 {
 	if (strpos($dir, '/tmp/') !== 0) {
-		LogWarning("Attempting to clean non-temp directory?");
+		LogWarning('Attempting to clean non-temp directory?');
 		return;
 	}
 	exec("rm -R -f {$dir}/");
@@ -673,26 +672,11 @@ abstract class ArchivingExport
 
 	protected function getUserTimeZone($userID)
 	{
-		$client = RestClient::createClient();
-		$client->setUrl("{$this->coreApiUrl}/profiles/User/{$userID}");
-		$client->setMethod('GET');
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
+		$xpath = API::Get("/profiles/User/{$userID}");
 
-		$client->execute();
-		
-		$profileResponse = trim($client->getResponse());
-		if (empty($profileResponse))
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}");
-			
-		if ($client->getResponseCode() != 200)	
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profileResponse}");
-		
-		//echo "profilePesponse:\n{$profileResponse}\n";
-
-		$profileResponseDom = simplexml_load_string($profileResponse);
+		$profileResponseDom = simplexml_import_dom($xpath->_dom);
 		if (!($profileResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}, response: {$profileResponse}");
+			throw new Exception("Failed to fetch user profile details for user ID {$userID}");
 		
 		$timezone = null;
 		$timezoneValNode = $profileResponseDom->xpath('General[1]/DefTZ[1]/@Val');
@@ -717,26 +701,11 @@ abstract class ArchivingExport
 
 	protected function getUserDetails($userID)
 	{
-		$client = RestClient::createClient();
-		$client->setUrl("{$this->coreApiUrl}/users/{$userID}");
-		$client->setMethod('GET');
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
+		$xpath = API::Get("/users/{$userID}");
 
-		$client->execute();
-		
-		$usersResponse = trim($client->getResponse());
-		if (empty($usersResponse))
-			throw new Exception("Failed to fetch details for user ID {$userID}");
-			
-		if ($client->getResponseCode() != 200)	
-			throw new Exception("Failed to fetch details for user ID {$userID}, response: {$usersResponse}");
-		
-		//echo "usersResponse:\n{$usersResponse}\n";
-		
-		$usersResponseDom = simplexml_load_string($usersResponse);
+		$usersResponseDom = simplexml_import_dom($xpath->_dom);
 		if (!($usersResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch details for user ID {$userID}, response: {$usersResponse}");
+			throw new Exception("Failed to fetch details for user ID {$userID}");
 		
 		$details = new stdClass();	
 		$fields = array('UserName', 'FirstName', 'MiddleNames', 'LastName');
@@ -744,7 +713,7 @@ abstract class ArchivingExport
 		{
 			$fieldNode = $usersResponseDom->xpath('User[1]/@'.$field);
 			if (empty($fieldNode)) 
-				throw new Exception("Failed to extract field '{$field}' from details for user ID {$userID}, response: {$usersResponse}");
+				throw new Exception("Failed to extract field '{$field}' from details for user ID {$userID}");
 			$value = (string)$fieldNode[0];
 			
 			$field = strtolower($field);
@@ -758,36 +727,17 @@ abstract class ArchivingExport
 
 	protected function getApiLogsData(&$searchStartTime, &$searchEndTime, array &$logsData)
 	{
-		$client = RestClient::createClient();
-		$client->setUrl($this->coreApiUrl.$this->getApiLogsPath());
-		$client->setMethod('POST');
-		$client->setHeaders(array(
-			'Authorization' => API::GetToken(),
-			'Content-Type'  => 'application/xml',
-		));
-
 		$logsParamsXml = "<Parameters QID=\"{$this->queryQID}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$this->userID}\"/>";
-		$client->setParameters($logsParamsXml);
-		
-		$client->execute();
-		
-		$logsResponse = trim($client->getResponse());
-		if (empty($logsResponse))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");
-		
-		//echo "logsResponse:\n{$logsResponse}\n";
-		
-		if (($client->getResponseCode() != 200) && ($client->getResponseCode() != 201))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
-				
-		$logsResponseDom = simplexml_load_string($logsResponse);
+		$xpath = API::Post($this->getApiLogsPath(), $logsParamsXml, 201, true, array('Content-Type'  => 'application/xml'));
+
+		$logsResponseDom = simplexml_import_dom($xpath->_dom);
 		if (!($logsResponseDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
+			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");
 		
 		$searchStartTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[1]/@Val');
 		$searchEndTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[2]/@Val');
 		if (empty($searchStartTimeNodes) || empty($searchEndTimeNodes))
-			throw new Exception("Failed to fetch logs search criteria for query QID {$this->queryQID}, response: {$logsResponse}");
+			throw new Exception("Failed to fetch logs search criteria for query QID {$this->queryQID}");
 		$searchStartTime = (int)$searchStartTimeNodes[0];
 		$searchEndTime = (int)$searchEndTimeNodes[0];
 		
@@ -812,39 +762,23 @@ abstract class ArchivingExport
 	
 	protected function getOrgBranding($orgID)
 	{
-		$client = RestClient::createClient();
-		$client->setUrl("{$this->coreApiUrl}/branding/{$this->orgID}");
-		$client->setMethod('GET');	
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
-		
-		$client->execute();
-		
-		$brandingResponse = trim($client->getResponse());
-		
-		//echo "brandingResponse:\n{$brandingResponse}\n";
-		
-		if (empty($brandingResponse))
-			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}");
-		
-		if ($client->getResponseCode() != 200)
-			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
-		
-		$brandingDom = simplexml_load_string($brandingResponse);
+		$xpath = API::Get("/branding/{$this->orgID}");
+
+		$brandingDom = simplexml_import_dom($xpath->_dom);
 		if (!($brandingDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}");
 			
 		$nodes = $brandingDom->xpath('@Identifier');
 		if (empty($nodes))
-			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}");
 		
 		$identifier = (string)$nodes[0];
 		if (empty($identifier))
-			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}, response: {$brandingResponse}");
+			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}");
 		
 		$branding = Brand::ByIdentifier($identifier);
 		if (!is_object($branding))
-			throw new Exception("Failed to find branding settings for '{$identifier}' for org ID {$this->orgID}, response: {$brandingResponse}");
+			throw new Exception("Failed to find branding settings for '{$identifier}' for org ID {$this->orgID}");
 		return $branding;
 	}
 	
@@ -880,26 +814,10 @@ abstract class ArchivingExport
 			LogDebug("{$this->context()}Using previously cached permission result: ".($perm->allowed?'true':'false'));
 			return $perm;
 		}
+
+		$xpath = API::Get("/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
 		
-		$client = RestClient::createClient();
-		$client->setUrl("{$this->coreApiUrl}/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
-		$client->setMethod('GET');	
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
-		
-		$client->execute();
-		
-		$permsResponse = trim($client->getResponse());
-		
-		//echo "permissionsResponse:\n{$permsResponse}\n";
-		
-		if (empty($permsResponse))
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
-		
-		if ($client->getResponseCode() != 200)
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
-		
-		$permsDom = simplexml_load_string($permsResponse);
+		$permsDom = simplexml_import_dom($xpath->_dom);
 		if (!($permsDom instanceof SimpleXMLElement))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
 			
@@ -1297,40 +1215,12 @@ The stated reason for the export was:
 		
 	private function writePortalNotification()
 	{
-		$client = RestClient::createClient();
-		$client->setUrl("{$this->coreApiUrl}/notifications");
-		$client->setMethod('PUT');	
-		$headers = array("Authorization" => API::GetToken());
-		$client->setHeaders($headers);
-		
 		$subject = "{$this->displayType()} Logs Bulk Download ID {$this->exportID} is complete";
 		$body = "Your {$this->displayType()} Logs Bulk Download can be accessed in the Logs 'Bulk Downloads' tab'.";
 
 		$notifyParamsXml = "<Parameters Subject=\"{$subject}\" Body=\"{$body}\" Priority=\"1\" Mode=\"Portal\" UserList=\"{$this->userID}\"/>";
-		$client->setParameters($notifyParamsXml);
-		
-		$client->execute();
-		
-		$notifyResponse = trim($client->getResponse());
-		if (empty($notifyResponse))	
-			throw new Exception("Failed to write portal notification");
-		
-		LogDebug("notifyResponse:\n{$notifyResponse}");
-		/*
-		if (($client->getResponseCode() != 200) && ($client->getResponseCode() != 201))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
-				
-		$logsResponseDom = simplexml_load_string($logsResponse);
-		if (!($logsResponseDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}, response: {$logsResponse}");
-		
-		$searchStartTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[1]/@Val');
-		$searchEndTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[2]/@Val');
-		if (empty($searchStartTimeNodes) || empty($searchEndTimeNodes))
-			throw new Exception("Failed to fetch logs search criteria for query QID {$this->queryQID}, response: {$logsResponse}");
-		$searchStartTime = (int)$searchStartTimeNodes[0];
-		$searchEndTime = (int)$searchEndTimeNodes[0];
-		*/
+
+		API::Put('/notifications', $notifyParamsXml, 201, true, array('Content-Type'  => 'application/xml'));
 	}
 	
 	public function writeEventLogFailed()
