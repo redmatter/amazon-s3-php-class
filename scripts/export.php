@@ -724,7 +724,7 @@ abstract class ArchivingExport
 	protected function getApiLogsData(&$searchStartTime, &$searchEndTime, array &$logsData)
 	{
 		$logsParamsXml = "<Parameters QID=\"{$this->queryQID}\" Max=\"8000\" Offset=\"0\" ShowMappings=\"YES\" UserFormat=\"first last\" ArchivingForUserID=\"{$this->userID}\"/>";
-		$xpath = API::Post($this->getApiLogsPath(), $logsParamsXml, 201, true, array('Content-Type'  => 'application/xml'));
+		$xpath = API::Post($this->getApiLogsPath(), $logsParamsXml, array(200, 201), true, array('Content-Type'  => 'application/xml'));
 
 		$logsResponseDom = simplexml_import_dom($xpath->_dom);
 
@@ -1210,7 +1210,7 @@ The stated reason for the export was:
 
 		$notifyParamsXml = "<Parameters Subject=\"{$subject}\" Body=\"{$body}\" Priority=\"1\" Mode=\"Portal\" UserList=\"{$this->userID}\"/>";
 
-		API::Put('/notifications', $notifyParamsXml, 201, true, array('Content-Type'  => 'application/xml'));
+		API::Put('/notifications', $notifyParamsXml, array(200, 201, 202), true, array('Content-Type'  => 'application/xml'));
 	}
 	
 	public function writeEventLogFailed()
