@@ -7,5 +7,7 @@ ColumnLimit: 120
 AllowAllParametersOfDeclarationOnNextLine: true
 BraceWrapping:
   AfterNamespace: true
-
+# It really should be C++98 but clang-format doesn't support it. The closest we have is C++2003 which is good enough to
+# prevent it from formatting double `>` in templates to `>>` rather than `> >`.
+Standard: Cpp03
 ...
