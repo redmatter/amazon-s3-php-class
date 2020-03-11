@@ -675,9 +675,7 @@ abstract class ArchivingExport
 		$xpath = API::Get("/profiles/User/{$userID}");
 
 		$profileResponseDom = simplexml_import_dom($xpath->_dom);
-		if (!($profileResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch user profile details for user ID {$userID}");
-		
+
 		$timezone = null;
 		$timezoneValNode = $profileResponseDom->xpath('General[1]/DefTZ[1]/@Val');
 		if (!empty($timezoneValNode)) 
@@ -704,9 +702,7 @@ abstract class ArchivingExport
 		$xpath = API::Get("/users/{$userID}");
 
 		$usersResponseDom = simplexml_import_dom($xpath->_dom);
-		if (!($usersResponseDom instanceof SimpleXMLElement)) 
-			throw new Exception("Failed to fetch details for user ID {$userID}");
-		
+
 		$details = new stdClass();	
 		$fields = array('UserName', 'FirstName', 'MiddleNames', 'LastName');
 		foreach ($fields as $field)
@@ -731,9 +727,7 @@ abstract class ArchivingExport
 		$xpath = API::Post($this->getApiLogsPath(), $logsParamsXml, 201, true, array('Content-Type'  => 'application/xml'));
 
 		$logsResponseDom = simplexml_import_dom($xpath->_dom);
-		if (!($logsResponseDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to fetch logs result for query QID {$this->queryQID}");
-		
+
 		$searchStartTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[1]/@Val');
 		$searchEndTimeNodes = $logsResponseDom->xpath('Criteria[1]/And[1]/Condition[2]/@Val');
 		if (empty($searchStartTimeNodes) || empty($searchEndTimeNodes))
@@ -765,9 +759,7 @@ abstract class ArchivingExport
 		$xpath = API::Get("/branding/{$this->orgID}");
 
 		$brandingDom = simplexml_import_dom($xpath->_dom);
-		if (!($brandingDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to query CoreAPI branding settings for org ID {$this->orgID}");
-			
+
 		$nodes = $brandingDom->xpath('@Identifier');
 		if (empty($nodes))
 			throw new Exception("Failed to extract 'Identifier' attribute from CoreAPI branding settings for org ID {$this->orgID}");
@@ -818,9 +810,7 @@ abstract class ArchivingExport
 		$xpath = API::Get("/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
 		
 		$permsDom = simplexml_import_dom($xpath->_dom);
-		if (!($permsDom instanceof SimpleXMLElement))
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
-			
+
 		$nodes = $permsDom->xpath('@Allowed');
 		if (empty($nodes))
 			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
