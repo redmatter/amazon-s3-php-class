@@ -87,7 +87,7 @@ class ArchivingExtractApp extends BaseApp
 		$endDate = cli::get('--end-date', $config->get('extract.end_date', null));
 
 		$authorization = null;
-		$coreapi = $config->get('coreapi.url', 'http://api.redmatter.com');
+		$coreapi = $config->get('coreapi.url', 'http://cdr.coreapi.redmatter.com');
 		$hash = urlencode(sha1(utf8_encode(mb_strtolower($username, 'UTF-8'))).sha1(utf8_encode($password)).(isset($passcode)? $passcode: ''));
 		$stream = HTTPStream::Make('GET', "{$coreapi}/auth/{$hash}");
 		if ($stream && $stream->httpCode == 201)

@@ -135,7 +135,7 @@ class ArchivingHeadersPatchApp extends BaseApp
 		$endDate = cli::get('--end-date', $config->get('subset.end_date', false));
 
 		$authorization = null;
-		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
+		$coreapi = $config->get('api.base_url', 'http://cdr.coreapi.redmatter.com');
 
 		if ($authCreds)
 		{
