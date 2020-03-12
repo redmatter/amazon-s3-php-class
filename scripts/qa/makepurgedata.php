@@ -309,7 +309,7 @@ class MakePurgeDataApp extends BaseApp
 		$batchSize = cli::get('--batch-size', $config->get('dataset.batch_size', self::DEFAULT_BATCH_SIZE));
 
 		$authorization = null;
-		$coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
+		$coreapi = $config->get('api.base_url', 'http://cdr.coreapi.redmatter.com');
 
 		if ($authCreds)
 		{

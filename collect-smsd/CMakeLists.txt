@@ -4,6 +4,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 find_package(MySQL)
 find_package(MySQL++)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 set(HEADER_FILES
         sms_dir_monitor.hpp
@@ -16,7 +17,8 @@ set(HEADER_FILES
 include_directories(
         ${MYSQL_INCLUDE_DIR}
         ${MYSQLPP_INCLUDE_DIR}
-        /usr/include/cpp-netlib
+        ${CPPNETLIB_INCLUDE_DIRS}
+        ${rml-database-mysql_SOURCE_DIR}
         ${librml_INC_DIR}
         ../common
 )

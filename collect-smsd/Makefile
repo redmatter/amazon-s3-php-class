@@ -73,6 +73,7 @@ include ../libs/rml/rml/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 
 include ../libs/Makefile.rml
+include ../libs/Makefile.rml-database-mysql
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)

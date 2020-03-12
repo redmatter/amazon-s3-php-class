@@ -342,7 +342,7 @@ class VerifyPurgeApp extends BaseApp
             throw new Exception('No authorization creds or hash specified');
         }
 
-        $coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
+        $coreapi = $config->get('api.base_url', 'http://cdr.coreapi.redmatter.com');
 
         $this->_coreApiAuthenticate($coreapi, $authCreds);
 
