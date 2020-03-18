@@ -8,7 +8,10 @@ if (USE_CLANG)
     set(CMAKE_C_COMPILER clang)
 endif (USE_CLANG)
 
-set(CMAKE_CXX_STANDARD 98)
+# Always build with coverage when build-type is Debug.
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+set(CMAKE_CXX_FLAGS "--coverage")
+endif()
 
 project(archiving)
 
@@ -88,7 +91,7 @@ FetchContent_Populate(rml-statistics)
 
 add_subdirectory(common)
 add_subdirectory(archived)
-#add_subdirectory(archived-monitor)
+add_subdirectory(archived-monitor)
 #add_subdirectory(cli)
 add_subdirectory(collectd)
 add_subdirectory(collect-smsd)

@@ -1,5 +1,3 @@
-set(CMAKE_CXX_STANDARD 98)
-
 project(archiving_tests)
 
 # Enable individual test-groups

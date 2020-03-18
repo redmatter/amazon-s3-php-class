@@ -9,6 +9,8 @@
 #ifndef ARCHIVING_SEND_NOP_HPP
 #define ARCHIVING_SEND_NOP_HPP
 
+#include "../../stream_debug.hpp"
+
 #include "connection.hpp"
 
 namespace common
@@ -25,7 +27,7 @@ namespace archived
  */
 void send_nop(const boost::shared_ptr<connection>& conn, boost::system::error_code& ec)
 {
-    std::ostream ostr(&conn->send_buffer);
+    make_ostream(ostr, &conn->send_buffer);
     ostr.clear();
     ostr << "NOP\r\n\r\n";
     boost::asio::write(conn->socket, conn->send_buffer, ec);
@@ -41,7 +43,7 @@ void send_nop(const boost::shared_ptr<connection>& conn, boost::system::error_co
     }
 
     std::string line;
-    std::istream istr(&conn->recv_buffer);
+	make_istream(istr, &conn->recv_buffer);
 
     // if we can't get the response line from buffer
     if (!std::getline(istr, line)) {

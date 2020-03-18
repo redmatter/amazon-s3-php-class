@@ -7,12 +7,15 @@ if [ "${bash_debug:-0}" = 1 ]; then
 fi
 
 : "${data_root_dir:="$(dirname "$0")/data"}"
-: "${out_dir:=/var/log/freeswitch/xml_cdr}"
+: "${freeswitch_data_dir:=/var/log/freeswitch}"
+: "${out_dir:="${freeswitch_data_dir}/xml_cdr"}"
+: "${pcap_dir:="${freeswitch_data_dir}/pcap"}"
 
 : "${batch:=100}"
 dv_selected=(all)
 
 all_enabled_data_variations=(
+    pcap
     with-recording
     with-recording-10mins-whitenoise
     without-recording
@@ -99,6 +102,10 @@ in_array() {
 }
 
 is_valid_variation() {
+    if [[ "$1" = */pcap ]]; then
+        return 0
+    fi
+
     [ -d "$1" ] && [ -r "$1" ] &&
         [ -r "${1}/aLeg_uuid.xml" ] && [ -r "${1}/bLeg_uuid.xml" ]
 }
@@ -133,7 +140,7 @@ HELP
     [ -z "$*" ] || exit 1
 }
 
-if ! which sox &>/dev/null; then
+if ! command -v sox &>/dev/null; then
     error "sox utility not found.. cannot continue"
     exit 1;
 fi
@@ -205,31 +212,36 @@ while [ "$batch" -gt 0 ]; do
     auuid=$(uuidgen);
     buuid=$(uuidgen);
 
-    if [[ "$variation" =~ -([0-9]+)mins-whitenoise ]]; then
-        minutes="${BASH_REMATCH[1]}"
-        make_whitenoise_recording "$minutes" "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
-        make_whitenoise_recording "$minutes" "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
+    if [[ "$variation" == pcap ]]; then
+        cp "$data_dir/data.pcap" "${pcap_dir}/${auuid}.pcap"
+        echo "$auuid - $variation"
     else
-        if [ -r "${data_dir}/aLeg_uuid.wav" ]; then
-            cp "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
+        if [[ "$variation" =~ -([0-9]+)mins-whitenoise ]]; then
+            minutes="${BASH_REMATCH[1]}"
+            make_whitenoise_recording "$minutes" "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
+            make_whitenoise_recording "$minutes" "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
+        else
+            if [ -r "${data_dir}/aLeg_uuid.wav" ]; then
+                cp "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
+            fi
+            if [ -r "${data_dir}/bLeg_uuid.wav" ]; then
+                cp "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
+            fi
         fi
-        if [ -r "${data_dir}/bLeg_uuid.wav" ]; then
-            cp "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
-        fi
+
+        sed -e "s/{{aLeg_uuid}}/$auuid/g" \
+            -e "s/{{bLeg_uuid}}/$buuid/g" \
+            -e "s/{{startEpoch}}/$time/g" \
+            < "$data_dir/aLeg_uuid.xml" \
+            > "$out_dir/$auuid.cdr.xml"
+        sed -e "s/{{aLeg_uuid}}/$auuid/g" \
+            -e "s/{{bLeg_uuid}}/$buuid/g" \
+            -e "s/{{startEpoch}}/$time/g" \
+            < "$data_dir/bLeg_uuid.xml" \
+            > "$out_dir/$buuid.cdr.xml"
+
+        echo "$auuid $buuid $variation"
     fi
 
-    sed -e "s/{{aLeg_uuid}}/$auuid/g" \
-        -e "s/{{bLeg_uuid}}/$buuid/g" \
-        -e "s/{{startEpoch}}/$time/g" \
-        < "$data_dir/aLeg_uuid.xml" \
-        > "$out_dir/$auuid.cdr.xml"
-    sed -e "s/{{aLeg_uuid}}/$auuid/g" \
-        -e "s/{{bLeg_uuid}}/$buuid/g" \
-        -e "s/{{startEpoch}}/$time/g" \
-        < "$data_dir/bLeg_uuid.xml" \
-        > "$out_dir/$buuid.cdr.xml"
-
-    echo "$auuid $buuid $variation"
-
-    let batch--
+    _=$((batch--))
 done

@@ -1,7 +1,3 @@
-set(CMAKE_CXX_STANDARD 98)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++98")
-
 project(tests)
 
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
