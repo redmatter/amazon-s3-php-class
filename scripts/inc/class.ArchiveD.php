@@ -95,7 +95,7 @@ class ArchiveD
 	 */
 	public static function Init(ConfigMap $config, $authorization, $caseRef)
 	{
-		$coreapi = $config->get('coreapi.url', 'http://api.redmatter.com');
+		$coreapi = $config->get('coreapi.url', 'http://cdr.coreapi.redmatter.com');
 		EventLog::Configure($coreapi);
 		
 		self::$_instance = new self(

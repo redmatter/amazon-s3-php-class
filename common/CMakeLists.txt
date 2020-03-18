@@ -27,7 +27,6 @@ add_dependencies(s3 build_libs3)
 set(HEADER_FILES
         archivable.hpp
         archived_client.hpp
-        basic_database.hpp
         cache.hpp
         coreapi_eventlog.hpp
         database.hpp

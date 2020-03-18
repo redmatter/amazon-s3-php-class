@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) try
 		cli_optsDesc.add_options()
 				("source", boost::program_options::value<std::string>(), "read from file")
 				("target", boost::program_options::value<std::string>(), "write to file")
-				("api-url", boost::program_options::value<std::string>()->default_value("http://api.redmatter.com"), "CoreAPI URL")
+				("api-url", boost::program_options::value<std::string>()->default_value("http://cdr.coreapi.redmatter.com"), "CoreAPI URL")
 				("api-auth-hash", boost::program_options::value<std::string>(), "CoreAPI auth hash")
 				("org-id", boost::program_options::value<unsigned int>(), "CoreAPI auth hash")
 				("help", "this help")

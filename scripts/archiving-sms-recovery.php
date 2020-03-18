@@ -94,7 +94,7 @@ class ArchivingSmsRecoveryApp extends BaseApp
 
 		// Log in to API
         $authorization = null;
-        $coreapi = $config->get('api.base_url', 'http://api.redmatter.com');
+        $coreapi = $config->get('api.base_url', 'http://cdr.coreapi.redmatter.com');
         
 		if ($auth_creds)
 		{

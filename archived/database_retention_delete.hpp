@@ -15,7 +15,6 @@
 #include "macros.h"
 
 #include "../common/policy.hpp"
-#include "../common/basic_database.hpp"
 #include "../common/coreapi_eventlog.hpp"
 
 #include <rml/database/mysql/transactional_connection.hpp>
