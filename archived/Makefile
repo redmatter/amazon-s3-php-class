@@ -4,6 +4,9 @@ include ../common/Makefile.macros
 
 LIBS += -L../common/$(TMP)
 # CPPFLAGS += -Wsign-promo
+ifeq ($(WITH_DEV_DEBUG),YES)
+CPPFLAGS += -DRML_DEV_DEBUG
+endif
 
 TARGET=archived
 

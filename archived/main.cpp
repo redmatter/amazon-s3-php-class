@@ -219,6 +219,9 @@ int main(int argc, char *argv[]) try
 		boost::program_options::options_description optsDesc(boost::str( boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\noptions") % version_number_string % copyright_string ));
 		optsDesc.add_options()
 				("archived.service_threads",  boost::program_options::value<unsigned int>()->default_value(4), "ArchiveD service threads")
+				("archived.queue_combined_watermark",  boost::program_options::value<std::size_t>()->default_value(1500), "water mark for combined-queue-counts to enable PCAP neglect")
+				("archived.pcap_neglect_timeout_minutes",  boost::program_options::value<unsigned>()->default_value(10), "constant backoff duration for PCAPs (minutes)")
+				("archived.trend_duration_minutes",  boost::program_options::value<unsigned>()->default_value(20), "duration for which trend is tracked")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
 				;
 		rml::daemon::describe_config(optsDesc);
@@ -289,7 +292,6 @@ int main(int argc, char *argv[]) try
 	}
 
 	try {
-
 		app::database::internal internal_db(app::confMap);
 		app::database::retention retention_db(app::confMap);
 		app::database::retention_delete retention_delete_db(app::confMap);
@@ -338,8 +340,17 @@ int main(int argc, char *argv[]) try
 		app::coreapi_eventlog::cached_finder_t cached_coreapi_eventlog_finder(
 				boost::bind(app::coreapi_eventlog::find, boost::ref(coreapi), _1), "CachedEventLogFinder", 1, 2, 10);
 
+		const unsigned pcap_neglect_timeout(
+			std::max(2U, app::confMap["archived.pcap_neglect_timeout_minutes"].as<unsigned>()));
+		const boost::chrono::minutes trend_duration(
+			std::max(2U * pcap_neglect_timeout, app::confMap["archived.trend_duration_minutes"].as<unsigned>()));
+		const boost::function<boost::optional<std::time_t>()> should_neglect_pcaps =
+			boost::bind(app::monitor::should_neglect_pcaps,
+						app::confMap["archived.queue_combined_watermark"].as<std::size_t>(),
+						pcap_neglect_timeout);
 		app::put_server put_server(app::confMap, convert_channel, whisper_channel, cbr_channel,
-				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service);
+				cached_policy_finder, cached_endpoint_finder, internal_db, cdrmunch_db, clear_cache, *p_io_service,
+				should_neglect_pcaps);
 
 		const rml::utils::enabled_list<archiving::org_id_t> aes_enabled_orgs_list(
 				app::confMap["converter.enable_aes_for_orgs"].as<std::string>());
@@ -379,19 +390,19 @@ int main(int argc, char *argv[]) try
 			{
 				boost::interprocess::shared_memory_object::remove(SHM_NAME);
 			}
-			
+
 			~shm_remove()
 			{
 				boost::interprocess::shared_memory_object::remove(SHM_NAME);
 			}
 		} remover;
-		
+
 		boost::interprocess::shared_memory_object shm(boost::interprocess::create_only, SHM_NAME, boost::interprocess::read_write);
 
 		shm.truncate(sizeof(app::monitor::monitor_t));
 		boost::interprocess::mapped_region region(shm, boost::interprocess::read_write);
 		app::monitor::monitor_t *monitor_data = new (region.get_address()) app::monitor::monitor_t;
-		
+
 		rml::fcgi::server fcgi_server(app::confMap, app::quit);
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
 				boost::ref(cached_retention_record_finder), boost::ref(retention_record_is_expired),
@@ -503,9 +514,23 @@ int main(int argc, char *argv[]) try
 					item.counter = app::monitor::get_counter(true);
 
 					monitor_data->add_item(item);
+
+					// capture trend every time monitoring data is updated, which is roughly every minute
+					app::monitor::capture_trend(monitor_data, trend_duration);
 					
 					LogMessage("[statistics] "<<item);
-					
+					LogMessage("[statistics] trend: "<<app::monitor::get_trend());
+					boost::optional<std::time_t> neglect_pcaps_until = should_neglect_pcaps();
+					if (neglect_pcaps_until != boost::none) {
+						LogMessage("Neglecting PCAPs - YES; for "
+								   << rml::utils::prettify_duration<rml::utils::duration_format_ms>(
+										  common::utils::to_system_clock(*neglect_pcaps_until) -
+										  boost::chrono::system_clock::now())
+								   << " from now");
+					} else {
+						LogMessage("Neglecting PCAPs - NO");
+					}
+
 					monitor_pending = false;
 				}
 				else {

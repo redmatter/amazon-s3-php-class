@@ -163,8 +163,10 @@ istream& operator>>(istream& istr, archiving::file_type::file_type_t& t)
 	string tmp; istr >> tmp;
 	try {
 		t = archiving::file_type::from_string(tmp); // we may throw here
-	}
-	catch(...) {
+	} catch(const std::exception& e) {
+		istr.setstate(ios_base::failbit);
+		LogWarning("Invalid file_type; exception:" << e.what());
+	} catch(...) {
 		istr.setstate(ios_base::failbit);
 		LogWarning("Invalid file_type");
 	}

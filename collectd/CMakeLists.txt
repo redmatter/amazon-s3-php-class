@@ -12,8 +12,10 @@ set(HEADER_FILES
         archivable/utils.hpp
         archivable/error.hpp
         net/archived_client.hpp
+        net/detail/retry.hpp
         put_group_cache.hpp
-        put_group.hpp)
+        put_group.hpp
+        )
 
 include_directories(
         /usr/include/cpp-netlib

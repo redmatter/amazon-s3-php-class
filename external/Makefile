@@ -35,12 +35,13 @@ sqlite/sqlite-autoconf-$(SQLITE_VERSION):
 
 cpp-netlib: prefix=$(shell pwd)/$@
 cpp-netlib: cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION)
-	pushd cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION) && \
+	cd cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION) && \
 	mkdir build && cd build && \
 	cmake \
 		-DCPP-NETLIB_BUILD_EXAMPLES=$(CPP_NETLIB_BUILD_EXAMPLES) \
 		-DCPP-NETLIB_BUILD_TESTS=$(CPP_NETLIB_BUILD_TESTS) \
 		-DCMAKE_INSTALL_PREFIX:PATH=$(prefix) \
+		-D_GLIBCXX_USE_CXX11_ABI=0 \
 		.. && \
 	make -j2 install
 	# delete the source
@@ -51,7 +52,7 @@ cpp-netlib/cpp-netlib-$(CPP_NETLIB_VERSION):
 
 cryptopp: prefix=$(shell pwd)/$@
 cryptopp: cryptopp/cryptopp-$(CRYPTOPP_VERSION)
-	pushd cryptopp/cryptopp-$(CRYPTOPP_VERSION) && \
+	cd cryptopp/cryptopp-$(CRYPTOPP_VERSION) && \
 	rm -f GNUmakefile && \
 	TMPDIR=/tmp patch -p1 < ../../cryptopp-5.6.1-autotools.patch && \
 	CXX=$(CXX) CC=$(CC) CXXFLAGS=-maes autoreconf --verbose --force --install && \

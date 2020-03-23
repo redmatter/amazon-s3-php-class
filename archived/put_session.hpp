@@ -18,10 +18,12 @@
 #include "call_buffering_recording.hpp"
 #include "whisper_client.hpp"
 #include "monitor.hpp"
+#include "net/response.hpp"
 
 #include "../common/defines.h"
 #include "../common/archivable.hpp"
 #include "../common/policy.hpp"
+#include "../common/stream_debug.hpp"
 
 #include <rml/logger.h>
 #include <rml/utils.h>
@@ -34,17 +36,37 @@
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
 
+namespace {
+
+struct bad_protocol : public std::runtime_error
+{
+	explicit bad_protocol(const std::string& message) : std::runtime_error(message) {}
+};
+
+struct bad_request : public std::runtime_error
+{
+	explicit bad_request(const std::string& message) : std::runtime_error(message) {}
+};
+
+struct internal_error : public std::runtime_error
+{
+	explicit internal_error(const std::string& message) : std::runtime_error(message) {}
+};
+
+struct server_busy : public std::runtime_error
+{
+	std::time_t until;
+	server_busy(std::time_t until, const std::string& message) : std::runtime_error(message), until(until) {}
+};
+} // namespace
+
 namespace app {
+
+namespace put = archiving::archived::net::put;
+namespace recv = archiving::archived::net::recv;
 
 class put_session : public boost::enable_shared_from_this<put_session>
 {
-	struct protocol_exception : public rml::exception
-	{
-		protocol_exception(const std::string& message) : rml::exception(message)
-		{
-		}
-	};
-
 	struct states
 	{
 		enum state_t
@@ -66,12 +88,14 @@ class put_session : public boost::enable_shared_from_this<put_session>
 //			put_received_processing,
 			put_received_ack_ok,
 			put_received_ack_err,
+			put_received_ack_err_close,
 			put_receiving_file,
 			put_receiving_file_ok,
 			put_receiving_file_err,
 //			put_check_received_file,
 			put_check_received_file_ack_ok,
 			put_check_received_file_ack_err,
+			put_check_received_file_ack_err_close,
 
 			general_err,
 
@@ -101,12 +125,14 @@ class put_session : public boost::enable_shared_from_this<put_session>
 		//			"put_received_processing",
 					"put_received_ack_ok",
 					"put_received_ack_err",
+					"put_received_ack_err_close",
 					"put_receiving_file",
 					"put_receiving_file_ok",
 					"put_receiving_file_err",
 		//			"put_check_received_file",
 					"put_check_received_file_ack_ok",
 					"put_check_received_file_ack_err",
+					"put_check_received_file_ack_err_close",
 
 					"general_err",
 
@@ -130,6 +156,7 @@ class put_session : public boost::enable_shared_from_this<put_session>
 
 	policy::cached_finder_t& cached_policy_finder_;
 	storage::cached_endpoint_finder_t& cached_endpoint_finder_;
+	const boost::function<boost::optional<std::time_t>()>& neglect_pcaps_;
 
 	database::internal& internal_db_;
 	database::cdrmunch& cdrmunch_db_;
@@ -155,11 +182,50 @@ class put_session : public boost::enable_shared_from_this<put_session>
 	std::string creation_date_yyyymmdd_;
 	archiving::file_type::file_type_t file_type_;
 	std::size_t content_length_, xfrd_content_length_;
-	bool xfrd_ok_;
 
 	operation_data::channel_t& channel_;
 	whisper::channel_t& whisper_channel_;
 	call_buffering_recording::channel_t& cbr_channel_;
+
+	template<typename T>
+	inline boost::optional<T> optional_metadata(const std::string& key) const try
+	{
+		if (!metadata_) {
+			return boost::none;
+		}
+
+		types::metadata::const_iterator itr = metadata_->find(key);
+		if (itr == metadata_->end()) {
+			return boost::none;
+		}
+
+		return boost::lexical_cast<T>(itr->second);
+	} catch (const boost::bad_lexical_cast& e) {
+		LogDWarning(e.what(), "IGNO");
+		throw bad_request(key + " has no/invalid value");
+	}
+
+	template<typename T>
+	inline T get_metadata(const std::string& key, const T& default_value) const
+	{
+		const boost::optional<T>& value = optional_metadata<T>(key);
+		if (value != boost::none) {
+			return *value;
+		}
+
+		return default_value;
+	}
+
+	template<typename T>
+	inline T get_metadata(const std::string& key) const
+	{
+		const boost::optional<T>& value = optional_metadata<T>(key);
+		if (value != boost::none) {
+			return *value;
+		}
+
+		throw bad_request(key + " not found in metadata");
+	}
 
 public:
 	typedef boost::shared_ptr<put_session> pointer;
@@ -171,6 +237,7 @@ public:
 			call_buffering_recording::channel_t& cbr_channel,
 			policy::cached_finder_t& cached_policy_finder,
 			storage::cached_endpoint_finder_t& cached_endpoint_finder,
+			const boost::function<boost::optional<std::time_t>()>& neglect_pcaps,
 			database::internal& internal_db,
 			database::cdrmunch& cdrmunch_db,
 			clear_cache& clear_cache,
@@ -180,6 +247,7 @@ public:
 				strand_(io_service_),
 				cached_policy_finder_(cached_policy_finder),
 				cached_endpoint_finder_(cached_endpoint_finder),
+				neglect_pcaps_(neglect_pcaps),
 				internal_db_(internal_db),
 				cdrmunch_db_(cdrmunch_db),
 				clear_cache_(clear_cache),
@@ -245,7 +313,7 @@ public:
 		}
 
 		current_state_ = states::handshake_sent;
-		std::ostream ostr(&send_buffer_);
+		make_ostream(ostr, &send_buffer_);
 		ostr << "ArchiveD v"<<version_number_only_string<<" protocol "<<archiving::put_protocol_version_str<<"\r\n";
 		boost::asio::async_write(socket_, send_buffer_,
 				strand_.wrap(boost::bind(
@@ -254,6 +322,249 @@ public:
 	}
 
 private:
+	template<typename Handler>
+	inline void async_send_buffer(const Handler& handler)
+	{
+		boost::asio::async_write(socket_, send_buffer_, strand_.wrap(handler));
+	}
+
+	inline void async_send_buffer()
+	{
+		async_send_buffer(boost::bind(&put_session::run_statemachine, shared_from_this(), boost::asio::placeholders::error));
+	}
+
+	template<typename T, typename Handler>
+	inline void async_send(const T& t, const Handler& handler)
+	{
+		make_ostream(ostr, &send_buffer_);
+		ostr << t << "\r\n";
+		async_send_buffer(handler);
+	}
+
+	template<typename T>
+	inline void async_send(const T& t)
+	{
+		make_ostream(ostr, &send_buffer_);
+		ostr << t << "\r\n";
+		async_send_buffer();
+	}
+
+	template<typename Handler>
+	inline void async_do(const Handler& f)
+	{
+		io_service_.post(strand_.wrap(f));
+	}
+
+	inline void async_close()
+	{
+		async_do(boost::bind(&put_session::do_close, shared_from_this()));
+	}
+
+	inline void async_continue_statemachine()
+	{
+		async_do(boost::bind(&put_session::run_statemachine, shared_from_this(), boost::system::error_code()));
+	}
+
+	void async_receive_file_chunks()
+	{
+		recv_buffer_.prepare(8192);
+		boost::asio::async_read(socket_,
+								recv_buffer_,
+								boost::asio::transfer_at_least(1),
+								strand_.wrap(boost::bind(&put_session::put_receive_file,
+														 shared_from_this(),
+														 boost::asio::placeholders::error,
+														 boost::asio::placeholders::bytes_transferred)));
+	}
+
+	void handle_put(archiving::file_type::file_type_t file_type,
+					archiving::org_id_t org_id,
+					const std::string& uuid,
+					long content_length) try
+	{
+		LogMessage(remote_ep_<<" PUT received [ file_type:"<<file_type<<" Org:"<< org_id <<" uuid:"<<uuid<<" content-length:"<<content_length<<" ]");
+		if (content_length <= 0) {
+			LogError(remote_ep_<<" Invalid content length:"<<content_length);
+			discard_current_put_request();
+			throw bad_request("invalid content length");
+		}
+
+		if (org_id <= 0) {
+			LogError(remote_ep_<<" Invalid Org ID:"<< org_id);
+			discard_current_put_request();
+			throw bad_request("invalid Org ID");
+		}
+
+		if (file_type == archiving::file_type::pcap) {
+			boost::optional<std::time_t> busy_until = neglect_pcaps_();
+			if (busy_until != boost::none) {
+				discard_current_put_request();
+				throw server_busy(*busy_until, "neglecting PCAP");
+			}
+		}
+
+		make_istream(istr, &recv_buffer_);
+		istr.unsetf(std::ios_base::skipws);
+
+		// Get resource ID
+		{
+			std::ostringstream os;
+			os << file_type<<'/'<< org_id <<'/'<<uuid;
+			resource_id_ = os.str();
+		}
+
+		// read metadata from stream
+		metadata_ = boost::make_shared<types::metadata>(boost::ref(istr));
+
+		// make sure we have CreateTime in headers
+		creation_time_ = get_metadata<std::time_t>("CreateTime");
+
+		creation_date_yyyymmdd_.clear();
+		{
+			char str[16];
+			struct tm * timeinfo = localtime(&creation_time_);
+			strftime(str, 16, "%Y%m%dT%H00", timeinfo);
+
+			creation_date_yyyymmdd_ = str;
+		}
+
+		// make sure we have MD5 in headers
+		{
+			std::istringstream md5_istr(get_metadata<std::string>("MD5"));
+			md5_istr >> md5_;
+		}
+
+		// make sure we have PolicyID in headers
+		{
+			policy_id_ = get_metadata<policy::id_type>("RetentionPolicyID");
+			if( policy_id_ != policy::pseudo_id::do_not_archive ) {
+				// make sure we can handle this PolicyID before CollectD start sending data
+				if(!cached_policy_finder_(std::make_pair(org_id, policy_id_))) {
+					cached_policy_finder_.forget(std::make_pair(org_id, policy_id_));
+					LogWarning(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " failed to lookup policy:" << org_id << '/' << policy_id_);
+					throw bad_request("policy not found");
+				}
+			}
+		}
+
+		// make sure we have DataFormat in headers
+		data_type_ = types::data_sub_format::from_string(get_metadata<std::string>("DataFormat"));
+
+		// open the file
+		ofs_ = rml::utils::tmp_fstream::create(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
+											   content_length, confMap_["archived.cache_dir"].as<std::string>());
+
+		uuid_ = uuid;
+		orgID_ = org_id;
+		file_type_ = file_type;
+		content_length_ = content_length;
+		xfrd_content_length_ = 0;
+
+		current_state_ = states::put_received_ack_ok;
+		async_send(put::continue_(file_type, org_id, uuid));
+	} catch (const bad_request& e) {
+		LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " bad_request:"<<e.what());
+		current_state_ = states::put_received_ack_err;
+		async_send(put::bad_request(file_type, org_id, uuid, e.what()));
+	} catch (const server_busy& e) {
+		LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " server_busy:"<<e.what());
+		current_state_ = states::put_received_ack_err;
+		async_send(put::server_busy(file_type, org_id, uuid, e.until));
+	}
+
+	inline void discard_current_put_request()
+	{
+		recv_buffer_.consume(boost::asio::read_until(socket_, recv_buffer_, "\r\n\r\n"));
+	}
+
+	inline void discard_current_put_data()
+	{
+		recv_buffer_.consume(boost::asio::read_until(socket_, recv_buffer_, "\x1a"));
+	}
+
+	void next_command(const boost::system::error_code& error) try
+	{
+		if (error) {
+			LogMessage(remote_ep_ << " state:" << states::to_string(current_state_)
+								<< " error while waiting for next-command err:" << error.message());
+			current_state_ = states::general_err;
+			async_close();
+			return;
+		}
+
+		make_istream(istr, &recv_buffer_);
+		istr.unsetf(std::ios_base::skipws);
+
+		std::string verb;
+		char cr, lf;
+
+		istr >> verb;
+
+		if (verb == "PUT") {
+			char sp1, sp2, sp3, sp4;
+			archiving::file_type::file_type_t file_type;
+			archiving::org_id_t org_id;
+			std::string uuid;
+			long content_length;
+
+			istr >> sp1 >> file_type >> sp2 >> org_id >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
+			if (!istr || !(( sp1 == ' ' ) && ( sp2 == ' ' ) && ( sp3 == ' ' ) && ( sp4 == ' ' ) && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
+				LogWarning(remote_ep_<<" Invalid PUT request");
+				throw bad_protocol("invalid PUT request");
+			}
+
+			// roughly looks like a valid PUT request
+			handle_put(file_type, org_id, uuid, content_length);
+			return;
+		}
+
+		if (verb == "NOP" || verb == "BYE") {
+			istr >> cr >> lf >> cr >> lf;
+			LogDebug(remote_ep_<<' '<<verb<<" received");
+
+			if (verb == "BYE") {
+				current_state_ = states::closing;
+			} else {
+				current_state_ = states::ready_for_put;
+			}
+
+			async_send("OK");
+
+			if (current_state_ == states::closing) {
+				LogMessage(remote_ep_ << ' ' << verb << " received; Closing");
+				async_close();
+			}
+
+			return;
+		}
+
+		LogWarning(remote_ep_ << " Invalid request received; verb found was '" << verb << '\'');
+		throw bad_protocol("invalid request");
+	} catch (const bad_protocol& e) {
+		current_state_ = states::put_received_ack_err_close;
+		async_send(put::bad_request(e.what()));
+	} catch(const std::exception& e) {
+		LogError(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " std::exception:"<<e.what());
+		current_state_ = states::put_received_ack_err_close;
+		async_send(put::internal_error(e.what()));
+	}
+
+	inline void reset()
+	{
+		ofs_.reset();
+		md5_.assign((byte)0);
+		resource_id_.clear();
+		uuid_.clear();
+		orgID_ = 0;
+		metadata_.reset();
+		data_type_ = types::data_sub_format::unknown;
+		file_type_ = archiving::file_type::unknown;
+		content_length_ = 0;
+		policy_id_ = 0;
+		creation_time_ = 0;
+		xfrd_content_length_ = 0;
+	}
+
 	void run_statemachine(const boost::system::error_code& error)
 	{
 		if(error) {
@@ -275,29 +586,28 @@ private:
 
 		case states::handshake_recv:
 		{
-			std::string OK_or_ERR, CollectD, version_number, protocol, protocol_version_number, message;
+			std::string OK_or_ERR, CollectD, version, protocol, protocol_version_number, message;
 			char sp1, sp2, sp3, sp4, v, cr, lf;
 
 			SetupRecvStream(remote_ep_, "CollectD", istr, recv_buffer_);
 
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 
 			istr >> OK_or_ERR;
 			if(OK_or_ERR == "OK") {
-				istr >> sp1 >> CollectD >> sp2 >> v >> version_number >> sp3 >> protocol >> sp4 >> protocol_version_number >> cr >> lf;
-				if(!((CollectD == "CollectD") && (v == 'v') && (protocol == "protocol"))) {
+				istr >> sp1 >> CollectD >> sp2 >> v >> version >> sp3 >> protocol >> sp4 >> protocol_version_number >> cr >> lf;
+				if (!((CollectD == "CollectD") && (v == 'v') && (protocol == "protocol"))) {
 					LogError(remote_ep_<<" Invalid response from client; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR invalid response\r\n";
-				}
-				else if(protocol_version_number != archiving::put_protocol_version_str) {
+				} else if (protocol_version_number != archiving::put_protocol_version_str) {
 					LogError(remote_ep_<<" Client protocol version mismatch; aborting");
 					current_state_ = states::handshake_err;
 					ostr << "ERR protocol mismatch\r\n";
-				}
-				else {
-					if(version_number != version_number_only_string)
-						LogWarning(remote_ep_<<" Warning: Client differs in version from server");
+				} else {
+					if (version != version_number_only_string) {
+						LogWarning(remote_ep_ << " client differs in version [cv:" << version << " sv:" << version_number_only_string << "]");
+					}
 
 					current_state_ = states::ready_for_put;
 					ostr << "OK\r\n";
@@ -336,8 +646,8 @@ private:
 		case states::general_err:
 		case states::handshake_err:
 		case states::handshake_recv_err:
-		case states::put_received_ack_err:
-		case states::put_check_received_file_ack_err:
+		case states::put_received_ack_err_close:
+		case states::put_check_received_file_ack_err_close:
 		{
 			current_state_ = states::closing;
 			io_service_.post(
@@ -345,187 +655,26 @@ private:
 			break;
 		}
 
+		case states::put_received_ack_err:
 		case states::ready_for_put:
 		case states::put_check_received_file_ack_ok:
+		case states::put_check_received_file_ack_err:
 		{
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			current_state_ = states::put_received;
 			boost::asio::async_read_until(socket_, recv_buffer_, "\r\n\r\n",
-					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
+					strand_.wrap(boost::bind(&put_session::next_command, shared_from_this(),
 							boost::asio::placeholders::error)));
 			break;
 		}
 
 		case states::put_received:
 		{
-			std::string verb;
-			archiving::file_type::file_type_t file_type;
-			archiving::org_id_t orgID;
-			std::size_t content_length;
-			std::string uuid;
-			char sp1, sp2, sp3, sp4, cr, lf;
-
-			std::ostream ostr(&send_buffer_);
-
-			std::istream istr(&recv_buffer_);
-			istr.unsetf(std::ios_base::skipws);
-
-			istr >> verb;
-			if(!(verb == "NOP" || verb == "PUT" || verb == "BYE")) {
-				std::string str;
-				std::getline(istr, str, '\r'); istr >> lf;
-
-				LogError(remote_ep_<<" Invalid request received '"<<verb<<str<<'\'');
-				current_state_ = states::put_received_ack_err;
-				ostr << "ERR invalid request\r\n";
-			}
-			else {
-				if(verb == "NOP" || verb == "BYE") {
-					istr >> cr >> lf >> cr >> lf;
-//					LogDebug(remote_ep_<<' '<<verb<<" received");
-					ostr << "OK\r\n";
-					if(verb == "BYE") {
-						LogMessage(remote_ep_<<' '<<verb<<" received; Closing");
-						current_state_ = states::closing;
-						io_service_.post(
-								strand_.wrap(boost::bind(&put_session::do_close, shared_from_this())));
-					}
-					else
-						current_state_ = states::ready_for_put;
-				}
-				else {
-					// PUT ....
-					istr >> sp1 >> file_type >> sp2 >> orgID >> sp3 >> uuid >> sp4 >> content_length >> cr >> lf;
-					if(!istr || !(( sp1 == ' ' ) && ( sp2 == ' ' ) && ( sp3 == ' ' ) && ( sp4 == ' ' ) && (36 == uuid.size()) && (cr == '\r') && (lf == '\n'))) {
-						LogError(remote_ep_<<" Invalid PUT request");
-						current_state_ = states::put_received_ack_err;
-						ostr << "ERR PUT invalid PUT request\r\n";
-					}
-					else {
-						LogMessage(remote_ep_<<" PUT received [ file_type:"<<file_type<<" Org:"<<orgID<<" uuid:"<<uuid<<" content-length:"<<content_length<<" ]");
-						if(content_length <= 0) {
-							LogError(remote_ep_<<" Invalid content length:"<<content_length);
-							current_state_ = states::put_received_ack_err;
-							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid content length\r\n";
-						}
-						else if(orgID <= 0) {
-							LogError(remote_ep_<<" Invalid Org ID:"<<orgID);
-							current_state_ = states::put_received_ack_err;
-							ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" invalid Org ID\r\n";
-						}
-						else {
-							try {
-
-								// Get resource ID
-								{
-									std::ostringstream os;
-									os << file_type<<'/'<<orgID<<'/'<<uuid;
-									resource_id_ = os.str();
-								}
-
-								// read metadata from stream
-								metadata_.reset(new types::metadata(istr));
-
-								// make sure we have CreateTime in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("CreateTime");
-									if(itr == metadata_->end())
-										throw rml::exception("No CreateTime given");
-
-									creation_time_ = rml::utils::strtoull(itr->second.c_str());
-								}
-
-								creation_date_yyyymmdd_.clear();
-								{
-									char str[16];
-									struct tm * timeinfo = localtime(&creation_time_);
-									strftime(str, 16, "%Y%m%dT%H00", timeinfo);
-
-									creation_date_yyyymmdd_ = str;
-								}
-
-								// make sure we have MD5 in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("MD5");
-									if(itr == metadata_->end())
-										throw rml::exception("No MD5 given");
-
-									std::istringstream istr(itr->second);
-									istr >> md5_;
-								}
-
-								// make sure we have PolicyID in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("RetentionPolicyID");
-									if(itr == metadata_->end())
-										throw rml::exception("No RetentionPolicyID given");
-
-									policy_id_ = rml::utils::strtoll(itr->second.c_str());
-									if( policy_id_ != policy::pseudo_id::do_not_archive ) {
-										// make sure we can handle this PolicyID before CollectD start sending data
-										if(!cached_policy_finder_(std::make_pair(orgID, policy_id_))) {
-											cached_policy_finder_.forget(std::make_pair(orgID, policy_id_));
-											throw protocol_exception(
-													boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
-															% orgID % policy_id_));
-										}
-									}
-								}
-
-								// make sure we have DataFormat in headers
-								{
-									types::metadata::const_iterator itr = metadata_->find("DataFormat");
-									if(itr == metadata_->end())
-										throw rml::exception("No DataFormat given");
-
-									data_type_ = types::data_sub_format::from_string(itr->second);
-								}
-
-								// open the file
-								ofs_ = rml::utils::tmp_fstream::create(creation_date_yyyymmdd_+"/"+resource_id_+".put.",
-										content_length, confMap_["archived.cache_dir"].as<std::string>());
-
-								uuid_ = uuid;
-								orgID_ = orgID;
-								file_type_ = file_type;
-								content_length_ = content_length;
-								xfrd_content_length_ = 0;
-								xfrd_ok_ = false;
-								current_state_ = states::put_received_ack_ok;
-								ostr << "OK PUT "<<file_type<<' '<<orgID<<' '<<uuid<<"\r\n";
-							}
-							catch(const rml::exception& e) {
-								LogError(remote_ep_<<" "<<resource_id_<<": states::put_received: rml::exception: "<<e.what());
-								current_state_ = states::put_received_ack_err;
-								ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
-							}
-							catch(const std::exception& e) {
-								LogError(remote_ep_<<" "<<resource_id_<<": states::put_received: std::exception: "<<e.what());
-								current_state_ = states::put_received_ack_err;
-								ostr << "ERR PUT "<<file_type<<' '<<orgID<<' '<<uuid<<" "<<e.what()<<"\r\n";
-							}
-						}
-					}
-				}
-			}
-
-			boost::asio::async_write(socket_, send_buffer_,
-					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
-							boost::asio::placeholders::error)));
-			break;
+			LogError(remote_ep_<<" : state 'put_received' unexpected (refactored to next_command + handle_put)");
+			current_state_ = states::closing;
+			async_close();
+			return;
 		}
 
 		case states::put_received_ack_ok:
@@ -533,14 +682,7 @@ private:
 			assert(recv_buffer_.size() == 0);
 
 			current_state_ = states::put_receiving_file;
-
-			recv_buffer_.prepare(8192);
-			boost::asio::async_read(socket_, recv_buffer_,
-					boost::asio::transfer_at_least(1),
-					strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
-							boost::asio::placeholders::error,
-							boost::asio::placeholders::bytes_transferred)));
-
+			async_receive_file_chunks();
 			break;
 		}
 
@@ -549,24 +691,12 @@ private:
 			/* no break */
 		case states::put_receiving_file_err:
 		{
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 			LogError(remote_ep_<<" "<<resource_id_<<": PUT failed; general failure during transfer");
-			ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-			current_state_ = states::put_check_received_file_ack_err;
+			ostr << recv::internal_error(file_type_, orgID_, uuid_, "general failure during transfer") << "\r\n";
+			current_state_ = states::put_check_received_file_ack_err_close;
 
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			boost::asio::async_write(socket_, send_buffer_,
 					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
@@ -576,19 +706,13 @@ private:
 
 		case states::put_receiving_file_ok:
 		{
-			std::ostream ostr(&send_buffer_);
+			make_ostream(ostr, &send_buffer_);
 			try {
-				if(!xfrd_ok_) {
-					LogError(remote_ep_<<" "<<resource_id_<<": general failure during transfer");
-					throw protocol_exception("general failure during transfer");
-				}
-
 				ofs_->re_open();
 
 				const archiving::hash_vector& md5 = archiving::md5hasher::hash(*ofs_);
 				if(md5 != md5_) {
-					LogError(remote_ep_<<" "<<resource_id_<<": PUT failed with MD5 mismatch");
-					throw protocol_exception("md5 mismatch");
+					throw bad_request("MD5 did not match");
 				}
 
 				app::policy::pointer p_policy;
@@ -597,9 +721,7 @@ private:
 					p_policy = cached_policy_finder_(std::make_pair(orgID_, policy_id_));
 					if(!p_policy) {
 						cached_policy_finder_.forget(std::make_pair(orgID_, policy_id_));
-						throw protocol_exception(
-								boost::str(boost::format("Failed to lookup policy ( OrgID/PolicyID: %1%/%2% )")
-										% orgID_ % policy_id_));
+						throw bad_request(boost::str(boost::format("policy not found policy: %1%") % policy_id_));
 					}
 				}
 
@@ -632,11 +754,11 @@ private:
 				// save the state of operation data only if we need to process it further ( not if policy == do_not_archive )
 				if( policy_id_ != policy::pseudo_id::do_not_archive ) {
 					if (!internal_db_.save(opdata)) {
-						throw protocol_exception("failed to save to database");
+						throw internal_error("failed to save to database");
 					}
 				}
 
-				ostr << "OK RECV "<<file_type_<<' '<<orgID_<<' '<<uuid_<<"\r\n";
+				ostr << recv::accepted(file_type_, orgID_, uuid_) << "\r\n";
 
 				// Looks like we have the file intact; lets make it temporarily not temporary
 				ofs_->set_persistent();
@@ -702,7 +824,7 @@ private:
 
 						if(!p_policy) {
 							// nudge the monitor's cached_only counter
-							monitor::increment_counter(monitor::counter_accessor::cached_only);
+							monitor::increment_cached_only();
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; cached for CDRMunch");
 						}
 					}
@@ -732,50 +854,34 @@ private:
 											luuid, creation_time_, ofs_)));
 
 							// nudge the monitor's call_buffering counter
-							monitor::increment_counter(monitor::counter_accessor::call_buffering);
+							monitor::increment_call_buffering();
 							LogMessage(remote_ep_<<" "<<opdata->p_detail->identifier<<" - NOT archived; (call-buffering)");
 						}
 					}
 				}
 
 				// nudge the monitor's PUT counter (for all)
-				monitor::increment_counter(monitor::counter_accessor::put);
+				monitor::increment_put();
 
-				if(p_policy) // if PolicyID < 0; it only needs to be local cached
+
+				// If PolicyID < 0 we wouldn't have got a policy.
+				// It means that this item is meant only for the local cache
+				if (p_policy) {
 					pc_produce(channel_, opdata);
-			}
-			catch(const protocol_exception& e) {
-				LogMessage("Protocol Exception: "<<e.what());
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<' '<<e.what()<<"\r\n";
+				}
+			} catch (const bad_request& e) {
+				LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " bad_request:"<<e.what());
+				ostr << recv::bad_request(file_type_, orgID_, uuid_, e.what()) << "\r\n";
 				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
-			}
-			catch(const std::exception& e) {
-				LogWarning("Exception: "<<e.what());
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
-			}
-			catch(...) {
-				LogWarning("Unexpected exception");
-				ostr << "ERR RECV "<<file_type_ << ' ' << orgID_ << ' ' << uuid_<<" general failure during transfer\r\n";
-				current_state_ = states::put_check_received_file_ack_err;
-				xfrd_ok_ = false;
+			} catch(const std::exception& e) {
+				LogMessage(remote_ep_<<" "<<resource_id_<<": state:" << states::to_string(current_state_) << " exception:"<<e.what());
+				ostr << recv::internal_error(file_type_, orgID_, uuid_, e.what()) << "\r\n";
+				current_state_ = states::put_check_received_file_ack_err_close;
+			} catch (...) {
+
 			}
 
-			ofs_.reset();
-			md5_.assign((byte)0);
-			resource_id_.clear();
-			uuid_.clear();
-			orgID_ = 0;
-			metadata_.reset();
-			data_type_ = types::data_sub_format::unknown;
-			file_type_ = archiving::file_type::unknown;
-			content_length_ = 0;
-			policy_id_ = 0;
-			creation_time_ = 0;
-			xfrd_content_length_ = 0;
-			xfrd_ok_ = false;
+			reset();
 
 			boost::asio::async_write(socket_, send_buffer_,
 					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(),
@@ -786,7 +892,7 @@ private:
 		}
 	}
 
-	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred)
+	void put_receive_file(const boost::system::error_code& error, std::size_t bytes_transferred) try
 	{
 		/*
 		LogDebug(remote_ep_<<' '<<resource_id_<<" error: "<<error<<" ---------------------------------------");
@@ -794,76 +900,58 @@ private:
 		LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_: "<<content_length_);
 		 */
 
-		std::size_t chunk_remaining = bytes_transferred;
+		if (error) {
+			LogWarning(remote_ep_ << ' ' << resource_id_ << " Error while receiving PUT data: " << error.message());
+			current_state_ = states::general_err;
+			async_close();
+			return;
+		}
 
-		if(!error) {
-			while(chunk_remaining) {
-
-				std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
-				if(buf_length) {
-					std::vector<char> buf(buf_length);
-					buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
-					ofs_->rdbuf()->sputn(&buf[0], buf_length);
-					xfrd_content_length_ += buf_length;
-					chunk_remaining -= buf_length;
-
-//					LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
-				}
-				else {
-					if ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_)) {
-
-						char eof[4];
-						std::streamsize eof_len = recv_buffer_.sgetn(eof, 4);
-
-						//LogDebug(remote_ep_<<' '<<resource_id_<<" eof_len: "<<eof_len);
-						//LogDebug(remote_ep_<<' '<<resource_id_<<" eof: x -"<<eof[0]<<"- x ("<<int(eof[0])<<")");
-
-						if((1 == eof_len) && (eof[0] == '\x1a')) {
-							xfrd_ok_ = true;
-							chunk_remaining = 0;
-							LogMessage(remote_ep_<<' '<<resource_id_<<" PUT; File transfer completed ok");
-						}
-						else {
-							LogError(remote_ep_<<' '<<resource_id_<<" Unexpected data; eof expected, found '"<<RML_HEX(4, int(eof[0]))<<RML_HEX_RESET<<"'");
-							break;
-						}
-					}
-					else {
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" chunk_remaining:"<<chunk_remaining);
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" content_length_:"<<content_length_);
-//						LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_:"<<xfrd_content_length_);
-						LogError(remote_ep_<<' '<<resource_id_<<" Unexpected data; NOT ((chunk_remaining == 1) && (content_length_ == xfrd_content_length_))");
+		while (bytes_transferred) {
+			// if we have transferred the object fully, the next character should be EOF
+			if (content_length_ == xfrd_content_length_) {
+				char eof;
+				if (1 == recv_buffer_.sgetn(&eof, 1)) {
+					bytes_transferred--;
+					if (eof == '\x1a') {
+						current_state_ = states::put_receiving_file_ok;
+						LogMessage(remote_ep_<<' '<<resource_id_<<" PUT; File transfer completed ok");
 						break;
 					}
 				}
+
+				current_state_ = states::put_receiving_file_err;
+				LogWarning(remote_ep_<<' '<<resource_id_<<" Unexpected data; No EOF found.");
+				break;
 			}
 
-			if((xfrd_content_length_ == content_length_) && xfrd_ok_) {
-				current_state_ = states::put_receiving_file_ok;
-				io_service_.post(
-						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
-			}
-			else if(chunk_remaining != 0) {
-				LogError(remote_ep_<<" Invalid state; chunk_remaining != 0");
-				current_state_ = states::put_receiving_file_err;
-				io_service_.post(
-						strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
-			}
-			else {
-				recv_buffer_.prepare(8192);
-				boost::asio::async_read(socket_, recv_buffer_,
-						boost::asio::transfer_at_least(1),
-						strand_.wrap(boost::bind(&put_session::put_receive_file, shared_from_this(),
-								boost::asio::placeholders::error,
-								boost::asio::placeholders::bytes_transferred)));
-			}
+			std::size_t buf_length = std::min<std::size_t>(bytes_transferred, content_length_ - xfrd_content_length_);
+			std::vector<char> buf(buf_length);
+			buf_length = recv_buffer_.sgetn(&buf[0], buf_length);
+			ofs_->rdbuf()->sputn(&buf[0], buf_length);
+			xfrd_content_length_ += buf_length;
+			bytes_transferred -= buf_length;
+
+//			LogDebug(remote_ep_<<' '<<resource_id_<<" xfrd_content_length_: "<<xfrd_content_length_<<" / "<<content_length_);
 		}
-		else {
-			LogError(remote_ep_<<" Error while receiving PUT data: "<<error.message());
+
+		// if we haven't finished receiving data and have fully consumed the current chunk, continue receiving more...
+		if (bytes_transferred == 0 && current_state_ == states::put_receiving_file) {
+			async_receive_file_chunks();
+			return;
+		}
+
+		// if we have seen up to EOF, nothing more is expected to turn up from Collect*D until ACK / nACK
+		if (bytes_transferred > 0) {
+			LogWarning(remote_ep_ << ' ' << resource_id_ << " Invalid state; Bytes found beyond EOF");
 			current_state_ = states::put_receiving_file_err;
-			io_service_.post(
-					strand_.wrap(boost::bind(&put_session::run_statemachine, shared_from_this(), error)));
 		}
+
+		async_continue_statemachine();
+	} catch (const std::exception& e) {
+		LogWarning(remote_ep_ << ' ' << resource_id_ << " exception; " << e.what());
+		current_state_ = states::put_receiving_file_err;
+		async_continue_statemachine();
 	}
 
 	void do_close()

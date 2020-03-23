@@ -1,20 +1,6 @@
-set(CMAKE_CXX_STANDARD 98)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++98")
-
 project(estuary)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
-
-if (NOT EXISTS ../external/cpp-netlib)
-        execute_process(COMMAND make -C ../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
-                RESULT_VARIABLE res)
-        if (NOT res STREQUAL "0" OR NOT EXISTS ../external/cpp-netlib)
-                message(FATAL_ERROR "Failed to setup cpp-netlib")
-        endif()
-endif()
-
-list(APPEND CMAKE_PREFIX_PATH ../external/cpp-netlib)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams regex REQUIRED)
 find_package(MySQL REQUIRED)
@@ -80,12 +66,12 @@ target_link_libraries(rmestuary.bin
         pugixml
         mysqlclient
         mysqlpp
-        s3
+        ${LIBS3_LIBRARY}
 
         rt
         Threads::Threads
-        ${Boost_LIBRARIES}
         ${CPPNETLIB_LIBRARIES}
+        ${Boost_LIBRARIES}
         )
 
 add_subdirectory(tests)

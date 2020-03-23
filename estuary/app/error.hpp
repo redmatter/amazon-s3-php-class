@@ -93,7 +93,7 @@ namespace error
 
 struct http_category : public boost::system::error_category
 {
-    const char* name() const
+    const char* name()  const BOOST_SYSTEM_NOEXCEPT
     { return "http"; }
 
     std::string message(int ev) const
