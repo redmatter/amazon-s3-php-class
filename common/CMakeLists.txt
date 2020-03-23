@@ -3,16 +3,26 @@ project(archiving-common)
 include(SetupVersion)
 setup_version_c()
 
-if (NOT EXISTS ../external/cpp-netlib)
-    execute_process(COMMAND make -C ../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
+    execute_process(COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/../external cpp-netlib CPP_NETLIB_BUILD_TESTS=OFF CPP_NETLIB_BUILD_EXAMPLES=OFF
             RESULT_VARIABLE res)
-    if (NOT res STREQUAL "0" OR NOT EXISTS ../external/cpp-netlib)
+    if (NOT res STREQUAL "0" OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
         message(FATAL_ERROR "Failed to setup cpp-netlib")
     endif()
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH ../external/cpp-netlib)
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../external/cpp-netlib)
 find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
+
+set(LIBS3_LIBRARY ${CMAKE_CURRENT_SOURCE_DIR}/../external/libs3/lib/libs3.so.4.1)
+add_custom_target(build_libs3 ALL
+        COMMAND ${CMAKE_MAKE_PROGRAM} libs3
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../external/
+        COMMENT "libs3 makefile target")
+add_library(s3 SHARED IMPORTED)
+set_property(TARGET s3 APPEND PROPERTY IMPORTED_CONFIGURATIONS NOCONFIG)
+set_target_properties(s3 PROPERTIES IMPORTED_LOCATION_NOCONFIG "${LIBS3_LIBRARY}")
+add_dependencies(s3 build_libs3)
 
 set(HEADER_FILES
         archivable.hpp
@@ -44,7 +54,17 @@ set(HEADER_FILES
         net/ip_addr_utils.hpp
         net/archived/detail/ip_pool_map.hpp
         archivable/group.hpp
-        hostname.hpp)
+        hostname.hpp
+        archived/stats/averaged_item.hpp
+        archived/stats/item.hpp
+        archived/stats/trend.hpp
+        ../external/runstats/regression.hpp
+        ../external/runstats/stats.hpp
+        net/archived/response/code.hpp
+        net/archived/response/parsed.hpp
+        utils/time.hpp
+        utils/tee_stream.hpp
+        stream_debug.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp
@@ -73,3 +93,4 @@ include_directories(
 #find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 
 add_library(archiving-common STATIC ${SOURCE_FILES} ${HEADER_FILES})
+target_include_directories(archiving-common SYSTEM PUBLIC ../external/libs3/include)

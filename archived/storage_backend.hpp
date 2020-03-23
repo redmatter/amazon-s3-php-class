@@ -36,7 +36,6 @@
 
 #include <pthread.h>
 #include <stdint.h>
-//#include <strings.h>
 #include <string.h>
 
 namespace {

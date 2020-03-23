@@ -23,5 +23,11 @@ include_directories(
 gtest_add_tests_from_directory(
         DIRECTORY ${PROJECT_SOURCE_DIR}/archived
         NAME_PREFIX archived/
-        LIBRARIES cryptopp ${Boost_LIBRARIES} archiving-common
+        LIBRARIES
+            archiving-common
+            cryptopp
+
+            rt
+            Threads::Threads
+            ${Boost_LIBRARIES}
 )

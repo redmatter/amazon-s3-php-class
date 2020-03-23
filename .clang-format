@@ -5,6 +5,11 @@ IndentWidth: 4
 ColumnLimit: 120
 # AllowAllConstructorInitializersOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
+#UseTab: Always
+ConstructorInitializerIndentWidth: 4
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
 BraceWrapping:
   AfterNamespace: true
 # It really should be C++98 but clang-format doesn't support it. The closest we have is C++2003 which is good enough to

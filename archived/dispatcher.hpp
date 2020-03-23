@@ -61,8 +61,8 @@ public:
 			internal_db_.save(opdata); // save before we potentially hand off to another thread
 			pc_produce(retention_data_channel_, opdata);
 			
-			monitor::increment_counter(monitor::counter_accessor::stored);
-			monitor::increment_counter(monitor::counter_accessor::stored_size, opdata->p_detail->real_size);
+			monitor::increment_stored();
+			monitor::increment_stored_size(opdata->p_detail->real_size);
 		}
 		else {
 			opdata->p_detail->retry++;

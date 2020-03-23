@@ -40,30 +40,25 @@ set(HEADER_FILES
         macros.h
         file_format/headers.hpp
         file_format/policies.hpp
-        file_format/detail/parameter.hpp config/purge_restrictions.hpp
+        file_format/detail/parameter.hpp
+        config/purge_restrictions.hpp
         legal_hold/cache.hpp
-        legal_hold/status.hpp)
+        legal_hold/status.hpp
+        net/response.hpp
+        net/detail/make_response.hpp
+        net/detail/response.hpp
+        )
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)
 find_package(MySQL++ REQUIRED)
-
-# setup external/libs3 (WIP ... it is clunky)
-set(LIBS3_LIBRARY ${CMAKE_CURRENT_SOURCE_DIR}/../external/libs3/lib/libs3.so.4.1)
-add_custom_target(build_libs3 ALL
-                   COMMAND ${CMAKE_MAKE_PROGRAM} libs3
-                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../external/
-                   COMMENT "libs3 makefile target")
-add_library(s3 SHARED IMPORTED)
-set_property(TARGET s3 APPEND PROPERTY IMPORTED_CONFIGURATIONS NOCONFIG)
-set_target_properties(s3 PROPERTIES IMPORTED_LOCATION_NOCONFIG "${LIBS3_LIBRARY}")
-add_dependencies(s3 build_libs3)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 include_directories(
-        /usr/include/cpp-netlib
+        ${CPPNETLIB_INCLUDE_DIRS}
         ${rml-database-mysql_SOURCE_DIR}
         ${rml-utils_SOURCE_DIR}
         ${librml_INC_DIR}
@@ -89,7 +84,6 @@ add_definitions(
 
 add_executable(rmarchived.bin main.cpp ${HEADER_FILES})
 
-target_include_directories(rmarchived.bin SYSTEM PRIVATE ../external/libs3/include)
 target_link_libraries(rmarchived.bin
         archiving-common
         cryptopp

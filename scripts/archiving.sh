@@ -14,6 +14,6 @@ services=(
 
 for s in "${services[@]}"; do
 	if [ -x "/etc/init.d/$s" ]; then
-		service "$s" "$1"
+		/sbin/service "$s" "$1"
 	fi
 done
