@@ -21,6 +21,7 @@ all_enabled_data_variations=(
     without-recording
     with-call-analysis
     with-call-analysis-fudge
+    cdr-xml-error
 )
 
 whitenoise_wav=()
