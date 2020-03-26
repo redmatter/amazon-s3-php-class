@@ -1,0 +1,532 @@
+<?xml version="1.0"?>
+<cdr core-uuid="a3b5b704-e0b1-4c51-9f1d-c5659d5b9455">
+  <channel_data>
+    <state>CS_REPORTING</state>
+    <direction>inbound</direction>
+    <state_number>11</state_number>
+    <flags>0=1;1=1;3=1;36=1;37=1;39=1;42=1;47=1;52=1;60=1</flags>
+    <caps>1=1;2=1;3=1;4=1;5=1;6=1</caps></channel_data>
+  <variables>
+    <direction>inbound</direction>
+    <uuid>{{aLeg_uuid}}</uuid>
+    <session_id>18</session_id>
+    <sip_from_user>12000</sip_from_user>
+    <sip_from_uri>12000%40sip.dk.redmatter.com</sip_from_uri>
+    <sip_from_host>sip.dk.redmatter.com</sip_from_host>
+    <channel_name>sofia/internal1/12000%40sip.dk.redmatter.com</channel_name>
+    <sip_local_network_addr>172.30.98.23</sip_local_network_addr>
+    <sip_network_ip>172.30.98.23</sip_network_ip>
+    <sip_network_port>5060</sip_network_port>
+    <sip_received_ip>172.30.98.23</sip_received_ip>
+    <sip_received_port>5060</sip_received_port>
+    <sip_via_protocol>udp</sip_via_protocol>
+    <sip_authorized>true</sip_authorized>
+    <sip_number_alias>12000</sip_number_alias>
+    <sip_auth_username>12000</sip_auth_username>
+    <sip_auth_realm>sip.dk.redmatter.com</sip_auth_realm>
+    <number_alias>12000</number_alias>
+    <user_name>12000</user_name>
+    <rmExtension>12000</rmExtension>
+    <rmDomainName>sip.dk.redmatter.com</rmDomainName>
+    <rmOrgID>1</rmOrgID>
+    <rmUserID>0</rmUserID>
+    <rmDevID>1</rmDevID>
+    <rmLookupType>Device</rmLookupType>
+    <rmIsCust>true</rmIsCust>
+    <rmDeviceType>sip</rmDeviceType>
+    <rmMetaAppIn1>app%253Drecord%2526email%253Ddino%40redmatter.com%2526log%253Dtrue%2526beep%253Dboth%2526policy%253D1999</rmMetaAppIn1>
+    <rmMetaAppIn2>app%253Dnone</rmMetaAppIn2>
+    <rmMetaAppIn3>app%253Dnone</rmMetaAppIn3>
+    <rmMetaAppIn4>app%253Dnone</rmMetaAppIn4>
+    <rmMetaAppIn5>app%253Dnone</rmMetaAppIn5>
+    <rmMetaAppIn6>app%253Dnone</rmMetaAppIn6>
+    <rmMetaAppIn7>app%253Dnone</rmMetaAppIn7>
+    <rmMetaAppIn8>app%253Dnone</rmMetaAppIn8>
+    <rmMetaAppIn9>app%253Dnone</rmMetaAppIn9>
+    <timezone>Europe/London</timezone>
+    <rmHCDCode>44</rmHCDCode>
+    <rmPresCallID>true</rmPresCallID>
+    <rmHotDeskPolicy>multi</rmHotDeskPolicy>
+    <rmACLNumbers>1</rmACLNumbers>
+    <rmSIPTChannels>10</rmSIPTChannels>
+    <rmThresholdRCost>3000</rmThresholdRCost>
+    <rmThresholdWCost>1000</rmThresholdWCost>
+    <rmACLSuperChargeBand>uk-Premium,intl-Premium</rmACLSuperChargeBand>
+    <rmACLCallTransferExternal>cliOwner</rmACLCallTransferExternal>
+    <rmConcurrentInboundChannels>3</rmConcurrentInboundChannels>
+    <rmConcurrentOutboundChannels>3</rmConcurrentOutboundChannels>
+    <rmFeedbackCalls>0</rmFeedbackCalls>
+    <rmFeedbackDuration>0</rmFeedbackDuration>
+    <rmFeedbackWCost>0</rmFeedbackWCost>
+    <rmFeedbackRCost>0</rmFeedbackRCost>
+    <sip_from_user_stripped>12000</sip_from_user_stripped>
+    <sofia_profile_name>internal1</sofia_profile_name>
+    <recovery_profile_name>internal1</recovery_profile_name>
+    <sip_req_user>07956665283</sip_req_user>
+    <sip_req_uri>07956665283%40sip.dk.redmatter.com</sip_req_uri>
+    <sip_req_host>sip.dk.redmatter.com</sip_req_host>
+    <sip_to_user>07956665283</sip_to_user>
+    <sip_to_uri>07956665283%40sip.dk.redmatter.com</sip_to_uri>
+    <sip_to_host>sip.dk.redmatter.com</sip_to_host>
+    <sip_contact_user>12000</sip_contact_user>
+    <sip_contact_port>57938</sip_contact_port>
+    <sip_contact_uri>12000%40172.30.99.226%3A57938</sip_contact_uri>
+    <sip_contact_host>172.30.99.226</sip_contact_host>
+    <sip_via_host>172.30.98.23</sip_via_host>
+    <switch_r_sdp>v%3D0%0D%0Ao%3D-%2022596%2022596%20IN%20IP4%20127.0.1.1%0D%0As%3Dsession%0D%0Ac%3DIN%20IP4%20172.30.99.226%0D%0At%3D0%200%0D%0Am%3Daudio%2010000%20RTP/AVP%208%20101%0D%0Aa%3Drtpmap%3A8%20PCMA/8000%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-11%0D%0Aa%3Doldmediaip%3A127.0.1.1%0D%0A</switch_r_sdp>
+    <sip_audio_recv_pt>8</sip_audio_recv_pt>
+    <sip_use_codec_name>PCMA</sip_use_codec_name>
+    <sip_use_codec_rate>8000</sip_use_codec_rate>
+    <sip_use_codec_ptime>20</sip_use_codec_ptime>
+    <read_codec>PCMA</read_codec>
+    <read_rate>8000</read_rate>
+    <write_codec>PCMA</write_codec>
+    <write_rate>8000</write_rate>
+    <DP_MATCH>07956665283</DP_MATCH>
+    <DP_MATCH>07956665283</DP_MATCH>
+    <rmImpliedDest>07956665283</rmImpliedDest>
+    <rmEPFeatureVoiceMailMain>1571</rmEPFeatureVoiceMailMain>
+    <rmEPFeatureMobileVoiceMailMain>555</rmEPFeatureMobileVoiceMailMain>
+    <rmEPFeatureVoiceMailPrompted>1572</rmEPFeatureVoiceMailPrompted>
+    <rmEPFeatureLastNumberRedial>%5C*00</rmEPFeatureLastNumberRedial>
+    <rmEPFeatureCallReturn>1472</rmEPFeatureCallReturn>
+    <rmEPFeatureCallReturnWithAnnounce>1471</rmEPFeatureCallReturnWithAnnounce>
+    <rmEPFeatureManagePhrases>1620</rmEPFeatureManagePhrases>
+    <rmEPFeatureLoginLogoutSvce>1610</rmEPFeatureLoginLogoutSvce>
+    <rmEPFeatureEcho>1680</rmEPFeatureEcho>
+    <rmEPFeatureDelayEcho>1681</rmEPFeatureDelayEcho>
+    <rmEPFeatureEchoNoPrompt>1682</rmEPFeatureEchoNoPrompt>
+    <rmEPFeatureWhoAmI>1630</rmEPFeatureWhoAmI>
+    <rmEPFeatureHelp>1640</rmEPFeatureHelp>
+    <rmEPFeaturePickUpPrefix>%5C*6</rmEPFeaturePickUpPrefix>
+    <rmEPFeatureGroupLogInPrefix>%5C*7</rmEPFeatureGroupLogInPrefix>
+    <rmEPFeatureGroupLogOutPrefix>%5C*8</rmEPFeatureGroupLogOutPrefix>
+    <rmEPFeatureParkStart>9500</rmEPFeatureParkStart>
+    <rmEPFeatureParkEnd>9600</rmEPFeatureParkEnd>
+    <rmCallControlSuppressCLI>141</rmCallControlSuppressCLI>
+    <rmCallControlExternalRoute>9</rmCallControlExternalRoute>
+    <rmDialledNumberNormalised>%2B447956665283</rmDialledNumberNormalised>
+    <rmDPPreRoutingDone>true</rmDPPreRoutingDone>
+    <default_language>en</default_language>
+    <rmTTSVoice>amy</rmTTSVoice>
+    <rmLanguageLocale>uk</rmLanguageLocale>
+    <sound_prefix>/usr/share/freeswitch/sounds/en/uk/amy</sound_prefix>
+    <bridge_pre_execute_aleg_app>lua</bridge_pre_execute_aleg_app>
+    <bridge_pre_execute_aleg_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</bridge_pre_execute_aleg_data>
+    <_nolocal_execute_on_answer>lua%20applications/features/PreProcessBLeg.lua%20execute_on_answer</_nolocal_execute_on_answer>
+    <rmDumpCalls>None</rmDumpCalls>
+    <rmCallCategory>SOC</rmCallCategory>
+    <rmNumberNormalised>12000</rmNumberNormalised>
+    <limit_ignore_transfer>true</limit_ignore_transfer>
+    <rmLimitDevIDInCalls>true</rmLimitDevIDInCalls>
+    <limit_realm>devIDInCalls</limit_realm>
+    <limit_id>1</limit_id>
+    <limit_max>3</limit_max>
+    <limit_usage>1</limit_usage>
+    <limit_usage_devIDInCalls_1>1</limit_usage_devIDInCalls_1>
+    <rmLastDialledNumberSet>true</rmLastDialledNumberSet>
+    <rmMetaAppBound>true</rmMetaAppBound>
+    <rmEPFeatureDefaultsSet>true</rmEPFeatureDefaultsSet>
+    <rmDialledNumber>07956665283</rmDialledNumber>
+    <effective_callee_id_number>07956665283</effective_callee_id_number>
+    <effective_callee_id_name>07956665283</effective_callee_id_name>
+    <rmDialledNumberType>EXTERNAL</rmDialledNumberType>
+    <rmDialledNumberStripped>07956665283</rmDialledNumberStripped>
+    <transfer_history>1358761510%3A692ba5a2-b863-4308-aa1b-58a61365e82b%3Abl_xfer%3AOutboundHook/1/XML</transfer_history>
+    <transfer_history>1358761511%3Aa3061caa-604c-4400-b062-2d95a652800c%3Abl_xfer%3AfeatureBridgeExternalCall/features/XML</transfer_history>
+    <sip_redirect_context>redirect</sip_redirect_context>
+    <domain_name>sip.dk.redmatter.com</domain_name>
+    <rmLCRDialNumber>07956665283</rmLCRDialNumber>
+    <rmLCRCallType>default</rmLCRCallType>
+    <rmBridgeLRCRoute>false</rmBridgeLRCRoute>
+    <rmLCRUseDefaultGatewayOnFailure>true</rmLCRUseDefaultGatewayOnFailure>
+    <rmLCRPrivacyReqd>false</rmLCRPrivacyReqd>
+    <rmAdditionalLCRChannelVars>rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283</rmAdditionalLCRChannelVars>
+    <rmHangUpOnCallBar>true</rmHangUpOnCallBar>
+    <rmFallBackRoutesEnabled>true</rmFallBackRoutesEnabled>
+    <rmOriginatorUUID>{{aLeg_uuid}}</rmOriginatorUUID>
+    <rmOriginatorOrgId>1</rmOriginatorOrgId>
+    <rmOriginatorContext>1</rmOriginatorContext>
+    <rmOriginatorUserId>0</rmOriginatorUserId>
+    <rmOriginatorDevId>1</rmOriginatorDevId>
+    <import>lcr_carrier,lcr_rate,lcr_user_rate</import>
+    <rmLCRPolicyResult>routed</rmLCRPolicyResult>
+    <lcr_rate_field>rate</lcr_rate_field>
+    <lcr_user_rate_field>user_rate</lcr_user_rate_field>
+    <lcr_query_digits>447956665283</lcr_query_digits>
+    <lcr_query_profile>0</lcr_query_profile>
+    <lcr_query_expanded_digits>'447956665283',%20'44795666528',%20'4479566652',%20'447956665',%20'44795666',%20'4479566',%20'447956',%20'44795',%20'4479',%20'447',%20'44',%20'4'</lcr_query_expanded_digits>
+    <lcr_query_expanded_lrn_digits>'447956665283',%20'44795666528',%20'4479566652',%20'447956665',%20'44795666',%20'4479566',%20'447956',%20'44795',%20'4479',%20'447',%20'44',%20'4'</lcr_query_expanded_lrn_digits>
+    <lcr_route_count>0</lcr_route_count>
+    <lcr_carrier>magrathea</lcr_carrier>
+    <rmLCRRoute>%5B,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmLCRRoute>
+    <rmBridgeString>%5B,rmOriginatorUUID%3D{{aLeg_uuid}},'execute_on_ring%3Dexecute_extension%20executeOnRing%20XML%20dpSupport','execute_on_answer%3Dlua%20applications/features/PreProcessBLeg.lua%20execute_on_answer',rmOriginatorOrgId%3D1,rmNumberNormalised%3D447956665283,rmOrgID%3D1,rmUserID%3D0,rmDevID%3D0,rmTargetType%3Dpstn,retailChargeBand%3D'null',retailConnectCharge%3D0,retailRate%3D0,retailRateType%3Dnull,retailCountryCode%3Dnull,retailCountry%3D'null',retailPrimaryBandType%3D'null',retailSubBandType%3D'null',rmCallCategory%3DCTC,origination_caller_id_number%3D,origination_caller_id_name%3D%5Dsofia/gateway/magrathea/447956665283</rmBridgeString>
+    <max_forwards>67</max_forwards>
+    <transfer_source>1358761511%3Aa3061caa-604c-4400-b062-2d95a652800c%3Abl_xfer%3AfeatureBridgeExternalCall/features/XML</transfer_source>
+    <call_uuid>{{aLeg_uuid}}</call_uuid>
+    <user_context>1</user_context>
+    <hold_music>local_stream%3A//classical</hold_music>
+    <export_vars>default_language,rmTTSVoice,rmLanguageLocale,sound_prefix,_nolocal_execute_on_answer,rmDumpCalls,sip_redirect_context,rmOriginatorUserId,rmOriginatorDevId,domain_name,user_context,rmOriginatorUUID,rmOriginatorOrgId,rmOriginatorContext,rmOriginatorUserId,rmOriginatorDevId,user_context,hold_music</export_vars>
+    <originated_legs>{{bLeg_uuid}}%3BOutbound%20Call%3B447956665283</originated_legs>
+    <switch_m_sdp>v%3D0%0D%0Ao%3D-%201985744%200%20IN%20IP4%20213.166.5.168%0D%0As%3DCisco%20SDP%200%0D%0Ac%3DIN%20IP4%20213.166.5.168%0D%0At%3D0%200%0D%0Am%3Daudio%2020092%20RTP/AVP%208%20101%20100%0D%0Aa%3Drtpmap%3A101%20telephone-event/8000%0D%0Aa%3Dfmtp%3A101%200-15%0D%0Aa%3Drtpmap%3A100%20X-NSE/8000%0D%0Aa%3Dfmtp%3A100%20200-202%0D%0Aa%3DX-sqn%3A0%0D%0Aa%3DX-cap%3A%201%20audio%20RTP/AVP%20100%0D%0Aa%3DX-cpar%3A%20a%3Drtpmap%3A100%20X-NSE/8000%0D%0Aa%3DX-cpar%3A%20a%3Dfmtp%3A100%20200-202%0D%0Aa%3DX-cap%3A%202%20image%20udptl%20t38%0D%0A</switch_m_sdp>
+    <local_media_ip>172.30.98.23</local_media_ip>
+    <local_media_port>25760</local_media_port>
+    <advertised_media_ip>172.30.98.23</advertised_media_ip>
+    <sip_use_pt>8</sip_use_pt>
+    <rtp_use_ssrc>755743939</rtp_use_ssrc>
+    <sip_2833_send_payload>101</sip_2833_send_payload>
+    <sip_2833_recv_payload>101</sip_2833_recv_payload>
+    <remote_media_ip>172.30.99.226</remote_media_ip>
+    <remote_media_port>10000</remote_media_port>
+    <originate_disposition>SUCCESS</originate_disposition>
+    <DIALSTATUS>SUCCESS</DIALSTATUS>
+    <originate_causes>{{bLeg_uuid}}%3BNONE</originate_causes>
+    <last_bridge_to>{{bLeg_uuid}}</last_bridge_to>
+    <bridge_channel>sofia/external1/447956665283</bridge_channel>
+    <bridge_uuid>{{bLeg_uuid}}</bridge_uuid>
+    <signal_bond>{{bLeg_uuid}}</signal_bond>
+    <bridge_pre_execute_app>lua</bridge_pre_execute_app>
+    <bridge_pre_execute_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</bridge_pre_execute_data>
+    <sip_local_sdp_str>v%3D0%0Ao%3DRMServer%201358735755%201358735757%20IN%20IP4%20172.30.98.23%0As%3DRMServer%0Ac%3DIN%20IP4%20172.30.98.23%0At%3D0%200%0Am%3Daudio%2025760%20RTP/AVP%208%20101%0Aa%3Drtpmap%3A8%20PCMA/8000%0Aa%3Drtpmap%3A101%20telephone-event/8000%0Aa%3Dfmtp%3A101%200-16%0Aa%3DsilenceSupp%3Aoff%20-%20-%20-%20-%0Aa%3Dptime%3A20%0Aa%3Dsendrecv%0A</sip_local_sdp_str>
+    <sip_nat_detected>true</sip_nat_detected>
+    <endpoint_disposition>ANSWER</endpoint_disposition>
+    <rmAnswerState>answered</rmAnswerState>
+    <rmBridgeEpoch_52d29137_cbac_4a58_a43c_8c985b0f5a2c>1358761515</rmBridgeEpoch_52d29137_cbac_4a58_a43c_8c985b0f5a2c>
+    <sip_to_tag>477FN1SKgcp6m</sip_to_tag>
+    <sip_from_tag>150959400</sip_from_tag>
+    <sip_cseq>4</sip_cseq>
+    <sip_call_id>e67ded6d58aa4830a5549f78fcccfdf7%40127.0.1.1</sip_call_id>
+    <sip_invite_record_route>%3Csip%3A172.30.98.23%3Blr%3Bftag%3D150959400%3E</sip_invite_record_route>
+    <sip_full_via>SIP/2.0/UDP%20172.30.98.23%3Bbranch%3Dz9hG4bK9997.0daec5e4.2,SIP/2.0/UDP%20127.0.1.1%3A57938%3Breceived%3D172.30.99.226%3Brport%3D57938%3Bbranch%3Dz9hG4bKa81b8f3338544b01a265b922815c9bd7</sip_full_via>
+    <sip_from_display>12000</sip_from_display>
+    <sip_full_from>%2212000%22%20%3Csip%3A12000%40sip.dk.redmatter.com%3E%3Btag%3D150959400</sip_full_from>
+    <sip_full_to>%3Csip%3A07956665283%40sip.dk.redmatter.com%3E%3Btag%3D477FN1SKgcp6m</sip_full_to>
+    <current_application_data>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</current_application_data>
+    <current_application>lua</current_application>
+    <last_sent_callee_id_name>Outbound%20Call</last_sent_callee_id_name>
+    <last_sent_callee_id_number>447956665283</last_sent_callee_id_number>
+    <sip_term_status>200</sip_term_status>
+    <proto_specific_hangup_cause>sip%3A200</proto_specific_hangup_cause>
+    <sip_term_cause>16</sip_term_cause>
+    <sip_user_agent>webphoned</sip_user_agent>
+    <sip_hangup_disposition>recv_bye</sip_hangup_disposition>
+    <bridge_hangup_cause>NORMAL_CLEARING</bridge_hangup_cause>
+    <hangup_cause>NORMAL_CLEARING</hangup_cause>
+    <hangup_cause_q850>16</hangup_cause_q850>
+    <digits_dialed>none</digits_dialed>
+    <start_stamp>2013-01-21%2009%3A45%3A09</start_stamp>
+    <profile_start_stamp>2013-01-21%2009%3A45%3A11</profile_start_stamp>
+    <answer_stamp>2013-01-21%2009%3A45%3A15</answer_stamp>
+    <bridge_stamp>2013-01-21%2009%3A45%3A15</bridge_stamp>
+    <progress_media_stamp>2013-01-21%2009%3A45%3A15</progress_media_stamp>
+    <end_stamp>2013-01-21%2009%3A45%3A41</end_stamp>
+    <start_epoch>{{startEpoch}}</start_epoch>
+    <start_uepoch>1358761509960070</start_uepoch>
+    <profile_start_epoch>1358761511</profile_start_epoch>
+    <profile_start_uepoch>1358761511720134</profile_start_uepoch>
+    <answer_epoch>1358761515</answer_epoch>
+    <answer_uepoch>1358761515580303</answer_uepoch>
+    <bridge_epoch>1358761515</bridge_epoch>
+    <bridge_uepoch>1358761515000281</bridge_uepoch>
+    <last_hold_epoch>0</last_hold_epoch>
+    <last_hold_uepoch>0</last_hold_uepoch>
+    <hold_accum_seconds>0</hold_accum_seconds>
+    <hold_accum_usec>0</hold_accum_usec>
+    <hold_accum_ms>0</hold_accum_ms>
+    <resurrect_epoch>0</resurrect_epoch>
+    <resurrect_uepoch>0</resurrect_uepoch>
+    <progress_epoch>0</progress_epoch>
+    <progress_uepoch>0</progress_uepoch>
+    <progress_media_epoch>1358761515</progress_media_epoch>
+    <progress_media_uepoch>1358761515000281</progress_media_uepoch>
+    <end_epoch>1358761541</end_epoch>
+    <end_uepoch>1358761541101422</end_uepoch>
+    <last_app>lua</last_app>
+    <last_arg>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</last_arg>
+    <caller_id>%2212000%22%20%3C12000%3E</caller_id>
+    <duration>32</duration>
+    <billsec>26</billsec>
+    <progresssec>0</progresssec>
+    <answersec>6</answersec>
+    <waitsec>6</waitsec>
+    <progress_mediasec>6</progress_mediasec>
+    <flow_billsec>32</flow_billsec>
+    <mduration>31141</mduration>
+    <billmsec>25521</billmsec>
+    <progressmsec>0</progressmsec>
+    <answermsec>5620</answermsec>
+    <waitmsec>5040</waitmsec>
+    <progress_mediamsec>5040</progress_mediamsec>
+    <flow_billmsec>31141</flow_billmsec>
+    <uduration>31141352</uduration>
+    <billusec>25521119</billusec>
+    <progressusec>0</progressusec>
+    <answerusec>5620233</answerusec>
+    <waitusec>5040211</waitusec>
+    <progress_mediausec>5040211</progress_mediausec>
+    <flow_billusec>31141352</flow_billusec>
+    <rtp_audio_in_raw_bytes>0</rtp_audio_in_raw_bytes>
+    <rtp_audio_in_media_bytes>0</rtp_audio_in_media_bytes>
+    <rtp_audio_in_packet_count>0</rtp_audio_in_packet_count>
+    <rtp_audio_in_media_packet_count>0</rtp_audio_in_media_packet_count>
+    <rtp_audio_in_skip_packet_count>1304</rtp_audio_in_skip_packet_count>
+    <rtp_audio_in_jb_packet_count>0</rtp_audio_in_jb_packet_count>
+    <rtp_audio_in_dtmf_packet_count>0</rtp_audio_in_dtmf_packet_count>
+    <rtp_audio_in_cng_packet_count>0</rtp_audio_in_cng_packet_count>
+    <rtp_audio_in_flush_packet_count>0</rtp_audio_in_flush_packet_count>
+    <rtp_audio_in_largest_jb_size>0</rtp_audio_in_largest_jb_size>
+    <rtp_audio_out_raw_bytes>0</rtp_audio_out_raw_bytes>
+    <rtp_audio_out_media_bytes>0</rtp_audio_out_media_bytes>
+    <rtp_audio_out_packet_count>0</rtp_audio_out_packet_count>
+    <rtp_audio_out_media_packet_count>0</rtp_audio_out_media_packet_count>
+    <rtp_audio_out_skip_packet_count>0</rtp_audio_out_skip_packet_count>
+    <rtp_audio_out_dtmf_packet_count>0</rtp_audio_out_dtmf_packet_count>
+    <rtp_audio_out_cng_packet_count>0</rtp_audio_out_cng_packet_count>
+    <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
+    <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count></variables>
+  <app_log>
+    <b&d>alice &amp; bob</b&d>
+    <application app_name="execute_extension" app_data="07956665283 XML dpPreRouting" app_stamp="1358761510136395"></application>
+    <application app_name="set" app_data="rmImpliedDest=07956665283" app_stamp="1358761510167008"></application>
+    <application app_name="set" app_data="rmEPFeatureVoiceMailMain=1571" app_stamp="1358761510172488"></application>
+    <application app_name="set" app_data="rmEPFeatureMobileVoiceMailMain=555" app_stamp="1358761510172962"></application>
+    <application app_name="set" app_data="rmEPFeatureVoiceMailPrompted=1572" app_stamp="1358761510173641"></application>
+    <application app_name="set" app_data="rmEPFeatureLastNumberRedial=\*00" app_stamp="1358761510174161"></application>
+    <application app_name="set" app_data="rmEPFeatureCallReturn=1472" app_stamp="1358761510174648"></application>
+    <application app_name="set" app_data="rmEPFeatureCallReturnWithAnnounce=1471" app_stamp="1358761510175126"></application>
+    <application app_name="set" app_data="rmEPFeatureManagePhrases=1620" app_stamp="1358761510175623"></application>
+    <application app_name="set" app_data="rmEPFeatureLoginLogoutSvce=1610" app_stamp="1358761510176041"></application>
+    <application app_name="set" app_data="rmEPFeatureEcho=1680" app_stamp="1358761510177373"></application>
+    <application app_name="set" app_data="rmEPFeatureDelayEcho=1681" app_stamp="1358761510178105"></application>
+    <application app_name="set" app_data="rmEPFeatureEchoNoPrompt=1682" app_stamp="1358761510178619"></application>
+    <application app_name="set" app_data="rmEPFeatureWhoAmI=1630" app_stamp="1358761510179121"></application>
+    <application app_name="set" app_data="rmEPFeatureHelp=1640" app_stamp="1358761510179627"></application>
+    <application app_name="set" app_data="rmEPFeaturePickUpPrefix=\*6" app_stamp="1358761510180152"></application>
+    <application app_name="set" app_data="rmEPFeatureEavesDropPrefix=" app_stamp="1358761510180699"></application>
+    <application app_name="set" app_data="rmEPFeatureGroupLogInPrefix=\*7" app_stamp="1358761510181477"></application>
+    <application app_name="set" app_data="rmEPFeatureGroupLogOutPrefix=\*8" app_stamp="1358761510181985"></application>
+    <application app_name="set" app_data="rmEPFeatureParkStart=9500" app_stamp="1358761510182492"></application>
+    <application app_name="set" app_data="rmEPFeatureParkEnd=9600" app_stamp="1358761510183003"></application>
+    <application app_name="set" app_data="rmCallControlSuppressCLI=141" app_stamp="1358761510183509"></application>
+    <application app_name="set" app_data="rmCallControlExternalRoute=9" app_stamp="1358761510184019"></application>
+    <application app_name="set" app_data="rmDialledNumberNormalised=+447956665283" app_stamp="1358761510238117"></application>
+    <application app_name="set" app_data="rmDPPreRoutingDone=true" app_stamp="1358761510238904"></application>
+    <application app_name="execute_extension" app_data="setLanguage-en XML dpSupport" app_stamp="1358761510239351"></application>
+    <application app_name="export" app_data="default_language=en" app_stamp="1358761510241334"></application>
+    <application app_name="export" app_data="rmTTSVoice=amy" app_stamp="1358761510241937"></application>
+    <application app_name="export" app_data="rmLanguageLocale=uk" app_stamp="1358761510242391"></application>
+    <application app_name="export" app_data="sound_prefix=/usr/share/freeswitch/sounds/en/uk/amy" app_stamp="1358761510242898"></application>
+    <application app_name="set" app_data="bridge_pre_execute_aleg_app=lua" app_stamp="1358761510243555"></application>
+    <application app_name="set" app_data="bridge_pre_execute_aleg_data=applications/features/PreALegBridgeHook.lua bridge_pre_execute_aleg" app_stamp="1358761510243998"></application>
+    <application app_name="export" app_data="_nolocal_execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer" app_stamp="1358761510244426"></application>
+    <application app_name="set" app_data="rmUserExtension=" app_stamp="1358761510245179"></application>
+    <application app_name="export" app_data="rmDumpCalls=None" app_stamp="1358761510245580"></application>
+    <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=None,UUID={{aLeg_uuid}},SIP-Call-ID=e67ded6d58aa4830a5549f78fcccfdf7@127.0.1.1" app_stamp="1358761510246057"></application>
+    <application app_name="set" app_data="rmDialledNumberStripped=07956665283" app_stamp="1358761510246665"></application>
+    <application app_name="set" app_data="rmCallCategory=SOC" app_stamp="1358761510247132"></application>
+    <application app_name="set" app_data="rmNumberNormalised=12000" app_stamp="1358761510247657"></application>
+    <application app_name="set" app_data="limit_ignore_transfer=true" app_stamp="1358761510248425"></application>
+    <application app_name="set" app_data="rmLimitDevIDInCalls=true" app_stamp="1358761510248939"></application>
+    <application app_name="limit" app_data="db devIDInCalls 1 3 forceHangUp-CUSTOM_TOO_MANY_IN_CONC_CALLS-tone_text XML dpSupport" app_stamp="1358761510249451"></application>
+    <application app_name="set" app_data="rmLastDialledNumberSet=true" app_stamp="1358761510473836"></application>
+    <application app_name="lua" app_data="applications/features/BindMetaAppIn.lua" app_stamp="1358761510484484"></application>
+    <application app_name="bind_meta_app" app_data="0 a s javascript::applications/Diagnostic.js" app_stamp="1358761510548670"></application>
+    <application app_name="bind_meta_app" app_data="1 a s lua::applications/features/RecordOnDemand.lua start 1 0 'dino@redmatter.com' true 1999 both" app_stamp="1358761510552671"></application>
+    <application app_name="set" app_data="rmMetaAppBound=true" app_stamp="1358761510553997"></application>
+    <application app_name="set" app_data="rmEPFeatureDefaultsSet=true" app_stamp="1358761510554367"></application>
+    <application app_name="set" app_data="rmDialledNumber=07956665283" app_stamp="1358761510555000"></application>
+    <application app_name="set" app_data="effective_callee_id_number=07956665283" app_stamp="1358761510555387"></application>
+    <application app_name="set" app_data="effective_callee_id_name=07956665283" app_stamp="1358761510559442"></application>
+    <application app_name="set" app_data="rmDialledNumberType=EXTERNAL" app_stamp="1358761510559973"></application>
+    <application app_name="set" app_data="rmDialledNumberStripped=07956665283" app_stamp="1358761510560507"></application>
+    <application app_name="transfer" app_data="OutboundHook XML 1" app_stamp="1358761510568183"></application>
+    <application app_name="javascript" app_data="applications/DialPlanDestNotFound.js" app_stamp="1358761510648788"></application>
+    <application app_name="export" app_data="sip_redirect_context=redirect" app_stamp="1358761510758371"></application>
+    <application app_name="export" app_data="rmOriginatorUserId=0" app_stamp="1358761510758819"></application>
+    <application app_name="export" app_data="rmOriginatorDevId=1" app_stamp="1358761510759290"></application>
+    <application app_name="export" app_data="domain_name=sip.dk.redmatter.com" app_stamp="1358761510759708"></application>
+    <application app_name="execute_extension" app_data="lcr XML features" app_stamp="1358761510760514"></application>
+    <application app_name="export" app_data="user_context=1" app_stamp="1358761510776000"></application>
+    <application app_name="set" app_data="effective_caller_id_number=" app_stamp="1358761510776979"></application>
+    <application app_name="set" app_data="effective_caller_id_name=" app_stamp="1358761510777485"></application>
+    <application app_name="export" app_data="rmOriginatorUUID={{aLeg_uuid}}" app_stamp="1358761510778073"></application>
+    <application app_name="javascript" app_data="applications/lcr/lcr.js 07956665283" app_stamp="1358761510778649"></application>
+    <application app_name="export" app_data="rmOriginatorOrgId=1" app_stamp="1358761510793083"></application>
+    <application app_name="export" app_data="rmOriginatorContext=1" app_stamp="1358761510793683"></application>
+    <application app_name="export" app_data="rmOriginatorUserId=0" app_stamp="1358761510794277"></application>
+    <application app_name="export" app_data="rmOriginatorDevId=1" app_stamp="1358761510794824"></application>
+    <application app_name="lcr" app_data="447956665283 retail 00000000" app_stamp="1358761511620010"></application>
+    <application app_name="lcr" app_data="447956665283 redmatter 00000000" app_stamp="1358761511702309"></application>
+    <application app_name="transfer" app_data="featureBridgeExternalCall XML features" app_stamp="1358761511724741"></application>
+    <application app_name="export" app_data="user_context=1" app_stamp="1358761511728782"></application>
+    <application app_name="export" app_data="hold_music=local_stream://classical" app_stamp="1358761511729405"></application>
+    <application app_name="unset" app_data="rmReferHandled" app_stamp="1358761511729924"></application>
+    <application app_name="bridge" app_data="[,rmOriginatorUUID={{aLeg_uuid}},'execute_on_ring=execute_extension executeOnRing XML dpSupport','execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer',rmOriginatorOrgId=1,rmNumberNormalised=447956665283,rmOrgID=1,rmUserID=0,rmDevID=0,rmTargetType=pstn,retailChargeBand='null',retailConnectCharge=0,retailRate=0,retailRateType=null,retailCountryCode=null,retailCountry='null',retailPrimaryBandType='null',retailSubBandType='null',rmCallCategory=CTC,origination_caller_id_number=,origination_caller_id_name=]sofia/gateway/magrathea/447956665283" app_stamp="1358761511730484"></application>
+    <application app_name="lua" app_data="applications/features/PreALegBridgeHook.lua bridge_pre_execute_aleg" app_stamp="1358761515824699"></application></app_log>
+  <callflow dialplan="XML" unique-id="a3061caa-604c-4400-b062-2d95a652800c" clone-of="692ba5a2-b863-4308-aa1b-58a61365e82b" profile_index="3">
+    <extension name="force_context" number="featureBridgeExternalCall" current_app="set">
+      <application app_name="export" app_data="user_context=${user_context}"></application>
+      <application app_name="export" app_data="hold_music=${hold_music}"></application>
+      <application app_name="unset" app_data="rmReferHandled"></application>
+      <application app_name="bridge" app_data="${rmBridgeString}"></application>
+      <application last_executed="true" app_name="set" app_data="hangup_after_bridge=true"></application></extension>
+    <caller_profile>
+      <username>12000</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>12000</caller_id_name>
+      <caller_id_number>12000</caller_id_number>
+      <callee_id_name>Outbound Call</callee_id_name>
+      <callee_id_number>447956665283</callee_id_number>
+      <ani>12000</ani>
+      <aniii></aniii>
+      <network_addr>172.30.98.23</network_addr>
+      <rdnis>OutboundHook</rdnis>
+      <destination_number>featureBridgeExternalCall</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>1358761511:a3061caa-604c-4400-b062-2d95a652800c:bl_xfer:featureBridgeExternalCall/features/XML</transfer_source>
+      <context>features</context>
+      <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name>
+      <origination>
+        <origination_caller_profile>
+          <username>12000</username>
+          <dialplan>XML</dialplan>
+          <caller_id_name>12000</caller_id_name>
+          <caller_id_number>12000</caller_id_number>
+          <callee_id_name>Outbound Call</callee_id_name>
+          <callee_id_number>447956665283</callee_id_number>
+          <ani>12000</ani>
+          <aniii></aniii>
+          <network_addr>172.30.98.23</network_addr>
+          <rdnis>OutboundHook</rdnis>
+          <destination_number>447956665283</destination_number>
+          <uuid>{{bLeg_uuid}}</uuid>
+          <source>mod_sofia</source>
+          <context>features</context>
+          <chan_name>sofia/external1/447956665283</chan_name></origination_caller_profile></origination>
+      <originatee>
+        <originatee_caller_profile>
+          <username>12000</username>
+          <dialplan>XML</dialplan>
+          <caller_id_name>12000</caller_id_name>
+          <caller_id_number>12000</caller_id_number>
+          <callee_id_name>Outbound Call</callee_id_name>
+          <callee_id_number>447956665283</callee_id_number>
+          <ani>12000</ani>
+          <aniii></aniii>
+          <network_addr>213.166.5.149</network_addr>
+          <rdnis>OutboundHook</rdnis>
+          <destination_number>447956665283</destination_number>
+          <uuid>{{bLeg_uuid}}</uuid>
+          <source>mod_sofia</source>
+          <context>features</context>
+          <chan_name>sofia/external1/447956665283</chan_name></originatee_caller_profile></originatee></caller_profile>
+    <times>
+      <created_time>1358761509960070</created_time>
+      <profile_created_time>1358761511720134</profile_created_time>
+      <progress_time>0</progress_time>
+      <progress_media_time>1358761515000281</progress_media_time>
+      <answered_time>1358761515580303</answered_time>
+      <bridged_time>1358761515000281</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>1358761541101422</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>0</transfer_time></times></callflow>
+  <callflow dialplan="XML" unique-id="692ba5a2-b863-4308-aa1b-58a61365e82b" clone-of="40484369-436d-4c5f-91dd-72df60d5fbb8" profile_index="2">
+    <extension name="notfound" number="OutboundHook">
+      <application app_name="javascript" app_data="applications/DialPlanDestNotFound.js"></application>
+      <sub_extensions>
+        <extension name="force_context" number="lcr" dialplan="XML">
+          <application app_name="export" app_data="user_context=${user_context}"></application>
+          <application app_name="set" app_data="effective_caller_id_number=${outbound_caller_id_number}"></application>
+          <application app_name="set" app_data="effective_caller_id_name=${outbound_caller_id_name}"></application>
+          <application app_name="export" app_data="rmOriginatorUUID=${uuid}"></application>
+          <application app_name="javascript" app_data="applications/lcr/lcr.js ${rmLCRDialNumber}"></application></extension></sub_extensions></extension>
+    <caller_profile>
+      <username>12000</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>12000</caller_id_name>
+      <caller_id_number>12000</caller_id_number>
+      <callee_id_name></callee_id_name>
+      <callee_id_number></callee_id_number>
+      <ani>12000</ani>
+      <aniii></aniii>
+      <network_addr>172.30.98.23</network_addr>
+      <rdnis>07956665283</rdnis>
+      <destination_number>OutboundHook</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <transfer_source>1358761510:692ba5a2-b863-4308-aa1b-58a61365e82b:bl_xfer:OutboundHook/1/XML</transfer_source>
+      <context>1</context>
+      <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></caller_profile>
+    <times>
+      <created_time>1358761509960070</created_time>
+      <profile_created_time>1358761510564113</profile_created_time>
+      <progress_time>0</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>1358761511720134</transfer_time></times></callflow>
+  <callflow dialplan="XML" unique-id="40484369-436d-4c5f-91dd-72df60d5fbb8" profile_index="1">
+    <extension name="notfound" number="07956665283" current_app="javascript">
+      <application app_name="execute_extension" app_data="07956665283 XML dpPreRouting"></application>
+      <application last_executed="true" app_name="javascript" app_data="applications/DialPlanDestNotFound.js"></application>
+      <sub_extensions>
+        <extension name="setImpliedDestNumber" number="07956665283" dialplan="XML">
+          <application app_name="set" app_data="rmDPPreRoutingDone=true"></application>
+          <application app_name="execute_extension" app_data="setLanguage-${default_language} XML dpSupport"></application>
+          <application app_name="set" app_data="bridge_pre_execute_aleg_app=lua"></application>
+          <application app_name="set" app_data="bridge_pre_execute_aleg_data=applications/features/PreALegBridgeHook.lua bridge_pre_execute_aleg"></application>
+          <application app_name="export" app_data="_nolocal_execute_on_answer=lua applications/features/PreProcessBLeg.lua execute_on_answer"></application>
+          <application app_name="set" app_data="rmUserExtension=${effective_caller_id_number}"></application>
+          <application app_name="export" app_data="rmDumpCalls=${rmDumpCalls}"></application>
+          <application app_name="event" app_data="Event-Subclass=rmServices::dumpCalls,Event-Name=CUSTOM,Dump-Calls=${rmDumpCalls},UUID=${uuid},SIP-Call-ID=${sip_call_id}"></application>
+          <application app_name="set" app_data="rmDialledNumberStripped=${rmImpliedDest}"></application>
+          <application app_name="set" app_data="rmCallCategory=SOC"></application>
+          <application app_name="set" app_data="rmNumberNormalised=${sip_from_user}"></application>
+          <application app_name="set" app_data="limit_ignore_transfer=true"></application>
+          <application app_name="set" app_data="rmLimitDevIDInCalls=true"></application>
+          <application app_name="limit" app_data="db devIDInCalls ${rmDevID} ${rmConcurrentOutboundChannels} forceHangUp-CUSTOM_TOO_MANY_IN_CONC_CALLS-tone_text XML dpSupport"></application>
+          <application app_name="set" app_data="rmLastDialledNumberSet=true"></application>
+          <application app_name="lua" app_data="applications/features/BindMetaAppIn.lua"></application>
+          <application app_name="set" app_data="rmMetaAppBound=true"></application>
+          <application app_name="set" app_data="rmEPFeatureDefaultsSet=true"></application>
+          <application app_name="set" app_data="rmDialledNumber=${rmImpliedDest}"></application>
+          <application app_name="set" app_data="effective_callee_id_number=${destination_number}"></application>
+          <application app_name="set" app_data="effective_callee_id_name=${destination_number}"></application>
+          <application app_name="set" app_data="rmDialledNumberType=EXTERNAL"></application>
+          <application app_name="set" app_data="rmDialledNumberStripped=${rmImpliedDest}"></application>
+          <application app_name="transfer" app_data="OutboundHook XML ${user_context}"></application></extension></sub_extensions></extension>
+    <caller_profile>
+      <username>12000</username>
+      <dialplan>XML</dialplan>
+      <caller_id_name>12000</caller_id_name>
+      <caller_id_number>12000</caller_id_number>
+      <callee_id_name></callee_id_name>
+      <callee_id_number></callee_id_number>
+      <ani>12000</ani>
+      <aniii></aniii>
+      <network_addr>172.30.98.23</network_addr>
+      <rdnis></rdnis>
+      <destination_number>07956665283</destination_number>
+      <uuid>{{aLeg_uuid}}</uuid>
+      <source>mod_sofia</source>
+      <context>1</context>
+      <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></caller_profile>
+    <times>
+      <created_time>1358761509960070</created_time>
+      <profile_created_time>1358761509960070</profile_created_time>
+      <progress_time>0</progress_time>
+      <progress_media_time>0</progress_media_time>
+      <answered_time>0</answered_time>
+      <bridged_time>0</bridged_time>
+      <last_hold_time>0</last_hold_time>
+      <hold_accum_time>0</hold_accum_time>
+      <hangup_time>0</hangup_time>
+      <resurrect_time>0</resurrect_time>
+      <transfer_time>1358761510564113</transfer_time></times></callflow></cdr>

@@ -11,7 +11,7 @@ fi
 : "${out_dir:="${freeswitch_data_dir}/xml_cdr"}"
 : "${pcap_dir:="${freeswitch_data_dir}/pcap"}"
 
-: "${batch:=100}"
+: "${batch:=5}"
 dv_selected=(all)
 
 all_enabled_data_variations=(
@@ -124,7 +124,7 @@ Usage:
 
 Options:
     -b <BatchSize>, --batch=<BatchSize>
-        Number of leg-pairs (only A and B for now) / samples to create.  Default Value is 100
+        Number of leg-pairs (only A and B for now) / samples to create.  Default Value is 5
 
     -d <DataVariations>, --data-variations=<DataVariations>
         List of data-variations separated by commas. The default value is 'all' which signifies all that is available.
