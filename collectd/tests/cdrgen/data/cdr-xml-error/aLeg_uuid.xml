@@ -285,7 +285,7 @@
     <rtp_audio_rtcp_packet_count>0</rtp_audio_rtcp_packet_count>
     <rtp_audio_rtcp_octet_count>0</rtp_audio_rtcp_octet_count></variables>
   <app_log>
-    <b&d>alice &amp; bob</b&d>
+    <bad>alice &aw bob</bad>
     <application app_name="execute_extension" app_data="07956665283 XML dpPreRouting" app_stamp="1358761510136395"></application>
     <application app_name="set" app_data="rmImpliedDest=07956665283" app_stamp="1358761510167008"></application>
     <application app_name="set" app_data="rmEPFeatureVoiceMailMain=1571" app_stamp="1358761510172488"></application>
