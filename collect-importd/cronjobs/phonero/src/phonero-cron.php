@@ -10,6 +10,7 @@ include 'rmapp/class.API.php';
 include 'restclient/RestClient.class.php';
 
 use phpseclib\Net\SFTP;
+use phpseclib\Crypt\RSA;
 
 define('APP_NAME_', 'phonero-cron');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
@@ -319,7 +320,16 @@ class importPhonero extends BaseApp
 
         $sftp = new SFTP($config->host);
 
-        if (!$sftp->login($config->username, $config->password))
+        if ($config->sftp_rsa_key) {
+            $password = new RSA();
+            $password->loadKey($config->sftp_rsa_key);
+        } else if ($config->password) {
+            $password = $config->password;
+        } else {
+            throw new Exception('Either password or RSA key setting must be present in config');
+        }
+
+        if (!$sftp->login($config->username, $password))
             throw new Exception('SFTP Login failed: '.$config->host.": ".$sftp->getLastSFTPError());
         elseif (!$sftp->chdir($config->remote_dir))
             throw new Exception('SFTP error: could not CD to '.$config->remote_dir.": ".$sftp->getLastSFTPError());
@@ -603,7 +613,7 @@ class importPhonero extends BaseApp
         $mandatory_config_items = array(
             'host',
             'username',
-            'password',
+            //'password',
             'remote_dir',
             'filename_regex',
             'download_dir',
