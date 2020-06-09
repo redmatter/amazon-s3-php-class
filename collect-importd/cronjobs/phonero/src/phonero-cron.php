@@ -322,7 +322,11 @@ class importPhonero extends BaseApp
 
         if ($config->sftp_rsa_key) {
             $password = new RSA();
-            $password->loadKey($config->sftp_rsa_key);
+            $key = file_get_contents($config->sftp_rsa_key);
+            if ($key == false) {
+                throw new Exception('Error loading key file: '.$config->sftp_rsa_key);
+            }
+            $password->loadKey($key);
         } else if ($config->password) {
             $password = $config->password;
         } else {
