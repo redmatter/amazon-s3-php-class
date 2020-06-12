@@ -10,6 +10,7 @@ include 'rmapp/class.API.php';
 include 'restclient/RestClient.class.php';
 
 use phpseclib\Net\SFTP;
+use phpseclib\Crypt\RSA;
 
 define('APP_NAME_', 'phonero-cron');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
@@ -319,7 +320,20 @@ class importPhonero extends BaseApp
 
         $sftp = new SFTP($config->host);
 
-        if (!$sftp->login($config->username, $config->password))
+        if ($config->sftp_rsa_key) {
+            $password = new RSA();
+            $key = file_get_contents($config->sftp_rsa_key);
+            if ($key == false) {
+                throw new Exception('Error loading key file: '.$config->sftp_rsa_key);
+            }
+            $password->loadKey($key);
+        } else if ($config->password) {
+            $password = $config->password;
+        } else {
+            throw new Exception('Either password or RSA key setting must be present in config');
+        }
+
+        if (!$sftp->login($config->username, $password))
             throw new Exception('SFTP Login failed: '.$config->host.": ".$sftp->getLastSFTPError());
         elseif (!$sftp->chdir($config->remote_dir))
             throw new Exception('SFTP error: could not CD to '.$config->remote_dir.": ".$sftp->getLastSFTPError());
@@ -604,6 +618,7 @@ class importPhonero extends BaseApp
             'host',
             'username',
             'password',
+            'sftp_rsa_key',
             'remote_dir',
             'filename_regex',
             'download_dir',
@@ -634,16 +649,15 @@ class importPhonero extends BaseApp
         // build our configuration object
 
         foreach ($mandatory_config_items as $item) {
-            $itemlabel = $item;
-            if($inProduction && in_array($itemlabel, array('host','username','password','remote_dir')))
-                $itemlabel = "prod.$itemlabel";
-            $itemlabel = "phonero.$itemlabel";
-
-            $val = $this->conf->get($itemlabel, false);
-            if (!$val)
-                throw new Exception("Config item $itemlabel missing from ".PHONERO_CONFIG_FILE);
-
-            $config[$item] = $val;
+            if($inProduction && in_array($item, array('host','username','password','remote_dir','sftp_rsa_key')))
+                $prefix = "phonero.prod.";
+            else
+                $prefix = "phonero.";
+            $val = $this->conf->get("$prefix$item", false);
+            if (!in_array($item, array('password','sftp_rsa_key')) && !$val)
+                throw new Exception("Config item $prefix$item missing from ".PHONERO_CONFIG_FILE);
+            else
+                $config[$item] = $val;
         }
 
         $config = (object) $config;
