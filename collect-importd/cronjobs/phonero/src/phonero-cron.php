@@ -649,14 +649,13 @@ class importPhonero extends BaseApp
         // build our configuration object
 
         foreach ($mandatory_config_items as $item) {
-            $itemlabel = $item;
-            if($inProduction && in_array($itemlabel, array('host','username','password','remote_dir','sftp_rsa_key')))
-                $itemlabel = "prod.$itemlabel";
-            $itemlabel = "phonero.$itemlabel";
-
-            $val = $this->conf->get($itemlabel, false);
-            if (!in_array($itemlabel, array('password','sftp_rsa_key')) && !$val)
-                throw new Exception("Config item $itemlabel missing from ".PHONERO_CONFIG_FILE);
+            if($inProduction && in_array($item, array('host','username','password','remote_dir','sftp_rsa_key')))
+                $prefix = "phonero.prod.";
+            else
+                $prefix = "phonero.";
+            $val = $this->conf->get("$prefix$item", false);
+            if (!in_array($item, array('password','sftp_rsa_key')) && !$val)
+                throw new Exception("Config item $prefix$item missing from ".PHONERO_CONFIG_FILE);
             else
                 $config[$item] = $val;
         }
