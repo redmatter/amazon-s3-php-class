@@ -167,8 +167,15 @@ public:
 			throw;
 		}
 
-		while(!finished)
+		while (!finished) {
 			usleep(200000);
+		}
+
+		const int status(response.status());
+		LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message());
+		if(status != 200) {
+			throw exception(status, response.status_message());
+		}
 
 		typedef boost::network::headers_range<http_client::response>::type response_headers;
 		typedef boost::range_iterator< response_headers >::type iterator;
@@ -211,13 +218,6 @@ public:
 			fstream->re_open();
 		else
 			fstream->close();
-
-		const int status(response.status());
-
-		LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message());
-
-		if(status != 200)
-			throw exception(status, response.status_message());
 
 		if(error)
 			throw exception(0, "Unknown error");
