@@ -158,22 +158,20 @@ public:
 
 		bool finished(false);
 		bool error(false);
-		http_client_response response;
-		try {
-			response = client_.get(request, boost::bind(archived::get_handler, boost::ref(finished), boost::ref(error), fstream, _1, _2));
-		}
-		catch(const std::exception& e) {
-			LogError(boost::this_thread::get_id()<<" Error while performing GET; err:"<<e.what());
-			throw;
-		}
+		http_client_response response = client_.get(
+			request, boost::bind(archived::get_handler, boost::ref(finished), boost::ref(error), fstream, _1, _2));
 
 		while (!finished) {
 			usleep(200000);
 		}
 
+		if (error) {
+			throw exception(0, "Unknown error");
+		}
+
 		const int status(response.status());
 		LogDebug(boost::this_thread::get_id()<<" response: "<<status<<' '<<response.status_message());
-		if(status != 200) {
+		if (status != 200) {
 			throw exception(status, response.status_message());
 		}
 
@@ -218,9 +216,6 @@ public:
 			fstream->re_open();
 		else
 			fstream->close();
-
-		if(error)
-			throw exception(0, "Unknown error");
 
 		return file_format;
 	}
