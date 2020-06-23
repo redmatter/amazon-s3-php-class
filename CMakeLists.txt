@@ -56,7 +56,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         rml-database-mysql
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
-        GIT_TAG        2.1.0
+        GIT_TAG        2.1.1
 )
 
 FetchContent_Declare(
