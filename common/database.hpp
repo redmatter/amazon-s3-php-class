@@ -131,16 +131,18 @@ public:
 				" StartEpoch=%15:StartEpoch,"
 				" HostName=%16q:HostName,"
 
-				" UpdateTime=NOW()"
+				" UpdateTime=NOW(),"
+				" LegUUID=%17:LegUUID"
 				;
 
 		if(arc.get_database_id()) {
-			query << " WHERE ID=%17:ID";
+			query << " WHERE ID=%18:ID";
 		}
 
 		query.parse();
 
 		using mysql::utils::mysqlpp_uuid_literal;
+		using mysql::utils::mysqlpp_uuid_literal_or_null;
 
 		mysqlpp::SQLQueryParms qp;
 		qp		<< mysqlpp::sql_bigint_unsigned(0ULL) // remove this once ParentID is removed fully
@@ -167,6 +169,8 @@ public:
 
 				<< mysqlpp::sql_int(arc.get_start_epoch())
 				<< mysqlpp::sql_char(arc.get_hostname())
+
+				<< mysqlpp_uuid_literal_or_null(arc.get_leg_uuid())
 				;
 
 		if(arc.get_database_id()) {
@@ -350,7 +354,8 @@ public:
 				  << ","
 					 " UserIDs,"
 					 " ID,"
-					 " BufferedRecording "
+					 " BufferedRecording, "
+                     " LegUUID "
 					 "FROM ArchivingInternal."
 				  << table_name_
 				  << " "
@@ -383,13 +388,17 @@ public:
 				const uint64_t& id = rml::utils::strtoull(row[16].c_str(), 0ULL);
 				p_arc->set_database_id(id);
 				archiving::owner_info owner((archiving::org_id_t)rml::utils::strtoull(row[2].c_str(), 0ULL));
-				if (row[15] != "NULL") {
+				if (!row[15].is_null()) {
 					const std::string userIds(row[15].c_str());
 					std::istringstream str(userIds);
 					std::string userId_str;
 					while (std::getline(str, userId_str, ','))
 						owner.addUser((archiving::user_id_t)rml::utils::strtoull(userId_str.c_str(), 0ULL));
 					p_arc->set_owners(owner);
+				}
+
+				if (!row[18].is_null()) {
+					p_arc->set_leg_uuid(row[18].c_str());
 				}
 
 				return p_arc;
