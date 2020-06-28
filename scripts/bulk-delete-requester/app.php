@@ -92,18 +92,23 @@ Options:
 
     --sql-file <SQLFile>
         File containing the SQL to run.
+
 USAGE;
 }
 
 try {
-    $sudoUid = getenv('SUDO_UID');
+    $sudoUser = getenv('SUDO_USER');
     $user = getenv('USER');
     if ($user !== 'root') {
         throw new UsageError("Should be run with `root` privileges using `sudo` prefix");
     }
 
-    if ($sudoUid === false) {
+    if ($sudoUser === false) {
         throw new UsageError("Should only be run with `sudo` prefix");
+    }
+
+    if ($sudoUser === $user) {
+        throw new UsageError("Should only be run with `sudo` prefix, from your own login");
     }
 
     CLI::Init(null, [ 'org-id:', 'external-ref:', 'reason:', 'sql:', 'sql-file:', 'help' ]);
