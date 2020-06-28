@@ -15,6 +15,7 @@
  */
 
 use RedMatter\Archiving\Apps\BulkDeleteRequesterApp as App;
+use CLIUsageErrorException as UsageError;
 
 define('APP_NAME_', 'rm-arcblkdelreq');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
@@ -44,11 +45,14 @@ if (file_exists(__DIR__.'/autoload.php')) {
  */
 function Usage($message = null)
 {
+    $app = basename(__FILE__, '.php');
+
     if ($message) {
-        echo "$message\n";
+        echo "ERROR: $message\n";
+        echo "Try `$app --help` for help and documentation.\n";
+
     }
 
-    $app = basename(__FILE__, '.php');
     echo <<<USAGE
 $app [options]
 
@@ -95,11 +99,11 @@ try {
     $sudoUid = getenv('SUDO_UID');
     $user = getenv('USER');
     if ($user !== 'root') {
-        throw new RuntimeException("Should be run with `root` privileges using `sudo` prefix");
+        throw new UsageError("Should be run with `root` privileges using `sudo` prefix");
     }
 
     if ($sudoUid === false) {
-        throw new RuntimeException("Should only be run with `sudo` prefix");
+        throw new UsageError("Should only be run with `sudo` prefix");
     }
 
     CLI::Init(null, [ 'org-id:', 'external-ref:', 'reason:', 'sql:', 'sql-file:', 'help' ]);
@@ -115,7 +119,7 @@ try {
     exit($app->run());
 }
 /** @noinspection PhpRedundantCatchClauseInspection This can be thrown from anywhere CLI args are accessed */
-catch(CLIUsageErrorException $e) {
+catch(UsageError $e) {
     Usage($e->getMessage());
     exit(1);
 } catch (Exception $e) {
