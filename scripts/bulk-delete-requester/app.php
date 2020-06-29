@@ -60,6 +60,16 @@ Bulk delete requester
 
 NOTE: This utility MUST BE run using `sudo` prefix.
 
+    Example:
+    $> sudo $app --org-id 1001 --external-ref CSGDPR01937XA \
+          --reason 'as per customer request' \
+          --sql "SELECT `ID` FROM `ArchivingRetention`.`Retention_1001` WHERE `CreationDate` IN ('2020-01-01','2020-01-02')" \
+          --username us@er.com
+          
+    Example of wrong invocation:
+    $> sudo su -
+    #> sudo $app --org-id 1001 --external-ref CSGDPR01937XA ...
+
 Options:
 
     --org-id <OrgID>
