@@ -50,7 +50,7 @@ function Usage($message = null)
     if ($message) {
         echo "ERROR: $message\n";
         echo "Try `$app --help` for help and documentation.\n";
-
+        return;
     }
 
     echo <<<USAGE
@@ -92,6 +92,22 @@ Options:
 
     --sql-file <SQLFile>
         File containing the SQL to run.
+        
+    Auth details:
+    
+    When running this script, the operator will need to provide the credentials to login to the
+    Management Portal. The credentials need not not belong to the organisation which the request
+    is being created for.
+    
+    --username <UserName>
+        Management portal username.
+        
+    --password <Password> (optional)
+        Password for the selected UserName. If this option is not given, an interactive prompt
+        will appear.
+        
+    --2fa-code <TwoFactorAuthCode> (optional)
+        Passcode from the two-factor auth device.
 
 USAGE;
 }
@@ -111,7 +127,22 @@ try {
         throw new UsageError("Should only be run with `sudo` prefix, from your own login");
     }
 
-    CLI::Init(null, [ 'org-id:', 'external-ref:', 'reason:', 'sql:', 'sql-file:', 'help' ]);
+    CLI::Init(null, [
+        'conf:',
+
+        'username:',
+        'password:',
+        '2fa-code:',
+
+        'org-id:',
+        'external-ref:',
+        'reason:',
+
+        'sql:',
+        'sql-file:',
+
+        'help'
+    ]);
 
     if (true === CLI::Get('help', false)) {
         Usage();
@@ -119,15 +150,18 @@ try {
     }
 
     $app = App::getInstance(CLI::Get('conf', App::CONFIG_PATH));
-    $conf = $app->getConf();
-
-    exit($app->run());
-}
-/** @noinspection PhpRedundantCatchClauseInspection This can be thrown from anywhere CLI args are accessed */
-catch(UsageError $e) {
+    $exit_code = $app->run();
+    if ($exit_code === 0) {
+        LogConsole('Delete request successfully created.', null, true);
+    } else {
+        LogConsole('Failed to create delete request.', null, true);
+    }
+    exit();
+} catch(UsageError $e) {
     Usage($e->getMessage());
     exit(1);
 } catch (Exception $e) {
+    LogConsole("Failed to create delete request; error:{$e->getMessage()}", null, true);
     LogError((string)$e);
     exit(1);
 }

@@ -38,6 +38,4 @@ spl_autoload_register(
 );
 
 require_once 'rmapp/class.BaseApp.php';
-
-//require_once ARCHIVING_INC_DIR.'/JsonSchema-2.0.4.phar';
-//require_once ARCHIVING_INC_DIR.'/JsonMapper-0.11.0.phar';
+require_once 'eventlog/class.EventLog.php';

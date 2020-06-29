@@ -16,13 +16,13 @@
 namespace RedMatter\Archiving\Apps;
 
 use API;
-use APILoginFailedException;
 use ArrayStorage;
 use BaseApp;
 use CLI;
 use CLIUsageErrorException;
 use EventLog;
 use Exception;
+use HAPI;
 use MySQLiBindParams as Params;
 use MySQLiResult_Row as Row;
 use MySQLiTransactional as DB;
@@ -43,8 +43,6 @@ class BulkDeleteRequesterApp extends BaseApp
      * @param string     $configPath
      * @param array|null $shortOpts
      * @param array|null $longOpts
-     *
-     * @throws APILoginFailedException
      */
     protected function __construct($configPath, array $shortOpts = null, array $longOpts = null)
     {
@@ -54,13 +52,6 @@ class BulkDeleteRequesterApp extends BaseApp
 
         $storage = new ArrayStorage();
         API::Init($config->get('api.base_url', 'http://api'), $storage, APP_NAME_ . ':1.0');
-
-        $authCreds = $config->get('api.authorization_creds', false);
-        if (!$authCreds) {
-            throw new RuntimeException('No authorization creds specified in config');
-        }
-
-        API::LoginBasicAuth($authCreds, null, true);
 
         $this->dgapi = new DGAPI(
             $config->get('dgapi.base_url', 'http://dgapi'),
@@ -75,6 +66,33 @@ class BulkDeleteRequesterApp extends BaseApp
         API::LogOut();
     }
 
+    /**
+     * Get password from interactive shell.
+     *
+     * @param string $prompt
+     *
+     * @return string
+     * @throws Exception
+     */
+    public function getPassword($prompt = 'Enter Password:')
+    {
+        $password = CLI::Get('password', false);
+        if ($password !== false) {
+            return $password;
+        }
+
+        if (stripos(PHP_OS, 'win') === 0) {
+            throw new RuntimeException('Windows is not supported non-echo prompt');
+        }
+
+        if (rtrim(shell_exec("/usr/bin/env bash -c 'echo OK'")) !== 'OK') {
+            throw new RuntimeException("Could not execute bash");
+        }
+
+        $command = "/usr/bin/env bash -c 'read -s -p \"" . addslashes($prompt) . "\" v && echo \$v'";
+
+        return rtrim(shell_exec($command));
+    }
 
     /**
      * @inheritDoc
@@ -86,6 +104,10 @@ class BulkDeleteRequesterApp extends BaseApp
         $orgId = CLI::Get('org-id');
         $externalReference = CLI::Get('external-ref');
         $reason = CLI::Get('reason');
+
+        $username = CLI::Get('username');
+        $password = $this->getPassword();
+        $passcode = CLI::Get('2fa-code', null, true, false);
 
         $sql = CLI::Get('sql', false);
         $sqlFile = CLI::Get('sql-file', false);
@@ -106,6 +128,8 @@ class BulkDeleteRequesterApp extends BaseApp
         }
 
         try {
+            API::LoginUsernamePassword($username, $password, $passcode);
+
             $ev = CoreAPI::CreateEventLog(
                 EventLog::LEVEL_MESSAGE,
                 $orgId,
@@ -122,6 +146,7 @@ class BulkDeleteRequesterApp extends BaseApp
             );
 
             $time = time();
+
             $me = CoreAPI::GetUserDetails('me');
 
             $db = DB::Get('retention');
@@ -136,11 +161,11 @@ class BulkDeleteRequesterApp extends BaseApp
                     ->add('i', $me->ID)
                     ->add('i', $ev->id)
                     ->add('s', $externalReference)
-            )->execute();
+            );
             $deleteRequestId = $db->insert_id;
 
             $recordsFound = false;
-            DB::Get('retention')
+            DB::Get('retention', true)
                 ->query($sql, MYSQLI_USE_RESULT)
                 ->for_each_batch(
                     /**
@@ -193,11 +218,17 @@ class BulkDeleteRequesterApp extends BaseApp
      * @param string      $sql
      * @param int         $requestId
      * @param string|null $error
+     *
+     * @throws Exception
      */
     private function sendEmail($orgId, $externalReference, $reason, $sql, $requestId = null, $error = null)
     {
         $sudoUid = getenv('SUDO_UID');
         $sudoUser = getenv('SUDO_USER');
+
+        /** @noinspection NullPointerExceptionInspection */
+        $hostType = HAPI::GetLocalhost()->Get('HostType');
+        $hostname = gethostname();
 
         if ($error === null) {
             $comment = "A bulk delete request has been created.";
@@ -217,10 +248,10 @@ Org ID: {$orgId}
 External Reference: {$externalReference}
 Reason: "{$reason}"
 {$requestDetail}Selector SQL: {$sql}
+Environment: {$hostType} ($hostname)
 </pre>
 HTML;
-
-        $this->dgapi->SendEmail(1, [['root', 'root@redmatter.com']], 'Bulk Delete Request', $text, '&nbsp;',
-            null, null, true);
+        $address = $this->conf->get('notify.email_address');
+        $this->dgapi->SendEmail(1, [['root', $address]], 'Bulk Delete Request', $text, '&nbsp;', null, null, true);
     }
 }
