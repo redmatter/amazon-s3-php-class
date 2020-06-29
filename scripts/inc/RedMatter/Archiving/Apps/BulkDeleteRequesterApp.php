@@ -67,20 +67,15 @@ class BulkDeleteRequesterApp extends BaseApp
     }
 
     /**
-     * Get password from interactive shell.
+     * Get input from interactive shell without echo.
      *
      * @param string $prompt
      *
      * @return string
      * @throws Exception
      */
-    public function getPassword($prompt = 'Enter Password:')
+    public function getFromPromptWithoutEcho($prompt)
     {
-        $password = CLI::Get('password', false);
-        if ($password !== false) {
-            return $password;
-        }
-
         if (stripos(PHP_OS, 'win') === 0) {
             throw new RuntimeException('Windows is not supported non-echo prompt');
         }
@@ -91,7 +86,10 @@ class BulkDeleteRequesterApp extends BaseApp
 
         $command = "/usr/bin/env bash -c 'read -s -p \"" . addslashes($prompt) . "\" v && echo \$v'";
 
-        return rtrim(shell_exec($command));
+        $entry = rtrim(shell_exec($command));
+        echo "\n"; // move the caret on from the prompt line
+
+        return $entry;
     }
 
     /**
@@ -106,8 +104,11 @@ class BulkDeleteRequesterApp extends BaseApp
         $reason = CLI::Get('reason');
 
         $username = CLI::Get('username');
-        $password = $this->getPassword();
-        $passcode = CLI::Get('2fa-code', null, true, false);
+        $password = $this->getFromPromptWithoutEcho('Enter Password:');
+        $passcode = null;
+        if (false === CLI::Get('no-2fa', false)) {
+            $passcode = $this->getFromPromptWithoutEcho('Enter Passcode (2FA):');
+        }
 
         $sql = CLI::Get('sql', false);
         $sqlFile = CLI::Get('sql-file', false);

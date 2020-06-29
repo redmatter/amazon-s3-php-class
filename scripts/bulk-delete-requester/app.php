@@ -106,18 +106,15 @@ Options:
     Auth details:
     
     When running this script, the operator will need to provide the credentials to login to the
-    Management Portal. The credentials need not not belong to the organisation which the request
-    is being created for.
+    Management Portal. The credentials need not belong to the organisation which the request is
+    being created for. You will be presented with a prompt to type in your password and passcode.
     
     --username <UserName>
         Management portal username.
         
-    --password <Password> (optional)
-        Password for the selected UserName. If this option is not given, an interactive prompt
-        will appear.
-        
-    --2fa-code <TwoFactorAuthCode> (optional)
-        Passcode from the two-factor auth device.
+    --no-2fa (optional)
+        By default you will be asked to type in a passcode from the two-factor auth device. Use
+        this option to turn that off.
 
 USAGE;
 }
@@ -141,8 +138,7 @@ try {
         'conf:',
 
         'username:',
-        'password:',
-        '2fa-code:',
+        'no-2fa',
 
         'org-id:',
         'external-ref:',
