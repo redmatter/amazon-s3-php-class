@@ -36,7 +36,7 @@ class CoreAPI
         $name = "{$firstName} {$middleNames}{$lastName}";
 
         return (object)[
-            'ID'            => $userId,
+            'ID'            => $xpath('/Users/User/@ID'),
             'OrgID'         => $xpath('/Users/User/@HomeOrgID'),
             'UserName'      => $xpath('/Users/User/@UserName'),
             'FirstName'     => $firstName,
