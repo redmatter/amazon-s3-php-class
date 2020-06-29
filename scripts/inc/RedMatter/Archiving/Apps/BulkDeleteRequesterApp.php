@@ -252,6 +252,16 @@ Environment: {$hostType} ($hostname)
 </pre>
 HTML;
         $address = $this->conf->get('notify.email_address');
-        $this->dgapi->SendEmail(1, [['root', $address]], 'Bulk Delete Request', $text, '&nbsp;', null, null, true);
+
+        $attemptsRemaining = 2;
+        while ($attemptsRemaining) {
+            $result = $this->dgapi->SendEmail(1, [['root', $address]], 'Bulk Delete Request', $text, '&nbsp;', null, null, true);
+            if (true === $result) {
+                break;
+            }
+
+            usleep(2000000 + mt_rand(-100000, 100000));
+            $attemptsRemaining--;
+        }
     }
 }
