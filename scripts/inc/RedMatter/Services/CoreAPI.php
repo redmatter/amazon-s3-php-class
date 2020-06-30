@@ -53,16 +53,16 @@ class CoreAPI
      * @param string $level
      * @param int    $orgId
      * @param string $context
-     * @param string      $action
-     * @param string    $message
+     * @param string $action
+     * @param string $message
      * @param int    $userId
      * @param int    $deviceId
      * @param null   $extraData
      * @param null   $authToken
      * @param bool   $isAsync
      *
-     * @throws APIAuthRequiredException
      * @return EventLog
+     * @throws APIAuthRequiredException
      */
     public static function CreateEventLog($level, $orgId, $context, $action, $message, $userId = 0, $deviceId = 0, $extraData = null, $authToken = null, $isAsync = false)
     {
