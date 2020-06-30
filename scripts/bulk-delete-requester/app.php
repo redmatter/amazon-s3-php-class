@@ -61,9 +61,12 @@ Bulk delete requester
 NOTE: This utility MUST BE run using `sudo` prefix.
 
     Example:
+    $> mysql -u username --batch --column-names=false ArchivingRetention \
+          -e "SELECT `ID` FROM `Retention_1001` WHERE `CreationDate` IN ('2020-01-01','2020-01-02')" > /path/to/ids.txt
+
     $> sudo $app --org-id 1001 --external-ref CSGDPR01937XA \
           --reason 'as per customer request' \
-          --sql "SELECT `ID` FROM `ArchivingRetention`.`Retention_1001` WHERE `CreationDate` IN ('2020-01-01','2020-01-02')" \
+          --retention-id-file /path/to/ids.txt \
           --username us@er.com
           
     Example of wrong invocation:
@@ -84,24 +87,14 @@ Options:
     --help
         This help.
 
-    SQL Selectors:
-
-    An SQL selector can be specified either using the commandline --sql option as a string or be
-    loaded from a file using --sql-file option. In the case of the latter, the file is expected to
-    have only one SQL. If there are multiple groups of SELECT, use a UNION to combine them into
-    one result set. The SQL should select 'Retention_<OrgID>.ID' field aliased as 'ID'.
+    Selection of Items to Delete:
     
-    Example SQL:
-        SELECT r.`ID` ID
-         FROM `ArchivingRetention`.`Retention_1` r
-          JOIN `Org_1`.`Logs` l ON r.`LegUUID` IN (l.`AUUID`, l.`BUUID`)
-         WHERE l.`Time` > '2020-01-01'
+    The selection of items to delete is done through a text file containing all IDs of retention
+    record entries (`Retention_<OrgID>.ID`) of the items to delete. As you can see from the
+    example above, you will need to capture all IDs into a file using one or more SQLs executions.
 
-    --sql <SQLString>
-        SQL to run.
-
-    --sql-file <SQLFile>
-        File containing the SQL to run.
+    --retention-id-file <Path>
+        Path to file with all Retention IDs to delete.
         
     Auth details:
     
@@ -144,8 +137,7 @@ try {
         'external-ref:',
         'reason:',
 
-        'sql:',
-        'sql-file:',
+        'retention-id-file:',
 
         'help'
     ]);

@@ -33,6 +33,7 @@ use RuntimeException;
 class BulkDeleteRequesterApp extends BaseApp
 {
     const CONFIG_PATH = '/etc/archiving/bulk-delete-requester.conf';
+    const INSERT_BATCH_SIZE = 2000;
 
     /** @var DGAPI */
     private $dgapi;
@@ -110,22 +111,20 @@ class BulkDeleteRequesterApp extends BaseApp
             $passcode = $this->getFromPromptWithoutEcho('Enter Passcode (2FA):');
         }
 
-        $sql = CLI::Get('sql', false);
-        $sqlFile = CLI::Get('sql-file', false);
-        if ($sql === false && $sqlFile === false) {
-            throw new CLIUsageErrorException("One of '--sql' or '--sql-file' must be specified");
+        $idsFile = CLI::Get('retention-id-file');
+        if (!is_readable($idsFile)) {
+            throw new CLIUsageErrorException("Cannot read from retention-id-file");
         }
 
-        if ($sql !== false && $sqlFile !== false) {
-            throw new CLIUsageErrorException("Only one of '--sql' and '--sql-file' can be specified");
+        $ids = file($idsFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($ids === false) {
+            throw new RuntimeException("Cannot read from $idsFile");
         }
 
-        if ($sqlFile !== false) {
-            if (!is_readable($sqlFile)) {
-                throw new CLIUsageErrorException("Cannot read from sql-file");
-            }
-
-            $sql = file_get_contents($sqlFile);
+        $ids = $this->normaliseIds($ids);
+        $idsCount = count($ids);
+        if ($idsCount === 0) {
+            throw new RuntimeException("No IDs were found for the given file");
         }
 
         try {
@@ -165,49 +164,38 @@ class BulkDeleteRequesterApp extends BaseApp
             );
             $deleteRequestId = $db->insert_id;
 
-            $recordsFound = false;
-            DB::Get('retention', true)
-                ->query($sql, MYSQLI_USE_RESULT)
-                ->for_each_batch(
-                    /**
-                     * @param Row[] $batch
-                     * @param int   $flag
-                     */
-                    function ($batch, $flag) use ($orgId, $deleteRequestId, &$recordsFound, &$db) {
-                        $recordsFound = true;
-                        $params = Params::Create();
-                        $sql = "INSERT INTO `ArchivingRetention`.`DeleteRequestItems_{$orgId}`" .
-                            " (`DeleteRequestID`, `OrgID`, `RetentionID`)" .
-                            " VALUES ";
-                        $first = true;
-                        foreach ($batch as $row) {
-                            if (!$first) {
-                                $sql .= ',';
-                            }
+            $batchCount = ceil($idsCount / self::INSERT_BATCH_SIZE);
+            for ($i = 0; $i < $batchCount; $i++) {
+                $params = Params::Create();
+                $sql = "INSERT INTO `ArchivingRetention`.`DeleteRequestItems_{$orgId}`" .
+                    " (`DeleteRequestID`, `OrgID`, `RetentionID`)" .
+                    " VALUES ";
+                for ($j = 0; $j < self::INSERT_BATCH_SIZE; $j++) {
+                    $idx = $i * self::INSERT_BATCH_SIZE + $j;
+                    if ($idx >= $idsCount) {
+                        break;
+                    }
+                    if ($j > 0) {
+                        $sql .= ',';
+                    }
 
-                            $sql .= '( ? , ? , ? )';
-                            $params
-                                ->add('i', $deleteRequestId)
-                                ->add('i', $orgId)
-                                ->add('i', $row->ID);
+                    $sql .= '( ? , ? , ? )';
+                    $params
+                        ->add('i', $deleteRequestId)
+                        ->add('i', $orgId)
+                        ->add('i', $ids[$idx]);
+                }
 
-                            $first = false;
-                        }
-
-                        $db->query($sql, $params);
-                    }, 2000);
-
-            if ($recordsFound === false) {
-                throw new RuntimeException("No records were found for the given SQL");
+                $db->query($sql, $params);
             }
 
             $db->CommitTransaction();
 
-            $this->sendEmail($orgId, $externalReference, $reason, $sql, $deleteRequestId);
+            $this->sendEmail($orgId, $externalReference, $reason, $idsCount, $deleteRequestId);
 
             return 0;
         } catch (Exception $e) {
-            $this->sendEmail($orgId, $externalReference, $reason, $sql, null, $e->getMessage());
+            $this->sendEmail($orgId, $externalReference, $reason, $idsCount, null, $e->getMessage());
             throw $e;
         }
     }
@@ -216,13 +204,13 @@ class BulkDeleteRequesterApp extends BaseApp
      * @param int         $orgId
      * @param string      $externalReference
      * @param string      $reason
-     * @param string      $sql
+     * @param int         $itemsCount
      * @param int         $requestId
      * @param string|null $error
      *
      * @throws Exception
      */
-    private function sendEmail($orgId, $externalReference, $reason, $sql, $requestId = null, $error = null)
+    private function sendEmail($orgId, $externalReference, $reason, $itemsCount, $requestId = null, $error = null)
     {
         $sudoUid = getenv('SUDO_UID');
         $sudoUser = getenv('SUDO_USER');
@@ -248,7 +236,7 @@ Operator: {$sudoUser} (uid: {$sudoUid})
 Org ID: {$orgId}
 External Reference: {$externalReference}
 Reason: "{$reason}"
-{$requestDetail}Selector SQL: {$sql}
+{$requestDetail}Number of IDs : {$itemsCount}
 Environment: {$hostType} ($hostname)
 </pre>
 HTML;
@@ -264,5 +252,31 @@ HTML;
             usleep(2000000 + mt_rand(-100000, 100000));
             $attemptsRemaining--;
         }
+    }
+
+    /**
+     * @param array $ids
+     *
+     * @return array
+     */
+    private function normaliseIds(array $ids)
+    {
+        // Pack them as INTs and set any non-numeric values will be set to zero.
+        // These zeros will be filtered out later on.
+        $ids = array_map(function ($v) {
+            if (!is_numeric($v)) {
+                return 0;
+            }
+
+            return (int)$v;
+        }, $ids);
+
+        // make sure there are no duplicates
+        $ids = array_unique($ids);
+
+        // filter out any zeros or negative numbers
+        return array_filter($ids, function ($v) {
+            return $v > 0;
+        });
     }
 }
