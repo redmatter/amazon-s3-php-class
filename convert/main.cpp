@@ -22,6 +22,8 @@
 #include <boost/noncopyable.hpp>
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/range/algorithm/replace_if.hpp>
 
 #include <iostream>
 #include <iomanip>
@@ -36,9 +38,37 @@ std::string operation_data::temp_files_base_directory;
 }
 */
 
+#ifndef DEFAULT_APP_NAME
+#define DEFAULT_APP_NAME "convert"
+#endif
+
 #ifndef DEFAULT_APP_LONG_NAME
 #define DEFAULT_APP_LONG_NAME "Archiving Convert"
 #endif
+
+void fs_exit(bool fs_mode, int code) __attribute__((noreturn));
+void fs_exit(bool fs_mode, int code, std::string message) __attribute__((noreturn));
+
+void fs_exit(bool fs_mode, int code)
+{
+	fs_exit(fs_mode, code, "");
+}
+
+void fs_exit(bool fs_mode, int code, std::string message)
+{
+	if (fs_mode) {
+		if (code == 0) {
+			std::cout << "OK" << std::endl;
+		} else if (message.empty()) {
+			std::cout << "ERR" << std::endl;
+		} else {
+			boost::replace_if(message, boost::is_any_of("\r\n\t"), ' ');
+			std::cout << "ERR " << message << std::endl;
+		}
+	}
+
+	exit(code);
+}
 
 int main(int argc, char* argv[])
 {
@@ -78,23 +108,16 @@ int main(int argc, char* argv[])
 			boost::program_options::store(boost::program_options::parse_command_line(argc, argv, cli_optsDesc), cli_confMap);
 			boost::program_options::notify(cli_confMap);
 
-#define fs_exit(code) \
-	do { \
-		if(fs_mode) \
-			std::cout << ((!code)? "OK": "ERR") << std::endl; \
-		exit(code); \
-	} while(false)
-
 			if (cli_confMap.count("help")) {
 				std::cout << cli_optsDesc << "\n";
-				fs_exit(rml::utils::exit_codes::failure);
+				fs_exit(fs_mode, rml::utils::exit_codes::failure);
 			}
 
 			fs_mode = (cli_confMap.count("fs") != 0);
 
 			if(cli_confMap.count("version")) {
 				std::cout << boost::str(boost::format(DEFAULT_APP_LONG_NAME" v%1%\n%2%\n") % version_number_string % copyright_string);
-				fs_exit(rml::utils::exit_codes::normal);
+				fs_exit(fs_mode, rml::utils::exit_codes::normal);
 			}
 
 			rml::logger::configure(cli_confMap,
@@ -180,7 +203,7 @@ int main(int argc, char* argv[])
 			}
 			else {
 				LogError("Unknown file format");
-				fs_exit(rml::utils::exit_codes::failure);
+				fs_exit(fs_mode, rml::utils::exit_codes::failure);
 			}
 		}
 
@@ -277,14 +300,21 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	catch(const std::exception& e) {
+	catch (const app::archived::exception& e) {
+		if (e.status == 404) {
+			LogMessage("Could not fetch from ArchiveD; not archived yet");
+			fs_exit(fs_mode, 6, "NotArchived - ArchiveD could not find the object");
+		}
+
 		LogError("Exception: "<<e.what());
-		fs_exit(rml::utils::exit_codes::failure);
-	}
-	catch(...) {
+		fs_exit(fs_mode, rml::utils::exit_codes::failure);
+	} catch (const std::exception& e) {
+		LogError("Exception: "<<e.what());
+		fs_exit(fs_mode, rml::utils::exit_codes::failure);
+	} catch (...) {
 		LogError("Unexpected exception");
-		fs_exit(rml::utils::exit_codes::failure);
+		fs_exit(fs_mode, rml::utils::exit_codes::failure);
 	}
 
-	fs_exit(rml::utils::exit_codes::normal);
+	fs_exit(fs_mode, rml::utils::exit_codes::normal);
 }

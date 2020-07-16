@@ -107,12 +107,18 @@ int main(int argc, char* argv[])
 				cli_confMap["access-reason"].as<std::string>());
 
 		p_tmp_source->quick_copy(cli_confMap["output"].as<std::string>());
-	}
-	catch(const std::exception& e) {
+	} catch (const app::archived::exception& e) {
+		if (e.status == 404) {
+			LogError("Could not fetch from ArchiveD; not archived yet");
+			exit(6);
+		}
+
+		LogError("Exception: " << e.what());
+		exit(rml::utils::exit_codes::failure);
+	} catch (const std::exception& e) {
 		LogError("Exception: "<<e.what());
 		exit(rml::utils::exit_codes::failure);
-	}
-	catch(...) {
+	} catch (...) {
 		LogError("Unexpected exception");
 		exit(rml::utils::exit_codes::failure);
 	}
