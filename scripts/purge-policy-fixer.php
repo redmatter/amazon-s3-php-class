@@ -52,8 +52,24 @@ class PurgePolicyFixerApp extends BaseApp
 
 	protected $massUpdateSQLCache = array();
 
-	private $_archivedConf = null;
-	private $_archivedConfTimeout = null;
+	private $_archivedConf;
+	private $_archivedConfTimeout;
+
+	/**
+	 * @param $org
+	 *
+	 * @return XPath|null
+	 */
+	private static function getAllArchivingPoliciesXPath($org)
+	{
+		try {
+			return API::Get("/archiving/policy/{$org}/all");
+		} catch (\Exception $e) {
+			LogError($e);
+
+			return null;
+		}
+	}
 
 	/**
 	 * Get the config obj for archived conf
@@ -248,15 +264,19 @@ class PurgePolicyFixerApp extends BaseApp
 		$getMassUpdateSQL = function($org) use ($getPurgeRestrictions, $massUpdateSQLCache)
 		{
 			$now = time();
-			if (isset($massUpdateSQLCache[$org]) && $massUpdateSQLCache[$org]['expireTime'] >= $now)
+			if (isset($massUpdateSQLCache[$org]) && $massUpdateSQLCache[$org]['expireTime'] >= $now) {
 				return $massUpdateSQLCache[$org]['sql'];
+			}
 
 			$policyVersionUpdate = '';
 			$retentionMinUpdate = '';
 			$retentionMaxUpdate = '';
 
 			// get all policies and their latest version
-			$xpath = API::Get("/archiving/policy/{$org}/all");
+			$xpath = self::getAllArchivingPoliciesXPath($org);
+			if ($xpath === null) {
+			    return null;
+			}
 			foreach ($xpath('/Archiving/Policies/Policy', true) as $policyNode)
 			{
 				$policyId = $xpath('ID', false, $policyNode);
@@ -719,6 +739,10 @@ class PurgePolicyFixerApp extends BaseApp
 				foreach ($orgMaxRetentionIds as $org => $maxRetentionId)
 				{
 					$sql = $getMassUpdateSQL($org);
+					if ($sql === null) {
+						continue;
+					}
+
 					$retentionDb->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
 				}
 			}
@@ -730,7 +754,7 @@ class PurgePolicyFixerApp extends BaseApp
 
             $retentionDb = MySQLiTransactional::Get('retention', true);
 
-			// fix any that could be in the begining of the table
+			// fix any that could be in the beginning of the table
 			$enabledOrgs = $this->_GetEnabledOrgs();
 			if ($enabledOrgs === false)
 				return 0;
@@ -741,6 +765,9 @@ class PurgePolicyFixerApp extends BaseApp
                 $retentionDb->StartTransaction();
 
 				$sql = $getMassUpdateSQL($org);
+				if ($sql === null) {
+					continue;
+				}
 
 				// fetching the first ID; relying on the table's ordering
 				$minId = $retentionDb->query(
