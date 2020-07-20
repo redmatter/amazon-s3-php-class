@@ -129,15 +129,15 @@ class PurgePolicyFixerApp extends BaseApp
 		$enabledOrgs = $archivedConfig->get('retention_purge.enabled_orgs', '');
 		$enabledOrgs = strtolower($enabledOrgs);
 
-		if ($enabledOrgs === '' || $enabledOrgs === 'none')
+		if ($enabledOrgs === '' || $enabledOrgs === 'none') {
 			return false;
+		}
 
 		if ($enabledOrgs !== 'all')
 		{
 			$enabledOrgs = preg_split('/[,;] */', $enabledOrgs);
 			$enabledOrgs = array_map(
-				function($val)
-				{
+				function ($val) {
 					return (int)$val;
 				},
 				$enabledOrgs
@@ -145,19 +145,20 @@ class PurgePolicyFixerApp extends BaseApp
 
 			$enabledOrgs = array_filter(
 				$enabledOrgs,
-				function($val)
-				{
+				function ($val) {
 					return $val > 0;
 				}
 			);
 
-			if (!count($enabledOrgs))
+			if (!count($enabledOrgs)) {
 				return false;
+			}
 
-			if (1 == count($enabledOrgs))
+			if (1 === count($enabledOrgs)) {
 				$where = "X.OrgID = {$enabledOrgs[0]}";
-			else
+			} else {
 				$where = sprintf('X.OrgID IN (%s)', implode(',', $enabledOrgs));
+			}
 		}
 		else
 		{
@@ -174,8 +175,13 @@ class PurgePolicyFixerApp extends BaseApp
 			"WHERE ( $where ) AND ( X.OrgID % 47 ) % @@auto_increment_increment + 1 = @@auto_increment_offset"
 		)->fetch_all();
 
-		if (!count($res))
+		if (!count($res)) {
 			return false;
+		}
+
+		// shuffle the result so that any processing issues resulting in curtailment
+		// of processing will not alway affect the same set of organisations.
+		shuffle($res);
 
 		return array_map(
 			function (MySQLiResult_Row $row)
