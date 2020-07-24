@@ -64,6 +64,14 @@ class PurgePolicyFixerApp extends BaseApp
 	{
 		try {
 			return API::Get("/archiving/policy/{$org}/all");
+		} catch (\APIException $e) {
+			// this is expected for Orgs that are suspended
+			/** @noinspection TypeUnsafeComparisonInspection */
+			if ($e->getCode() != 404) {
+				LogError($e);
+			}
+
+			return null;
 		} catch (\Exception $e) {
 			LogError($e);
 
