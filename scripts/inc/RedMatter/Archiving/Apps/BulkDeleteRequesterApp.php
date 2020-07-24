@@ -24,7 +24,6 @@ use EventLog;
 use Exception;
 use HAPI;
 use MySQLiBindParams as Params;
-use MySQLiResult_Row as Row;
 use MySQLiTransactional as DB;
 use RedMatter\Services\CoreAPI;
 use RedMatter\Services\DGAPI;
@@ -64,7 +63,11 @@ class BulkDeleteRequesterApp extends BaseApp
 
     public function __destruct()
     {
-        API::LogOut();
+        try {
+        	API::LogOut();
+		} catch (Exception $e) {
+        	// do nothing!
+		}
     }
 
     /**
@@ -124,7 +127,7 @@ class BulkDeleteRequesterApp extends BaseApp
         $ids = $this->normaliseIds($ids);
         $idsCount = count($ids);
         if ($idsCount === 0) {
-            throw new RuntimeException("No IDs were found for the given file");
+            throw new RuntimeException("No IDs were found from the given file");
         }
 
         try {
