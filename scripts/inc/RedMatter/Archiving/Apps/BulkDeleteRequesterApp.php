@@ -63,7 +63,11 @@ class BulkDeleteRequesterApp extends BaseApp
 
     public function __destruct()
     {
-        API::LogOut();
+        try {
+        	API::LogOut();
+		} catch (Exception $e) {
+        	// do nothing!
+		}
     }
 
     /**
