@@ -574,6 +574,7 @@ cp eml2a/eml2a-milter.init %{buildroot}/etc/rc.d/init.d/eml2a-milter
 %endif
 %if 0%{?el7}
 install -Dpm 0644 eml2a/eml2a-milter.service %{buildroot}%{_unitdir}
+cp eml2a/tmpfiles.conf %{buildroot}/etc/tmpfiles.d/archiving-eml2a.conf
 %endif
 cp eml2a/eml2a.conf %{buildroot}/etc/archiving/
 cp eml2a/eml2a-milter.conf %{buildroot}/usr/share/eml2a
@@ -789,6 +790,7 @@ systemctl enable rmarchdsrpreproc
 %endif
 %if 0%{?el7}
 systemctl enable eml2a-milter
+systemd-tmpfiles --create
 %endif
 %reload_rsyslog true
 /usr/sbin/postconf -e "smtpd_milters = unix:/var/lib/eml2a/eml2a-milter.sock"
@@ -1096,6 +1098,7 @@ fi
 %endif
 %if 0%{?el7}
 %{_unitdir}/eml2a-milter.service
+/etc/tmpfiles.d/archiving-eml2a.conf
 %endif
 /etc/logrotate.d/eml2a
 /etc/rsyslog.d/11-eml2a.conf
