@@ -41,7 +41,7 @@
 #include <pugixml/pugixml.hpp>
 
 #ifndef SYSLOG_APP_NAME
-#define SYSLOG_APP_NAME "eml2a"
+#define SYSLOG_APP_NAME "rm-eml2a"
 #endif
 
 #ifndef DEFAULT_APP_NAME

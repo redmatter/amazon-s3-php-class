@@ -15,7 +15,7 @@ prog_binpath=/usr/bin/${prog_shortname}
 prog_pidfile=/var/run/eml2a/${prog_shortname}.pid
 prog_projprefix=archiving
 prog_cliopts="-p /var/lib/eml2a/eml2a-milter.sock"
-prog_syslogtag=eml2a-milter
+prog_syslogtag=rm-eml2a-milter
 
 callback_before_startup() {
     /usr/bin/eml2a-milter-hAPI &>/dev/null
