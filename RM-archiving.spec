@@ -200,7 +200,7 @@ Requires: RM-systemd-service-helpers >= 1.2.3
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
 Requires: RM-php-rmapp >= 0.0.5
-Requires: RM-php-eventlog >= 1.0.2
+Requires: RM-php-eventlog >= 1.1.0
 Requires: php-s3 >= 0.5.1-1.0.0
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
@@ -537,6 +537,12 @@ install -Dpm 0644 scripts/dsr-pre-processor/init.service %{buildroot}%{_unitdir}
 %endif
 cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
+# bulk-delete-requester
+cp scripts/bulk-delete-requester/app.php %{buildroot}/usr/bin/archiving-bulk-delete-requester
+cp scripts/bulk-delete-requester/app.conf %{buildroot}/etc/archiving/bulk-delete-requester.conf
+cp scripts/bulk-delete-requester/autoload.php %{buildroot}/usr/share/php/archiving/arcblkdelreq_autoload.php
+cp scripts/bulk-delete-requester/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-bulk-delete-requester
+cp scripts/bulk-delete-requester/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-bulk-delete-requester.conf
 
 # qascripts
 cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
@@ -1060,6 +1066,12 @@ fi
 /usr/share/php/archiving/archdsrpreproc_autoload.php
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
+# bulk-delete-requester
+%attr(500,root,root) /usr/bin/archiving-bulk-delete-requester
+%attr(400,root,root) /etc/archiving/bulk-delete-requester.conf
+%attr(400,root,root) /usr/share/php/archiving/arcblkdelreq_autoload.php
+/etc/logrotate.d/archiving-bulk-delete-requester
+/etc/rsyslog.d/11-archiving-bulk-delete-requester.conf
 
 %files qascripts
 %defattr(-,root,root)
