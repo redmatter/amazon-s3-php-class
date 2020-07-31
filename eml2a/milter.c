@@ -518,7 +518,7 @@ int main(argc, argv)
 
 	// from this point on we will use syslog
 
-	openlog ("eml2a-milter", LOG_PERROR | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+	openlog ("rm-eml2a-milter", LOG_PERROR | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 	gethostname(hostname, sizeof(hostname)-1);
 	syslog(LOG_INFO, "eml2a-milter starting on %s", hostname);
 

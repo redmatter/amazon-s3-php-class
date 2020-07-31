@@ -12,7 +12,7 @@ include 'restclient/RestClient.class.php';
 use phpseclib\Net\SFTP;
 use phpseclib\Crypt\RSA;
 
-define('APP_NAME_', 'phonero-cron');
+define('APP_NAME_', 'rm-phonero-cron');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 define('RM_SYSLOGGER_LOG_MULTILINE', true);
