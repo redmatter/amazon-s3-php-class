@@ -736,9 +736,7 @@ fi
 %if 0%{?el7}
 systemctl enable rmcollect-importd
 %endif
-if [ "$1" -eq 1 ]; then # package just got installed ?
-    %reload_rsyslog true
-fi
+%reload_rsyslog true
 
 #%post convert
 #/usr/bin/rmarchived-hAPI
