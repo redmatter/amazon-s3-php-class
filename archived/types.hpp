@@ -615,14 +615,24 @@ public:
 private:
 	void read_data(std::istream& istr)
 	{
+		// Parse metadata headers in PUT request
+		//
+		// Key1: Value\r\n
+		// Key2: Value\r\n
+		// Key3: Value\r\n
+		// \r\n
 		std::string line;
 		while(std::getline(istr, line)) {
-			if(line[0] == '\r')
+			if(line[0] == '\r') {
 				break;
+			}
 
 			{
 				std::string::iterator cr_itr = line.end(); --cr_itr;
-				assert(*cr_itr == '\r');
+				if (*cr_itr != '\r') {
+					throw rml::exception("Malformed headers found in PUT");
+				}
+
 				line.erase(cr_itr);
 			}
 
@@ -632,11 +642,24 @@ private:
 				continue;
 			}
 
-			add(std::string(line, 0, colon_pos), std::string(line, colon_pos+2));
+			// skip it if we have an empty key
+			if (colon_pos == 0) {
+				continue;
+			}
+
+			const std::string value(line, colon_pos+2);
+
+			// skip it if we have an empty value
+			if (value.empty()) {
+				continue;
+			}
+
+			add(std::string(line, 0, colon_pos), value);
 		}
 
-		if(empty())
+		if(empty()) {
 			throw rml::exception("No headers found in PUT");
+		}
 	}
 };
 
