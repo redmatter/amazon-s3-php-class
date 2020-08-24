@@ -642,19 +642,12 @@ private:
 				continue;
 			}
 
-			// skip it if we have an empty key
-			if (colon_pos == 0) {
+			// skip it if we have an empty key or value
+			if (colon_pos == 0 || colon_pos >= line.length() - 2) {
 				continue;
 			}
 
-			const std::string value(line, colon_pos+2);
-
-			// skip it if we have an empty value
-			if (value.empty()) {
-				continue;
-			}
-
-			add(std::string(line, 0, colon_pos), value);
+			add(std::string(line, 0, colon_pos), std::string(line, colon_pos+2));
 		}
 
 		if(empty()) {
