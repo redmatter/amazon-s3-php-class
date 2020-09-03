@@ -40,10 +40,12 @@ namespace mysql = rml::database::mysql;
 
 class internal : public mysql::basic_database<internal, mysql::transactional_connection>
 {
-    typedef mysql::basic_database<internal, mysql::transactional_connection> basic_database_type;
-    typedef boost::shared_ptr<mysql::transactional_connection> connection_type;
+	typedef mysql::basic_database<internal, mysql::transactional_connection> basic_database_type;
+	typedef boost::shared_ptr<mysql::transactional_connection> connection_type;
+
 protected:
 	std::string table_name_;
+
 public:
 	static inline const char* get_identifier()
 	{
@@ -338,8 +340,7 @@ public:
 					 " ParentID,"
 					 " FileType,"
 					 " OrgID,"
-				  << format_uuid_field("UUID", "str_UUID")
-				  << ","
+					<< format_uuid_field("UUID", "str_UUID") << ","
 					 " Path,"
 					 " ModifiedPath,"
 					 " State,"
@@ -350,15 +351,12 @@ public:
 					 " Retry,"
 					 " StartEpoch,"
 					 " HostName,"
-				  << format_uuid_field("OriginatorUUID", "OrigUUID")
-				  << ","
+					<< format_uuid_field("OriginatorUUID", "OrigUUID") << ","
 					 " UserIDs,"
 					 " ID,"
 					 " BufferedRecording, "
-                     " LegUUID "
-					 "FROM ArchivingInternal."
-				  << table_name_
-				  << " "
+					<< format_uuid_field("LegUUID", "LegUUID") << " "
+					 "FROM ArchivingInternal." << table_name_ << " "
 					 "WHERE %0:key = %1:value";
 			query.parse();
 
@@ -470,12 +468,12 @@ public:
 		try {
 			connection_type conn = pool_->grab();
 			mysqlpp::Query query = conn->query();
-			query <<"SELECT"
-					" ID, FileType, "<<format_uuid_field("UUID", "UUID")<<", Path, ModifiedPath "
-					"FROM ArchivingInternal." << table_name_ << " "
-					"WHERE HostName=%0q:HostName"
-                    " AND State IN ('stored','discarded')"
-                    " AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime";
+			query << "SELECT"
+					 " ID, FileType, " << format_uuid_field("UUID", "UUID") << ", Path, ModifiedPath "
+					 "FROM ArchivingInternal." << table_name_ << " "
+					 "WHERE HostName=%0q:HostName"
+					 " AND State IN ('stored','discarded')"
+					 " AND DATE_SUB(NOW(), INTERVAL %1:DoneMaxAge MINUTE) > UpdateTime";
 			if(limit)
 				query << " LIMIT "<<limit;
 

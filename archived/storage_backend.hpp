@@ -573,18 +573,19 @@ public:
             s3headers.insert(std::make_pair("leg-uuid", leg_uuid));
         }
 
-
         S3NameValue metadata[s3headers.size()];
-        LogDebug(identifier<<": Adding "<<s3headers.size()<<" metadata headers");
-        int i = 0;
+
+        // Fill `S3NameValue metadata` with pointers to string from the `s3headers` map we just created.
+        int metadata_count = 0;
         for(types::caseless_key_string_map::const_iterator itr = s3headers.begin(); itr != s3headers.end(); ++itr) {
             if(!itr->first.empty() && !itr->second.empty()) {
-                metadata[i].name = &(*itr).first[0];
-                metadata[i].value = &(*itr).second[0];
+                // `s3headers` is not modified any further; it is safe to use c_str() here.
+                metadata[metadata_count].name = itr->first.c_str();
+                metadata[metadata_count].value = itr->second.c_str();
 
-                LogVerbose(identifier<<": Metadata["<<i<<"] - "<<metadata[i].name<<": "<< metadata[i].value);
+                LogVerbose(identifier<<": Metadata["<<metadata_count<<"] - "<<metadata[metadata_count].name<<": "<< metadata[metadata_count].value);
 
-                i++;
+                metadata_count++;
             }
         }
 
@@ -593,7 +594,7 @@ public:
         S3PutProperties put_props;
         put_props.contentType = 0;
         put_props.md5 = &data.base64_md5[0];
-        put_props.metaDataCount = s3headers.size();
+        put_props.metaDataCount = metadata_count;
         put_props.metaData = metadata;
         put_props.cacheControl = 0;
         put_props.contentDispositionFilename = 0;
