@@ -56,6 +56,20 @@ class PurgePolicyFixerApp extends BaseApp
 	private $_archivedConfTimeout;
 
 	/**
+	 * @param bool $anew
+	 *
+	 * @return MySQLiConnection|MySQLiTransactional
+	 * @throws MySQLiErrorException
+	 */
+	private static function getBigDb($anew = false)
+	{
+		$db = MySQLiTransactional::Get('big', $anew);
+		$db->query('SET innodb_lock_wait_timeout = 30');
+
+		return $db;
+	}
+
+	/**
 	 * @param $org
 	 *
 	 * @return XPath|null
@@ -132,7 +146,8 @@ class PurgePolicyFixerApp extends BaseApp
      */
 	private function _GetEnabledOrgs()
 	{
-		$retentionDb = MySQLiTransactional::Get('retention');
+		$db = self::getBigDb();
+
 		$archivedConfig = $this->_GetArchiveDConf();
 		$enabledOrgs = $archivedConfig->get('retention_purge.enabled_orgs', '');
 		$enabledOrgs = strtolower($enabledOrgs);
@@ -173,7 +188,7 @@ class PurgePolicyFixerApp extends BaseApp
 			$where = '1';
 		}
 
-		$res = $retentionDb->query(
+		$res = $db->query(
 			"SELECT OrgID ".
 			"  FROM ( ".
 			"    SELECT SUBSTRING(TABLE_NAME FROM 11) `OrgID` ".
@@ -188,7 +203,7 @@ class PurgePolicyFixerApp extends BaseApp
 		}
 
 		// shuffle the result so that any processing issues resulting in curtailment
-		// of processing will not alway affect the same set of organisations.
+		// of processing will not always affect the same set of organisations.
 		shuffle($res);
 
 		return array_map(
@@ -362,15 +377,11 @@ class PurgePolicyFixerApp extends BaseApp
 			}
 		);
 
-		/** @var MySQLiTransactional $internalDb */
-		$internalDb = MySQLiTransactional::Get('internal');
-		/** @var MySQLiTransactional $retentionDb */
-		$retentionDb = MySQLiTransactional::Get('retention');
+		/** @var MySQLiTransactional $db */
+		$db = self::getBigDb();
 
-		$batchCallback = function($org, $policy, $retentionIds, $resetPurgeState) use ($retentionDb, $api)
+		$batchCallback = function($org, $policy, $retentionIds, $resetPurgeState) use ($db, $api)
 		{
-			$retentionDb->StartTransaction();
-
 			$policy = ArchivingPolicy::Get($api, $org, $policy, 0);
 
 			$sql = sprintf(
@@ -387,14 +398,12 @@ class PurgePolicyFixerApp extends BaseApp
 				implode(', ', $retentionIds)
 			);
 			LogDebug($sql);
-			$retentionDb->query($sql);
-
-			$retentionDb->CommitTransaction();
+			$db->query($sql);
 		};
 
 		$guzzleLogger = new \RedMatter\Archiving\AWS\GuzzleLogAdapter('[BackOff-Retry] ');
 		$fixS3HeaderAbsoluteStopDate = $config->get('s3_header_fix.absolute_stop_date');
-		$fixS3Headers = function($orgId, array $retentionIds) use ($retentionDb, $fixS3HeaderAbsoluteStopDate, $api, &$guzzleLogger)
+		$fixS3Headers = function($orgId, array $retentionIds) use ($db, $fixS3HeaderAbsoluteStopDate, $api, &$guzzleLogger)
 		{
 			if (!$fixS3HeaderAbsoluteStopDate/* === null */ || !count($retentionIds))
 				return;
@@ -422,7 +431,7 @@ class PurgePolicyFixerApp extends BaseApp
 				}
 			};
 
-			$retentionDb->query(
+			$db->query(
 				"SELECT" .
 				" ID," .
 				" IF(Format & (0x00f0 << 8), 'true', 'false') Encrypted," .
@@ -623,12 +632,6 @@ class PurgePolicyFixerApp extends BaseApp
 
 		try
 		{
-			$internalDb->StartTransaction();
-			$retentionDb->StartTransaction();
-
-			$internalDb->query('SET innodb_lock_wait_timeout = 30');
-			$retentionDb->query('SET innodb_lock_wait_timeout = 30');
-
 			$batchCount = 0;
 			$updatesBatch = array();
 			$deleteIDs = array();
@@ -636,7 +639,7 @@ class PurgePolicyFixerApp extends BaseApp
 			$orgMaxRetentionIds = array();
 			$orgHeaderFixRetentionIds = array();
 
-			$internalDb->query(
+			self::getBigDb(true)->query(
 				"SELECT `ID`, `OrgID`, `RetentionID`, `PolicyID`," .
 				" `CreationDate` <= '$fixS3HeaderAbsoluteStopDate' `PossiblyNeedHeaderFix`" .
 				" FROM `ArchivingInternal`.`ArchiveDPurgeQueue`" .
@@ -721,31 +724,40 @@ class PurgePolicyFixerApp extends BaseApp
                 unset($updatesBatch, $orgHeaderFixRetentionIds, $batchCount);
             }
 
-			// delete items from Queue
-			if (count($deleteIDs))
-			{
-				$sql = sprintf('DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `ID` IN ( %s )', implode(', ', $deleteIDs));
-				LogDebug($sql);
-				$internalDb->query($sql);
-			}
+			try {
+				$db->StartTransaction();
 
-			// reset the purge marker
-			if (count($orgMinRetentionIds))
-			{
-				$first = true;
-				$sql = 'INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` ( `OrgID`, `MaxRetentionID`, `LastResetTime`, `LastRunTime` )' .
-					' VALUES ';
-				foreach ($orgMinRetentionIds as $orgId => $minRetentionId)
+				// delete items from Queue
+				if (count($deleteIDs))
 				{
-					if (!$first)
-						$sql .= ', ';
-					$sql .= sprintf('( %d, %d, "2009-01-01", "2009-01-01" ) ', $orgId, $minRetentionId);
-					$first = false;
+					$sql = sprintf('DELETE FROM `ArchivingInternal`.`ArchiveDPurgeQueue` WHERE `ID` IN ( %s )', implode(', ', $deleteIDs));
+					LogDebug($sql);
+					$db->query($sql);
 				}
-				$sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
-				LogDebug($sql);
-				$internalDb->query($sql);
-			}
+
+				// reset the purge marker
+				if (count($orgMinRetentionIds))
+				{
+					$first = true;
+					$sql = 'INSERT INTO `ArchivingInternal`.`ArchiveDPurgeMarker` ( `OrgID`, `MaxRetentionID`, `LastResetTime`, `LastRunTime` )' .
+						' VALUES ';
+					foreach ($orgMinRetentionIds as $orgId => $minRetentionId)
+					{
+						if (!$first)
+							$sql .= ', ';
+						$sql .= sprintf('( %d, %d, "2009-01-01", "2009-01-01" ) ', $orgId, $minRetentionId);
+						$first = false;
+					}
+					$sql .= ' ON DUPLICATE KEY UPDATE MaxRetentionID=VALUES(MaxRetentionID), LastRunTime=DATE_ADD(LastRunTime, INTERVAL -60 MINUTE)';
+					LogDebug($sql);
+					$db->query($sql);
+				}
+
+				$db->CommitTransaction();
+			} catch (Exception $e) {
+				$db->RollbackTransaction();
+			    throw $e;
+            }
 
 			// fix more than what needs to so that the archived has more chance of clean purge run!
 			if (count($orgMaxRetentionIds))
@@ -757,16 +769,11 @@ class PurgePolicyFixerApp extends BaseApp
 						continue;
 					}
 
-					$retentionDb->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
+					$db->query(sprintf($sql, $maxRetentionId, $maxRetentionId+10000));
 				}
 			}
 
-			$internalDb->CommitTransaction();
-			$retentionDb->CommitTransaction();
-
             unset($orgMinRetentionIds, $orgMaxRetentionIds);
-
-            $retentionDb = MySQLiTransactional::Get('retention', true);
 
 			// fix any that could be in the beginning of the table
 			$enabledOrgs = $this->_GetEnabledOrgs();
@@ -775,16 +782,13 @@ class PurgePolicyFixerApp extends BaseApp
 
 			foreach ($enabledOrgs as $org)
 			{
-                /** @noinspection DisconnectedForeachInstructionInspection */
-                $retentionDb->StartTransaction();
-
 				$sql = $getMassUpdateSQL($org);
 				if ($sql === null) {
 					continue;
 				}
 
 				// fetching the first ID; relying on the table's ordering
-				$minId = $retentionDb->query(
+				$minId = $db->query(
 					sprintf(
 						'SELECT `ID` FROM `ArchivingRetention`.`Retention_%d` WHERE `State`="Available" %s LIMIT 1',
 						$org, $getPurgeRestrictions()
@@ -792,7 +796,7 @@ class PurgePolicyFixerApp extends BaseApp
 				)->fetch_all();
 				$minId = count($minId)? $minId[0]->ID: 1;
 
-				$maxId = $retentionDb->query(
+				$maxId = $db->query(
 					"SELECT `AUTO_INCREMENT` FROM `INFORMATION_SCHEMA`.`TABLES` ".
 					" WHERE `TABLE_SCHEMA` = 'ArchivingRetention' AND `TABLE_NAME` = 'Retention_{$org}'"
 				)->fetch_all();
@@ -802,20 +806,14 @@ class PurgePolicyFixerApp extends BaseApp
 				{
 					$sqlWithIDsRange = sprintf($sql, $idRangeStart, $idRangeStart+10000);
 					LogDebug($sqlWithIDsRange, '$sqlWithIDsRange');
-					$retentionDb->query($sqlWithIDsRange);
-					LogDebug($retentionDb->affected_rows, '$retention_db->affected_rows');
+					$db->query($sqlWithIDsRange);
+					LogDebug($db->affected_rows, '$retention_db->affected_rows');
 				}
-
-                /** @noinspection DisconnectedForeachInstructionInspection */
-				$retentionDb->CommitTransaction();
 			}
 		}
 		catch (Exception $e)
 		{
 			LogError($e);
-			$internalDb->RollbackTransaction();
-			$retentionDb->RollbackTransaction();
-
 			return 1;
 		}
 
