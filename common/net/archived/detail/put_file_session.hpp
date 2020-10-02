@@ -12,6 +12,8 @@
 #include "../../../archivable.hpp"
 #include "put_state.hpp"
 #include "../../../utils/time.hpp"
+#include "../../../utils/stream_printf.hpp"
+#include "../../../utils/kbps.hpp"
 
 #include <rml/utils/wall_timer.hpp>
 
@@ -76,7 +78,10 @@ struct put_file_session
 
         ios.post(boost::bind(boost::protect(done_callback), ec, retry_after_));
         if (!ec) {
-            LogMessage(*this << " - transfer completed " << file_size << " bytes in " << timer);
+            using common::utils::kbps;
+            using common::utils::printf;
+            LogMessage(*this << " - transfer completed " << file_size << " bytes in " << timer
+                             << printf(" (%.1f kbps)", kbps(file_size, timer.get_elapsed())));
         }
     }
 
