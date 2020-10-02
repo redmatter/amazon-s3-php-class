@@ -158,29 +158,30 @@ public:
 
     boost::asio::ip::tcp::socket& get_socket() { return socket; }
 
-    void start(bool no_delay, std::size_t receive_buffer_size)
+    inline void start(bool no_delay, std::size_t recv_buffer_size)
     {
         boost::system::error_code ec;
 
         if (no_delay) {
-            socket.set_option(boost::asio::ip::tcp::no_delay(true), ec);
+            set_socket_option(boost::asio::ip::tcp::no_delay(true), "no_delay", ec);
             if (ec) {
-                LogWarning(*this << "set_option:no_delay failed; err:" << ec.message());
-                io_service.post(strand.wrap(boost::bind(&session::do_close, shared_from_this())));
                 return;
             }
         }
 
-        if (receive_buffer_size > 0) {
-            boost::asio::socket_base::receive_buffer_size option(/*16384*/receive_buffer_size);
-            socket.set_option(option, ec);
+        if (recv_buffer_size > 0) {
+            using boost::asio::socket_base;
+            set_socket_option(socket_base::receive_buffer_size(/*16384*/ recv_buffer_size), "receive_buffer_size", ec);
             if (ec) {
-                LogWarning(*this << "set_option failed; err:" << ec.message());
-                io_service.post(strand.wrap(boost::bind(&session::do_close, shared_from_this())));
                 return;
             }
         }
 
+        start();
+    }
+
+    inline void start()
+    {
         set_id();
 
         current_state = state::handshake_sent;
@@ -194,6 +195,17 @@ public:
 private:
     session();
     session(const session&);
+
+    template<typename Option>
+    inline void set_socket_option(const Option& o, const char* what, boost::system::error_code& ec)
+    {
+        socket.set_option(o, ec);
+        if (ec) {
+            LogWarning(*this << "set_socket_option:" << what << " failed; err:" << ec.message());
+            io_service.post(strand.wrap(boost::bind(&session::do_close, shared_from_this())));
+            return;
+        }
+    }
 
     void do_close()
     {
@@ -566,8 +578,8 @@ private:
             return;
         }
 
-        LogDebug(*this << req->storage_key << " bytes_transferred: " << bytes_transferred);
-        LogDebug(*this << req->storage_key << " content_length: " << req->content_length);
+        DevDebug(*this << req->storage_key << " bytes_transferred: " << bytes_transferred);
+        DevDebug(*this << req->storage_key << " content_length: " << req->content_length);
 
         while (bytes_transferred) {
             // if we have transferred the object fully, the next character should be EOF
