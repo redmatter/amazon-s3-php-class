@@ -19,7 +19,7 @@
 
 #else // ifndef RML_DEV_DEBUG
 
-#include "../common/utils/tee_stream.hpp"
+#include "utils/tee_stream.hpp"
 #include <boost/preprocessor/cat.hpp>
 
 #define make_istream(name, buf) \
