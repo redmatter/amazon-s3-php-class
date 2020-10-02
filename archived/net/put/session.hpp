@@ -573,7 +573,7 @@ private:
                                        std::size_t bytes_transferred)
     try {
         if (error) {
-            LogWarning(*this << req->storage_key << " error while during PUT (data): " << error.message());
+            LogWarning(*this << req->storage_key << " error during PUT (data): " << error.message());
             async_close();
             return;
         }
