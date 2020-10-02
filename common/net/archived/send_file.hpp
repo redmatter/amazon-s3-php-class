@@ -110,7 +110,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
         const std::streamsize bytes_read = session->file_stream->gcount();
         session->file_size_remaining -= static_cast<std::size_t>(bytes_read);
-        // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
+        DevDebug(*conn << ' ' << *session << " xfr: " << session->file_size_remaining << '/' << session->file_size << ' ' << bytes_read << " bytes");
 
         std::ostream ostr(&conn->send_buffer);
         ostr.write(session->file_buffer.c_array(), bytes_read);

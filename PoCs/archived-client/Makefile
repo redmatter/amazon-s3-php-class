@@ -12,10 +12,11 @@ CPPFLAGS += -DBOOST_CHRONO_VERSION=2
 
 DEFAULT_LOG_FILE_PATH=console
 CPPFLAGS += -DDEFAULT_LOG_FILE_PATH='"$(DEFAULT_LOG_FILE_PATH)"'
-
-CXX_INCLUDES += -I../../common
+CPPFLAGS += -DRML_DEV_DEBUG
 
 TARGET=poc-archived-client
+
+CXX_INCLUDES += -I../../common
 
 LIBS += \
 	-lboost_thread \
