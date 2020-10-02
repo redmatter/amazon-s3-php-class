@@ -355,7 +355,7 @@ private:
 
 	void async_receive_file_chunks()
 	{
-		recv_buffer_.prepare(8192);
+		recv_buffer_.prepare(16 * 1024);
 		boost::asio::async_read(socket_,
 								recv_buffer_,
 								boost::asio::transfer_at_least(1),
