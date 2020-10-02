@@ -113,7 +113,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
         // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
 
         std::ostream ostr(&conn->send_buffer);
-        ostr.write(session->file_buffer.c_array(), buf_length);
+        ostr.write(session->file_buffer.c_array(), bytes_read);
 
         // have we finished copying data from the file?
         if (session->file_size_remaining == 0) {
