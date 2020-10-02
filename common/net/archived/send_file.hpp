@@ -149,6 +149,9 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 			return;
         }
 
+        // update last usage time
+        conn->last_send_file_time = boost::chrono::steady_clock::now();
+
         DevDebug(*conn << ' ' << *session << " PUT (file-sent) ACK:" << res);
 
         if (!res.ok) {
@@ -189,7 +192,7 @@ try {
         return;
     }
 
-    // todo move update to last_send_file_time to the end of transfer
+    // set last usage time now as well as when we finish
     conn->last_send_file_time = boost::chrono::steady_clock::now();
 
     boost::shared_ptr<detail::put_file_session> session =
