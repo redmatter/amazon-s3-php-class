@@ -9,12 +9,14 @@
 #include "../../archived/net/put/session.hpp"
 #include "../blow_bubbles.hpp"
 
+#include <utils/getenv.hpp>
+
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 
-#include <boost/lexical_cast.hpp>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -22,12 +24,12 @@
 unsigned short
 get_port()
 {
-    const char* port_env = std::getenv("ARCHIVED_PORT");
-    if (!port_env) {
-        throw std::runtime_error("ARCHIVED_PORT not found in env");
+    static boost::optional<unsigned short> value = boost::none;
+    if (value == boost::none) {
+        value = common::utils::must_getenv<unsigned short>("ARCHIVED_PORT");
     }
 
-    return boost::lexical_cast<unsigned short>(port_env);
+    return *value;
 }
 
 std::size_t
@@ -36,12 +38,7 @@ get_receive_buffer_size()
     static boost::optional<std::size_t> value = boost::none;
 
     if (value == boost::none) {
-        const char* str = std::getenv("RECV_BUFFER_SIZE");
-        if (str) {
-            value = boost::lexical_cast<std::size_t>(str);
-        } else {
-            value = 0;
-        }
+        value = common::utils::getenv("RECV_BUFFER_SIZE", 0);
     }
 
     return *value;
@@ -53,12 +50,7 @@ get_no_delay()
     static boost::optional<std::size_t> value = boost::none;
 
     if (value == boost::none) {
-        const char* str = std::getenv("NO_DELAY");
-        if (str) {
-            value = 1 == boost::lexical_cast<int>(str);
-        } else {
-            value = false;
-        }
+        value = common::utils::getenv("NO_DELAY", false);
     }
 
     return *value;

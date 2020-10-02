@@ -68,7 +68,8 @@ set(HEADER_FILES
         utils/verify_char.hpp
         utils/disable_skipws.hpp
         utils/stream_printf.hpp
-        utils/kbps.hpp)
+        utils/kbps.hpp
+        utils/getenv.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

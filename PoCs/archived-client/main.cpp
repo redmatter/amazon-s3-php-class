@@ -8,9 +8,10 @@
 
 #include "../blow_bubbles.hpp"
 
-#include "../../common/archivable.hpp"
-#include "../../common/net/archived/connection.hpp"
-#include "../../common/net/archived/send_file.hpp"
+#include <archivable.hpp>
+#include <net/archived/connection.hpp>
+#include <net/archived/send_file.hpp>
+#include <utils/getenv.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/filesystem/convenience.hpp>
@@ -24,7 +25,6 @@
 
 #include <cstdlib>
 #include <fstream>
-
 
 #define MAX_FILE_SIZE 5 * 1024 * 1024
 #define MIN_FILE_SIZE 5 * 1024
@@ -82,51 +82,52 @@ get_file()
 unsigned
 get_count()
 {
-    static unsigned count = 1;
-    if (count == 1) {
-        const char* count_env = std::getenv("COUNT");
-        if (count_env) {
-            count = boost::lexical_cast<unsigned>(count_env);
-        }
+    static unsigned value = 0;
+    if (value == 0) {
+        value = common::utils::getenv<unsigned>("COUNT", 1U);
     }
 
-    return count;
+    return value;
 }
 
 typedef common::net::archived::connection connection;
 typedef boost::asio::ip::address ip_address;
 
+inline ip_address
+get_archived_ip()
+{
+    static boost::optional<ip_address> value = boost::none;
+    if (value == boost::none) {
+        const char * str = common::utils::must_getenv<const char *>("ARCHIVED_IP");
+
+        boost::system::error_code ec;
+        value = ip_address::from_string(str, ec);
+        if (ec) {
+            throw std::runtime_error("Cannot parse ARCHIVED_IP=" + std::string(str));
+        }
+    }
+
+    return *value;
+}
+
+inline unsigned short
+get_archived_port()
+{
+    static boost::optional<unsigned short> value = boost::none;
+    if (value == boost::none) {
+        value = common::utils::must_getenv<unsigned short>("ARCHIVED_PORT");
+    }
+
+    return *value;
+}
+
 boost::shared_ptr<connection>
 get_connection(boost::asio::io_service& io_service)
 {
-    static ip_address archived_ip;
-    static unsigned short archived_port = 0;
+    boost::shared_ptr<connection> c =
+        boost::make_shared<connection>(boost::ref(io_service), get_archived_ip(), get_archived_port());
 
     boost::system::error_code ec;
-
-    if (archived_ip.is_unspecified()) {
-        const char* ip_env = std::getenv("ARCHIVED_HOST");
-        if (!ip_env) {
-            throw std::runtime_error("ARCHIVED_HOST not found in env");
-        }
-
-        archived_ip = ip_address::from_string(ip_env, ec);
-        if (ec) {
-            throw std::runtime_error("Cannot parse IP from " + std::string(ip_env));
-        }
-    }
-
-    if (!archived_port) {
-        const char* port_env = std::getenv("ARCHIVED_PORT");
-        if (!port_env) {
-            throw std::runtime_error("ARCHIVED_PORT not found in env");
-        }
-
-        archived_port = boost::lexical_cast<unsigned short>(port_env);
-    }
-
-    boost::shared_ptr<connection> c =
-        boost::make_shared<connection>(boost::ref(io_service), boost::cref(archived_ip), archived_port);
 
     c->start(ec);
     if (ec) {
