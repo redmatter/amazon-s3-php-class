@@ -281,18 +281,6 @@ public:
 	void start()
 	{
 		{
-			boost::system::error_code ec;
-			boost::asio::socket_base::receive_buffer_size option(16384);
-			socket_.set_option(option, ec);
-			if(ec) {
-				LogWarning("set_option failed; err:"<<ec.message());
-				io_service_.post(
-						strand_.wrap(boost::bind(&put_session::do_close, shared_from_this())));
-				return;
-			}
-		}
-
-		{
 			std::ostringstream ostr;
 
 			boost::system::error_code ec;
@@ -367,7 +355,7 @@ private:
 
 	void async_receive_file_chunks()
 	{
-		recv_buffer_.prepare(8192);
+		recv_buffer_.prepare(16 * 1024);
 		boost::asio::async_read(socket_,
 								recv_buffer_,
 								boost::asio::transfer_at_least(1),
