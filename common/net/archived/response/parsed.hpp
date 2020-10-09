@@ -12,9 +12,9 @@
 #include "code.hpp"
 #include "../verb.hpp"
 
-#include "../../../types.hpp"
-
-#include <boost/io/ios_state.hpp>
+#include <types.hpp>
+#include <utils/verify_char.hpp>
+#include <utils/disable_skipws.hpp>
 
 #include <ctime>
 #include <iostream>
@@ -26,42 +26,6 @@
 #endif
 
 namespace {
-template<typename Char>
-struct verify_char
-{
-	const Char c;
-	explicit verify_char(Char c) : c(c) {}
-};
-
-template<typename Char>
-inline std::istream&
-operator>>(std::basic_istream<Char>& is, const verify_char<Char>& wss)
-{
-	if (wss.c != is.get()) {
-		is.setstate(std::ios::failbit);
-	}
-
-	return is;
-}
-
-struct disable_skipws
-{
-	explicit disable_skipws(std::istream& is) : is(is), was_enabled(is.flags() & std::ios::skipws)
-	{
-		is.unsetf(std::ios::skipws);
-	}
-
-	~disable_skipws()
-	{
-		if (was_enabled) {
-			is.setf(std::ios::skipws);
-		}
-	}
-
-private:
-	std::istream& is;
-	bool was_enabled;
-};
 
 struct cannot_decode : public std::runtime_error
 {
@@ -121,6 +85,9 @@ template <typename Verb>
 inline std::istream&
 operator>>(std::istream& is, response<Verb>& r)
 try {
+    using common::utils::verify_char;
+    using common::utils::disable_skipws;
+
 	typedef typename Verb::ok ok;
 
 	Verb verb;

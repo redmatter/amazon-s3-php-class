@@ -64,7 +64,12 @@ set(HEADER_FILES
         net/archived/response/parsed.hpp
         utils/time.hpp
         utils/tee_stream.hpp
-        stream_debug.hpp)
+        stream_debug.hpp
+        utils/verify_char.hpp
+        utils/disable_skipws.hpp
+        utils/stream_printf.hpp
+        utils/kbps.hpp
+        utils/getenv.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp
@@ -87,6 +92,7 @@ include_directories(
         ${CPPNETLIB_INCLUDE_DIRS}
         /usr/include/threadpool
         ${rml-database-mysql_SOURCE_DIR}
+        ${rml-utils_SOURCE_DIR}
         ${librml_INC_DIR}
         ${MYSQL_INCLUDE_DIR})
 

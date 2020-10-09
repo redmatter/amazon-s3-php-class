@@ -47,7 +47,10 @@ set(HEADER_FILES
         net/response.hpp
         net/detail/make_response.hpp
         net/detail/response.hpp
-        )
+        net/put/session.hpp
+        net/put/error.hpp
+        net/put/request.hpp
+        net/put/exception.hpp)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)

@@ -110,10 +110,10 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
         const std::streamsize bytes_read = session->file_stream->gcount();
         session->file_size_remaining -= static_cast<std::size_t>(bytes_read);
-        // LogDebug(*conn << ' ' << *session << " file_size_remaining: " << session->file_size_remaining);
+        DevDebug(*conn << ' ' << *session << " xfr: " << session->file_size_remaining << '/' << session->file_size << ' ' << bytes_read << " bytes");
 
         std::ostream ostr(&conn->send_buffer);
-        ostr.write(session->file_buffer.c_array(), buf_length);
+        ostr.write(session->file_buffer.c_array(), bytes_read);
 
         // have we finished copying data from the file?
         if (session->file_size_remaining == 0) {
@@ -148,6 +148,9 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 			session->post_error(conn->io_service, conn->fault);
 			return;
         }
+
+        // update last usage time
+        conn->last_send_file_time = boost::chrono::steady_clock::now();
 
         DevDebug(*conn << ' ' << *session << " PUT (file-sent) ACK:" << res);
 
@@ -189,7 +192,7 @@ try {
         return;
     }
 
-    // todo move update to last_send_file_time to the end of transfer
+    // set last usage time now as well as when we finish
     conn->last_send_file_time = boost::chrono::steady_clock::now();
 
     boost::shared_ptr<detail::put_file_session> session =
