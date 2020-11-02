@@ -431,7 +431,7 @@ public:
 								}
 								else {
 									originator_uuid = "";
-									LogWarning(*archivable_cdr<<" OriginatorUUID NOT found");
+									LogVerbose(*archivable_cdr<<" OriginatorUUID NOT found");
 								}
 							}
 						}
