@@ -8,6 +8,7 @@ CONFIG_DB_RETENTION=/etc/archiving/conf.d/retention_database.conf
 CONFIG_DB_RETENTION_DELETE=/etc/archiving/conf.d/retention_delete_database.conf
 CONFIG_DB_INTERNAL=/etc/archiving/conf.d/internal_database.conf
 CONFIG_DB_BIG=/etc/archiving/conf.d/big_database.conf
+CONFIG_COLLECTD=/etc/archiving/rmcollectd.conf
 CONFIG_COLLECTSMSD=/etc/archiving/rmcollect-smsd.conf
 CONFIG_COLLECTIMPORTD=/etc/archiving/rmcollect-importd.conf
 
@@ -120,6 +121,11 @@ if [ -f $CONFIG_DB_BIG ]; then
 
 	ChangeConfig $CONFIG_DB_BIG mysql_big.host $MYSQL_RW
 	ChangeConfig $CONFIG_DB_BIG mysql_big.password $MYSQL_PW
+fi
+
+if [ -f $CONFIG_COLLECTD ]; then
+	# AU collectd's get double the thread count
+	hapi get LocRegion AU && ChangeConfig $CONFIG_COLLECTD archived_connection_pool.max_connections 32
 fi
 
 if [ -f $CONFIG_COLLECTSMSD ]; then
