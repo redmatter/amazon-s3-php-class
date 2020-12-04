@@ -44,7 +44,7 @@ function ChangeConfig
 		return
 	fi
 
-	sed -i "s#${KEY}\(.*\)#${KEY} = ${VAL}#" $CFG || Die "Unable to set ${KEY} = ${VAL} in ${CFG}"
+	sed -i "s#${KEY} \(.*\)#${KEY} = ${VAL}#" $CFG || Die "Unable to set ${KEY} = ${VAL} in ${CFG}"
 }
 
 HOSTTYPE=`hapi get HostType`
