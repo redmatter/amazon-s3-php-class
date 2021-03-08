@@ -156,7 +156,7 @@ void send_file_impl(const boost::system::error_code& ec, std::size_t bytes_trans
 
         if (!res.ok) {
 			LogWarning(*conn << ' ' << *session << " (RECV) negative ACK from ArchiveD; err:" << res.message);
-			session->post_error(conn->io_service, error::put_send_file_failure_ack_negative, std::time(0) + 10);
+			session->post_error(conn->io_service, error::put_send_file_failure_ack_negative, std::time(0) + 120);
 			return;
         }
 
