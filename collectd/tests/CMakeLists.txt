@@ -17,6 +17,7 @@ if (NOT DEFINED googletest_BINARY_DIR)
     add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
 endif ()
 find_package(Threads)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 # Enable CTest; it provides means to invoke all tests from single command `ctest -N`
 include(CTest)
@@ -34,4 +35,5 @@ gtest_add_tests_from_directory(
         DIRECTORY .
         NAME_PREFIX tests/
         LIBRARIES Threads::Threads ${Boost_LIBRARIES} archiving-common cryptopp
+        INCLUDE_DIRS ${CPPNETLIB_INCLUDE_DIRS}
 )
