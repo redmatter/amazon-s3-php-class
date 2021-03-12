@@ -406,8 +406,12 @@ public:
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
 
-						const boost::chrono::milliseconds leg_duration(
-							variables_node.select_single_node("mduration").node().text().as_uint());
+						const archiving::call_duration_based_delayed_producer delayed_producer(
+							fn_out_queue_produce_,
+							fn_out_queue_produce_with_delay_,
+							variables_node.select_single_node("end_epoch").node().text().as_uint(),
+							boost::chrono::milliseconds(
+								variables_node.select_single_node("mduration").node().text().as_uint()));
 
 						time_t start_epoch = 0;
 						{
@@ -635,7 +639,7 @@ public:
 									}
 									archivable_cbr->hibernate();
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_with_delay_(archivable_cbr, archiving::call_duration_to_delay(leg_duration), true);
+									delayed_producer.produce(archivable_cbr);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -754,7 +758,7 @@ public:
 
 										if (archivable_recording) {
 											fn_add_put_group_(put_group_id);
-											fn_out_queue_produce_with_delay_(archivable_recording, archiving::call_duration_to_delay(leg_duration), true);
+											delayed_producer.produce(archivable_recording);
 										}
 									}
 								}
@@ -823,7 +827,7 @@ public:
 
 								if (archivable_recording) {
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_with_delay_(archivable_recording, archiving::call_duration_to_delay(leg_duration), true);
+									delayed_producer.produce(archivable_recording);
 								}
 							}
 						}
