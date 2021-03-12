@@ -140,6 +140,7 @@ class cdr_inspector : public boost::noncopyable
 {
 	const common::collectd::fn_consume_type &fn_in_queue_consume_;
 	const common::collectd::fn_produce_type &fn_out_queue_produce_;
+	const common::collectd::fn_produce_with_delay_type &fn_out_queue_produce_with_delay_;
 	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
 	const common::collectd::fn_is_in_catalogue_type &fn_is_in_catalogue_;
 	const common::collectd::fn_save_to_database_type &fn_save_to_database_;
@@ -193,6 +194,7 @@ public:
 	cdr_inspector(
 			const common::collectd::fn_consume_type& fn_in_queue_consume,
 			const common::collectd::fn_produce_type& fn_out_queue_produce,
+			const common::collectd::fn_produce_with_delay_type& fn_out_queue_produce_with_delay,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_is_in_catalogue_type& fn_is_in_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
@@ -200,6 +202,7 @@ public:
 			const boost::program_options::variables_map& confMap,
 			const std::string& pbx_hostname) :
 			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
+			fn_out_queue_produce_with_delay_(fn_out_queue_produce_with_delay),
 			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
 			fn_save_to_database_(fn_save_to_database), fn_add_put_group_(fn_add_put_group),
 			confMap(confMap), pbx_hostname_(pbx_hostname)
@@ -402,6 +405,9 @@ public:
 
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
+
+						const boost::chrono::milliseconds leg_duration(
+							variables_node.select_single_node("mduration").node().text().as_uint());
 
 						time_t start_epoch = 0;
 						{
@@ -629,7 +635,7 @@ public:
 									}
 									archivable_cbr->hibernate();
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_(archivable_cbr, true);
+									fn_out_queue_produce_with_delay_(archivable_cbr, archiving::call_duration_to_delay(leg_duration), true);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -748,7 +754,7 @@ public:
 
 										if (archivable_recording) {
 											fn_add_put_group_(put_group_id);
-											fn_out_queue_produce_(archivable_recording, true);
+											fn_out_queue_produce_with_delay_(archivable_recording, archiving::call_duration_to_delay(leg_duration), true);
 										}
 									}
 								}
@@ -817,7 +823,7 @@ public:
 
 								if (archivable_recording) {
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_(archivable_recording, true);
+									fn_out_queue_produce_with_delay_(archivable_recording, archiving::call_duration_to_delay(leg_duration), true);
 								}
 							}
 						}
