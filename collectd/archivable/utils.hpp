@@ -6,6 +6,7 @@
 #define COLLECTD_ARCHIVABLE_UTILS_HPP
 
 #include "../../common/archivable.hpp"
+#include "../../common/collectd/callbacks.hpp"
 
 #include <boost/functional/hash.hpp>
 
@@ -70,6 +71,55 @@ call_duration_to_delay(unsigned int seconds)
 {
     return call_duration_to_delay(boost::chrono::seconds(seconds));
 }
+
+struct call_duration_based_delayed_producer
+{
+    typedef boost::chrono::seconds seconds;
+
+    const common::collectd::fn_produce_type& produce_;
+    const common::collectd::fn_produce_with_delay_type& produce_with_delay_;
+    const seconds delay_;
+
+    template <typename Rep, typename Period>
+    static inline seconds
+    calculate_delay(const std::time_t now, const time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
+    {
+        seconds delay = call_duration_to_delay(leg_duration_seconds);
+
+        if (now > leg_end_epoch) {
+            delay -= seconds(now - leg_end_epoch);
+        }
+
+        return delay;
+    }
+
+    template <typename Rep, typename Period>
+    static inline seconds
+    calculate_delay(const time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
+    {
+        return calculate_delay(std::time(0), leg_end_epoch, leg_duration_seconds);
+    }
+
+    template <typename Rep, typename Period>
+    call_duration_based_delayed_producer(const common::collectd::fn_produce_type& fn_produce,
+                                         const common::collectd::fn_produce_with_delay_type& fn_produce_with_delay,
+                                         const time_t leg_end_epoch,
+                                         const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
+        : produce_(fn_produce)
+        , produce_with_delay_(fn_produce_with_delay)
+        , delay_(calculate_delay(leg_end_epoch, leg_duration_seconds))
+    {
+    }
+
+    inline void produce(const boost::shared_ptr<archiving::archivable>& item) const
+    {
+        if (delay_ > seconds::zero()) {
+            produce_with_delay_(item, delay_, true);
+        } else {
+            produce_(item, true);
+        }
+    }
+};
 
 }
 
