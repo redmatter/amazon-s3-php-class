@@ -7,12 +7,13 @@
 
 #include "../../common/archivable.hpp"
 
+#include <boost/functional/hash.hpp>
+
 namespace archiving {
 
 std::size_t hash_value(archivable const &a)
 {
-    boost::hash<std::string> hasher;
-    return hasher(a.get_uuid());
+    return boost::hash<std::string>()(a.get_uuid());
 }
 
 bool operator==(const archivable &x, const archivable &y)
