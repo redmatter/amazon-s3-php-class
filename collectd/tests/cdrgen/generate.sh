@@ -27,6 +27,14 @@ all_enabled_data_variations=(
 whitenoise_wav=()
 trap '{ [ ${#whitenoise_wav[@]} -gt 0 ] && rm "${whitenoise_wav[@]}"; }' EXIT
 
+random_integer() {
+    local floor="$1";
+    local ceiling="$2";
+    local range=$((ceiling-floor+1));
+
+    echo -n $((floor+RANDOM%range));
+}
+
 make_temp_wav_path() {
     local filename
     filename="$(mktemp -p /tmp arcgen-XXXXXXXX)"
@@ -206,6 +214,13 @@ fi
 echo "Generating $batch x 2 CDRs into $out_dir."
 
 time=$(date +%s)
+
+### duration here is the call duration, but that is completely bogus!
+duration=$(random_integer 10 20)
+
+startEpoch=$((time-duration))
+endEpoch="$time"
+
 while [ "$batch" -gt 0 ]; do
     variation="${dv_selected[$((${RANDOM:0:1} % ${#dv_selected[@]}))]}"
     data_dir="${data_root_dir}/${variation}"
@@ -217,18 +232,23 @@ while [ "$batch" -gt 0 ]; do
         cp "$data_dir/data.pcap" "${pcap_dir}/${auuid}.pcap"
         echo "$auuid - $variation"
     else
+        aWav="/tmp/1_2017_08_22_${auuid}.wav"
+        bWav="/tmp/1_2017_08_22_${buuid}.wav"
+
         if [[ "$variation" =~ -([0-9]+)mins-whitenoise ]]; then
             minutes="${BASH_REMATCH[1]}"
-            make_whitenoise_recording "$minutes" "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
-            make_whitenoise_recording "$minutes" "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
+            make_whitenoise_recording "$minutes" "$data_dir/aLeg_uuid.wav" "$aWav"
+            make_whitenoise_recording "$minutes" "$data_dir/bLeg_uuid.wav" "$bWav"
         else
             if [ -r "${data_dir}/aLeg_uuid.wav" ]; then
-                cp "$data_dir/aLeg_uuid.wav" "/tmp/1_2017_08_22_${auuid}.wav"
+                cp "$data_dir/aLeg_uuid.wav" "$aWav"
             fi
             if [ -r "${data_dir}/bLeg_uuid.wav" ]; then
-                cp "$data_dir/bLeg_uuid.wav" "/tmp/1_2017_08_22_${buuid}.wav"
+                cp "$data_dir/bLeg_uuid.wav" "$bWav"
             fi
         fi
+
+        legDuration=$((endEpoch-startEpoch))
 
         sed -e "s/{{aLeg_uuid}}/$auuid/g" \
             -e "s/{{bLeg_uuid}}/$buuid/g" \
@@ -237,7 +257,9 @@ while [ "$batch" -gt 0 ]; do
             > "$out_dir/$auuid.cdr.xml"
         sed -e "s/{{aLeg_uuid}}/$auuid/g" \
             -e "s/{{bLeg_uuid}}/$buuid/g" \
-            -e "s/{{startEpoch}}/$time/g" \
+            -e "s/{{startEpoch}}/$startEpoch/g" \
+            -e "s/{{endEpoch}}/$endEpoch/g" \
+            -e "s/{{legDuration}}/$legDuration/g" \
             < "$data_dir/bLeg_uuid.xml" \
             > "$out_dir/$buuid.cdr.xml"
 

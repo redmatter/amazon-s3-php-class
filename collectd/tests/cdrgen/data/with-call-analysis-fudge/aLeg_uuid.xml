@@ -277,26 +277,26 @@
     <progress_uepoch>1503390914309237</progress_uepoch>
     <progress_media_epoch>{{startEpoch}}</progress_media_epoch>
     <progress_media_uepoch>{{startEpoch}}609318</progress_media_uepoch>
-    <end_epoch>1503391205</end_epoch>
-    <end_uepoch>1503391205228462</end_uepoch>
+    <end_epoch>{{endEpoch}}</end_epoch>
+    <end_uepoch>{{endEpoch}}228462</end_uepoch>
     <last_app>record_session</last_app>
     <last_arg>/var/spool/rmrecordings/1_2017_08_22_{{aLeg_uuid}}.wav</last_arg>
     <caller_id>%224916097792975%22%20%3C4916097792975%3E</caller_id>
-    <duration>294</duration>
+    <duration>{{legDuration}}</duration>
     <billsec>268</billsec>
     <progresssec>3</progresssec>
     <answersec>26</answersec>
     <waitsec>26</waitsec>
     <progress_mediasec>2</progress_mediasec>
     <flow_billsec>294</flow_billsec>
-    <mduration>293809</mduration>
+    <mduration>{{legDuration}}000</mduration>
     <billmsec>267430</billmsec>
     <progressmsec>2890</progressmsec>
     <answermsec>26379</answermsec>
     <waitmsec>26379</waitmsec>
     <progress_mediamsec>2190</progress_mediamsec>
     <flow_billmsec>293809</flow_billmsec>
-    <uduration>293809111</uduration>
+    <uduration>{{legDuration}}000000</uduration>
     <billusec>267429521</billusec>
     <progressusec>2889886</progressusec>
     <answerusec>26379590</answerusec>
@@ -887,7 +887,7 @@
       <bridged_time>1503390937798941</bridged_time>
       <last_hold_time>0</last_hold_time>
       <hold_accum_time>0</hold_accum_time>
-      <hangup_time>1503391205228462</hangup_time>
+      <hangup_time>{{endEpoch}}228462</hangup_time>
       <resurrect_time>0</resurrect_time>
       <transfer_time>0</transfer_time>
     </times>
