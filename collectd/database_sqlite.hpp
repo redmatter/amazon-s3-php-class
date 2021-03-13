@@ -489,7 +489,7 @@ private:
 					->bind(p_arc->get_current_state(), ":State")
 
 					->bind(p_arc->get_policy_id(), ":PolicyID")
-					->bind(sqlite::types::blob(p_arc->get_md5()), ":MD5")
+					->bind(sqlite::types::blob(p_arc->get_md5_or_zero()), ":MD5")
 					->bind(p_arc->get_add_to_cdrmunch_cache()? 1: 0, ":AddToCDRMunchCache")
 					->bind(0, ":BufferedRecording") // TODO migration from call-buffering v2 to v1 will need to address this
 					->bind(p_arc->get_data_format(), ":DataFormat")
@@ -526,6 +526,16 @@ private:
 		}
 
 		return false;
+	}
+
+	static const std::string& zero_md5_to_empty(const std::string& md5)
+	{
+		static const std::string empty;
+		if (md5.empty() || md5 == "00000000000000000000000000000000") {
+			return empty;
+		}
+
+		return md5;
 	}
 
 public:
@@ -711,7 +721,7 @@ public:
 						res[9].as_int() == 1,
 						!res[5].is_null(),
 						res[5].is_null()? "": res[5].as_text(),
-						res[8].as_text(),
+						zero_md5_to_empty(res[8].as_text()),
 						archiving::archivable::state::state_t(res[6].as_int())
 //						, res[17].as_int() // BufferedRecording
 					));

@@ -492,6 +492,15 @@ public:
 		return p_fstream_;
 	}
 
+	inline const hash_vector& get_md5_or_zero() const
+	{
+		if (md5_ == boost::none) {
+			return zero_hash_vector();
+		}
+
+		return *md5_;
+	}
+
 	inline const hash_vector& get_md5() const
 	{
 		if (md5_ == boost::none) {
