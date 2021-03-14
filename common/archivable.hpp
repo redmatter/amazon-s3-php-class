@@ -470,9 +470,13 @@ public:
 		// formulate the PUT request into a string stream; in case of any exceptions, we don't
 		// want to pollute the send_buffer_ which backs the ostream.
 
+		p_fstream_->re_open();
+
 		std::ostringstream ostr;
 		ostr << "PUT "<<type_<<' '<<((type_ != file_type::cdr)? owners_.orgID: org_id_t(1))<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 		shove_metadata(ostr);
+
+		p_fstream_->close();
 
 		const std::string put_request = ostr.str();
 
