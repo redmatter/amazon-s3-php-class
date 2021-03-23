@@ -32,6 +32,13 @@ typedef uint64_t endpoint_id_t;
 
 typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 
+inline const hash_vector&
+zero_hash_vector()
+{
+    static const archiving::hash_vector zero = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    return zero;
+}
+
 typedef boost::array<unsigned char, 16> uuid_t;
 
 // for PUT grouping by LegUUID

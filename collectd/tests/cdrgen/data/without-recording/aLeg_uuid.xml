@@ -221,7 +221,7 @@
     <progress_media_stamp>2013-01-21%2009%3A45%3A15</progress_media_stamp>
     <end_stamp>2013-01-21%2009%3A45%3A41</end_stamp>
     <start_epoch>{{startEpoch}}</start_epoch>
-    <start_uepoch>1358761509960070</start_uepoch>
+    <start_uepoch>{{startEpoch}}960070</start_uepoch>
     <profile_start_epoch>1358761511</profile_start_epoch>
     <profile_start_uepoch>1358761511720134</profile_start_uepoch>
     <answer_epoch>1358761515</answer_epoch>
@@ -239,26 +239,26 @@
     <progress_uepoch>0</progress_uepoch>
     <progress_media_epoch>1358761515</progress_media_epoch>
     <progress_media_uepoch>1358761515000281</progress_media_uepoch>
-    <end_epoch>1358761541</end_epoch>
-    <end_uepoch>1358761541101422</end_uepoch>
+    <end_epoch>{{endEpoch}}</end_epoch>
+    <end_uepoch>{{endEpoch}}101422</end_uepoch>
     <last_app>lua</last_app>
     <last_arg>applications/features/PreALegBridgeHook.lua%20bridge_pre_execute_aleg</last_arg>
     <caller_id>%2212000%22%20%3C12000%3E</caller_id>
-    <duration>32</duration>
+    <duration>{{legDuration}}</duration>
     <billsec>26</billsec>
     <progresssec>0</progresssec>
     <answersec>6</answersec>
     <waitsec>6</waitsec>
     <progress_mediasec>6</progress_mediasec>
     <flow_billsec>32</flow_billsec>
-    <mduration>31141</mduration>
+    <mduration>{{legDuration}}000</mduration>
     <billmsec>25521</billmsec>
     <progressmsec>0</progressmsec>
     <answermsec>5620</answermsec>
     <waitmsec>5040</waitmsec>
     <progress_mediamsec>5040</progress_mediamsec>
     <flow_billmsec>31141</flow_billmsec>
-    <uduration>31141352</uduration>
+    <uduration>{{legDuration}}000000</uduration>
     <billusec>25521119</billusec>
     <progressusec>0</progressusec>
     <answerusec>5620233</answerusec>
@@ -421,7 +421,7 @@
           <context>features</context>
           <chan_name>sofia/external1/447956665283</chan_name></originatee_caller_profile></originatee></caller_profile>
     <times>
-      <created_time>1358761509960070</created_time>
+      <created_time>{{startEpoch}}960070</created_time>
       <profile_created_time>1358761511720134</profile_created_time>
       <progress_time>0</progress_time>
       <progress_media_time>1358761515000281</progress_media_time>
@@ -429,7 +429,7 @@
       <bridged_time>1358761515000281</bridged_time>
       <last_hold_time>0</last_hold_time>
       <hold_accum_time>0</hold_accum_time>
-      <hangup_time>1358761541101422</hangup_time>
+      <hangup_time>{{endEpoch}}101422</hangup_time>
       <resurrect_time>0</resurrect_time>
       <transfer_time>0</transfer_time></times></callflow>
   <callflow dialplan="XML" unique-id="692ba5a2-b863-4308-aa1b-58a61365e82b" clone-of="40484369-436d-4c5f-91dd-72df60d5fbb8" profile_index="2">
@@ -460,7 +460,7 @@
       <context>1</context>
       <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></caller_profile>
     <times>
-      <created_time>1358761509960070</created_time>
+      <created_time>{{startEpoch}}960070</created_time>
       <profile_created_time>1358761510564113</profile_created_time>
       <progress_time>0</progress_time>
       <progress_media_time>0</progress_media_time>
@@ -518,8 +518,8 @@
       <context>1</context>
       <chan_name>sofia/internal1/12000@sip.dk.redmatter.com</chan_name></caller_profile>
     <times>
-      <created_time>1358761509960070</created_time>
-      <profile_created_time>1358761509960070</profile_created_time>
+      <created_time>{{startEpoch}}960070</created_time>
+      <profile_created_time>{{startEpoch}}960070</profile_created_time>
       <progress_time>0</progress_time>
       <progress_media_time>0</progress_media_time>
       <answered_time>0</answered_time>

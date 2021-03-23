@@ -20,14 +20,28 @@ namespace archivable
 
 namespace rmlq = rml::queue;
 
-typedef rmlq::queue<
-        boost::shared_ptr<archiving::archivable>,
-        rmlq::detail::shared_ptr_hash<boost::shared_ptr<archiving::archivable> >,
-        rmlq::detail::shared_ptr_equal_to<boost::shared_ptr<archiving::archivable> > > base_queue;
-
-base_queue::classifier_type::classification_type classify(const boost::shared_ptr<archiving::archivable> &p)
+template <bool WithDelayQueue>
+struct queue
+    : public rmlq::queue<boost::shared_ptr<archiving::archivable>,
+                         rmlq::detail::shared_ptr_hash<boost::shared_ptr<archiving::archivable> >,
+                         rmlq::detail::shared_ptr_equal_to<boost::shared_ptr<archiving::archivable> >,
+                         3,
+                         true,
+                         WithDelayQueue>
 {
-    switch (p->get_type()) {
+    typedef rmlq::queue<boost::shared_ptr<archiving::archivable>,
+                        rmlq::detail::shared_ptr_hash<boost::shared_ptr<archiving::archivable> >,
+                        rmlq::detail::shared_ptr_equal_to<boost::shared_ptr<archiving::archivable> >,
+                        3,
+                        true,
+                        WithDelayQueue>
+        base_queue;
+
+    typedef typename base_queue::classification_type classification_type;
+
+    static classification_type classify(const boost::shared_ptr<archiving::archivable> &p)
+    {
+        switch (p->get_type()) {
         case archiving::file_type::cdr:
             return 0;
         case archiving::file_type::buffered_recording:
@@ -36,36 +50,43 @@ base_queue::classifier_type::classification_type classify(const boost::shared_pt
             return 2;
         default:
             return 3;
+        }
     }
-}
 
-boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving::archivable> &p)
-{
-    using namespace boost::chrono;
-    return duration_cast<nanoseconds>(seconds(
+    static boost::chrono::nanoseconds calculate_deadline(const boost::shared_ptr<archiving::archivable> &p)
+    {
+        using namespace boost::chrono;
+        return duration_cast<nanoseconds>(seconds(
             10 // everything gets a deadline at least 10s in the future
             + classify(p) * 10 // each class is 10s apart
             + p->get_attempt() * 300)); // each retry is further 5mins apart
-}
+    }
 
-struct queue : public base_queue
-{
-    queue(const std::string &name, const boost::shared_ptr<catalogue> &catalogue) :
-            base_queue(boost::bind(classify, _1), boost::bind(calculate_deadline, _1), name), catalogue_(catalogue)
+    queue(const std::string& name, const boost::shared_ptr<catalogue>& catalogue)
+        : base_queue(boost::bind(classify, _1), boost::bind(calculate_deadline, _1), name), catalogue_(catalogue)
     {}
 
-    void produce(const boost::shared_ptr<archiving::archivable> &item, const boost::chrono::milliseconds &wait_timeout,
-                 const bool add_to_catalogue)
+    inline void produce(const boost::shared_ptr<archiving::archivable>& item,
+                        const boost::chrono::milliseconds& wait_timeout,
+                        const bool add_to_catalogue)
+    {
+        produce(item, boost::chrono::seconds::zero(), wait_timeout, add_to_catalogue);
+    }
+
+    inline void produce(const boost::shared_ptr<archiving::archivable>& item,
+                        const boost::chrono::milliseconds& delay,
+                        const boost::chrono::milliseconds& wait_timeout,
+                        const bool add_to_catalogue)
     {
         boost::system::error_condition ec;
         if (add_to_catalogue) {
             catalogue::item_sentry sentry(catalogue_, item);
-            base_queue::produce(item, wait_timeout, ec);
+            base_queue::produce(item, delay, wait_timeout, ec);
             if (!ec) {
                 sentry.cancel();
             }
         } else {
-            base_queue::produce(item, wait_timeout, ec);
+            base_queue::produce(item, delay, wait_timeout, ec);
         }
 
         if (ec) {

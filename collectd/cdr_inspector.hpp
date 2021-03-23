@@ -26,9 +26,10 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
+#include <boost/make_shared.hpp>
 
 #include <uuid/uuid.h>
-#include <time.h>
+#include <ctime>
 
 namespace {
 
@@ -72,7 +73,7 @@ inline long long get_xpath_single_value(pugi::xml_node& doc, const std::string& 
 // Checks to see if the passed archivable was in the passed directory and, if so, attempts to extract information
 // from the filename and populate archivable with this information.
 // Returns false if there was a failure.
-bool check_info_in_filename(const std::string& directory, archiving::archivable::pointer p_archivable)
+bool check_info_in_filename(const std::string& directory, const archiving::archivable::pointer& p_archivable)
 {
 	// Create this regex as a static variable so that we don't construct it each time.
 	// We're expecting the path to look like:
@@ -140,6 +141,7 @@ class cdr_inspector : public boost::noncopyable
 {
 	const common::collectd::fn_consume_type &fn_in_queue_consume_;
 	const common::collectd::fn_produce_type &fn_out_queue_produce_;
+	const common::collectd::fn_produce_with_delay_type &fn_out_queue_produce_with_delay_;
 	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
 	const common::collectd::fn_is_in_catalogue_type &fn_is_in_catalogue_;
 	const common::collectd::fn_save_to_database_type &fn_save_to_database_;
@@ -193,6 +195,7 @@ public:
 	cdr_inspector(
 			const common::collectd::fn_consume_type& fn_in_queue_consume,
 			const common::collectd::fn_produce_type& fn_out_queue_produce,
+			const common::collectd::fn_produce_with_delay_type& fn_out_queue_produce_with_delay,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_is_in_catalogue_type& fn_is_in_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
@@ -200,6 +203,7 @@ public:
 			const boost::program_options::variables_map& confMap,
 			const std::string& pbx_hostname) :
 			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
+			fn_out_queue_produce_with_delay_(fn_out_queue_produce_with_delay),
 			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
 			fn_save_to_database_(fn_save_to_database), fn_add_put_group_(fn_add_put_group),
 			confMap(confMap), pbx_hostname_(pbx_hostname)
@@ -234,9 +238,9 @@ public:
 			std::string temp_files_base_directory;
 			bool filter_orgs_all = false;
 			bool chunk_enabled = false;
-			std::string chunk_directory("");
+			std::string chunk_directory;
 			bool info_enabled = false;
-			std::string info_directory("");
+			std::string info_directory;
 
 			// load OR reload (on HUP) config
 			{
@@ -293,7 +297,7 @@ public:
 							LogVerbose(*p_archivable<<" not a CDR; shifting to out channel");
 
 							p_archivable->set_owners(archiving::owner_info(1));
-							p_archivable->set_start_epoch(time(0));
+							p_archivable->set_start_epoch(std::time(0));
 							p_archivable->set_add_to_cdrmunch_cache(false);
 
 							// If chunks are enabled and the type is recording...
@@ -321,9 +325,9 @@ public:
 							p_archivable->move_to_subdir("collected");
 							{
 								int retry = 0;
-								time_t last_attempt(0);
+								std::time_t last_attempt(0);
 								while(!app::quit) {
-									const time_t now(time(0));
+									const std::time_t now(std::time(0));
 									if(!last_attempt || (now - last_attempt) > 15) {
 										if(fn_save_to_database_(p_archivable))
 											break;
@@ -403,7 +407,14 @@ public:
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
 
-						time_t start_epoch = 0;
+						const archiving::call_duration_based_delayed_producer delayed_producer(
+							fn_out_queue_produce_,
+							fn_out_queue_produce_with_delay_,
+							variables_node.select_single_node("end_epoch").node().text().as_uint(),
+							boost::chrono::milliseconds(
+								variables_node.select_single_node("mduration").node().text().as_uint()));
+
+						std::time_t start_epoch = 0;
 						{
 							pugi::xpath_node start_epoch_node = variables_node.select_single_node("start_epoch/text()");
 							if(start_epoch_node) {
@@ -411,7 +422,7 @@ public:
 							}
 							else {
 								LogWarning(*archivable_cdr<<" Start Epoch not found ( /cdr/variables/start_epoch ); falling-back to current time");
-								time(&start_epoch);
+								std::time(&start_epoch);
 							}
 						}
 
@@ -419,20 +430,8 @@ public:
 						{
 							if(leg == leg::A) {
 								originator_uuid = cdr_uuid;
-							}
-							else {
-								if(pugi::xpath_node node = variables_node.select_single_node("rmOriginatorUUID/text()")) {
-									originator_uuid = node.node().value();
-									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/rmOriginatorUUID "<<originator_uuid);
-								}
-								else if(pugi::xpath_node node = variables_node.select_single_node("originator/text()")) {
-									originator_uuid = node.node().value();
-									LogDebug(*archivable_cdr<<" OriginatorUUID from /cdr/variables/originator "<<originator_uuid);
-								}
-								else {
-									originator_uuid = "";
-									LogVerbose(*archivable_cdr<<" OriginatorUUID NOT found");
-								}
+							} else {
+								originator_uuid = get_originator_uuid(variables_node, archivable_cdr);
 							}
 						}
 
@@ -629,7 +628,7 @@ public:
 									}
 									archivable_cbr->hibernate();
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_(archivable_cbr, true);
+									delayed_producer.produce(archivable_cbr);
 
 									variables_node.append_child("rmBufferedRecording_UUID").append_child(pugi::node_pcdata).set_value(uuid.c_str());
 									variables_node.append_child("rmBufferedRecordingVersion").append_child(pugi::node_pcdata).set_value("2");
@@ -748,7 +747,7 @@ public:
 
 										if (archivable_recording) {
 											fn_add_put_group_(put_group_id);
-											fn_out_queue_produce_(archivable_recording, true);
+											delayed_producer.produce(archivable_recording);
 										}
 									}
 								}
@@ -817,7 +816,7 @@ public:
 
 								if (archivable_recording) {
 									fn_add_put_group_(put_group_id);
-									fn_out_queue_produce_(archivable_recording, true);
+									delayed_producer.produce(archivable_recording);
 								}
 							}
 						}
@@ -886,6 +885,31 @@ public:
 			}
 		}
 		LogMessage("finishing");
+	}
+
+	static inline const char* get_originator_uuid(const pugi::xml_node& variables_node,
+												  const archiving::archivable::pointer& cdr)
+	{
+		const char* ret;
+		pugi::xpath_node node;
+
+		node = variables_node.select_single_node("rmOriginatorUUID/text()");
+		if (node) {
+			ret = node.node().value();
+			LogDebug(*cdr << " OriginatorUUID from /cdr/variables/rmOriginatorUUID " << ret);
+			return ret;
+		}
+
+		node = variables_node.select_single_node("originator/text()");
+		if (node) {
+			ret = node.node().value();
+			LogDebug(*cdr << " OriginatorUUID from /cdr/variables/originator " << ret);
+			return ret;
+		}
+
+		LogVerbose(*cdr << " OriginatorUUID NOT found");
+
+		return "";
 	}
 };
 

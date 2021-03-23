@@ -411,20 +411,26 @@ int main(int argc, char* argv[]) try
 		const common::collectd::fn_is_in_catalogue_type fn_is_in_catalogue(
 				boost::bind(&collectd::archivable::catalogue::is_present, archivable_catalogue, _1));
 
-		boost::shared_ptr<collectd::archivable::queue>
-				in_queue = boost::make_shared<collectd::archivable::queue>("IN", archivable_catalogue),
-				out_queue = boost::make_shared<collectd::archivable::queue>("OUT", archivable_catalogue);
+		typedef collectd::archivable::queue<false> queue_without_delay;
+		typedef collectd::archivable::queue<true> queue_with_delay;
+		boost::shared_ptr<queue_without_delay> in_queue =
+				boost::make_shared<queue_without_delay>("IN", archivable_catalogue);
+		boost::shared_ptr<queue_with_delay> out_queue =
+				boost::make_shared<queue_with_delay>("OUT", archivable_catalogue);
 		const common::collectd::fn_produce_type fn_in_queue_produce(
 				boost::bind(
-						&collectd::archivable::queue::produce, in_queue, _1, boost::chrono::milliseconds::zero(), _2));
+						&queue_without_delay::produce, in_queue, _1, boost::chrono::milliseconds::zero(), _2));
 		const common::collectd::fn_produce_type fn_out_queue_produce(
 				boost::bind(
-						&collectd::archivable::queue::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
+						&queue_with_delay::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
+        const common::collectd::fn_produce_with_delay_type fn_out_queue_produce_with_delay(
+            boost::bind(
+                &queue_with_delay::produce, out_queue, _1, _2, boost::chrono::milliseconds::zero(), _3));
 
 		const common::collectd::fn_consume_type fn_in_queue_consume(
-				boost::bind(&collectd::archivable::queue::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+				boost::bind(&queue_without_delay::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
 		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
-				boost::bind(&collectd::archivable::queue::consume, out_queue, _2, _1, _3, _4));
+				boost::bind(&queue_with_delay::consume, out_queue, _2, _1, _3, _4));
 
 		app::database::internal internal_db(app::confMap, "CollectDQueue");
 
@@ -588,7 +594,7 @@ int main(int argc, char* argv[]) try
 
 		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
 		app::cdr_inspector cdr_inspector(
-				fn_in_queue_consume, fn_out_queue_produce, fn_remove_from_catalogue, fn_is_in_catalogue,
+				fn_in_queue_consume, fn_out_queue_produce, fn_out_queue_produce_with_delay, fn_remove_from_catalogue, fn_is_in_catalogue,
 				fn_save_to_database, fn_add_put_group, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			cdr_inspector_threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));

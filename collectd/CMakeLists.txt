@@ -68,4 +68,6 @@ target_link_libraries(rmcollectd.bin
 target_include_directories(rmcollectd.bin PUBLIC ${SQLITE3_INCLUDE_DIRS})
 target_compile_options(rmcollectd.bin PUBLIC ${SQLITE3_CFLAGS_OTHER})
 
-add_subdirectory(tests)
+if (BUILD_TESTS)
+        add_subdirectory(tests)
+endif()
