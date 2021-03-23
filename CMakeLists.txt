@@ -44,7 +44,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         rml-queue
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
-        GIT_TAG        1.0.1
+        GIT_TAG        1.1.0
 )
 
 FetchContent_Declare(

@@ -146,26 +146,26 @@
     <progress_uepoch>0</progress_uepoch>
     <progress_media_epoch>1358761515</progress_media_epoch>
     <progress_media_uepoch>1358761515000281</progress_media_uepoch>
-    <end_epoch>1358761541</end_epoch>
-    <end_uepoch>1358761541101422</end_uepoch>
+    <end_epoch>{{endEpoch}}</end_epoch>
+    <end_uepoch>{{endEpoch}}101422</end_uepoch>
     <last_app>lua</last_app>
     <last_arg>applications/features/PreProcessBLeg.lua%20execute_on_answer</last_arg>
     <caller_id>%2212000%22%20%3C12000%3E</caller_id>
-    <duration>30</duration>
+    <duration>{{legDuration}}</duration>
     <billsec>26</billsec>
     <progresssec>0</progresssec>
     <answersec>4</answersec>
     <waitsec>4</waitsec>
     <progress_mediasec>4</progress_mediasec>
     <flow_billsec>30</flow_billsec>
-    <mduration>29381</mduration>
+    <mduration>{{legDuration}}000</mduration>
     <billmsec>25541</billmsec>
     <progressmsec>0</progressmsec>
     <answermsec>3840</answermsec>
     <waitmsec>3280</waitmsec>
     <progress_mediamsec>3280</progress_mediamsec>
     <flow_billmsec>29381</flow_billmsec>
-    <uduration>29381288</uduration>
+    <uduration>{{legDuration}}000000</uduration>
     <billusec>25541121</billusec>
     <progressusec>0</progressusec>
     <answerusec>3840167</answerusec>
@@ -239,6 +239,6 @@
       <bridged_time>1358761515000281</bridged_time>
       <last_hold_time>0</last_hold_time>
       <hold_accum_time>0</hold_accum_time>
-      <hangup_time>1358761541101422</hangup_time>
+      <hangup_time>{{endEpoch}}101422</hangup_time>
       <resurrect_time>0</resurrect_time>
       <transfer_time>0</transfer_time></times></callflow></cdr>

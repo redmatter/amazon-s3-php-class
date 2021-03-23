@@ -20,6 +20,8 @@ typedef boost::function0<void> consume_timeout_callback_type;
 typedef boost::function0<void> is_finishing_callback_type;
 
 typedef boost::function2<void, boost::shared_ptr<archiving::archivable>, bool> fn_produce_type;
+typedef boost::function3<void, boost::shared_ptr<archiving::archivable>, boost::chrono::seconds, bool>
+        fn_produce_with_delay_type;
 typedef boost::function1<
         boost::shared_ptr<archiving::archivable>, bool> fn_consume_type;
 typedef boost::function2<

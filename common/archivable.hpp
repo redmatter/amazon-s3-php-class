@@ -21,6 +21,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/foreach.hpp>
 #include <boost/atomic/atomic.hpp>
+#include <boost/optional.hpp>
 
 #include <iostream>
 #include <vector>
@@ -235,7 +236,7 @@ private:
 	std::string file_path_;
 	rml::utils::tmp_fstream::pointer p_fstream_;
 	bool is_modified_;
-	hash_vector md5_;
+	mutable boost::optional<hash_vector> md5_;
 
 	const file_type::file_type_t type_;
 
@@ -329,12 +330,11 @@ public:
 	  attempt_(0),
 	  is_save_setup_(false)
 	{
-		if(md5.empty()) {
-			md5_ = md5hasher::hash(p_fstream_);
-		}
-		else {
+		if(!md5.empty()) {
+			md5_ = boost::in_place();
+
 			std::istringstream istr(md5);
-			istr >> md5_;
+			istr >> *md5_;
 		}
 
 		// set persistent; we will get around to making it NOT persistent when we are done with it
@@ -455,7 +455,7 @@ public:
 		// TODO Get rid of OriginatorUUID
 
 		return ostr << "FileType: "<<type_<<"\r\n"
-				<< "MD5: "<<md5_<<"\r\n"
+				<< "MD5: "<<get_md5()<<"\r\n"
 				<< "CreateTime: "<<start_epoch<<"\r\n"
 				<< "LegUUID: "<<leg_uuid_<<"\r\n"
 				<< "OriginatorUUID: "<<originator_uuid<<"\r\n"
@@ -470,9 +470,13 @@ public:
 		// formulate the PUT request into a string stream; in case of any exceptions, we don't
 		// want to pollute the send_buffer_ which backs the ostream.
 
+		p_fstream_->re_open();
+
 		std::ostringstream ostr;
 		ostr << "PUT "<<type_<<' '<<((type_ != file_type::cdr)? owners_.orgID: org_id_t(1))<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 		shove_metadata(ostr);
+
+		p_fstream_->close();
 
 		const std::string put_request = ostr.str();
 
@@ -492,9 +496,22 @@ public:
 		return p_fstream_;
 	}
 
+	inline const hash_vector& get_md5_or_zero() const
+	{
+		if (md5_ == boost::none) {
+			return zero_hash_vector();
+		}
+
+		return *md5_;
+	}
+
 	inline const hash_vector& get_md5() const
 	{
-		return md5_;
+		if (md5_ == boost::none) {
+			md5_ = md5hasher::hash(p_fstream_);
+		}
+
+		return *md5_;
 	}
 
 	inline const file_type::file_type_t& get_type() const
