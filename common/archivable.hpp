@@ -17,6 +17,7 @@
 #include <rml/pc_channel_delayed_retry.h>
 #include <rml/pc_channel.h>
 #include <rml/utils.h>
+#include <rml/sentry.h>
 
 #include <boost/shared_ptr.hpp>
 #include <boost/foreach.hpp>
@@ -471,12 +472,11 @@ public:
 		// want to pollute the send_buffer_ which backs the ostream.
 
 		p_fstream_->re_open();
+		rml::sentry stream_closer(boost::bind(&rml::utils::tmp_fstream::close, p_fstream_));
 
 		std::ostringstream ostr;
 		ostr << "PUT "<<type_<<' '<<((type_ != file_type::cdr)? owners_.orgID: org_id_t(1))<<' '<<uuid<<' '<<p_fstream_->get_size()<<"\r\n";
 		shove_metadata(ostr);
-
-		p_fstream_->close();
 
 		const std::string put_request = ostr.str();
 
