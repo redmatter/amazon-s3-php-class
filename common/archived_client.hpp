@@ -1070,7 +1070,8 @@ private:
 		}
 
 		std::ostream ostr(&send_buffer_); ostr.clear();
-		if (!put_archivable_ptr_->inject_put_request(ostr)) {
+		boost::system::error_code ec;
+		if (!put_archivable_ptr_->inject_put_request(ostr, ec)) {
 			put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
 			get_next_archivable_for_put();
 			return;
