@@ -10,7 +10,6 @@
 
 #include "md5.hpp"
 #include "policy.hpp"
-#include "pre.h"
 #include "types.hpp"
 
 #include <rml/exception.h>
@@ -24,6 +23,7 @@
 #include <boost/foreach.hpp>
 #include <boost/atomic/atomic.hpp>
 #include <boost/optional.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #include <iostream>
 #include <vector>
