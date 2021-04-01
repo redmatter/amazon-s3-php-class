@@ -16,6 +16,7 @@
 #include <set>
 
 #include <boost/regex.hpp>
+#include <boost/filesystem/operations.hpp>
 
 namespace archiving
 {
@@ -72,6 +73,8 @@ namespace archiving
 
 		inline bool add_path(const std::string& file_path)
 		{
+			static const unsigned int max_delay = 10U;
+
 			try
 			{
 				static boost::regex uuid_regex("\\/([0-9a-f\\-]{36})[^\\/.]+\\.mp3");
@@ -83,10 +86,27 @@ namespace archiving
 					// Get the useful bit from the path.
 					std::string uuid = match[1].str();
 
-                    archivable::pointer a(new archivable(uuid, "", 0, file_path, archiving::file_type::recording, "mp3", local_hostname_));
+					unsigned int delay = max_delay;
+
+					boost::system::error_code ec;
+					std::time_t mod_time = boost::filesystem::last_write_time(boost::filesystem::path(file_path), ec);
+					if (ec) {
+						LogError(uuid << " - failed to get modification-time; error:" << ec.message());
+					} else {
+						std::time_t age = std::time(0) - mod_time;
+						if (age > 0) {
+							delay -= std::max<unsigned int>(max_delay, age);
+						}
+
+						if (delay) {
+							LogVerbose(uuid << " - delaying by " << delay << " seconds");
+						}
+					}
+
+					archivable::pointer a(new archivable(uuid, "", 0, file_path, archiving::file_type::recording, "mp3", local_hostname_));
                     a->set_leg_uuid(uuid);
 
-					pc_produce(channel_, a);
+					pc_produce(channel_, a, delay);
 
 					return true;
 				}
