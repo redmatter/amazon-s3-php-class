@@ -330,7 +330,7 @@ public:
 	  attempt_(0),
 	  is_save_setup_(false)
 	{
-		if(!md5.empty()) {
+		if(!md5.empty() && md5 != "00000000000000000000000000000000") {
 			md5_ = boost::in_place();
 
 			std::istringstream istr(md5);

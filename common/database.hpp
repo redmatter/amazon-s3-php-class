@@ -92,7 +92,7 @@ public:
 		std::string md5_str;
 		{
 			std::ostringstream ostr;
-			ostr << arc.get_md5();
+			ostr << arc.get_md5_or_zero();
 			md5_str = ostr.str();
 		}
 
