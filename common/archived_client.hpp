@@ -1072,6 +1072,10 @@ private:
 		std::ostream ostr(&send_buffer_); ostr.clear();
 		boost::system::error_code ec;
 		if (!put_archivable_ptr_->inject_put_request(ostr, ec)) {
+			if (ec) {
+				LogWarning(*this << ' ' << ec.message() << " - file not found; skipping retry");
+			}
+
 			put_archivable_ptr_.reset(); // so that it would not retry (till the daemon is restarted)
 			get_next_archivable_for_put();
 			return;
