@@ -95,6 +95,14 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
             return;
         }
 
+        // do not retry on sure failures like file missing, which happens if purge occurs while waiting to be sent
+        if (ec == common::net::archived::error::put_initialisation_failed_permanently) {
+            LogMessage(archivable << " giving up; error:" << ec.message());
+            fn_remove_put_group(get_put_group_id(archivable));
+            fn_remove_from_catalogue(archivable);
+            return;
+        }
+
         LogMessage(archivable << " finished with error:" << ec.message());
         if (retry_after == boost::none) {
             fn_produce(archivable, false /* already in catalogue */);
