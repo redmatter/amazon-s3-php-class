@@ -35,7 +35,7 @@ typedef boost::array<byte, CryptoPP::Weak1::MD5::DIGESTSIZE> hash_vector;
 inline const hash_vector&
 zero_hash_vector()
 {
-    static const archiving::hash_vector zero = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    static const archiving::hash_vector zero = { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
     return zero;
 }
 

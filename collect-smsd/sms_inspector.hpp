@@ -195,7 +195,13 @@ namespace app
 
 					LogVerbose("sms_inspector::run - got from channel "	<< *archivable_sms);
 
-					if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
+					const unsigned int delay = archivable_sms->get_delay_from_file_modification_time(10U);
+					if (delay > 0)
+					{
+						LogMessage(*archivable_sms << " too early to process file; delaying by " << delay << "s");
+						pc_produce(in_channel, archivable_sms, delay);
+					}
+					else if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
 					{
 						LogVerbose(*archivable_sms << " Already inspected; shifting to out channel");
 						pc_produce(out_channel, archivable_sms, 1);

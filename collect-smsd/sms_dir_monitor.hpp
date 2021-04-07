@@ -13,8 +13,6 @@
 
 #include <rml/pc_channel.h>
 
-#include <boost/filesystem/operations.hpp>
-
 #include <set>
 
 namespace archiving
@@ -72,8 +70,6 @@ namespace archiving
 
 		inline bool add_path(const std::string& file_path)
 		{
-			static const unsigned int max_delay = 10U;
-
 			try
 			{
 				std::string uuid(file_path,
@@ -83,27 +79,10 @@ namespace archiving
 						file_path.length() - (3/*[sm]ms*/+ 4/*.xml*/),
 						3);
 
-				unsigned int delay = max_delay;
-
-				boost::system::error_code ec;
-				std::time_t mod_time = boost::filesystem::last_write_time(boost::filesystem::path(file_path), ec);
-				if (ec) {
-					LogError(uuid << " - failed to get modification-time; error:" << ec.message());
-				} else {
-					std::time_t age = std::time(0) - mod_time;
-					if (age > 0) {
-						delay -= std::max<unsigned int>(max_delay, age);
-					}
-
-					if (delay) {
-						LogVerbose(uuid << " - delaying by " << delay << " seconds");
-					}
-				}
-
 				// whether it's treated as an SMS or an MMS depends on the format (xml/email)
 				pc_produce(channel_, archivable::pointer(
 						new archivable(uuid, "", 0, file_path,
-								archiving::file_type::sms, type == "sms" ? "xml" : "email", pbx_hostname_)), delay);
+								archiving::file_type::sms, type == "sms" ? "xml" : "email", pbx_hostname_)));
 
 				return true;
 			}

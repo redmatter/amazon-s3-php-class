@@ -22,6 +22,7 @@
 #include <boost/foreach.hpp>
 #include <boost/atomic/atomic.hpp>
 #include <boost/optional.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #include <iostream>
 #include <vector>
@@ -527,6 +528,47 @@ public:
 	inline time_t get_start_epoch() const
 	{
 		return start_epoch;
+	}
+
+	inline std::time_t get_file_modification_time() const
+	{
+		boost::system::error_code ec;
+		std::time_t t = boost::filesystem::last_write_time(boost::filesystem::path(p_fstream_->get_filename()), ec);
+		if (ec) {
+			LogError(*this << " failed to get modification-time; error:" << ec.message());
+			return 0;
+		}
+
+		return t;
+	}
+
+	/**
+	 * @brief Calculate how much to delay the processing of this based on the file's last-modification time.
+	 *
+	 * Delay is limited to `max` seconds; if the modification happened more than max seconds ago, then the delay is 0s.
+	 * In other cases, delay is reduced by the age of the file.
+	 *
+	 * NB: If the file-modification time cannot be obtained, the max delay is returned.
+	 *
+	 * @param max max-delay in seconds
+	 * @return
+	 */
+	inline unsigned int get_delay_from_file_modification_time(unsigned int max) const
+	{
+		const std::time_t& mod_time = get_file_modification_time();
+		if (mod_time == 0) {
+			return max;
+		}
+
+		const std::time_t& now = std::time(0);
+		const std::time_t& age = now - mod_time;
+
+		// NOTE: `age` can be negative if we get any out-of-sync timestamp from NFS
+		if (age < static_cast<std::time_t>(max)) {
+			return max - age;
+		}
+
+		return 0;
 	}
 
 	inline void set_add_to_cdrmunch_cache(const bool& add_it = true)
