@@ -528,16 +528,6 @@ private:
 		return false;
 	}
 
-	static const std::string& zero_md5_to_empty(const std::string& md5)
-	{
-		static const std::string empty;
-		if (md5.empty() || md5 == "00000000000000000000000000000000") {
-			return empty;
-		}
-
-		return md5;
-	}
-
 public:
 	bool is_queued(archiving::archivable::pointer& p_arc)
 	{
@@ -721,7 +711,7 @@ public:
 						res[9].as_int() == 1,
 						!res[5].is_null(),
 						res[5].is_null()? "": res[5].as_text(),
-						zero_md5_to_empty(res[8].as_text()),
+						res[8].as_text(),
 						archiving::archivable::state::state_t(res[6].as_int())
 //						, res[17].as_int() // BufferedRecording
 					));
