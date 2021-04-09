@@ -97,11 +97,17 @@ namespace app
 			{
 				try
 				{
-					archiving::archivable::pointer archivable_item =	in_channel.consume();
+					archiving::archivable::pointer archivable_item = in_channel.consume();
 
 					LogVerbose("inspector::run - got from channel "	<< *archivable_item);
 
-					if (archivable_item->get_current_state() >= archiving::archivable::state::inspected)
+					const unsigned int delay = archivable_item->get_delay_from_file_modification_time(10U);
+					if (delay > 0)
+					{
+						LogMessage(*archivable_item << " too early to process file; delaying by " << delay << "s");
+						pc_produce(in_channel, archivable_item, delay);
+					}
+					else if (archivable_item->get_current_state() >= archiving::archivable::state::inspected)
 					{
 						LogVerbose(*archivable_item << " Already inspected; shifting to out channel");
 						pc_produce(out_channel, archivable_item, 1);

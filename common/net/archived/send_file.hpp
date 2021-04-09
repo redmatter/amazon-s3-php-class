@@ -184,28 +184,37 @@ send_file(const boost::shared_ptr<connection>& conn,
           const boost::function<void(const boost::system::error_code&,
                                      const boost::optional<boost::chrono::steady_clock::time_point>&)>& done_callback,
           const boost::function<bool()>& is_interrupted)
-try {
-	make_ostream(ostr, &conn->send_buffer);
-    if (!file->inject_put_request(ostr)) {
-        conn->io_service.post(boost::bind(
-            boost::protect(done_callback), error::make_error_code(error::put_initialisation_failed), boost::none));
-        return;
+{
+    make_ostream(ostr, &conn->send_buffer);
+
+    boost::system::error_code ec;
+    try {
+        if (file->inject_put_request(ostr, ec)) {
+            // set last usage time now as well as when we finish
+            conn->last_send_file_time = boost::chrono::steady_clock::now();
+
+            boost::shared_ptr<detail::put_file_session> session =
+                boost::make_shared<detail::put_file_session>(file, boost::cref(done_callback), boost::cref(is_interrupted));
+            LogVerbose(*conn << ' ' << *session << " PUT initialising");
+            boost::asio::async_write(conn->socket, conn->send_buffer, conn->strand.wrap(
+                boost::bind(send_file_impl,
+                            boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+                            conn, session)));
+
+            return;
+        }
+    } catch (const std::exception& e) {
+        LogWarning(*conn << ' ' << *file << " PUT initialisation failed; exception:" << e.what());
     }
 
-    // set last usage time now as well as when we finish
-    conn->last_send_file_time = boost::chrono::steady_clock::now();
+    if (ec) {
+        LogWarning(*conn << ' ' << *file << " error:" << ec.message());
+        ec = error::make_error_code(error::put_initialisation_failed_permanently);
+    } else {
+        ec = error::make_error_code(error::put_initialisation_failed);
+    }
 
-    boost::shared_ptr<detail::put_file_session> session =
-            boost::make_shared<detail::put_file_session>(file, boost::cref(done_callback), boost::cref(is_interrupted));
-    LogVerbose(*conn << ' ' << *session << " PUT initialising");
-    boost::asio::async_write(conn->socket, conn->send_buffer, conn->strand.wrap(
-            boost::bind(send_file_impl,
-                        boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
-                        conn, session)));
-} catch (const std::exception& e) {
-    LogWarning(*conn << ' ' << *file << " PUT initialisation failed; exception:" << e.what());
-    conn->io_service.post(boost::bind(
-        boost::protect(done_callback), error::make_error_code(error::put_initialisation_failed), boost::none));
+    conn->io_service.post(boost::bind(boost::protect(done_callback), ec, boost::none));
 }
 
 } // namespace archived

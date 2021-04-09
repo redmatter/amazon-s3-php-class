@@ -30,9 +30,10 @@ enum enum_t
     invalid_state_socket_closed,
 
     put_initialisation_failed,
+    put_initialisation_failed_permanently,
     put_initialisation_ack_not_received,
     put_initialisation_ack_negative,
-	put_initialisation_ack_server_busy,
+    put_initialisation_ack_server_busy,
     put_send_file_failure_reading_file,
     put_send_file_failure_ack_not_received,
     put_send_file_failure_ack_negative,
@@ -67,12 +68,14 @@ public:
             return "invalid state; socket closed";
         case put_initialisation_failed:
             return "put initialisation failed";
+        case put_initialisation_failed_permanently:
+            return "put initialisation failed permanently";
         case put_initialisation_ack_not_received:
             return "put initialisation failed (no ACK received)";
         case put_initialisation_ack_negative:
             return "put initialisation failed (Negative ACK)";
-		case put_initialisation_ack_server_busy:
-			return "put initialisation failed (Server Busy)";
+        case put_initialisation_ack_server_busy:
+            return "put initialisation failed (Server Busy)";
         case put_send_file_failure_reading_file:
             return "put send-file failed (reading from file)";
         case put_send_file_failure_general:

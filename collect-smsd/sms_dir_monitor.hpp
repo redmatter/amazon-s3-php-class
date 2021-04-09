@@ -83,7 +83,7 @@ namespace archiving
 				pc_produce(channel_, archivable::pointer(
 						new archivable(uuid, "", 0, file_path,
 								archiving::file_type::sms, type == "sms" ? "xml" : "email", pbx_hostname_)));
-				
+
 				return true;
 			}
 			catch (const std::exception& e)
