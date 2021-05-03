@@ -83,6 +83,15 @@ namespace app
 
 		bool first_run_complete_;
 
+        void requeue_sms(const archiving::archivable::pointer& sms, unsigned int delay = 0)
+        {
+            // remove from busy-set before adding to channel, otherwise it will be treated as duplicate of
+            // one that is already being processed.
+
+            archivable_busy_set_.remove(sms);
+            in_channel.produce(sms, delay);
+        }
+
 	public:
 		/**
 		 * Describe confog
@@ -199,7 +208,7 @@ namespace app
 					if (delay > 0)
 					{
 						LogMessage(*archivable_sms << " too early to process file; delaying by " << delay << "s");
-						pc_produce(in_channel, archivable_sms, delay);
+						requeue_sms(archivable_sms, delay);
 					}
 					else if (archivable_sms->get_current_state() >= archiving::archivable::state::inspected)
 					{
@@ -343,7 +352,7 @@ namespace app
 									else
 									{
 										LogWarning(*archivable_sms << ": already collected/unknown: re-queueing it for initial processing");
-										pc_produce(in_channel, archivable_sms);
+										requeue_sms(archivable_sms);
 									}
 								}
 								else
