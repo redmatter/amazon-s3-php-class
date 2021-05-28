@@ -10,7 +10,7 @@ services=(
 	rmarchexport.service
 	rmarchpcapimport.service
 	rmarchdsrpreproc.service
-	eml2a-milter.service
+	# eml2a-milter.service
 )
 
 services_present=()
