@@ -5,7 +5,7 @@ services=(
 	rmarchived
 	rmcollectd
 	rmcollect-smsd
-	rmcollect-importd
+	# rmcollect-importd
 	rmarchpolfix
 	rmarchexport
 	rmarchpcapimport
