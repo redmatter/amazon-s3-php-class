@@ -4,13 +4,13 @@ services=(
 	rmarchived.service
 	rmcollectd.service
 	rmcollect-smsd.service
-	rmcollect-importd.service
+	# rmcollect-importd.service
 	rmestuary.service
 	rmarchpolfix.service
 	rmarchexport.service
 	rmarchpcapimport.service
 	rmarchdsrpreproc.service
-	eml2a-milter.service
+	# eml2a-milter.service
 )
 
 services_present=()
