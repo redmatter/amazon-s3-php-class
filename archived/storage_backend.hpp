@@ -600,7 +600,7 @@ public:
         put_props.contentDispositionFilename = 0;
         put_props.contentEncoding = 0;
         put_props.expires = -1;
-        put_props.cannedAcl = S3CannedAclPrivate;
+        put_props.cannedAcl = S3CannedAclBucketOwnerFullControl;
 
 		const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
