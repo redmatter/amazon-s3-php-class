@@ -586,7 +586,7 @@ class PurgePolicyFixerApp extends BaseApp
 							$copyDetail,
 							array(
 								'MetadataDirective' => 'REPLACE',
-								'ACL' => 'bucket-owner-full-control',
+								'ACL' => 'bucket-owner-read',
 								'PathStyle' => false
 							)
 						);
