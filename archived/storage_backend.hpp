@@ -601,6 +601,12 @@ public:
         put_props.contentEncoding = 0;
         put_props.expires = -1;
         put_props.cannedAcl = S3CannedAclBucketOwnerRead;
+        // Till we enable explicit support for SSE-KMS we need to keep the default behaviour
+        // by setting default values for SSE related fields. It will then rely on
+        // SSE-KMS settings especially Default-Encryption-Key to have SSE working.
+        put_props.serverSideEncryption = S3ServerSideEncryptionDisabled;
+        put_props.serverSideEncryptionKmsKeyId = 0;
+        put_props.serverSideEncryptionBucketKeyEnabled = 0;
 
 		const S3BucketContext& bucket_context = libs3_bucket_context(p_endpoint);
 
