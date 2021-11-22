@@ -104,12 +104,17 @@ class archived_client : public boost::enable_shared_from_this<archived_client>
         }
 
         LogMessage(archivable << " finished with error:" << ec.message());
+
+        boost::chrono::steady_clock::time_point retry_after_;
         if (retry_after == boost::none) {
-            fn_produce(archivable, false /* already in catalogue */);
+            // Always retry with a minimum of 10 seconds gap, in order to avoid a mad retry.
+            retry_after_ = boost::chrono::steady_clock::now() + boost::chrono::seconds(10);
         } else {
-            LogMessage(archivable << " rescheduling ...");
-            retry_manager.add(*retry_after, archivable);
+            retry_after_ = *retry_after;
         }
+
+        LogMessage(archivable << " rescheduling with delay");
+        retry_manager.add(retry_after_, archivable);
     } catch (const std::exception& e) {
         LogWarning(archivable << ' ' << e.what());
     }
