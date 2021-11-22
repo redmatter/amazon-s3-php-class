@@ -473,7 +473,7 @@ public:
 	 * @param ec set if there is a failure; meaning we should give up, at least till the next restart of the app
 	 * @return false when there was a failure; if ec is not set, retry can be sooner (TBD)
 	 */
-	inline bool inject_put_request(std::ostream& os, boost::system::error_code ec) const
+	inline bool inject_put_request(std::ostream& os, boost::system::error_code& ec) const
 	try {
 		if (!boost::filesystem::exists(boost::filesystem::path(p_fstream_->get_filename()), ec)) {
 			return false;
