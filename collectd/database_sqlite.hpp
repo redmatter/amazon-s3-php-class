@@ -621,8 +621,6 @@ public:
 
 						->execute());
 
-				unsigned int count(0);
-
 				while(res) {
 					max_id = res[0].as_int64();
 
