@@ -595,7 +595,13 @@ public:
 			}
 
 			if(first_max_id && max_id <= first_max_id) {
-                std::string limit = boost::lexical_cast<std::string>(std::max(int(200.0 * loading_factor), 10));
+				int limit_int = std::max(int(200.0 * loading_factor), 0);
+				if (limit_int <= 0) {
+					LogMessage("No connections to ArchiveD; Not re-loading queue from database.");
+					return;
+				}
+
+				std::string limit = boost::lexical_cast<std::string>(limit_int);
 				sqlite::query::pointer p_query(txn.query("SELECT"
 						" ID, FileType, LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS UUID "
 						 "FROM"
