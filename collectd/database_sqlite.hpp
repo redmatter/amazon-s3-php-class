@@ -574,8 +574,8 @@ public:
 			const float& loading_factor)
 	{
 		static bool first = true;
-		static uint64_t first_max_id = 0;
-		static uint64_t max_id = 0;
+		static int64_t first_max_id = 0;
+		static int64_t max_id = 0;
 
 		try {
 			sqlite::work txn(p_pool_);
@@ -595,6 +595,13 @@ public:
 			}
 
 			if(first_max_id && max_id <= first_max_id) {
+				int limit_int = std::max(int(200.0 * loading_factor), 0);
+				if (limit_int <= 0) {
+					LogMessage("No connections to ArchiveD; Not re-loading queue from database.");
+					return;
+				}
+
+				std::string limit = boost::lexical_cast<std::string>(limit_int);
 				sqlite::query::pointer p_query(txn.query("SELECT"
 						" ID, FileType, LOWER(HEX(SUBSTR(UUID, 1, 4)) || '-' || HEX(SUBSTR(UUID, 5, 2)) || '-' || HEX(SUBSTR(UUID, 7, 2)) || '-' || HEX(SUBSTR(UUID, 9, 2)) || '-' || HEX(SUBSTR(UUID, 11))) AS UUID "
 						 "FROM"
@@ -603,20 +610,19 @@ public:
 						 " Retry < 5 AND State NOT IN (:stateStored, :stateDiscarded)"
 						 " AND ID <= :FirstMaxID AND ID > :MaxID "
 						 "ORDER BY ID ASC "
-						 "LIMIT 100"));
+						 "LIMIT :Limit"));
 				const sqlite::result& res(p_query->prepare()
 						->bind(archiving::archivable::state::stored, ":stateStored")
 						->bind(archiving::archivable::state::discarded, ":stateDiscarded")
 						->bind<int64_t>(first_max_id, ":FirstMaxID")
 						->bind<int64_t>(max_id, ":MaxID")
+						// https://stackoverflow.com/a/35717920
+						->bind<std::string>(limit, ":Limit")
 
 						->execute());
 
-				unsigned int count(0);
-
 				while(res) {
-					const uint64_t& id(res[0].as_int64());
-					max_id = id;
+					max_id = res[0].as_int64();
 
 					archiving::archivable::pointer p_archivable;
 
@@ -629,9 +635,8 @@ public:
 						if(!p_archivable) {
 							LogVerbose("Loading ID:"<<res[0].as_int64()<<" FileType:"<<archiving::file_type::to_string(archivable_file_type)<<" UUID:"<<res[2].as_text());
 
-							p_archivable =  load_archivable_by_id(res[0].as_int64());
-							if((loading_factor == 1.0) || ((float(count++ % 10)/10.0) < loading_factor))
-								fn_produce(p_archivable);
+							p_archivable = load_archivable_by_id(res[0].as_int64());
+							fn_produce(p_archivable);
 						}
 					}
 					catch(const std::exception& e) {
