@@ -661,7 +661,10 @@ public:
 										boost::lexical_cast<unsigned int>(get_xpath_single_value(
 												variables_node, "rmAnalysisRequestedCount/text()", "0"));
 
-								std::set<std::string> recording_uuids; // to de-duplicate recordings
+                                const bool call_log_json_export_enabled =
+                                    (get_xpath_single_value(variables_node, "rmCallLogsJSONExportEnabled/text()", std::string("false")) == "true");
+
+                                std::set<std::string> recording_uuids; // to de-duplicate recordings
 								for(; session_recorded && recording_count; recording_count--) {
 
 									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
@@ -691,6 +694,14 @@ public:
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
 											archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
 											archivable_recording->set_owners(*owners);
+
+                                            // We could possibly do this for all recordings rather than just for call-log-json enabled ones.
+                                            // Concern is the spike in load on PBX, whether the recording will be sent over to ArchiveD or not.
+                                            if (call_log_json_export_enabled) {
+                                                const std::string& md5 = boost::lexical_cast<std::string>(archivable_recording->get_md5());
+                                                variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(md5.c_str());
+                                                modified = true;
+                                            }
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
