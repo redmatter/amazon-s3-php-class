@@ -398,11 +398,15 @@ public:
 							recording_count = variables_node.select_single_node("rmCallRecordingCount").node().text().as_uint();
 						}
 
-						/**
-						 * If call-log JSON export is enabled and if there are recordings
-						 */
-						if (call_log_json_export_enabled && recording_count > 0 && delayed_producer.must_delay())
-						{
+						// In the case of a call-log json enabled CDR, since the MD5 of a recording has to be calculated
+						// as soon as we identify them via the CDR, there is a chance that (as we have seen in the past
+						// with other recordings) the switch has not finished writing the WAV file to disk; i.e. end up
+						// calculating wrong MD5.
+						//
+						// In order to get around that, a delay is calculated based on the end-time and duration.
+						//
+						// Adds delay only if there are recordings on the call-log JSON export enabled CDR.
+						if (call_log_json_export_enabled && recording_count > 0 && delayed_producer.must_delay()) {
 							delayed_producer.produce(archivable_cdr);
 							continue;
 						}
