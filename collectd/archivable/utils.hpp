@@ -111,12 +111,12 @@ struct call_duration_based_delayed_producer
     {
     }
 
-    inline void produce(const boost::shared_ptr<archiving::archivable>& item) const
+    inline void produce(const boost::shared_ptr<archiving::archivable>& item, bool add_to_catalogue = true) const
     {
         if (must_delay()) {
-            produce_with_delay_(item, delay_, true);
+            produce_with_delay_(item, delay_, add_to_catalogue);
         } else {
-            produce_(item, true);
+            produce_(item, add_to_catalogue);
         }
     }
 

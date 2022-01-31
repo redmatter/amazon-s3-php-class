@@ -407,7 +407,7 @@ public:
 						//
 						// Adds delay only if there are recordings on the call-log JSON export enabled CDR.
 						if (call_log_json_export_enabled && recording_count > 0 && delayed_producer.must_delay()) {
-							delayed_producer.produce(archivable_cdr);
+							delayed_producer.produce(archivable_cdr, false);
 							continue;
 						}
 
