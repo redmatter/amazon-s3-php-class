@@ -140,6 +140,7 @@ namespace app {
 class cdr_inspector : public boost::noncopyable
 {
 	const common::collectd::fn_consume_type &fn_in_queue_consume_;
+	const common::collectd::fn_produce_with_delay_type &fn_in_queue_produce_with_delay_; // for delayed processing
 	const common::collectd::fn_produce_type &fn_out_queue_produce_;
 	const common::collectd::fn_produce_with_delay_type &fn_out_queue_produce_with_delay_;
 	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
@@ -194,6 +195,7 @@ public:
 	 */
 	cdr_inspector(
 			const common::collectd::fn_consume_type& fn_in_queue_consume,
+			const common::collectd::fn_produce_with_delay_type& fn_in_queue_produce_with_delay,
 			const common::collectd::fn_produce_type& fn_out_queue_produce,
 			const common::collectd::fn_produce_with_delay_type& fn_out_queue_produce_with_delay,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
@@ -202,7 +204,8 @@ public:
 			const common::collectd::fn_add_put_group_type& fn_add_put_group,
 			const boost::program_options::variables_map& confMap,
 			const std::string& pbx_hostname) :
-			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
+			fn_in_queue_consume_(fn_in_queue_consume), fn_in_queue_produce_with_delay_(fn_in_queue_produce_with_delay),
+			fn_out_queue_produce_(fn_out_queue_produce),
 			fn_out_queue_produce_with_delay_(fn_out_queue_produce_with_delay),
 			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
 			fn_save_to_database_(fn_save_to_database), fn_add_put_group_(fn_add_put_group),
@@ -398,6 +401,8 @@ public:
 							recording_count = variables_node.select_single_node("rmCallRecordingCount").node().text().as_uint();
 						}
 
+						LogDebug(*archivable_cdr<<" recording_count:" << recording_count << "; call_log_json_export_enabled:" << call_log_json_export_enabled);
+
 						// In the case of a call-log json enabled CDR, since the MD5 of a recording has to be calculated
 						// as soon as we identify them via the CDR, there is a chance that (as we have seen in the past
 						// with other recordings) the switch has not finished writing the WAV file to disk; i.e. end up
@@ -406,8 +411,12 @@ public:
 						// In order to get around that, a delay is calculated based on the end-time and duration.
 						//
 						// Adds delay only if there are recordings on the call-log JSON export enabled CDR.
+						//
+						// (Re)using delayed_producer, to calculate delay and make the decision whether to delay or not.
+						// If there must be a delay, re-queue the item back into IN queue, using the callback directly.
 						if (call_log_json_export_enabled && recording_count > 0 && delayed_producer.must_delay()) {
-							delayed_producer.produce(archivable_cdr, false);
+							LogDebug(*archivable_cdr<<" delaying CDR since call-log JSON is enabled and has recordings");
+							fn_in_queue_produce_with_delay_(archivable_cdr, delayed_producer.delay_, false);
 							continue;
 						}
 
