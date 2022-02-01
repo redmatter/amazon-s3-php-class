@@ -686,21 +686,21 @@ public:
 												variables_node, "rmAnalysisRequestedCount/text()", "0"));
 
 								std::set<std::string> recording_uuids; // to de-duplicate recordings
-								while (recording_count--) {
+								for (unsigned int recording_index = 1; recording_index <= recording_count; recording_index++) {
 
-									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
-									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), (long long int)app::policy::pseudo_id::recording) );
+									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_index), std::string()));
+									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_index), (long long int)app::policy::pseudo_id::recording) );
 
-									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
-									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
-									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
+									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_index), std::string()) == "true" );
+									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_index), (const char*)0);
+									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_index), (const char*)0);
 
 									if(!recording_location.empty()) {
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
 
 											// capture the UUID for cdrmunch; steps after this might not succeed as this recording might have been already found and queued for archiving
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
 											modified = true;
 
 											// make sure we are not duplicating
@@ -725,7 +725,7 @@ public:
 													ostr_md5 << archivable_recording->get_md5();
 													md5 = ostr_md5.str();
 												}
-												variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(md5.c_str());
+												variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(md5.c_str());
 												modified = true;
 											}
 
@@ -770,14 +770,14 @@ public:
 											archivable_recording->hibernate();
 										}
 										catch(const std::exception& e) {
-											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
+											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_index), std::string("true")));
 											if(is_recording_active == "true")
-												LogError("Failed to open recording file [rmCallRecordingActive_"<<recording_count<<"=true]; Error:"<<e.what());
+												LogError("Failed to open recording file [rmCallRecordingActive_"<<recording_index<<"=true]; Error:"<<e.what());
 											else
 												LogVerbose("Recording never started (rmCallRecordingActive_X == false); ignoring.");
 
 											// add a flag to signal this
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value("true");
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value("true");
 
 											modified = true;
 										}
