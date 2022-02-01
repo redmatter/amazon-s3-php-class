@@ -431,8 +431,8 @@ int main(int argc, char* argv[]) try
 			boost::bind(
 				&queue_with_delay::produce, out_queue, _1, _2, boost::chrono::milliseconds::zero(), _3));
 
-		const common::collectd::fn_consume_type fn_in_queue_consume(
-			boost::bind(&queue_with_delay::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+		const common::collectd::fn_consume_with_timeout_type fn_in_queue_consume(
+			boost::bind(&queue_with_delay::consume, in_queue, _2, _1, common::collectd::consume_timeout_callback_type(), common::collectd::is_finishing_callback_type()));
 		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
 				boost::bind(&queue_with_delay::consume, out_queue, _2, _1, _3, _4));
 

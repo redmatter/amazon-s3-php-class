@@ -139,7 +139,7 @@ namespace app {
 
 class cdr_inspector : public boost::noncopyable
 {
-	const common::collectd::fn_consume_type &fn_in_queue_consume_;
+	const common::collectd::fn_consume_with_timeout_type &fn_in_queue_consume_;
 	const common::collectd::fn_produce_with_delay_type &fn_in_queue_produce_with_delay_; // for delayed processing
 	const common::collectd::fn_produce_type &fn_out_queue_produce_;
 	const common::collectd::fn_produce_with_delay_type &fn_out_queue_produce_with_delay_;
@@ -194,7 +194,7 @@ public:
 	 * @param pbx_hostname
 	 */
 	cdr_inspector(
-			const common::collectd::fn_consume_type& fn_in_queue_consume,
+			const common::collectd::fn_consume_with_timeout_type& fn_in_queue_consume,
 			const common::collectd::fn_produce_with_delay_type& fn_in_queue_produce_with_delay,
 			const common::collectd::fn_produce_type& fn_out_queue_produce,
 			const common::collectd::fn_produce_with_delay_type& fn_out_queue_produce_with_delay,
@@ -279,7 +279,12 @@ public:
 
 			while(!app::quit) {
 				try {
-					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false);
+					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false, boost::chrono::milliseconds(5000));
+					if (!p_archivable) {
+                        // IN queue consume timed out
+						continue;
+					}
+
 					LogVerbose(*p_archivable<<" from channel");
 
 					archiving::put_group_id_t put_group_id;
