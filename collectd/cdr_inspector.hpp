@@ -719,13 +719,7 @@ public:
 											// We could possibly do this for all recordings rather than just for call-log-json enabled ones.
 											// Concern is the spike in load on PBX, whether the recording will be sent over to ArchiveD or not.
 											if (call_log_json_export_enabled) {
-												std::string md5;
-												{
-													std::ostringstream ostr_md5;
-													ostr_md5 << archivable_recording->get_md5();
-													md5 = ostr_md5.str();
-												}
-												variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(md5.c_str());
+												variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(archivable_recording->get_md5_hex().c_str());
 												modified = true;
 											}
 

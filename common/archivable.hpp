@@ -525,6 +525,42 @@ public:
 		return *md5_;
 	}
 
+	/**
+	 * Get HEX(MD5(file))
+	 *
+	 * If the MD5 has already been calculated, then no file operations are performed.
+	 *
+	 * If the stream is not open already, or not "good", then it will be re-open. After the MD5 hash is calculated, the
+	 * stream WILL BE closed, no matter it was re-opened or not.
+	 *
+	 * In either case, the hash is encoded and returned as a hex string.
+	 *
+	 * @return
+	 */
+	inline std::string get_md5_hex() const
+	{
+
+		std::ostringstream ostr_md5;
+
+		if (md5_ != boost::none) {
+			ostr_md5 << *md5_;
+			return ostr_md5.str();
+		}
+
+		if (!p_fstream_->is_open() || !p_fstream_->good()) {
+			p_fstream_->re_open();
+		}
+
+		md5_ = md5hasher::hash(p_fstream_);
+
+		p_fstream_->close();
+
+		ostr_md5 << *md5_;
+
+		return ostr_md5.str();
+	}
+
+
 	inline const file_type::file_type_t& get_type() const
 	{
 		return type_;
