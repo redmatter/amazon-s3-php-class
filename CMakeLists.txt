@@ -78,7 +78,8 @@ if(NOT librml_POPULATED)
     option(BUILD_HEADER_ONLY "" ON) # todo see if we need this
     FetchContent_Populate(librml)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/librml)
-    file(CREATE_LINK ${librml_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/librml/rml SYMBOLIC)
+    file(RELATIVE_PATH librml_SOURCE_DIR_REL ${CMAKE_CURRENT_BINARY_DIR} ${librml_SOURCE_DIR})
+    file(CREATE_LINK ../${librml_SOURCE_DIR_REL} ${CMAKE_CURRENT_BINARY_DIR}/librml/rml SYMBOLIC)
     # run build-time templating logic in librml
     add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/librml/rml")
     set(librml_INC_DIR "${CMAKE_CURRENT_BINARY_DIR}/librml")

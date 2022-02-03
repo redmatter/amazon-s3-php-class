@@ -82,7 +82,7 @@ struct call_duration_based_delayed_producer
 
     template <typename Rep, typename Period>
     static inline seconds
-    calculate_delay(const std::time_t now, const time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
+    calculate_delay(const std::time_t now, const std::time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
     {
         seconds delay = call_duration_to_delay(leg_duration_seconds);
 
@@ -95,7 +95,7 @@ struct call_duration_based_delayed_producer
 
     template <typename Rep, typename Period>
     static inline seconds
-    calculate_delay(const time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
+    calculate_delay(const std::time_t leg_end_epoch, const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
     {
         return calculate_delay(std::time(0), leg_end_epoch, leg_duration_seconds);
     }
@@ -103,7 +103,7 @@ struct call_duration_based_delayed_producer
     template <typename Rep, typename Period>
     call_duration_based_delayed_producer(const common::collectd::fn_produce_type& fn_produce,
                                          const common::collectd::fn_produce_with_delay_type& fn_produce_with_delay,
-                                         const time_t leg_end_epoch,
+                                         const std::time_t leg_end_epoch,
                                          const boost::chrono::duration<Rep, Period>& leg_duration_seconds)
         : produce_(fn_produce)
         , produce_with_delay_(fn_produce_with_delay)
@@ -111,13 +111,18 @@ struct call_duration_based_delayed_producer
     {
     }
 
-    inline void produce(const boost::shared_ptr<archiving::archivable>& item) const
+    inline void produce(const boost::shared_ptr<archiving::archivable>& item, bool add_to_catalogue = true) const
     {
-        if (delay_ > seconds::zero()) {
-            produce_with_delay_(item, delay_, true);
+        if (must_delay()) {
+            produce_with_delay_(item, delay_, add_to_catalogue);
         } else {
-            produce_(item, true);
+            produce_(item, add_to_catalogue);
         }
+    }
+
+    inline bool must_delay() const
+    {
+        return delay_ > seconds::zero();
     }
 };
 
