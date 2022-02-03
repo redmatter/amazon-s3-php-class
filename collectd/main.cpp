@@ -411,24 +411,28 @@ int main(int argc, char* argv[]) try
 		const common::collectd::fn_is_in_catalogue_type fn_is_in_catalogue(
 				boost::bind(&collectd::archivable::catalogue::is_present, archivable_catalogue, _1));
 
-		typedef collectd::archivable::queue<false> queue_without_delay;
 		typedef collectd::archivable::queue<true> queue_with_delay;
-		boost::shared_ptr<queue_without_delay> in_queue =
-				boost::make_shared<queue_without_delay>("IN", archivable_catalogue);
+		boost::shared_ptr<queue_with_delay> in_queue =
+				boost::make_shared<queue_with_delay>("IN", archivable_catalogue);
 		boost::shared_ptr<queue_with_delay> out_queue =
 				boost::make_shared<queue_with_delay>("OUT", archivable_catalogue);
+
 		const common::collectd::fn_produce_type fn_in_queue_produce(
-				boost::bind(
-						&queue_without_delay::produce, in_queue, _1, boost::chrono::milliseconds::zero(), _2));
+			boost::bind(
+				&queue_with_delay::produce, in_queue, _1, boost::chrono::milliseconds::zero(), _2));
+		const common::collectd::fn_produce_with_delay_type fn_in_queue_produce_with_delay(
+			boost::bind(
+				&queue_with_delay::produce, in_queue, _1, _2, boost::chrono::milliseconds::zero(), _3));
+
 		const common::collectd::fn_produce_type fn_out_queue_produce(
 				boost::bind(
 						&queue_with_delay::produce, out_queue, _1, boost::chrono::milliseconds::zero(), _2));
-        const common::collectd::fn_produce_with_delay_type fn_out_queue_produce_with_delay(
-            boost::bind(
-                &queue_with_delay::produce, out_queue, _1, _2, boost::chrono::milliseconds::zero(), _3));
+		const common::collectd::fn_produce_with_delay_type fn_out_queue_produce_with_delay(
+			boost::bind(
+				&queue_with_delay::produce, out_queue, _1, _2, boost::chrono::milliseconds::zero(), _3));
 
-		const common::collectd::fn_consume_type fn_in_queue_consume(
-				boost::bind(&queue_without_delay::consume, in_queue, boost::chrono::milliseconds::zero(), _1));
+		const common::collectd::fn_consume_with_timeout_type fn_in_queue_consume(
+			boost::bind(&queue_with_delay::consume, in_queue, _2, _1, common::collectd::consume_timeout_callback_type(), common::collectd::is_finishing_callback_type()));
 		const common::collectd::fn_consume_with_timeout_finishing_callback_type fn_out_queue_consume(
 				boost::bind(&queue_with_delay::consume, out_queue, _2, _1, _3, _4));
 
@@ -594,7 +598,9 @@ int main(int argc, char* argv[]) try
 
 		// setup the cdr inspector; one that makes sense of variables from CDR to find recordings
 		app::cdr_inspector cdr_inspector(
-				fn_in_queue_consume, fn_out_queue_produce, fn_out_queue_produce_with_delay, fn_remove_from_catalogue, fn_is_in_catalogue,
+				fn_in_queue_consume, fn_in_queue_produce_with_delay,
+				fn_out_queue_produce, fn_out_queue_produce_with_delay,
+				fn_remove_from_catalogue, fn_is_in_catalogue,
 				fn_save_to_database, fn_add_put_group, app::confMap, app::hostname);
 		for(unsigned int i = app::confMap["cdr_handler.number_of_threads"].as<unsigned int>(); i > 0; --i)
 			cdr_inspector_threads.create_thread(boost::bind(&app::cdr_inspector::run, boost::ref(cdr_inspector)));
@@ -613,7 +619,7 @@ int main(int argc, char* argv[]) try
 			threads.create_thread(boost::bind(&collectd::net::archived_client::run, archived_client));
 		}
 
-        archived_client->start_retry_scheduler(io_service);
+		archived_client->start_retry_scheduler(io_service);
 
 		// setup the save_run thread
 		threads.create_thread(boost::bind(&app::database::internal::save_run, boost::ref(internal_db)));
@@ -650,8 +656,8 @@ int main(int argc, char* argv[]) try
 			if (ticks % 15 == 0 && !app::quit) {
 				try {
 					put_group_saver_list.save();
-                    put_group_cache.prune();
-                    internal_db.put_group_purge_expired();
+					put_group_cache.prune();
+					internal_db.put_group_purge_expired();
 				} catch (const std::exception& e) {
 					LogError(e.what());
 				}
@@ -697,10 +703,10 @@ int main(int argc, char* argv[]) try
 		LogMessage("Setting OUT queue to finish");
 		out_queue->set_finishing();
 
-        LogMessage("Reset archived_client");
+		LogMessage("Reset archived_client");
 		archived_client.reset();
 
-        LogMessage("Shutting down put-group saver-list");
+		LogMessage("Shutting down put-group saver-list");
 		put_group_saver_list_type::list_citr_range_type remaining = put_group_saver_list.shutdown();
 		LogMessage(std::distance(remaining.begin(), remaining.end()) << " found (unsaved) in put-group saver-list");
 

@@ -139,13 +139,14 @@ namespace app {
 
 class cdr_inspector : public boost::noncopyable
 {
-	const common::collectd::fn_consume_type &fn_in_queue_consume_;
+	const common::collectd::fn_consume_with_timeout_type &fn_in_queue_consume_;
+	const common::collectd::fn_produce_with_delay_type &fn_in_queue_produce_with_delay_; // for delayed processing
 	const common::collectd::fn_produce_type &fn_out_queue_produce_;
 	const common::collectd::fn_produce_with_delay_type &fn_out_queue_produce_with_delay_;
 	const common::collectd::fn_remove_from_catalogue_type &fn_remove_from_catalogue_;
 	const common::collectd::fn_is_in_catalogue_type &fn_is_in_catalogue_;
 	const common::collectd::fn_save_to_database_type &fn_save_to_database_;
-    const common::collectd::fn_add_put_group_type &fn_add_put_group_;
+	const common::collectd::fn_add_put_group_type &fn_add_put_group_;
 
 	const boost::program_options::variables_map& confMap;
 
@@ -193,16 +194,18 @@ public:
 	 * @param pbx_hostname
 	 */
 	cdr_inspector(
-			const common::collectd::fn_consume_type& fn_in_queue_consume,
+			const common::collectd::fn_consume_with_timeout_type& fn_in_queue_consume,
+			const common::collectd::fn_produce_with_delay_type& fn_in_queue_produce_with_delay,
 			const common::collectd::fn_produce_type& fn_out_queue_produce,
 			const common::collectd::fn_produce_with_delay_type& fn_out_queue_produce_with_delay,
 			const common::collectd::fn_remove_from_catalogue_type& fn_remove_from_catalogue,
 			const common::collectd::fn_is_in_catalogue_type& fn_is_in_catalogue,
 			const common::collectd::fn_save_to_database_type& fn_save_to_database,
-            const common::collectd::fn_add_put_group_type& fn_add_put_group,
+			const common::collectd::fn_add_put_group_type& fn_add_put_group,
 			const boost::program_options::variables_map& confMap,
 			const std::string& pbx_hostname) :
-			fn_in_queue_consume_(fn_in_queue_consume), fn_out_queue_produce_(fn_out_queue_produce),
+			fn_in_queue_consume_(fn_in_queue_consume), fn_in_queue_produce_with_delay_(fn_in_queue_produce_with_delay),
+			fn_out_queue_produce_(fn_out_queue_produce),
 			fn_out_queue_produce_with_delay_(fn_out_queue_produce_with_delay),
 			fn_remove_from_catalogue_(fn_remove_from_catalogue), fn_is_in_catalogue_(fn_is_in_catalogue),
 			fn_save_to_database_(fn_save_to_database), fn_add_put_group_(fn_add_put_group),
@@ -276,7 +279,12 @@ public:
 
 			while(!app::quit) {
 				try {
-					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false);
+					archiving::archivable::pointer p_archivable = fn_in_queue_consume_(false, boost::chrono::milliseconds(5000));
+					if (!p_archivable) {
+                        // IN queue consume timed out
+						continue;
+					}
+
 					LogVerbose(*p_archivable<<" from channel");
 
 					archiving::put_group_id_t put_group_id;
@@ -382,7 +390,40 @@ public:
 							variables_node = variables_xpath_node.node();
 						}
 
-//						fn_xpath_t xpath = boost::bind(get_xpath_single_value, boost::ref(doc), _1, _2);
+						const bool call_log_json_export_enabled =
+							variables_node.select_single_node("rmCallLogsJSONExportEnabled").node().text().as_bool();
+
+						const archiving::call_duration_based_delayed_producer delayed_producer(
+							fn_out_queue_produce_,
+							fn_out_queue_produce_with_delay_,
+							variables_node.select_single_node("end_epoch").node().text().as_uint(),
+							boost::chrono::milliseconds(
+								variables_node.select_single_node("mduration").node().text().as_uint()));
+
+						unsigned int recording_count = 0;
+						// rmDispSessionRecorded=true means we actually ended up recording in the course of the call progress
+						if (variables_node.select_single_node("rmDispSessionRecorded").node().text().as_bool()) {
+							recording_count = variables_node.select_single_node("rmCallRecordingCount").node().text().as_uint();
+						}
+
+						LogDebug(*archivable_cdr<<" recording_count:" << recording_count << "; call_log_json_export_enabled:" << call_log_json_export_enabled);
+
+						// In the case of a call-log json enabled CDR, since the MD5 of a recording has to be calculated
+						// as soon as we identify them via the CDR, there is a chance that (as we have seen in the past
+						// with other recordings) the switch has not finished writing the WAV file to disk; i.e. end up
+						// calculating wrong MD5.
+						//
+						// In order to get around that, a delay is calculated based on the end-time and duration.
+						//
+						// Adds delay only if there are recordings on the call-log JSON export enabled CDR.
+						//
+						// (Re)using delayed_producer, to calculate delay and make the decision whether to delay or not.
+						// If there must be a delay, re-queue the item back into IN queue, using the callback directly.
+						if (call_log_json_export_enabled && recording_count > 0 && delayed_producer.must_delay()) {
+							LogDebug(*archivable_cdr<<" delaying CDR since call-log JSON is enabled and has recordings");
+							fn_in_queue_produce_with_delay_(archivable_cdr, delayed_producer.delay_, false);
+							continue;
+						}
 
 						const char* cdr_uuid = variables_node.select_single_node("uuid/text()").node().value();
 						LogDebug("cdr_uuid: "<<cdr_uuid);
@@ -406,13 +447,6 @@ public:
 
 							leg = ((direction_node && (0 == strncasecmp("inbound", direction_node.node().value(), 7))) || (rmAssumeALeg_node && (0 == strncasecmp("true", rmAssumeALeg_node.node().value(), 4))))? leg::A : leg::B;
 						}
-
-						const archiving::call_duration_based_delayed_producer delayed_producer(
-							fn_out_queue_produce_,
-							fn_out_queue_produce_with_delay_,
-							variables_node.select_single_node("end_epoch").node().text().as_uint(),
-							boost::chrono::milliseconds(
-								variables_node.select_single_node("mduration").node().text().as_uint()));
 
 						std::time_t start_epoch = 0;
 						{
@@ -642,41 +676,31 @@ public:
 							// switch between the new variables and old
 							// if rmCallRecordingCount set, we are in the new scheme
 							pugi::xpath_node node;
-							if((node = variables_node.select_single_node("rmCallRecordingCount/text()"))) {
+							if (recording_count > 0) {
 								archiving::archivable::pointer archivable_recording;
 
-								// did we actually endup recording in the course of the call progress?
-								const bool& session_recorded(get_xpath_single_value(variables_node, "rmDispSessionRecorded/text()", std::string("false")) == "true");
-
-								// how many call recordings were setup on the call (star-command/personal, policy-based, etc)
-								unsigned int recording_count( rml::utils::strtoull(node.node().value(), 0) );
-								if(recording_count) {
-									variables_node.append_child("rmArchivingEnabled").append_child(pugi::node_pcdata).set_value("true");
-									modified = true;
-								}
-
-								LogVerbose(*archivable_cdr<<" rmCallRecordingCount: "<<recording_count);
+								LogVerbose(*archivable_cdr<<" Recording count: "<<recording_count);
 
 								const unsigned int recording_call_analysis_count =
 										boost::lexical_cast<unsigned int>(get_xpath_single_value(
 												variables_node, "rmAnalysisRequestedCount/text()", "0"));
 
 								std::set<std::string> recording_uuids; // to de-duplicate recordings
-								for(; session_recorded && recording_count; recording_count--) {
+								for (unsigned int recording_index = 1; recording_index <= recording_count; recording_index++) {
 
-									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_count), std::string()));
-									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_count), (long long int)app::policy::pseudo_id::recording) );
+									const std::string& recording_location( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingLoc_%1%/text()") % recording_index), std::string()));
+									const app::policy::id_type& recording_policy( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingPolicy_%1%/text()") % recording_index), (long long int)app::policy::pseudo_id::recording) );
 
-									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_count), std::string()) == "true" );
-									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_count), (const char*)0);
-									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_count), (const char*)0);
+									const bool& recording_send_email( get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingEmail_%1%/text()") % recording_index), std::string()) == "true" );
+									const char* recording_send_email_to_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingToRecips_%1%/text()") % recording_index), (const char*)0);
+									const char* recording_send_email_cc_recips = get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingCcRecips_%1%/text()") % recording_index), (const char*)0);
 
 									if(!recording_location.empty()) {
 										try {
 											std::string uuid(recording_location, recording_location.length() - (36/*uuid*/+4/*.wav*/), 36);
 
 											// capture the UUID for cdrmunch; steps after this might not succeed as this recording might have been already found and queued for archiving
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUUID_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(uuid.c_str());
 											modified = true;
 
 											// make sure we are not duplicating
@@ -691,6 +715,13 @@ public:
 											archivable_recording.reset(new archiving::archivable(uuid, originator_uuid, start_epoch, recording_location, archiving::file_type::recording, "wav", pbx_hostname_, recording_policy));
 											archivable_recording->set_leg_uuid(archivable_cdr->get_uuid());
 											archivable_recording->set_owners(*owners);
+
+											// We could possibly do this for all recordings rather than just for call-log-json enabled ones.
+											// Concern is the spike in load on PBX, whether the recording will be sent over to ArchiveD or not.
+											if (call_log_json_export_enabled) {
+												variables_node.append_child(boost::str(boost::format("rmCallRecordingMD5_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value(archivable_recording->get_md5_hex().c_str());
+												modified = true;
+											}
 
 											LogMessage(*archivable_cdr<<" - Archivable recording found - "<<*archivable_recording);
 
@@ -733,14 +764,14 @@ public:
 											archivable_recording->hibernate();
 										}
 										catch(const std::exception& e) {
-											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_count), std::string("true")));
+											const std::string& is_recording_active(get_xpath_single_value(variables_node, boost::str(boost::format("rmCallRecordingActive_%1%/text()") % recording_index), std::string("true")));
 											if(is_recording_active == "true")
-												LogError("Failed to open recording file [rmCallRecordingActive_"<<recording_count<<"=true]; Error:"<<e.what());
+												LogError("Failed to open recording file [rmCallRecordingActive_"<<recording_index<<"=true]; Error:"<<e.what());
 											else
 												LogVerbose("Recording never started (rmCallRecordingActive_X == false); ignoring.");
 
 											// add a flag to signal this
-											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_count).c_str()).append_child(pugi::node_pcdata).set_value("true");
+											variables_node.append_child(boost::str(boost::format("rmCallRecordingUnavailable_%1%") % recording_index).c_str()).append_child(pugi::node_pcdata).set_value("true");
 
 											modified = true;
 										}
@@ -861,7 +892,7 @@ public:
 						}
 
 						archivable_cdr->hibernate();
-                        fn_add_put_group_(put_group_id);
+						fn_add_put_group_(put_group_id);
 						fn_out_queue_produce_(archivable_cdr, false);
 					}
 				}
