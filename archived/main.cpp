@@ -37,6 +37,7 @@
 #include <rml/siginit.h>
 #include <rml/daemon.h>
 #include <rml/utils/enabled_disabled_list.hpp>
+#include <rml/utils/prettify_duration.hpp>
 
 #include <fcgio.h>
 
