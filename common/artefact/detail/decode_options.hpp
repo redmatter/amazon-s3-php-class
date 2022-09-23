@@ -27,7 +27,7 @@ struct decode_options
     boost::optional<precrypt_header_type> inner_header;
 
     key_type encryption_key;
-    bool sanity_check_result;
+    boost::optional<bool> sanity_check_result;
 
     bool is_encrypted() const { return outer_header.is_initialized(); }
 
@@ -41,7 +41,7 @@ struct decode_options
     }
 
     explicit decode_options(const key_type& k)
-        : outer_header(boost::none), inner_header(boost::none), encryption_key(k), sanity_check_result(false)
+        : outer_header(boost::none), inner_header(boost::none), encryption_key(k), sanity_check_result(boost::none)
     {
     }
 
@@ -54,6 +54,14 @@ struct decode_options
     inline bool has_inner_header() const { return inner_header.is_initialized(); }
 
     void set_sanity_check_result(bool result) { sanity_check_result = result; }
+
+    bool sanity_check_ok() const
+    {
+        // In cases where there is no inner header or no header at all, sanity check
+        // will not take place. In such cases check-result is deemed OK since there is
+        // no way to check.
+        return sanity_check_result == boost::none || *sanity_check_result;
+    }
 
     uint8_t get_version() const
     {
