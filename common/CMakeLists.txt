@@ -69,7 +69,22 @@ set(HEADER_FILES
         utils/disable_skipws.hpp
         utils/stream_printf.hpp
         utils/kbps.hpp
-        utils/getenv.hpp)
+        utils/getenv.hpp
+        artefact/outer_header_filter.hpp
+        artefact/inner_header_filter.hpp
+        artefact/detail/decode_options.hpp
+        artefact/decrypt_filter.hpp
+        artefact/decompress_filter.hpp
+        artefact/types.hpp
+        artefact/detail/decrypt_filter.hpp
+        artefact/detail/bzip2.hpp
+        artefact/decoder_streambuf.hpp
+        artefact/sanity_checker_filter.hpp
+        artefact/detail/sanity_checker.hpp
+        artefact/max_size_filter.hpp
+        artefact/detail/decrypter.hpp
+        artefact/decrypter_filter.hpp
+        artefact/detail/pass_through.hpp)
 
 set(SOURCE_FILES
         archived_client.cpp

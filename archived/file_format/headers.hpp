@@ -86,6 +86,8 @@ union crypto_header_union
         uint8_t buf2[29];
     } format_version;
 
+    uint8_t magic[6];
+
     crypto_header<version<1> > v1;
     crypto_header<version<2> > v2;
 };
