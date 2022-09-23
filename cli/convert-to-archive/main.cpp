@@ -52,6 +52,7 @@ int main(int argc, char* argv[])
 							"Content type of the data; see description below")
 					("encryption-key", boost::program_options::value<std::string>(),
 							"Encryption key; base64 encoded")
+                    ("v1", "Use version 1 header format and encryption (for legacy use or testing only)")
 					("help", "Shows this help")
 					("version", "Shows version information")
 					("temp-dir", boost::program_options::value<std::string>()->default_value("/tmp"),
@@ -149,7 +150,11 @@ int main(int argc, char* argv[])
 							new CryptoPP::ArraySink(&enc_key[0], app::storage::basic_endpoint::encryption_key_t::static_size)));
 
 			app::crypto crypto;
-			crypto.encrypt_aes(*p_tmp, *p_output, enc_key);
+            if (cli_confMap.count("v1")) {
+                crypto.encrypt(*p_tmp, *p_output, enc_key);
+            } else {
+                crypto.encrypt_aes(*p_tmp, *p_output, enc_key);
+            }
 		}
 	}
 	catch(const std::exception& e) {
