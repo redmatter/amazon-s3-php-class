@@ -278,8 +278,11 @@ HTML;
         $ids = array_unique($ids);
 
         // filter out any zeros or negative numbers
-        return array_filter($ids, function ($v) {
+        $ids = array_filter($ids, function ($v) {
             return $v > 0;
         });
+
+        // remove any gaps in index caused by removal of duplicates by array_unique
+        return array_values($ids);
     }
 }
