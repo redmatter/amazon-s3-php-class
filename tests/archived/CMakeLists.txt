@@ -1,6 +1,7 @@
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
+find_package(cppnetlib 0.11.1 CONFIG REQUIRED)
 
 # bail on first error
 add_definitions(
@@ -17,7 +18,8 @@ add_definitions(
 
 include_directories(
         ../../common
-        /usr/include/cpp-netlib/
+        ${CPPNETLIB_INCLUDE_DIRS}
+        ${librml_INC_DIR}
 )
 
 gtest_add_tests_from_directory(
