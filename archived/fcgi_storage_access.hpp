@@ -68,7 +68,7 @@ public:
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
 			const coreapi_eventlog::cached_finder_t& eventlog_finder,
-			rml::fcgi::request::pointer p_request, const std::string& routed_path) :
+			const rml::fcgi::request::pointer& p_request, const std::string& routed_path) :
 
 			rml::fcgi::request::handler(p_request, routed_path),
 
