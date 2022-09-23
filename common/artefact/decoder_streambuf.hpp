@@ -25,10 +25,10 @@ struct decoder_streambuf : public boost::iostreams::filtering_ostreambuf
     decoder_streambuf(const key_type& k, Sink& sink) : options(k)
     {
         push(outer_header_filter(options), 8 * 1024);
-        push(decrypter_filter(options), 8 * 1024);
+        push(decrypter_filter(options, 8 * 1024), 8 * 1024);
         push(inner_header_filter(options), 8 * 1024);
-        push(decompress_filter(options), 12 * 1024);
-        push(sanity_checker_filter(options), 12 * 1024);
+        push(decompress_filter(options, 8 * 1024), 12 * 1024);
+        push(sanity_checker_filter(options, 12 * 1024), 12 * 1024);
 
         push(sink, 12 * 1024);
     }
