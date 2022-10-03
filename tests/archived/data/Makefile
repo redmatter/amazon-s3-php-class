@@ -1,3 +1,11 @@
+# Sample duration in seconds
+#
+# To create a bigger WAV or MP3 file, change this value in the commandline.
+# The below commands will delete existing sample data and create new ones
+# with 1 hour audio.
+#
+#   make clean
+#   make SAMPLE_DURATION=3600
 SAMPLE_DURATION=5
 
 THIS_MAKEFILE:=$(abspath $(firstword $(MAKEFILE_LIST)))
@@ -6,7 +14,7 @@ THIS_DIR:=$(realpath $(dir $(THIS_MAKEFILE)))
 CONVERT_TO_ARCHIVE=$(abspath $(THIS_DIR)/../../../cli/convert-to-archive/convert-to-archive)
 ARCHIVING_COMMON_DIR=$(abspath $(THIS_DIR)/../../../common)
 
-DAtA_FILES = test-encrypted-compressed-v2.wav.enc \
+DATA_FILES = test-encrypted-compressed-v2.wav.enc \
              test-encrypted-not-compressed-v2.mp3.enc \
              test-encrypted-compressed-v1.wav.enc \
              test-encrypted-not-compressed-v1.mp3.enc \
@@ -15,7 +23,7 @@ DAtA_FILES = test-encrypted-compressed-v2.wav.enc \
 
 ENCRYPTION_KEY='7BCSLuUcDPpd1bKDRX998fF3Nw0xF0kedHsjDRiCZdo='
 
-all : $(DAtA_FILES)
+all : $(DATA_FILES)
 
 $(CONVERT_TO_ARCHIVE):
 	$(MAKE) -C $(ARCHIVING_COMMON_DIR)
@@ -58,6 +66,6 @@ sample.mp3:
 		--output $@
 
 clean:
-	rm -f *.enc *.decoded
+	rm -f $(DATA_FILES) *.decoded
 
 .PHONY: all clean

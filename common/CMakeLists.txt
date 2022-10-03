@@ -78,7 +78,7 @@ set(HEADER_FILES
         artefact/types.hpp
         artefact/detail/decrypt_filter.hpp
         artefact/detail/bzip2.hpp
-        artefact/decoder_streambuf.hpp
+        artefact/decoder_ostream.hpp
         artefact/sanity_checker_filter.hpp
         artefact/detail/sanity_checker.hpp
         artefact/max_size_filter.hpp

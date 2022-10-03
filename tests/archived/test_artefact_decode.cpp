@@ -3,7 +3,7 @@
 //
 #include "gtest/gtest.h"
 
-#include "../../common/artefact/decoder_streambuf.hpp"
+#include "../../common/artefact/decoder_ostream.hpp"
 
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/bzip2.hpp>
@@ -27,14 +27,13 @@ bool
 DecodesOK(const std::string& enc_file)
 {
     namespace ns = common::artefact;
-    namespace mpl = boost::mpl;
 
     static std::string data_dir = get_data_dir();
 
-    std::cout << "data_dir: " << data_dir << std::endl;
-
     const std::string in_file = data_dir + PATH_SEPARATOR + enc_file;
     const std::string out_file = data_dir + PATH_SEPARATOR + enc_file + ".decoded";
+
+    std::cout << "input: " << in_file << std::endl;
 
     std::ifstream ifs(in_file.c_str(), std::ios::binary | std::ios::in);
     if (!ifs) {
@@ -42,7 +41,7 @@ DecodesOK(const std::string& enc_file)
     }
 
     unlink(out_file.c_str());
-    std::ofstream ofs(out_file.c_str(), std::ios::binary | std::ios::out);
+    std::ofstream ofs(out_file.c_str(), std::ios::binary | std::ios::out | std::ios::trunc);
     if (!ofs) {
         throw std::runtime_error(out_file + ": cannot open output");
     }
@@ -54,7 +53,7 @@ DecodesOK(const std::string& enc_file)
                                   new CryptoPP::ArraySink(&k[0], ns::key_type::size())));
     // clang-format on
 
-    ns::decoder_streambuf dec(k, ofs);
+    ns::decoder_ostream dec(ofs, k);
     dec.set_auto_close(true);
     boost::iostreams::copy(ifs, dec);
     boost::iostreams::close(dec);
@@ -70,4 +69,22 @@ TEST(Decode, Everything)
     ASSERT_NO_THROW(ASSERT_TRUE(DecodesOK("test-encrypted-not-compressed-v1.mp3.enc")););
     ASSERT_NO_THROW(ASSERT_TRUE(DecodesOK("sample.wav")););
     ASSERT_NO_THROW(ASSERT_TRUE(DecodesOK("sample.mp3")););
+}
+
+TEST(MultipleOf, Basics)
+{
+    namespace ns = common::artefact;
+
+    ASSERT_EQ(ns::multiple_of(13, 0), 0);
+    ASSERT_EQ(ns::multiple_of(13, 1), 13);
+    ASSERT_EQ(ns::multiple_of(13, 13), 13);
+    ASSERT_EQ(ns::multiple_of(13, 14), 26);
+
+    ASSERT_EQ(ns::multiple_of(4096, 0), 0);
+    ASSERT_EQ(ns::multiple_of(4096, 1), 4096);
+    ASSERT_EQ(ns::multiple_of(4096, 4096), 4096);
+    ASSERT_EQ(ns::multiple_of(4096, 4097), 8192);
+
+    std::streamsize l = 12000;
+    ASSERT_EQ(ns::multiple_of(4096, l), 12288);
 }
