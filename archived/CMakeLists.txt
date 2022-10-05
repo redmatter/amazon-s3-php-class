@@ -50,7 +50,11 @@ set(HEADER_FILES
         net/put/session.hpp
         net/put/error.hpp
         net/put/request.hpp
-        net/put/exception.hpp)
+        net/put/exception.hpp
+        storage/service.hpp
+        storage/basic_backend.hpp
+        storage/libs3_backend.hpp
+        storage/backends.hpp)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)

@@ -459,6 +459,12 @@ struct operation_data
 
 	// -------------------- functions -----------------
 
+    // Get the operation-mode encoded into operation-state
+    inline operation::operation_t get_operation() const
+    {
+        return operation::operation_t((p_detail->state & 0x0f00) >> 8);
+    }
+
 	inline_ void hibernate()
 	{
 		try {

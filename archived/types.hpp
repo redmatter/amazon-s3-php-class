@@ -566,7 +566,8 @@ public:
 		insert(std::make_pair(key, value));
 	}
 
-	void make_headers(caseless_key_string_map& headers) const
+    template<typename Compare>
+    void make_headers(std::map<std::string, std::string, Compare>& headers) const
 	{
 		const_iterator first_itr = begin();
 		const_iterator end_itr = end();
