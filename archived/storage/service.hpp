@@ -52,8 +52,9 @@ struct service : boost::enable_shared_from_this<service>
             operation_data::channel_t& out_channel,
             app::storage::cached_endpoint_finder_t& cached_endpoint_finder,
             app::database::internal& internal_db,
-            backends& b)
-        : config(config)
+            const backends& b)
+        : running(false)
+        , config(config)
         , in_channel(in_channel)
         , out_channel(out_channel)
         , cached_endpoint_finder(cached_endpoint_finder)
@@ -68,6 +69,7 @@ struct service : boost::enable_shared_from_this<service>
     void start()
     {
         unsigned n_threads = std::max<unsigned>(min_threads, config["storage_service.threads"].as<unsigned>());
+        LogMessage("Starting "<<n_threads<<" storage-service threads");
         while (n_threads--) {
             threads.create_thread(boost::bind(&service::run, shared_from_this()));
         }
@@ -78,6 +80,11 @@ struct service : boost::enable_shared_from_this<service>
      */
     void stop()
     {
+        if (!running) {
+            return;
+        }
+
+        running = false;
         threads.interrupt_all();
         threads.join_all();
     }
@@ -94,6 +101,10 @@ private:
 
     inline void requeue(operation_data::pointer& opdata)
     {
+        if (!running) {
+            return;
+        }
+
         if (!opdata) {
             return;
         }
@@ -126,6 +137,12 @@ private:
 
         opdata->p_detail->state = next_state; // operation_state::make(opdata->p_detail->state, operation_outcome::ok);
         internal_db.save(opdata);             // save before we potentially hand off to another thread
+
+        // get into a safe state before allowing the current thread to stop
+        if (!running) {
+            return;
+        }
+
         pc_produce(out_channel, opdata);
 
         opdata.reset();
@@ -167,7 +184,7 @@ private:
                 }
 
                 // Get the backend and PUT data
-                if (!backends_.get(opdata->p_detail->p_endpoint->type)->put(opdata)) {
+                if (!backends_.get(opdata->p_detail->p_endpoint)->put(opdata)) {
                     LogWarning(opdata->p_detail->identifier << ": Failed to store");
                     requeue(opdata);
                     continue;
@@ -188,13 +205,14 @@ private:
         }
     }
 
+    bool running;
     boost::thread_group threads;
     const variables_map& config;
     operation_data::channel_t& in_channel;
     operation_data::channel_t& out_channel;
     app::storage::cached_endpoint_finder_t& cached_endpoint_finder;
     app::database::internal& internal_db;
-    backends& backends_;
+    const backends& backends_;
 };
 
 } // namespace storage

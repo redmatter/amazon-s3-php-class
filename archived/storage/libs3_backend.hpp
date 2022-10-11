@@ -9,30 +9,56 @@
 
 #include <rml/s3.hpp>
 
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/variables_map.hpp>
+#include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
 
 namespace {
 
 using app::types::data_sub_format;
-using app::types::file_format;
 using app::types::metadata;
-using boost::program_options::options_description;
-using boost::program_options::value;
-using boost::program_options::variables_map;
+using boost::posix_time::ptime;
+
+inline std::string
+to_string(const ptime::date_type::ymd_type& d)
+{
+    const ptime::date_type::ymd_type::year_type::value_type yyyy(d.year);
+    const ptime::date_type::ymd_type::month_type::value_type mm(d.month.as_number());
+    const ptime::date_type::ymd_type::day_type::value_type dd(d.day);
+
+    std::string buf(11, ' ');
+    std::snprintf(&buf[0], buf.size(), "%4d-%02d-%02d", yyyy, mm, dd);
+    return buf;
+}
+
+inline const char*
+to_string(bool v)
+{
+    return (v ? "true" : "false");
+}
+
+inline const char*
+to_string(data_sub_format::data_sub_format_t dsf)
+{
+    return data_sub_format::to_string(dsf);
+}
+
+inline data_sub_format::data_sub_format_t
+to_data_sub_format(app::types::file_format::file_format_t f)
+{
+    return static_cast<data_sub_format::data_sub_format_t>(f & 0xff);
+}
 
 } // namespace
 
 namespace archiving {
 namespace archived {
 namespace storage {
+
 struct libs3_backend : public basic_backend
 {
-    static void describe_config(options_description& optsDesc) {}
-
-    explicit libs3_backend(const variables_map& map) {}
+    libs3_backend() { rml::s3::initialise(); }
+    virtual ~libs3_backend() { rml::s3::deinitialise(); }
 
     bool put(const operation_data::pointer& opdata)
     {
@@ -47,8 +73,8 @@ struct libs3_backend : public basic_backend
 
         const metadata::pointer& p_metadata(opdata->p_detail->p_metadata);
 
-        rml::s3::caseless_key_string_map headers;
-        p_metadata->make_headers(headers);
+        headers_list headers;
+        p_metadata->fill_headers(boost::bind(&headers_list::append, boost::ref(headers), _1, _2));
 
         std::string leg_uuid;
         {
@@ -58,32 +84,26 @@ struct libs3_backend : public basic_backend
             }
         }
 
-#define PadZeroTwoDigit(num) ((num <= 9 ? "0" : "") + boost::lexical_cast<std::string>(num))
-
-#define YmdToString(ymd)                                                                                               \
-    boost::lexical_cast<std::string>(ymd.year) + '-' + PadZeroTwoDigit(ymd.month.as_number()) + '-' +                  \
-        PadZeroTwoDigit(ymd.day)
-
         headers
-            .add("file-type-is-compressed",
-                 file_format::is_compressed(opdata->p_detail->target_file_format) ? "true" : "false")
-            .add("file-type-is-encrypted",
-                 file_format::is_encrypted(opdata->p_detail->target_file_format) ? "true" : "false")
-            .add("file-type",
-                 data_sub_format::to_string(
-                     data_sub_format::data_sub_format_t(opdata->p_detail->target_file_format & 0xff)))
+            .append("file-type-is-compressed",
+                    to_string(app::types::file_format::is_compressed(opdata->p_detail->target_file_format)))
+            .append("file-type-is-encrypted",
+                    to_string(app::types::file_format::is_encrypted(opdata->p_detail->target_file_format)))
+            .append("file-type", to_string(to_data_sub_format(opdata->p_detail->target_file_format)))
 
-            .add("clear-size", boost::lexical_cast<std::string>(opdata->p_detail->clear_size))
-            .add("real-size", boost::lexical_cast<std::string>(opdata->p_detail->real_size))
+            .append("clear-size", boost::lexical_cast<std::string>(opdata->p_detail->clear_size))
+            .append("real-size", boost::lexical_cast<std::string>(opdata->p_detail->real_size))
 
-            .add("creation-date", YmdToString(opdata->p_detail->policy.get_creation_ymd()))
-            .add("retention-min-date", YmdToString(opdata->p_detail->policy.get_min_retention_ymd()))
-            .add("retention-max-date", YmdToString(opdata->p_detail->policy.get_max_retention_ymd()))
+            .append("creation-date", to_string(opdata->p_detail->policy.get_creation_ymd()))
+            .append("retention-min-date", to_string(opdata->p_detail->policy.get_min_retention_ymd()))
+            .append("retention-max-date", to_string(opdata->p_detail->policy.get_max_retention_ymd()))
 
-            .add("policy-id", boost::lexical_cast<std::string>(opdata->p_detail->policy.p_policy->id))
-            .add("policy-version", boost::lexical_cast<std::string>(opdata->p_detail->policy.p_policy->version))
+            .append("policy-id", boost::lexical_cast<std::string>(opdata->p_detail->policy.p_policy->id))
+            .append("policy-version", boost::lexical_cast<std::string>(opdata->p_detail->policy.p_policy->version))
 
-            .add("leg-uuid", leg_uuid);
+            .append("leg-uuid", leg_uuid);
+
+        LogVerbose(opdata->p_detail->identifier << ": headers: " << headers);
 
         return rml::s3::put(to_bucket_context(opdata->p_detail->p_endpoint),
                             std::string(opdata->p_detail->identifier),
@@ -95,7 +115,31 @@ struct libs3_backend : public basic_backend
                             S3CannedAclBucketOwnerRead);
     }
 
-private:
+    bool get(const operation_data::pointer& opdata, headers_list& headers)
+    {
+        rml::utils::tmp_fstream::pointer ofs =
+            opdata->get_tmp_fstream(opdata->p_detail->current_file_format, true, true);
+
+        rml::s3::response_properties::pointer res = rml::s3::get(
+            to_bucket_context(opdata->p_detail->p_endpoint), std::string(opdata->p_detail->identifier), *ofs);
+
+        headers = res->headers;
+
+        return true;
+    }
+
+    bool head(const app::storage::basic_endpoint::pointer& ep, const identifier& id, headers_list& headers)
+    {
+        rml::s3::response_properties::pointer res = rml::s3::head(to_bucket_context(ep), std::string(id));
+        if (res) {
+            headers = res->headers;
+            return true;
+        }
+
+        return false;
+    }
+
+protected:
     static inline S3BucketContext to_bucket_context(const boost::shared_ptr<app::storage::basic_endpoint>& endpoint)
     {
         S3BucketContext bucket_context;
@@ -134,6 +178,7 @@ private:
         return bucket_context;
     }
 };
+
 } // namespace storage
 } // namespace archived
 } // namespace archiving
