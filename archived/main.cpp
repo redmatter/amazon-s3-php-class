@@ -3,13 +3,8 @@
 #include "globals.h"
 #include "put_session.hpp"
 #include "put_server.hpp"
-// TODO #include "get_server.hpp"
-#include "storage.hpp"
 #include "call_buffering_recording.hpp"
-#include "storage_operation.hpp"
-#include "storage_runner.hpp"
 #include "converter.hpp"
-#include "dispatcher.hpp"
 #include "database_internal.hpp"
 #include "database_retention.hpp"
 #include "database_cdrmunch.hpp"
@@ -24,6 +19,8 @@
 #include "retention_purge_runner.hpp"
 #include "fcgi_storage_access.hpp"
 #include "org_policy_versions.hpp"
+#include "storage/backends.hpp"
+#include "storage/service.hpp"
 
 #include "../common/types.hpp"
 #include "../common/hostname.hpp"
@@ -31,7 +28,6 @@
 #include <rml/fcgi/server.hpp>
 #include <rml/logger.h>
 #include <rml/utils.h>
-#include <rml/thread_adapter.h>
 #include <rml/hapi.hpp>
 #include <rml/config.h>
 #include <rml/siginit.h>
@@ -231,8 +227,6 @@ int main(int argc, char *argv[]) try
 		app::put_session::describe_config(optsDesc);
 		app::put_server::describe_config(optsDesc);
 		app::converter::describe_config(optsDesc);
-		app::storage::s3::backend::describe_config(optsDesc);
-		app::storage::s3::runner::describe_config(optsDesc);
 		rml::coreapi::describe_config(optsDesc);
 		app::database::internal::describe_config(optsDesc);
 		app::database::retention::describe_config(optsDesc);
@@ -247,6 +241,8 @@ int main(int argc, char *argv[]) try
 		app::state_reactor<>::describe_config(optsDesc);
 		app::retention_purge::describe_config(optsDesc);
 		archiving::archived::purge_restrictions::describe_config(optsDesc);
+        archiving::archived::storage::backends::describe_config(optsDesc);
+        archiving::archived::storage::service::describe_config(optsDesc);
 
 		if(cli_confMap.count("help-conf")) {
 			std::cout << optsDesc << "\n";
@@ -309,7 +305,6 @@ int main(int argc, char *argv[]) try
 				0, "Convert");
 
 		app::operation_data::channel_t convert_done_channel("ConvertDone");
-		app::storage::operation_channel_t storage_operation_channel("StorageOps");
 		app::operation_data::channel_t retention_data_channel("RetentionData");
 		app::operation_data::channel_t purge_channel("Purge");
 		app::whisper::channel_t whisper_channel("Whisper");
@@ -360,23 +355,21 @@ int main(int argc, char *argv[]) try
 
 		app::converter converter(convert_channel, convert_done_channel, operation_data_busy_set, internal_db, app::quit,
 								 is_aes_enabled_callback);
-		app::dispatcher dispatcher(convert_done_channel, storage_operation_channel, retention_data_channel,
-				internal_db, cached_endpoint_finder, app::quit);
+
+        archiving::archived::storage::backends storage_backends(app::confMap);
+        boost::shared_ptr<archiving::archived::storage::service> storage_service =
+            boost::make_shared<archiving::archived::storage::service>(app::confMap, boost::ref(convert_done_channel), boost::ref(retention_data_channel), boost::ref(cached_endpoint_finder), boost::ref(internal_db), storage_backends);
 
 		app::retention_data_flusher retention_data_flusher(app::confMap, retention_data_channel, purge_channel, retention_db, internal_db, app::quit);
 
 		app::purge purge(purge_channel, internal_db, operation_data_busy_set, app::quit, app::confMap);
-
-		app::storage::s3::storage s3storage(app::confMap);
-
-		app::storage::s3::runner s3runner(s3storage, storage_operation_channel, app::quit);
 
 		boost::shared_ptr< app::state_reactor<> > p_purge_state_reactor(new app::state_reactor<>(app::confMap));
 		boost::shared_ptr<app::retention_purge::runner> p_retention_purge_runner(
 				new app::retention_purge::runner(
 						app::confMap, cached_endpoint_finder, cached_policy_finder, cached_org_policy_versions_finder,
 						coreapi, *p_purge_state_reactor, retention_db, retention_delete_db, internal_db,
-						legal_hold_cache, app::quit));
+						legal_hold_cache, storage_backends, app::quit));
 
 		app::whisper_client whisper_client(*p_io_service, whisper_channel,
 				app::confMap["distiller_client.server_host"].as<std::string>(),
@@ -408,8 +401,9 @@ int main(int argc, char *argv[]) try
 		fcgi_server.register_handler("/", boost::bind(app::fcgi::storage_access_handler::make,
 				boost::ref(cached_retention_record_finder), boost::ref(retention_record_is_expired),
 				boost::ref(cached_policy_finder), boost::ref(cached_coreapi_user_finder),
-				boost::ref(cached_endpoint_finder), boost::ref(cached_coreapi_eventlog_finder), _1, _2));
-		
+				boost::ref(cached_endpoint_finder), boost::ref(cached_coreapi_eventlog_finder),
+				boost::ref(storage_backends), _1, _2));
+
 		// todo add ondemand purge notification handler
 
 
@@ -427,14 +421,7 @@ int main(int argc, char *argv[]) try
 				threads.create_thread(boost::bind(&app::converter::run, boost::ref(converter)));
 		}
 
-		threads.create_thread(boost::bind(&app::dispatcher::run, boost::ref(dispatcher)));
-
-		{
-			unsigned int n_threads = std::max<unsigned int>( app::confMap["s3_runner.threads"].as<unsigned int>(), app::storage::s3::runner::min_threads );
-			LogMessage("Starting "<<n_threads<<" s3 threads");
-			while(0 < n_threads--)
-				threads.create_thread(boost::bind(&app::storage::s3::runner::run, boost::ref(s3runner)));
-		}
+		storage_service->start();
 
 		{
 			unsigned int n_threads = ( 1 + std::max<unsigned int>( app::confMap["archived.service_threads"].as<unsigned int>(), 4 ));
@@ -505,7 +492,7 @@ int main(int argc, char *argv[]) try
 					time(&item.sample_time);
 					item.convert_waiting = convert_channel.count();
 					item.convert_done_waiting = convert_done_channel.count();
-					item.storage_ops_waiting = storage_operation_channel.count();
+					item.storage_ops_waiting = convert_done_channel.count();
 					item.retention_store_waiting = retention_data_channel.count();
 					item.purge_waiting = purge_channel.count();
 					item.whisper_waiting = whisper_channel.count();
@@ -553,11 +540,13 @@ int main(int argc, char *argv[]) try
 		LogMessage("Setting all channels as finishing");
 		convert_channel.set_finishing();
 		convert_done_channel.set_finishing();
-		storage_operation_channel.set_finishing();
 		retention_data_channel.set_finishing();
 		purge_channel.set_finishing();
 		whisper_channel.set_finishing();
 		cbr_channel.set_finishing();
+
+        LogMessage("Stopping storage-service");
+        storage_service->stop();
 
 		LogMessage("Stopping purge");
 		p_purge_state_reactor.reset();

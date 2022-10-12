@@ -170,7 +170,31 @@ struct data_sub_format
 		return unknown;
 	}
 
-	static inline data_sub_format_t from_filename(const std::string& filename)
+    static inline const char* to_mime_type(data_sub_format_t f)
+    {
+        static const char* mime[] = {
+            "application/octet-stream",
+            "application/octet-stream",
+            "application/xml",
+            "audio/wav",
+            "audio/mpeg",
+            "application/vnd.tcpdump.pcap",
+            "message/rfc822",
+            "application/json"
+        };
+
+        if(f > unknown && f < n_data_sub_format)
+            return mime[f];
+
+        return mime[0];
+    }
+
+    static inline const char* to_mime_type(const std::string& f)
+    {
+        return to_mime_type(from_string(f));
+    }
+
+    static inline data_sub_format_t from_filename(const std::string& filename)
 	{
 		std::size_t pos = filename.rfind('.');
 		data_sub_format_t ret = unknown;
@@ -589,6 +613,14 @@ public:
 			} while(first_itr != last);
 
 			headers.insert(std::make_pair(map_key, map_value));
+		}
+	}
+
+	void fill_headers(boost::function<void(const std::string& name, const std::string& value)> add_header_callback) const
+	{
+		const_iterator end_ = end();
+		for (const_iterator i = begin(); i != end_; ++i) {
+			add_header_callback(i->first, i->second);
 		}
 	}
 

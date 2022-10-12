@@ -11,13 +11,17 @@
 
 #include "retention_record.hpp"
 #include "storage_endpoint.hpp"
-#include "storage_backend.hpp"
+#include "storage/backends.hpp"
 #include "crypto.hpp"
 #include "converter.hpp"
 #include "coreapi_user.hpp"
+#include "fcgi_response.hpp"
 
 #include <rml/fcgi/request.hpp>
 #include <rml/coreapi.hpp>
+#include <rml/fcgi/iostreams_sink.hpp>
+
+#include <boost/bind.hpp>
 
 #define Debug(line) \
 		LogIf(p_request->debug_mode == rml::fcgi::debug::on, p_request->fcgi_req.requestId<<':'<<thread_id<<": "<<line);
@@ -37,13 +41,13 @@ class storage_access_handler : public rml::fcgi::request::handler
 	const coreapi_user::cached_finder_t& coreapi_user_finder_;
 	const storage::cached_endpoint_finder_t& storage_endpoint_finder_;
 	const coreapi_eventlog::cached_finder_t& eventlog_finder_;
+    const archiving::archived::storage::backends& storage_backends_;
 
-	coreapi_eventlog::id_t audit_token;
-	operation_data::pointer opdata;
-	storage::string_map_t props;
-	types::file_format::file_format_t file_format;
-//	std::string base64_md5;
-	std::string hex_md5;
+    boost::shared_ptr<archiving::archived::storage::basic_backend> storage_backend;
+    boost::shared_ptr<storage::basic_endpoint> endpoint;
+    archiving::archivable::identifier identifier;
+    boost::shared_ptr<response::configurator> response_configurator;
+    archiving::archived::storage::headers_list headers;
 
 public:
 	static inline rml::fcgi::request::handler::pointer make(
@@ -53,22 +57,23 @@ public:
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
 			const coreapi_eventlog::cached_finder_t& eventlog_finder,
+            const archiving::archived::storage::backends& storage_backends,
 			rml::fcgi::request::pointer p_request, const std::string& routed_path)
 	{
-		return boost::static_pointer_cast<rml::fcgi::request::handler>(
-				boost::make_shared< storage_access_handler >(
-						retention_record_cached_finder, retention_record_is_expired, cached_policy_finder,
-						coreapi_user_finder, storage_endpoint_finder, eventlog_finder, p_request, routed_path));
-	}
+        return boost::shared_ptr<rml::fcgi::request::handler>(new storage_access_handler(
+            retention_record_cached_finder, retention_record_is_expired, cached_policy_finder, coreapi_user_finder,
+            storage_endpoint_finder, eventlog_finder, storage_backends, p_request, routed_path));
+    }
 
-	explicit storage_access_handler(
+	storage_access_handler(
 			const retention_record::cached_finder_t& retention_record_cached_finder,
 			const retention_record::fn_is_expired_t& retention_record_is_expired,
 			const policy::cached_finder_t& cached_policy_finder,
 			const coreapi_user::cached_finder_t& coreapi_user_finder,
 			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
 			const coreapi_eventlog::cached_finder_t& eventlog_finder,
-			const rml::fcgi::request::pointer& p_request, const std::string& routed_path) :
+            const archiving::archived::storage::backends& storage_backends,
+            const rml::fcgi::request::pointer& p_request, const std::string& routed_path) :
 
 			rml::fcgi::request::handler(p_request, routed_path),
 
@@ -78,13 +83,12 @@ public:
 			coreapi_user_finder_(coreapi_user_finder),
 			storage_endpoint_finder_(storage_endpoint_finder),
 			eventlog_finder_(eventlog_finder),
-
-			audit_token(0),
-			file_format(types::file_format::unknown)
+            storage_backends_(storage_backends)
 	{
 		LogDebug("New storage-access request: "<<rml::fcgi::http_method::to_string(p_request->method)<<' '<<std::string(p_request->pathinfo));
 	}
 
+    // Handle request here; no need to catch and convert exceptions into http_exceptions. That is already taken care of!
 	virtual void operator()()
 	{
 		const boost::thread::id& thread_id = boost::this_thread::get_id();
@@ -97,7 +101,6 @@ public:
 		const std::string& authorization((authprization_header && authprization_header[0])? authprization_header: p_request->querystring.get_first("authorization"));
 		const std::string& remote_ip((ip_header && ip_header[0])? ip_header: p_request->querystring.get_first("remote-ip"));
 
-		archiving::archivable::identifier identifier;
 		{
 			std::string uuid(p_request->pathinfo.at< std::string >(2));
 			if(uuid.rfind('-') == std::string::npos) {
@@ -117,33 +120,29 @@ public:
 			this_op = ostr.str();
 		}
 
-		audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
-		if (audit_token) {
-			const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
-					std::make_pair(identifier.org, audit_token));
-			coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
-			if (!p_eventlog) {
-				eventlog_finder_.forget(lookup);
-				audit_token = 0;
-				LogMessage(this_op<<"The given audit-token could not be verified");
-			} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
-					p_eventlog->time < (time(0) - 3600)
-					|| p_eventlog->context != "Archiving" || p_eventlog->action != "FetchObject"
-					|| p_eventlog->message.find(boost::str(
-							boost::format(" %1% ") % archiving::archivable::identifier::to_string(identifier))) ==
-																std::string::npos) {
-				audit_token = 0;
-				LogMessage(this_op<<"The given audit-token is invalid");
-			}
-		} else {
-			LogMessage(this_op<<"No audit-token was provided");
-		}
-
+        coreapi_eventlog::id_t audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
 		if (!audit_token) {
+			LogMessage(this_op<<"No audit-token was provided");
 			throw rml::fcgi::http_exception(400, "Request not audited");
 		}
 
-		Timing(this_op<<"request verified");
+		const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
+			std::make_pair(identifier.org, audit_token));
+		coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
+		if (!p_eventlog) {
+			eventlog_finder_.forget(lookup);
+			audit_token = 0;
+			LogMessage(this_op << "The given audit-token could not be verified");
+		} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
+			p_eventlog->time < (time(0) - 3600) || p_eventlog->context != "Archiving" ||
+			p_eventlog->action != "FetchObject" ||
+			p_eventlog->message.find(boost::str(boost::format(" %1% ") % archiving::archivable::identifier::to_string(
+																			 identifier))) == std::string::npos) {
+			audit_token = 0;
+			LogMessage(this_op << "The given audit-token is invalid");
+		}
+
+        Timing(this_op<<"request verified");
 
 		retention_record::pointer retention = retention_record_cached_finder_(identifier);
 		if(!retention) {
@@ -210,7 +209,7 @@ public:
 			throw rml::fcgi::http_exception(410, "object found purged" /*shush... till we purge; no matter what!*/);
 		}
 
-		storage::basic_endpoint::pointer endpoint = storage_endpoint_finder_(
+		endpoint = storage_endpoint_finder_(
 				std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
 						user_org_id, retention->endpoint_id));
 		if(!endpoint) {
@@ -219,132 +218,44 @@ public:
 			throw rml::fcgi::http_exception(500, "Endpoint not found");
 		}
 
+		storage_backend = storage_backends_.get(endpoint);
+
 		Timing(this_op<<"endpoint looked up");
 
-		storage::s3::backend::pointer storage_backend = storage::s3::backend::get_instance();
+        switch (p_request->method) {
+        case rml::fcgi::http_method::get:
+            response_configurator = boost::make_shared<response::configurator>(p_request, endpoint->encryption_key,
+                                                                               target_file_format, audit_token);
+            Timing(this_op << "fetch-convert-and-respond configured");
+            break;
 
-		operation_data::detail::pointer detail(new operation_data::detail());
-		detail->identifier = identifier;
-		detail->p_endpoint = endpoint;
+        case rml::fcgi::http_method::head:
+            if (!storage_backend->head(endpoint, identifier, headers)) {
+                throw rml::fcgi::http_exception(404);
+            }
 
-		// GET
-		if(p_request->method == rml::fcgi::http_method::get) {
-			detail->arrival_time = time(0);
-			detail->current_file_format = retention->file_format;
-			detail->target_file_format = target_file_format;
-			/*
-			// implemented in API using a lame based stream filter... dont need this anymore
-			if (policy->disallow_recording_download() && (detail->target_file_format == types::file_format::clear_wav))
-				detail->target_file_format = types::file_format::clear_mp3;
-			*/
+            Timing(this_op << "HEAD response configured");
+            break;
 
-			detail->state = operation_state::get_file_retrieve;
-
-			opdata = app::operation_data::pointer(new operation_data(detail));
-
-			try {
-				storage_backend->get(opdata);
-				Timing(this_op<<"file retrieved from storage");
-
-				{
-					app::crypto crypto;
-					// is_aes_enabled - always ON for GET as it depends on the file-format got from storage
-					if(!app::converter::convert(opdata, crypto, true)) {
-						LogWarning("Failed to convert "<<identifier<<"; possibly corruption or a newer file-format");
-						throw rml::fcgi::http_exception(500, "Internal error");
-					}
-				}
-				Timing(this_op<<"file converted");
-
-				{
-					rml::utils::tmp_fstream::pointer p_fs(opdata->get_tmp_fstream());
-					p_fs->re_open();
-
-					CryptoPP::Weak1::MD5 hash;
-					CryptoPP::FileSource f(*p_fs, true,
-							new CryptoPP::HashFilter(hash,
-									new CryptoPP::HexEncoder(
-											new CryptoPP::StringSink(hex_md5), false)));
-
-				}
-				Timing(this_op<<"file check-summed");
-
-				file_format = detail->target_file_format;
-			}
-			catch(const std::exception& e) {
-				LogDWarning("Exception: "<<e.what(), "IGNO");
-				throw rml::fcgi::http_exception(404, e.what());
-			}
-		}
-
-		// HEAD
-		else if(p_request->method == rml::fcgi::http_method::head) {
-			try {
-				opdata = app::operation_data::pointer(new operation_data(detail));
-
-				storage_backend->stat(opdata, props);
-				Timing(this_op<<"got metadata from storage");
-			}
-			catch(const std::exception& e) {
-				throw rml::fcgi::http_exception(404, e.what());
-			}
-		}
-	}
+        default:
+            throw rml::fcgi::http_exception(405);
+        }
+    }
 
 	virtual void respond() const
 	{
-		// GET
-		if(p_request->method == rml::fcgi::http_method::get) {
-			rml::utils::tmp_fstream::pointer fs = opdata->get_tmp_fstream();
-			size_t content_length = fs->get_size();
+        if (p_request->method == rml::fcgi::http_method::head) {
+            FCGX_FPrintF(p_request->fcgi_req.out,
+                         "Status: 200 OK\r\n"
+                         "Content-Type: %s\r\n"
+                         "Content-Length: %d\r\n"
+                         "\r\n",
+                         data_sub_format::to_mime_type(headers.get("file-type").get_value_or("binary")),
+                         headers.get("clear-size").get_value_or("0").data());
+            return;
+        }
 
-			FCGX_FPrintF(p_request->fcgi_req.out, "Status: 200 OK\r\n"
-					"Pragma: no-cache\r\n"
-					"Expires: 0\r\n"
-					"Cache-Control: no-store, no-cache, private, must-revalidate, post-check=0, pre-check=0\r\n"
-					"Content-Type: application/octet-stream\r\n"
-					"Content-Disposition: attachment; filename=\"%s.%s\";\r\n"
-					"Content-Transfer-Encoding: binary\r\n"
-					"Content-Length: %d\r\n"
-					"ETag: \"%s\"\r\n"
-					"AuditLogToken: %d\r\n"
-					"X-File-Format: %d\r\n"
-					"\r\n",
-					opdata->p_detail->identifier.uuid.c_str(), types::file_format::to_extension(opdata->p_detail->current_file_format),
-					content_length,
-					(hex_md5.empty()? "-empty-": hex_md5.c_str()),
-					audit_token,
-					file_format);
-
-			fs->re_open();
-			while(*fs) {
-				char buf[1025];
-				fs->read(buf, 1024);
-				FCGX_PutStr(buf, fs->gcount(), p_request->fcgi_req.out);
-			}
-		}
-
-		// HEAD
-		else if(p_request->method == rml::fcgi::http_method::head) {
-			FCGX_FPrintF(p_request->fcgi_req.out, "Status: 200 OK\r\n");
-
-			{
-				storage::string_map_t::const_iterator itr = props.find("content-type");
-				if(itr == props.end())
-					FCGX_FPrintF(p_request->fcgi_req.out, "Content-type: %s\r\n", itr->second.c_str());
-			}
-
-			{
-				storage::string_map_t::const_iterator itr = props.find("content-length");
-				if(itr == props.end())
-					FCGX_FPrintF(p_request->fcgi_req.out, "Content-length: %s\r\n", itr->second.c_str());
-			}
-
-			for(storage::string_map_t::const_iterator itr = props.begin(); itr != props.end(); itr++)
-				FCGX_FPrintF(p_request->fcgi_req.out, "%s: %s\r\n", itr->first.c_str(), itr->second.c_str());
-
-			FCGX_FPrintF(p_request->fcgi_req.out, "\r\n");
-		}
+        storage_backend->get(endpoint, identifier, boost::bind(&response::configurator::configure, response_configurator, _1));
 	}
 
 	virtual void respond(const rml::fcgi::http_exception& e) const

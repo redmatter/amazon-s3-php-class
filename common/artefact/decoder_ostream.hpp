@@ -21,10 +21,7 @@ namespace artefact {
 
 template<typename T1, typename T2>
 inline typename boost::enable_if<
-    boost::mpl::and_<
-        boost::is_convertible<T1, T2>,
-        boost::is_integral<T1>,
-        boost::is_integral<T2> >, T2>::type
+    boost::mpl::and_<boost::is_convertible<T1, T2>, boost::is_integral<T1>, boost::is_integral<T2> >, T2>::type
 multiple_of(T1 factor, T2 value)
 {
     T2 r = value % factor;
@@ -62,6 +59,32 @@ struct decoder_ostream : public boost::iostreams::filtering_ostream
         push(inner_header_filter(options), buf_size);
         push(decompress_filter(options, static_cast<int>(buf_size)), buf_size_expanded);
         push(sanity_checker_filter(options, static_cast<int>(buf_size_expanded)), buf_size_expanded);
+
+        push(sink, buf_size_expanded);
+    }
+
+    template<typename Sink>
+    decoder_ostream(Sink& sink, const key_type& k, bool decompress, bool decrypt, std::streamsize buf_size = 8192)
+        : options(k)
+    {
+        buf_size = multiple_of(4096, buf_size);
+
+        // BZip2 decompress WAV expands ~20% on decompression
+        std::streamsize buf_size_expanded = decompress ? multiple_of(4096, buf_size * 120 / 100) : buf_size;
+
+        if (decrypt) {
+            push(outer_header_filter(options), buf_size);
+            push(decrypter_filter(options, static_cast<int>(buf_size)), buf_size);
+        }
+
+        if (decompress) {
+            push(inner_header_filter(options), buf_size);
+            push(decompress_filter(options, static_cast<int>(buf_size)), buf_size_expanded);
+        }
+
+        if (decrypt) {
+            push(sanity_checker_filter(options, static_cast<int>(buf_size_expanded)), buf_size_expanded);
+        }
 
         push(sink, buf_size_expanded);
     }

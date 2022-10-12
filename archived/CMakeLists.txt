@@ -13,7 +13,6 @@ set(HEADER_FILES
         database_internal.hpp
         database_retention.hpp
         database_retention_delete.hpp
-        dispatcher.hpp
         fcgi_storage_access.hpp
         globals.h
         monitor.hpp
@@ -29,11 +28,7 @@ set(HEADER_FILES
         retention_record.hpp
         state_action.hpp
         state_reactor.hpp
-        storage_backend.hpp
         storage_endpoint.hpp
-        storage.hpp
-        storage_operation.hpp
-        storage_runner.hpp
         suppress_headers_check.hpp
         types.hpp
         whisper_client.hpp
@@ -54,7 +49,10 @@ set(HEADER_FILES
         storage/service.hpp
         storage/basic_backend.hpp
         storage/libs3_backend.hpp
-        storage/backends.hpp)
+        storage/s3_backend.hpp
+        storage/s3_compatible_backend.hpp
+        storage/backends.hpp
+        fcgi_response.hpp)
 
 find_package(Boost 1.54 COMPONENTS program_options thread system filesystem date_time iostreams REQUIRED)
 find_package(MySQL REQUIRED)

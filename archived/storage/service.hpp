@@ -44,7 +44,6 @@ struct service : boost::enable_shared_from_this<service>
     {
         optsDesc.add_options()(
             "storage_service.threads", value<unsigned>()->default_value(min_threads), "storage service threads");
-        libs3_backend::describe_config(optsDesc);
     }
 
     service(const variables_map& config,

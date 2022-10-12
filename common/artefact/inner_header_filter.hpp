@@ -88,6 +88,9 @@ struct inner_header_filter : public boost::iostreams::multichar_output_filter
 
             return sizeof(header);
         }
+
+        // we will never reach here; just to satisfy the compiler
+        return 0;
     }
 };
 

@@ -26,12 +26,11 @@ struct s3_backend : public libs3_backend
     explicit s3_backend(const variables_map& map) : libs3_backend() {}
 
     // S3 supports multi-delete
-    virtual bool delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
-                                 const delete_keys_request& keys_list,
-                                 delete_keys_result& result)
+    virtual delete_keys_result delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
+                                               const delete_keys_request& keys_list,
+                                               delete_keys_result& result)
     {
-        result = rml::s3::delete_multiple(to_bucket_context(ep), keys_list);
-        return result;
+        return rml::s3::delete_multiple(to_bucket_context(ep), keys_list);
     }
 };
 

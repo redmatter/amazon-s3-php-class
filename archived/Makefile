@@ -64,7 +64,7 @@ LIBS += \
 	-lboost_date_time$(BOOST_NAME_EXT) \
 	-lboost_chrono$(BOOST_NAME_EXT) \
 	-lboost_iostreams$(BOOST_NAME_EXT) \
-	-lcrypto -lrt\
+	-lssl -lcrypto -lrt -lcurl \
 	-lcryptopp -lpugixml -lmysqlpp -larchiving_common -lfcgi \
 	$(MYSQLCLIENT_LIBS_DIR) -lmysqlclient
 

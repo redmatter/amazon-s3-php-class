@@ -19,6 +19,13 @@ using app::storage::endpoint_type;
 namespace archiving {
 namespace archived {
 namespace storage {
+/**
+ * A fake factory for all types of backends we support. For now it is kept simple, till we have more requirements,
+ * if any, to support other kids of backends (GCP, Azure, etc)!
+ *
+ * NOTE: This being the place where storage backends are created, till a better way is figured out, `backends` will also
+ * initialise rml::s3 module.
+ */
 struct backends
 {
     static void describe_config(options_description& optsDesc)
@@ -31,7 +38,10 @@ struct backends
     explicit backends(const variables_map& config)
         : s3(boost::make_shared<s3_backend>(config)), s3_compatible(boost::make_shared<s3_compatible_backend>(config))
     {
+        rml::s3::initialise();
     }
+
+    virtual ~backends() { rml::s3::deinitialise(); }
 
     inline boost::shared_ptr<basic_backend> get(const boost::shared_ptr<basic_endpoint>& ep) const
     {

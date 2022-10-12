@@ -26,9 +26,9 @@ struct s3_compatible_backend : public libs3_backend
     explicit s3_compatible_backend(const variables_map& map) : libs3_backend() {}
 
     // S3-compatible backends may not support multi-delete; so we try it and fallback to single key deletion.
-    virtual bool delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
-                                 const delete_keys_request& keys_list,
-                                 delete_keys_result& result)
+    virtual delete_keys_result delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
+                                               const delete_keys_request& keys_list,
+                                               delete_keys_result& result)
     {
         // try multi-delete and check for request failure
         result = rml::s3::delete_multiple(to_bucket_context(ep), keys_list);

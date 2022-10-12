@@ -9,6 +9,7 @@
 
 #include <rml/s3/delete_multiple.hpp>
 #include <rml/s3/headers_list.hpp>
+#include <rml/s3/get_stream.hpp>
 
 namespace {
 using app::operation_data;
@@ -24,16 +25,19 @@ namespace storage {
 typedef rml::s3::headers_list headers_list;
 typedef rml::s3::delete_multiple_request delete_keys_request;
 typedef rml::s3::delete_multiple_result delete_keys_result;
+typedef rml::s3::response_properties_callback headers_callback;
 typedef archivable::identifier identifier;
 
 struct basic_backend
 {
     virtual bool put(const operation_data::pointer& opdata) = 0;
     virtual bool get(const operation_data::pointer& opdata, headers_list& headers) = 0;
+    virtual bool get(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id,
+                     const headers_callback& callback) = 0;
     virtual bool head(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id, headers_list& headers) = 0;
-    virtual bool delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
-                                 const delete_keys_request& keys_list,
-                                 delete_keys_result& result) = 0;
+    virtual delete_keys_result delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
+                                               const delete_keys_request& keys_list,
+                                               delete_keys_result& result) = 0;
 
     bool head(const operation_data::pointer& opdata, headers_list& headers)
     {
@@ -47,7 +51,7 @@ delete_multiple(const boost::shared_ptr<basic_backend>& b,
                 const boost::shared_ptr<basic_endpoint>& ep,
                 const Iterator& begin,
                 const Iterator& end,
-                std::string (*get_key)(const Iterator&),
+                const boost::function<std::string(const Iterator&)>& get_key,
                 delete_keys_result& result)
 {
     if (begin == end) {

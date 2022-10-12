@@ -7,7 +7,7 @@
 
 #include "../../../archived/file_format/headers.hpp"
 #include "../../../archived/types.hpp"
-#include "artefact/types.hpp"
+#include "../types.hpp"
 
 #include <stdint.h>
 

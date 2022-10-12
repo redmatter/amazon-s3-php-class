@@ -5,7 +5,7 @@
 #ifndef ARCHIVING_DECOMPRESS_FILTER_HPP
 #define ARCHIVING_DECOMPRESS_FILTER_HPP
 
-#include "artefact/detail/decode_options.hpp"
+#include "detail/decode_options.hpp"
 #include "detail/bzip2.hpp"
 
 #include <boost/iostreams/concepts.hpp>

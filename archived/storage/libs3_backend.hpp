@@ -55,11 +55,10 @@ namespace archiving {
 namespace archived {
 namespace storage {
 
+// NOTE: LibS3 initialisation is done in backends class since that is the factory for all backends.
+
 struct libs3_backend : public basic_backend
 {
-    libs3_backend() { rml::s3::initialise(); }
-    virtual ~libs3_backend() { rml::s3::deinitialise(); }
-
     bool put(const operation_data::pointer& opdata)
     {
         rml::utils::tmp_fstream::pointer tmpfs =
@@ -74,7 +73,7 @@ struct libs3_backend : public basic_backend
         const metadata::pointer& p_metadata(opdata->p_detail->p_metadata);
 
         headers_list headers;
-        p_metadata->fill_headers(boost::bind(&headers_list::append, boost::ref(headers), _1, _2));
+        p_metadata->fill_headers(boost::bind(&headers_list::append_one, boost::ref(headers), _1, _2));
 
         std::string leg_uuid;
         {
@@ -105,13 +104,8 @@ struct libs3_backend : public basic_backend
 
         LogVerbose(opdata->p_detail->identifier << ": headers: " << headers);
 
-        return rml::s3::put(to_bucket_context(opdata->p_detail->p_endpoint),
-                            std::string(opdata->p_detail->identifier),
-                            *tmpfs,
-                            headers,
-                            boost::chrono::steady_clock::time_point(),
-                            "",
-                            "",
+        return rml::s3::put(to_bucket_context(opdata->p_detail->p_endpoint), std::string(opdata->p_detail->identifier),
+                            *tmpfs, headers, boost::chrono::steady_clock::time_point(), "", "",
                             S3CannedAclBucketOwnerRead);
     }
 
@@ -120,23 +114,32 @@ struct libs3_backend : public basic_backend
         rml::utils::tmp_fstream::pointer ofs =
             opdata->get_tmp_fstream(opdata->p_detail->current_file_format, true, true);
 
-        rml::s3::response_properties::pointer res = rml::s3::get(
-            to_bucket_context(opdata->p_detail->p_endpoint), std::string(opdata->p_detail->identifier), *ofs);
+        const rml::s3::result& res = rml::s3::get(to_bucket_context(opdata->p_detail->p_endpoint),
+                                                  std::string(opdata->p_detail->identifier), *ofs);
 
-        headers = res->headers;
-
-        return true;
-    }
-
-    bool head(const app::storage::basic_endpoint::pointer& ep, const identifier& id, headers_list& headers)
-    {
-        rml::s3::response_properties::pointer res = rml::s3::head(to_bucket_context(ep), std::string(id));
-        if (res) {
-            headers = res->headers;
+        if (res && res.properties && res.properties->headers) {
+            headers = res.properties->headers;
             return true;
         }
 
         return false;
+    }
+
+    bool head(const app::storage::basic_endpoint::pointer& ep, const identifier& id, headers_list& headers)
+    {
+        const rml::s3::head_result& res = rml::s3::head(to_bucket_context(ep), std::string(id));
+        if (res && res.properties && res.properties->headers) {
+            headers = res.properties->headers;
+            return true;
+        }
+
+        return false;
+    }
+
+    virtual bool get(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id,
+                     const headers_callback& callback)
+    {
+        return rml::s3::get_stream(to_bucket_context(ep), std::string(id), callback);
     }
 
 protected:
