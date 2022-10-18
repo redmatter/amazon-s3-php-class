@@ -34,14 +34,14 @@ struct basic_backend
     virtual bool get(const operation_data::pointer& opdata, headers_list& headers) = 0;
     virtual bool get(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id,
                      const headers_callback& callback) = 0;
-    virtual bool head(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id, headers_list& headers) = 0;
+    virtual bool head(const boost::shared_ptr<basic_endpoint>& ep, const identifier& id, headers_list& headers,
+                      uint64_t& content_length, bool& not_found) = 0;
     virtual delete_keys_result delete_multiple(const boost::shared_ptr<basic_endpoint>& ep,
-                                               const delete_keys_request& keys_list,
-                                               delete_keys_result& result) = 0;
+                                               const delete_keys_request& keys_list, delete_keys_result& result) = 0;
 
-    bool head(const operation_data::pointer& opdata, headers_list& headers)
+    bool head(const operation_data::pointer& opdata, headers_list& headers, uint64_t& content_length, bool& not_found)
     {
-        return head(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, headers);
+        return head(opdata->p_detail->p_endpoint, opdata->p_detail->identifier, headers, content_length, not_found);
     }
 };
 

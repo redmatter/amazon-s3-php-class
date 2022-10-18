@@ -125,12 +125,23 @@ struct libs3_backend : public basic_backend
         return false;
     }
 
-    bool head(const app::storage::basic_endpoint::pointer& ep, const identifier& id, headers_list& headers)
+    bool head(const app::storage::basic_endpoint::pointer& ep, const identifier& id, headers_list& headers,
+              uint64_t& content_length, bool& not_found)
     {
         const rml::s3::head_result& res = rml::s3::head(to_bucket_context(ep), std::string(id));
-        if (res && res.properties && res.properties->headers) {
+        not_found = res.key_not_found();
+        if (not_found) {
+            return false;
+        }
+
+        if (res && res.properties) {
             headers = res.properties->headers;
+            content_length = res.properties->content_length;
             return true;
+        }
+
+        if (res.error_info) {
+            LogError("HEAD " << id << " failed; err:" << *(res.error_info));
         }
 
         return false;

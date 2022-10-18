@@ -176,35 +176,41 @@ class runner : public boost::enable_shared_from_this<runner>
 	}
 
 public:
-	runner(
-			const boost::program_options::variables_map& confMap,
-			const storage::cached_endpoint_finder_t& storage_endpoint_finder,
-			const policy::cached_finder_t& cached_policy_finder,
-			const org_policy_versions::cached_finder_t& org_policy_versions_finder,
-			rml::coreapi& api, state_reactor<>& reactor,
-			database::retention& retention_db, database::retention_delete& retention_delete_db,
-			database::internal& internal_db, legal_hold_cache& lh_cache, const archiving::archived::storage::backends& storage_backends,
-			volatile bool& quit) :
-				confMap_(confMap),
-				legacy_s3_headers_last_date_(
-						boost::gregorian::from_simple_string(
-								confMap["retention_purge.legacy_s3_headers_last_date"].as<std::string>())),
-				headers_check_suppressions_(
-						confMap["retention_purge.bypass_headers_check_for"].as<std::string>(),
-						legacy_s3_headers_last_date_),
-				storage_endpoint_finder_(storage_endpoint_finder), cached_policy_finder_(cached_policy_finder),
-				org_policy_versions_finder_(org_policy_versions_finder), api_(api), reactor_(reactor),
-				retention_db_(retention_db), retention_delete_db_(retention_delete_db), internal_db_(internal_db),
-				storage_backends_(storage_backends),
-				legal_hold_cache_(lh_cache),
-				item_save_channel_("Save"), delete_file_channel_("DeleteFile"),
-				delete_usage_channel_("DeleteUsage"), delete_retention_channel_("DeleteRetention"), finished_channel_("Finished"),
-				last_delete_file_time_(time(0)), last_delete_usage_time_(last_delete_file_time_),
-				last_delete_retention_time_(last_delete_file_time_), purge_finished_time_(last_delete_file_time_),
-				delete_retention_records_for_internal_filetypes_(
-						confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>()),
-				purge_restrictions(confMap),
-				quit_(quit)
+	runner(const boost::program_options::variables_map& confMap,
+		   const storage::cached_endpoint_finder_t& storage_endpoint_finder,
+		   const policy::cached_finder_t& cached_policy_finder,
+		   const org_policy_versions::cached_finder_t& org_policy_versions_finder, rml::coreapi& api,
+		   state_reactor<>& reactor, database::retention& retention_db, database::retention_delete& retention_delete_db,
+		   database::internal& internal_db, legal_hold_cache& lh_cache,
+		   const archiving::archived::storage::backends& storage_backends, volatile bool& quit)
+		: confMap_(confMap)
+		, legacy_s3_headers_last_date_(boost::gregorian::from_simple_string(
+			  confMap["retention_purge.legacy_s3_headers_last_date"].as<std::string>()))
+		, headers_check_suppressions_(confMap["retention_purge.bypass_headers_check_for"].as<std::string>(),
+									  legacy_s3_headers_last_date_)
+		, storage_endpoint_finder_(storage_endpoint_finder)
+		, cached_policy_finder_(cached_policy_finder)
+		, org_policy_versions_finder_(org_policy_versions_finder)
+		, api_(api)
+		, reactor_(reactor)
+		, retention_db_(retention_db)
+		, retention_delete_db_(retention_delete_db)
+		, internal_db_(internal_db)
+		, storage_backends_(storage_backends)
+		, legal_hold_cache_(lh_cache)
+		, item_save_channel_("Save")
+		, delete_file_channel_("DeleteFile")
+		, delete_usage_channel_("DeleteUsage")
+		, delete_retention_channel_("DeleteRetention")
+		, finished_channel_("Finished")
+		, last_delete_file_time_(time(0))
+		, last_delete_usage_time_(last_delete_file_time_)
+		, last_delete_retention_time_(last_delete_file_time_)
+		, purge_finished_time_(last_delete_file_time_)
+		, delete_retention_records_for_internal_filetypes_(
+			  confMap["retention_purge.delete_retention_records_for_internal_filetypes"].as<bool>())
+		, purge_restrictions(confMap)
+		, quit_(quit)
 	{
 		// set all to false
 		for(int i = 0; i < archiving::file_type::n_file_types; i++)
@@ -428,14 +434,15 @@ public:
 		const retention_record& retention_from_db(*(p_item->retention));
 
 		archiving::archived::storage::headers_list props;
+		uint64_t content_length = 0;
 		try {
-			storage_backends_.get(p_item->endpoint)->head(p_item->endpoint, p_item->identifier, props);
-		}
-		catch(const std::exception& e) {
-			bool const* isKeyNotFound = boost::get_error_info< rml::s3::KeyNotFound_error_info >(e);
-			/* If the error was due to object not being present anymore in the storage, we need to treat that differently */
-			if (isKeyNotFound && *isKeyNotFound) {
-				LogMessage("HEAD "<<p_item->identifier<<" failed; Error from backend:"<<e.what());
+			bool key_not_found;
+			storage_backends_.get(p_item->endpoint)
+				->head(p_item->endpoint, p_item->identifier, props, content_length, key_not_found);
+
+			/* If the object is not present anymore in the storage, we need to treat that differently */
+			if (key_not_found) {
+				LogMessage("HEAD "<<p_item->identifier<<": Not found in storage");
 
 				/* There are genuine cases where objects can be missing from storage. This is mainly designed for CDRs
 				 * and potentially PCAPs which can be deleted using auto-expiry capabilities of the storage backend. */
@@ -474,11 +481,9 @@ public:
 				return false;
 			}
 
-			if (std::string const* statusStr = boost::get_error_info< rml::s3::StatusStr_error_info >(e))
-				LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what()<<" Status:"<<*statusStr);
-			else
-				LogError("HEAD "<<p_item->identifier<<" failed; err:"<<e.what());
-
+			return false;
+		} catch (const std::exception& e) {
+			LogError(p_item->identifier<<" HEAD failed with exception : " << e.what());
 			return false;
 		}
 
@@ -488,14 +493,8 @@ public:
 			THROW_RML_EXCEPTION("could not stat item on endpoint:" << p_item->endpoint->id);
 		}
 
-		boost::optional<std::string> value;
-		if((value = props.get("clear-size"))) {
-			p_item->clear_size = rml::utils::strtoull(value->c_str(), 0ULL);
-		}
-
-		if((value = props.get("content-length"))) {
-			p_item->real_size = rml::utils::strtoull(value->c_str(), 0ULL);
-		}
+		p_item->clear_size = rml::utils::strtoull(props.get("clear-size").get_value_or("0").c_str(), 0ULL);
+		p_item->real_size = content_length;
 
 		try {
 			#define AssertProps(key) \
@@ -588,9 +587,9 @@ public:
 		 */
 		internal_db_.batch_load< item, item::extract_id >(
 				loaded_items,
-				boost::bind(item::setup_select, _1, _2, where),
-				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)),
-				static_cast<unsigned int>(limit)
+				boost::bind(item::setup_select, _1, _2, where),                             /* fn_setup_select */
+				boost::bind(item::make_from_row, _1, boost::ref(storage_endpoint_finder_)), /* fn_make_item_from_row */
+				static_cast<unsigned int>(limit)                                            /* select_limit */
 		);
 
 		for(item::list_t::const_iterator itr = loaded_items.begin(); itr != loaded_items.end(); ++itr) {
@@ -801,7 +800,10 @@ public:
 								be, (*(itr_batch.first))->endpoint, itr_batch.first, itr_batch.second,
 								boost::bind(object_key_from_item<const_iterator>, _1), res);
 
-							for(item::endpoint_grouped_multiset_t::const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
+							if (res.errors_count > 0) {
+								LogWarning("Failed to delete " << res.errors_count << " of " << res.results_count << " objects from storage:" << (*(itr_batch.first))->endpoint->id);
+							}
+							for(const_iterator itr_ = itr_batch.first; itr_ != itr_batch.second; ++itr_) {
 								done_move_forward(*itr_, state_reactor<>::low, false);
 							}
 

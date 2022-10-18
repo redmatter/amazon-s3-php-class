@@ -120,29 +120,9 @@ public:
 			this_op = ostr.str();
 		}
 
-        coreapi_eventlog::id_t audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
-		if (!audit_token) {
-			LogMessage(this_op<<"No audit-token was provided");
-			throw rml::fcgi::http_exception(400, "Request not audited");
-		}
+		coreapi_eventlog::id_t audit_token = get_audit_token(this_op);
 
-		const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
-			std::make_pair(identifier.org, audit_token));
-		coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
-		if (!p_eventlog) {
-			eventlog_finder_.forget(lookup);
-			audit_token = 0;
-			LogMessage(this_op << "The given audit-token could not be verified");
-		} else if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
-			p_eventlog->time < (time(0) - 3600) || p_eventlog->context != "Archiving" ||
-			p_eventlog->action != "FetchObject" ||
-			p_eventlog->message.find(boost::str(boost::format(" %1% ") % archiving::archivable::identifier::to_string(
-																			 identifier))) == std::string::npos) {
-			audit_token = 0;
-			LogMessage(this_op << "The given audit-token is invalid");
-		}
-
-        Timing(this_op<<"request verified");
+		Timing(this_op<<"request verified");
 
 		retention_record::pointer retention = retention_record_cached_finder_(identifier);
 		if(!retention) {
@@ -230,7 +210,9 @@ public:
             break;
 
         case rml::fcgi::http_method::head:
-            if (!storage_backend->head(endpoint, identifier, headers)) {
+            uint64_t content_length;
+            bool not_found;
+            if (!storage_backend->head(endpoint, identifier, headers, content_length, not_found)) {
                 throw rml::fcgi::http_exception(404);
             }
 
@@ -242,8 +224,39 @@ public:
         }
     }
 
-	virtual void respond() const
+    coreapi_eventlog::id_t get_audit_token(const std::string& this_op) const
+    {
+        coreapi_eventlog::id_t audit_token = p_request->querystring.get_first_as<coreapi_eventlog::id_t>("audit-token");
+        if (!audit_token) {
+            LogMessage(this_op << "No audit-token was provided");
+            throw rml::fcgi::http_exception(400, "Request not audited");
+        }
+
+        const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
+            std::make_pair(identifier.org, audit_token));
+        coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
+        if (!p_eventlog) {
+            eventlog_finder_.forget(lookup);
+            LogMessage(this_op << "The given audit-token could not be verified");
+            throw rml::fcgi::http_exception(400, "Request not audited");
+        }
+
+        if ( // older than 60 minute or is not Archiving::FetchObject or does not have the identifier in message
+            p_eventlog->time < (time(0) - 3600) || p_eventlog->context != "Archiving" ||
+            p_eventlog->action != "FetchObject" ||
+            p_eventlog->message.find(boost::str(boost::format(" %1% ") %
+                                                archivable::identifier::to_string(identifier))) == std::string::npos) {
+            audit_token = 0;
+            LogMessage(this_op << "The given audit-token is invalid");
+            throw rml::fcgi::http_exception(400, "Request not audited");
+        }
+
+        return audit_token;
+    }
+
+    virtual void respond() const
 	{
+        // If a HEAD request, respond based on the headers we obtained from storage
         if (p_request->method == rml::fcgi::http_method::head) {
             FCGX_FPrintF(p_request->fcgi_req.out,
                          "Status: 200 OK\r\n"
@@ -255,6 +268,7 @@ public:
             return;
         }
 
+        // If a GET request, stream the response
         storage_backend->get(endpoint, identifier, boost::bind(&response::configurator::configure, response_configurator, _1));
 	}
 

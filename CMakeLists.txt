@@ -39,7 +39,7 @@ FetchContent_Declare(
         librml
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
 #        GIT_TAG        1.14.0
-        GIT_TAG        feature/INS-169-add-fcgi-iostreams-sink
+        GIT_TAG        feature/INS-169-s3-more-archiving-fixes
 )
 
 FetchContent_Declare(
