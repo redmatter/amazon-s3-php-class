@@ -204,8 +204,8 @@ public:
 
         switch (p_request->method) {
         case rml::fcgi::http_method::get:
-            response_configurator = boost::make_shared<response::configurator>(p_request, endpoint->encryption_key,
-                                                                               target_file_format, audit_token);
+            response_configurator = boost::make_shared<response::configurator>(
+                p_request, endpoint->encryption_key, target_file_format, audit_token, this_op);
             Timing(this_op << "fetch-convert-and-respond configured");
             break;
 
@@ -216,7 +216,7 @@ public:
                 throw rml::fcgi::http_exception(404);
             }
 
-            Timing(this_op << "HEAD response configured");
+            Timing(this_op << "response configured");
             break;
 
         default:
