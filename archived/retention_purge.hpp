@@ -250,7 +250,7 @@ struct item
 	item(const mysqlpp::Row& row, const storage::cached_endpoint_finder_t& endpoint_finder) :
 			identifier(archiving::file_type::file_type_t(rml::utils::strtoull(row[2].c_str())),
 					   static_cast<archiving::org_id_t>(rml::utils::strtoull(row[3].c_str())), row[4].c_str()),
-			endpoint(endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+			endpoint(endpoint_finder(std::pair<archiving::org_id_t, archiving::endpoint_id_t >(
 					identifier.org, rml::utils::strtoull(row[5].c_str())))),
 			retention(new retention_record(
 					identifier, types::file_format::unknown, 0,

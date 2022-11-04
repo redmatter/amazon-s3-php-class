@@ -1,3 +1,5 @@
+include ../../common/Makefile.macros
+
 CXXFLAGS = -ggdb -O0 -std=gnu++98
 # CXXFLAGS = -Ofast
 # CXXFLAGS += --coverage
@@ -17,7 +19,7 @@ LIBS_test_archivable_channel = \
 	-L ../../common/$(TMP) -larchiving_common \
 	-lcryptopp \
 
-include ../../libs/rml/rml/Makefile.gtest
+include $(LIBS_MAKEFILES_DIR)/Makefile.gtest
 
 test_archivable_channel : ../../common/$(TMP)/libarchiving_common.a
 ../../common/$(TMP)/libarchiving_common.a:

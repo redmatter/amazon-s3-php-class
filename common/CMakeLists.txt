@@ -73,10 +73,8 @@ set(HEADER_FILES
         artefact/outer_header_filter.hpp
         artefact/inner_header_filter.hpp
         artefact/detail/decode_options.hpp
-        artefact/decrypt_filter.hpp
         artefact/decompress_filter.hpp
         artefact/types.hpp
-        artefact/detail/decrypt_filter.hpp
         artefact/detail/bzip2.hpp
         artefact/decoder_ostream.hpp
         artefact/sanity_checker_filter.hpp

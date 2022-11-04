@@ -34,8 +34,8 @@ struct configurator
         , key(key)
         , response_format(response_format)
         , audit_token(audit_token)
-        , sink(r)
         , log_prefix(log_prefix)
+        , sink(r)
     {
     }
 

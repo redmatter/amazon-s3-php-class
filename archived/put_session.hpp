@@ -722,7 +722,7 @@ private:
 				if(p_policy) {
 					opdata->p_detail->policy = applied_policy(p_policy, creation_time_);
 					opdata->p_detail->p_endpoint = cached_endpoint_finder_(
-							std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(
+							std::pair<archiving::org_id_t, archiving::endpoint_id_t>(
 									orgID_, opdata->p_detail->policy.p_policy->endpoint_id));
 					opdata->p_detail->target_file_format = types::file_format::make(
 							opdata->p_detail->p_endpoint->is_compressed, opdata->p_detail->p_endpoint->is_encrypted, data_type_);

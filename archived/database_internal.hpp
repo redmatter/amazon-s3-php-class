@@ -273,7 +273,7 @@ public:
 						LogDebug("Trying to load ID:"<<item_id<<' '<<file_type<<'/'<<org<<'/'<<uuid<<" state:"<<operation_state::to_string(saved_state));
 
 						// TODO Ignoring PolicyVersion here; we need to revisit this
-						const std::pair< archiving::org_id_t, policy::id_type >& lookup( std::make_pair< archiving::org_id_t, policy::id_type >(
+						const std::pair< archiving::org_id_t, policy::id_type >& lookup( std::pair< archiving::org_id_t, policy::id_type >(
 								org, policy::id_type(rml::utils::strtoull(row[3].c_str(), 0ULL))) );
 						const policy::pointer& p_policy(fn_cached_policy_finder(lookup));
 						if(!p_policy) {
@@ -283,7 +283,7 @@ public:
 						}
 
 						const storage::basic_endpoint::pointer& p_endpoint(
-								fn_cached_endpoint_finder(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+								fn_cached_endpoint_finder(std::pair< archiving::org_id_t, archiving::endpoint_id_t >(
 										org, archiving::endpoint_id_t(rml::utils::strtoull(row[9].c_str(), 0ULL)))));
 
 						files_map_t files_map;
@@ -516,7 +516,7 @@ public:
 						 " LastResetTime < DATE_ADD(NOW(), INTERVAL -1 DAY) LastResetMoreThanOneDayAgo,"
 						 " LastRunTime < DATE_SUB(NOW(), INTERVAL " << org_scan_interval_minutes << " MINUTE) LastRunMoreThan__MinutesAgo "
 						 "FROM `ArchivingInternal`.`ArchiveDPurgeMarker` "
-						 "WHERE "distribute_org_id << get_org_list_where_condition(enabled_orgs)
+						 "WHERE " distribute_org_id << get_org_list_where_condition(enabled_orgs)
 					  << "ORDER BY LastRunTime LIMIT " << offset << ", " << limit;
 
 				MYSQL_QUERY_USE(PURGE, conn, query, res);
@@ -562,7 +562,7 @@ public:
 			query << "SELECT COUNT(*) QSize, @@auto_increment_increment FROM ( "
 					 "    SELECT 1 FROM ArchiveDPurgeQueue "
 					 "        WHERE HostName=%0q:HostName"
-					 "            AND "distribute_org_id
+					 "            AND " distribute_org_id
 				  <<           state_filter
 				  <<           get_org_list_where_condition(enabled_orgs)<<
 				  "        LIMIT %1:MinQueueSizePlusOne ) x";

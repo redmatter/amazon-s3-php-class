@@ -171,9 +171,8 @@ private:
                 }
 
                 if (!opdata->p_detail->p_endpoint) {
-                    const std::pair<archiving::org_id_t, archiving::endpoint_id_t>& lookup(
-                        std::make_pair<archiving::org_id_t, archiving::endpoint_id_t>(
-                            opdata->p_detail->identifier.org, opdata->p_detail->policy.p_policy->endpoint_id));
+                    const std::pair<archiving::org_id_t, archiving::endpoint_id_t> lookup(
+                            opdata->p_detail->identifier.org, opdata->p_detail->policy.p_policy->endpoint_id);
                     if (!(opdata->p_detail->p_endpoint = cached_endpoint_finder(lookup))) {
                         cached_endpoint_finder.forget(lookup);
                         LogWarning(opdata->p_detail->identifier << ": Endpoint not found");

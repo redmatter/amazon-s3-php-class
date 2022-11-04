@@ -290,7 +290,7 @@ inline basic_endpoint::pointer endpoint_finder(rml::coreapi& api, const std::pai
 
 	// run xpath
 	pugi::xml_document doc;
-	if(!doc.load(response.second.c_str()))
+	if(!doc.load(response.body.c_str()))
 		throw rml::exception("Unable to load response document");
 
 	pugi::xml_node endpoint_node;

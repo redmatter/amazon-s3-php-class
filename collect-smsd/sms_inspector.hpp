@@ -159,9 +159,9 @@ namespace app
 						xml += "</Messages>";
 
 						const rml::coreapi::response& r(coreapi_.post("/smslogs/push", xml));
-						if (r.first < 200 || r.first >= 300)
+						if (r.status_code < 200 || r.status_code >= 300)
 						{
-							LogError("sms_inspector: smslog: error submitting SMS logs: " << r.first << ": " << r.second);
+							LogError("sms_inspector: smslog: error submitting SMS logs: " << r.status_code << ": " << r.body);
 
 							log_queue_mutex_.lock();
 							log_queue_.insert(log_queue_.begin(), tmpvec.begin(), tmpvec.end());

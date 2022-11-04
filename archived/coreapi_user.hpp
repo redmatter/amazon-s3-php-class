@@ -34,13 +34,13 @@ struct coreapi_user
 	static pointer find(rml::coreapi& api, const lookup& param)
 	{
 		const rml::coreapi::response& res(api.get("/users/me", true, rml::coreapi::headers(), param.first, param.second));
-		if(res.first != 200 && res.first != 404) {
+		if(res.status_code != 200 && res.status_code != 404) {
 			LogUMessage("Authorization:"<<param.first<<" Invalid", "SSXP");
 			return pointer();
 		}
 
 		pugi::xml_document doc;
-		pugi::xml_parse_result r = doc.load_buffer(&res.second[0], res.second.length());
+		pugi::xml_parse_result r = doc.load_buffer(res.body.data(), res.body.length());
 		if(!r) {
 			LogError("Invalid API response for user lookup (/users/me) with authorization:"<<param.first<<" [xml loading failed]");
 			return pointer();
@@ -52,7 +52,7 @@ struct coreapi_user
 		bool is_system_user(false);
 
 		// TODO defudge this at some point, such that the API treats system users as normal and responds with sane XML
-		if(res.first == 404) {
+		if(res.status_code == 404) {
 			const pugi::xpath_node resid_node(doc.select_single_node("/Error/ResourceID/text()"));
 			if(resid_node)
 				user_id = rml::utils::strtoll(resid_node.node().value(), 0LL);

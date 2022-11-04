@@ -1,4 +1,6 @@
-EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+PROJECT_DIR?=..
+
+include $(PROJECT_DIR)/common/Makefile.macros
 
 CPP_NETLIB_USE_BUILTIN=YES
 

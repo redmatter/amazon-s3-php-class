@@ -1,3 +1,5 @@
+include ../../common/Makefile.macros
+
 CXXFLAGS = -ggdb -O0 -std=gnu++98
 # CXXFLAGS = -Ofast
 # CXXFLAGS += --coverage
@@ -12,7 +14,7 @@ LIBS_test_encrypted_header_v2 = \
 	-lboost_system \
 	-L ../../common/$(TMP) -larchiving_common
 
-include ../libs/rml/rml/Makefile.gtest
+include $(LIBS_MAKEFILES_DIR)/Makefile.gtest
 
 test_encrypted_header_v2 : version.o ../../common/$(TMP)/libarchiving_common.a
 ../../common/$(TMP)/libarchiving_common.a:

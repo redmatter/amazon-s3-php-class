@@ -72,15 +72,15 @@
 #endif
 
 #ifndef CONFIG_FILE_PATH
-#define CONFIG_FILE_PATH "/etc/"DEFAULT_APP_NAME".conf"
+#define CONFIG_FILE_PATH "/etc/" DEFAULT_APP_NAME ".conf"
 #endif
 
 #ifndef PID_FILE_PATH
-#define PID_FILE_PATH "/var/run/archiving/"DEFAULT_APP_NAME".pid"
+#define PID_FILE_PATH "/var/run/archiving/" DEFAULT_APP_NAME ".pid"
 #endif
 
 #ifndef DEFAULT_LOG_FILE_PATH
-#define DEFAULT_LOG_FILE_PATH "/var/log/"DEFAULT_APP_NAME".log"
+#define DEFAULT_LOG_FILE_PATH "/var/log/" DEFAULT_APP_NAME ".log"
 #endif
 
 namespace app {

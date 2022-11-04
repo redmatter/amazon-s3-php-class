@@ -2,7 +2,8 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../version_info
 
-include ../libs/rml/rml/Makefile.macros
+include ../common/Makefile.macros
+include $(LIBS_MAKEFILES_DIR)/Makefile.macros
 
 LIBS += 
 
@@ -15,8 +16,6 @@ CXX_INCLUDES += \
 	-I ../cpp-common \
 
 CPPFLAGS += -DBOOST_CHRONO_VERSION=2
-
-include ../common/Makefile.macros
 
 MYSQLPP_MYSQL_HEADERS_BURIED=YES
 ifeq ($(MYSQLPP_MYSQL_HEADERS_BURIED),YES)
@@ -71,8 +70,8 @@ C_SRCS += \
 
 TARGET_DEPS=../common/$(TMP)/libarchiving_common.a
 
-include ../libs/rml/rml/Makefile.rules
-include ../libs/rml/rml/Makefile.app_target
+include $(LIBS_MAKEFILES_DIR)/Makefile.rules
+include $(LIBS_MAKEFILES_DIR)/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 
 include ../libs/Makefile.rml

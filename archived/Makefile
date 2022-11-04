@@ -1,6 +1,6 @@
 VERSION_FILE=../version_info
-include ../libs/rml/rml/Makefile.macros
 include ../common/Makefile.macros
+include $(LIBS_MAKEFILES_DIR)/Makefile.macros
 
 LIBS += -L../common/$(TMP)
 # CPPFLAGS += -Wsign-promo
@@ -76,8 +76,8 @@ C_SRCS += \
 
 BUILD_MODE=DEBUG
 
-include ../libs/rml/rml/Makefile.rules
-include ../libs/rml/rml/Makefile.app_target
+include $(LIBS_MAKEFILES_DIR)/Makefile.rules
+include $(LIBS_MAKEFILES_DIR)/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 include ../external/Makefile.libs3
 

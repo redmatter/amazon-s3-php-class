@@ -133,10 +133,10 @@ public:
 	inline static pointer find(rml::coreapi& api, const std::pair<archiving::org_id_t, id_t>& id)
 	{
 		const rml::coreapi::response& res(api.get(boost::str(boost::format("/eventlog/%1%/%2%") % id.first % id.second)));
-		if(res.first != 200)
+		if(res.status_code != 200)
 			return pointer();
 
-		return from_xml(id.first, res.second);
+		return from_xml(id.first, res.body);
 	}
 
 	inline static pointer create(
@@ -172,10 +172,10 @@ public:
 		}
 
 		const rml::coreapi::response& res(api.put(boost::str(boost::format("/eventlog/%1%") % org), ostr_body.str(), "application/xml", true, rml::coreapi::headers(), authorization, ip));
-		if (res.first != 201)
+		if (res.status_code != 201)
 			throw rml::exception("Failed creating event-log");
 
-		return from_xml(org, res.second);
+		return from_xml(org, res.body);
 	}
 
 	const id_t id;

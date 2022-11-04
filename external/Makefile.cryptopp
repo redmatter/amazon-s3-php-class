@@ -1,4 +1,4 @@
-EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include ../common/Makefile.macros
 
 CRYPTOPP_USE_BUILTIN=YES
 

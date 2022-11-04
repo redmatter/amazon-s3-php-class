@@ -1,4 +1,4 @@
-PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+include ../common/Makefile.macros
 
 RML_DATABASE_MYSQL_GIT_SUBMODULE=libs/rml-database-mysql
 RML_DATABASE_MYSQL_DIR=$(PROJECT_DIR)/$(RML_DATABASE_MYSQL_GIT_SUBMODULE)

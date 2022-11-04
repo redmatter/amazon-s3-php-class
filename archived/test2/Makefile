@@ -1,3 +1,5 @@
+include ../../common/Makefile.macros
+
 CXXFLAGS = -ggdb -O0
 # CXXFLAGS = -Ofast
 TESTS_CPPFLAGS += --coverage
@@ -32,4 +34,4 @@ LIBS_test_suppress_headers_check = \
 	-lboost_date_time \
 	-lcryptopp $(shell pkg-config rml-$(LIBRML_VERSION) --libs)
 
-include ../libs/rml/rml/Makefile.gtest
+include $(LIBS_MAKEFILES_DIR)/Makefile.gtest

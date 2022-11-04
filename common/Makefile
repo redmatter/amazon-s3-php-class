@@ -1,7 +1,7 @@
 VERSION_FILE=../version_info
 
-include ../libs/rml/rml/Makefile.macros
 include Makefile.macros
+include $(LIBS_MAKEFILES_DIR)/Makefile.macros
 
 TARGET=libarchiving_common.a
 
@@ -42,8 +42,8 @@ C_SRCS += \
 
 BUILD_MODE=DEBUG
 
-include ../libs/rml/rml/Makefile.rules
-include ../libs/rml/rml/Makefile.lib_target
+include $(LIBS_MAKEFILES_DIR)/Makefile.rules
+include $(LIBS_MAKEFILES_DIR)/Makefile.lib_target
 include ../external/Makefile.cpp-netlib
 
 include ../libs/Makefile.rml

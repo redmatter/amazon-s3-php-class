@@ -294,14 +294,14 @@ public:
 		ostr << "/archiving/policy/"<< org_policy.first << '/' << org_policy.second;
 
 		rml::coreapi::response response(api.get(ostr.str(), true));
-		if(response.first != 200) {
+		if(response.status_code != 200) {
 			LogCritical("Policy NOT found ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" )");
 			return pointer();
 		}
 
 		// run xpath
 		pugi::xml_document doc;
-		if(!doc.load(response.second.c_str())) {
+		if(!doc.load(response.body.c_str())) {
 			LogCritical("Unable to load response document ( Org/PolicyID: "<<org_policy.first<<'/' << org_policy.second<<" )");
 			return pointer();
 		}

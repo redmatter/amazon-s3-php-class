@@ -1,21 +1,18 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.17.5)
 
-option(BUILD_TESTS "Build tests" ON)
-
-option(USE_CLANG "Build application with clang" OFF)
-if (USE_CLANG)
-    set(CMAKE_CXX_COMPILER clang++)
-    set(CMAKE_C_COMPILER clang)
-endif (USE_CLANG)
-
-# Always build with coverage when build-type is Debug.
-if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-set(CMAKE_CXX_FLAGS "--coverage")
-endif()
-
-project(archiving)
+project(archiving CXX)
 
 include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+if(COMPILER_SUPPORTS_CXX11)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+elseif(COMPILER_SUPPORTS_CXX0X)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+else()
+    message(FATAL_ERROR "Compiler ${CMAKE_CXX_COMPILER} has no C++11 support.")
+endif()
+
 check_cxx_compiler_flag(-Wunnamed-type-template-args
         HAVE_NO_UNNAMED_TYPE_TEMPLATE_ARGS)
 
@@ -38,26 +35,25 @@ endif()
 FetchContent_Declare(
         librml
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml.git
-#        GIT_TAG        1.14.0
-        GIT_TAG        feature/INS-169-s3-more-archiving-fixes
+        GIT_TAG        feature/ARCHIVING-125-dockerise-devel
 )
 
 FetchContent_Declare(
         rml-queue
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-queue.git
-        GIT_TAG        1.1.0
+        GIT_TAG        1.2.0
 )
 
 FetchContent_Declare(
         rml-utils
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-utils.git
-        GIT_TAG        1.4.2
+        GIT_TAG        1.5.0
 )
 
 FetchContent_Declare(
         rml-database-mysql
         GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-database-mysql.git
-        GIT_TAG        2.1.1
+        GIT_TAG        2.2.0
 )
 
 FetchContent_Declare(

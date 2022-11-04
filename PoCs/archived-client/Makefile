@@ -2,7 +2,8 @@
 BUILD_MODE=DEBUG
 VERSION_FILE=../../version_info
 
-include ../../libs/rml/rml/Makefile.macros
+include ../../common/Makefile.macros
+include $(LIBS_MAKEFILES_DIR)/Makefile.macros
 
 CPPFLAGS += -D__librml__tmp_fstream__constructor_private__
 CPPFLAGS += -DRML_LOGGER_SYSLOG_ONLY
@@ -33,8 +34,8 @@ CXX_SRCS += \
 C_SRCS += \
 
 
-include ../../libs/rml/rml/Makefile.rules
-include ../../libs/rml/rml/Makefile.app_target
+include $(LIBS_MAKEFILES_DIR)/Makefile.rules
+include $(LIBS_MAKEFILES_DIR)/Makefile.app_target
 include ../../external/Makefile.cpp-netlib
 
 include ../../libs/Makefile.rml

@@ -1,4 +1,4 @@
-EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include ../common/Makefile.macros
 
 LIBS3_USE_BUILTIN=YES
 LIBS3_VER_MAJOR=4

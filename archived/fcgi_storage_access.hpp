@@ -134,8 +134,7 @@ public:
 
 		app::policy::pointer policy;
 		{
-			const std::pair< archiving::org_id_t, app::policy::id_type >& lookup(
-					std::make_pair< archiving::org_id_t, app::policy::id_type >(retention->identifier.org, retention->policy_id));
+			const auto lookup = std::pair<archiving::org_id_t, app::policy::id_type>(retention->identifier.org, retention->policy_id);
 			policy = cached_policy_finder_(lookup);
 			if(!policy) {
 				cached_policy_finder_.forget(lookup);
@@ -190,10 +189,10 @@ public:
 		}
 
 		endpoint = storage_endpoint_finder_(
-				std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+				std::pair< archiving::org_id_t, archiving::endpoint_id_t >(
 						user_org_id, retention->endpoint_id));
 		if(!endpoint) {
-			storage_endpoint_finder_.forget(std::make_pair< archiving::org_id_t, archiving::endpoint_id_t >(
+			storage_endpoint_finder_.forget(std::pair< archiving::org_id_t, archiving::endpoint_id_t >(
 					user_org_id, retention->endpoint_id));
 			throw rml::fcgi::http_exception(500, "Endpoint not found");
 		}
@@ -232,8 +231,7 @@ public:
             throw rml::fcgi::http_exception(400, "Request not audited");
         }
 
-        const std::pair<archiving::org_id_t, coreapi_eventlog::id_t>& lookup(
-            std::make_pair(identifier.org, audit_token));
+        const std::pair<archiving::org_id_t, coreapi_eventlog::id_t> lookup(identifier.org, audit_token);
         coreapi_eventlog::pointer p_eventlog = eventlog_finder_(lookup);
         if (!p_eventlog) {
             eventlog_finder_.forget(lookup);

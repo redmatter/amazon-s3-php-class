@@ -1,4 +1,4 @@
-PROJECT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))/..
+include ../common/Makefile.macros
 
 RML_UTILS_GIT_SUBMODULE=libs/rml-utils
 RML_UTILS_DIR=$(PROJECT_DIR)/$(RML_UTILS_GIT_SUBMODULE)
