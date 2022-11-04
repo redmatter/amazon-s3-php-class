@@ -80,10 +80,12 @@ include $(LIBS_MAKEFILES_DIR)/Makefile.rules
 include $(LIBS_MAKEFILES_DIR)/Makefile.app_target
 include ../external/Makefile.cpp-netlib
 include ../external/Makefile.libs3
+include ../external/Makefile.json_h
 
 include ../libs/Makefile.rml
 include ../libs/Makefile.rml-database-mysql
 include ../libs/Makefile.rml-utils
+include ../libs/Makefile.rml-snow-client
 
 ../common/$(TMP)/libarchiving_common.a :
 	@$(MAKE) -C ../common BUILD_MODE=$(BUILD_MODE) TMP=$(TMP) RML_LOG_SOURCE_LOCATION=$(RML_LOG_SOURCE_LOCATION)

@@ -34,6 +34,7 @@
 #include <rml/daemon.h>
 #include <rml/utils/enabled_disabled_list.hpp>
 #include <rml/utils/prettify_duration.hpp>
+#include <rml/snow/client.hpp>
 
 #include <fcgio.h>
 
@@ -220,6 +221,8 @@ int main(int argc, char *argv[]) try
 				("archived.pcap_neglect_timeout_minutes",  boost::program_options::value<unsigned>()->default_value(10), "constant backoff duration for PCAPs (minutes)")
 				("archived.trend_duration_minutes",  boost::program_options::value<unsigned>()->default_value(20), "duration for which trend is tracked")
 				("app.tik_tok", boost::program_options::value<std::string>()->default_value(std::string("false")), "enable tik tok")
+
+				("snow_api.base_url", boost::program_options::value<std::string>()->default_value(""), "Snow API base-URL")
 				;
 		rml::daemon::describe_config(optsDesc);
 		rml::logger::describe_config(optsDesc);
@@ -289,8 +292,18 @@ int main(int argc, char *argv[]) try
 	}
 
 	try {
+        boost::shared_ptr<boost::asio::io_service> p_io_service = boost::make_shared<boost::asio::io_service>();
+        boost::asio::io_service::work work(*p_io_service);
+
+        const std::string snow_api_base_url = app::confMap["snow_api.base_url"].as<std::string>();
+        if (snow_api_base_url.empty()) {
+            throw std::runtime_error("Snow API not configured");
+        }
+
+        rml::snow::client snow_client(snow_api_base_url, p_io_service);
+
 		app::database::internal internal_db(app::confMap);
-		app::database::retention retention_db(app::confMap);
+		app::database::retention retention_db(app::confMap, snow_client);
 		app::database::retention_delete retention_delete_db(app::confMap);
 		app::database::cdrmunch cdrmunch_db(app::confMap);
 
@@ -312,9 +325,6 @@ int main(int argc, char *argv[]) try
 
 		app::clear_cache clear_cache(app::confMap, internal_db);
 
-		boost::shared_ptr< boost::asio::io_service > p_io_service = boost::make_shared< boost::asio::io_service >();
-		boost::asio::io_service::work work(*p_io_service); // make sure we keep it proped up!
-		
 		rml::coreapi coreapi(app::confMap, boost::str(boost::format("%1%:%2%.%3%") % DEFAULT_APP_NAME % version_number[2] % version_number[3]), p_io_service);
 		app::policy::cached_finder_t cached_policy_finder(
 				boost::bind(&app::policy::finder, boost::ref(coreapi), _1), "CachedPolicyFinder");

@@ -62,6 +62,20 @@ FetchContent_Declare(
         GIT_TAG        1.1.0
 )
 
+FetchContent_Declare(
+        json
+        GIT_REPOSITORY git@github.com:sheredom/json.h.git
+        GIT_TAG adf662d166f1890f456b1c86a6d923dbfe6c7397
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+)
+
+FetchContent_Declare(
+        rml-snow-client
+        GIT_REPOSITORY ssh://git@bitbucket.redmatter.com/lib/rml-snow-client.git
+        GIT_TAG        develop
+)
+
 FetchContent_MakeAvailable(cmake-common)
 # Add cmake-common to CMAKE_MODULE_PATH
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${cmake-common_SOURCE_DIR}")
@@ -70,7 +84,7 @@ if (BUILD_TESTS)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-FetchContent_GetProperties(librml rml-queue rml-utils rml-database-mysql rml-statistics)
+FetchContent_GetProperties(librml rml-queue rml-utils rml-database-mysql rml-statistics json rml-snow-client)
 if(NOT librml_POPULATED)
     option(BUILD_HEADER_ONLY "" ON) # todo see if we need this
     FetchContent_Populate(librml)
@@ -86,6 +100,8 @@ FetchContent_Populate(rml-queue)
 FetchContent_Populate(rml-utils)
 FetchContent_Populate(rml-database-mysql)
 FetchContent_Populate(rml-statistics)
+FetchContent_Populate(json)
+FetchContent_Populate(rml-snow-client)
 
 add_subdirectory(common)
 add_subdirectory(archived)

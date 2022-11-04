@@ -1,0 +1,14 @@
+EXTERNAL_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+JSON_H_INCLUDE_DIR=$(EXTERNAL_DIR)/json.h/
+CXX_INCLUDES += -I $(JSON_H_INCLUDE_DIR)
+
+CLEAN_EXTRA += clean-json_h
+
+*.cpp: $(JSON_H_INCLUDE_DIR)/json.h
+
+$(JSON_H_INCLUDE_DIR)/json.h :
+	@$(MAKE) -C $(EXTERNAL_DIR) json.h
+
+clean-json_h:
+	@rm -rf $(EXTERNAL_DIR)/json.h

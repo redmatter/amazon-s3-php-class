@@ -24,6 +24,8 @@
 #include <rml/database/mysql/utils.hpp>
 #include <rml/exception.h>
 #include <rml/logger.h>
+#include <rml/snow/client.hpp>
+#include <rml/snow/block.hpp>
 
 #include <mysql/mysqld_error.h>
 
@@ -31,10 +33,71 @@
 #include <boost/thread/thread.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/algorithm/string/erase.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 
 #include <set>
 
 #include <time.h>
+
+namespace {
+
+struct got_no_snow : public std::runtime_error
+{
+    explicit got_no_snow(const boost::system::error_code& ec)
+        : std::runtime_error(ec.message() + " - unable to get snow IDs")
+    {}
+};
+
+class snow_pool
+{
+    rml::snow::client& snow_client;
+    const std::size_t block_size;
+
+    rml::snow::block::n_ids cur_block;
+    rml::snow::block::iterator itr;
+    rml::snow::block::iterator end;
+
+    boost::random::mt19937 rng;
+
+    inline boost::chrono::microseconds get_randomised_sleep_duration()
+    {
+        boost::random::uniform_int_distribution<> rand_dist(1000, 3000);
+        return boost::chrono::microseconds(rand_dist(rng));
+    }
+
+public:
+    explicit snow_pool(rml::snow::client& snow_client, std::size_t block_size)
+        : snow_client(snow_client), block_size(block_size)
+    {
+    }
+
+    int64_t get_id()
+    {
+        while (itr == end) {
+            boost::system::error_code ec;
+            cur_block = snow_client.create_ids(block_size, ec);
+            if (ec) {
+                throw got_no_snow(ec);
+            }
+
+            if (cur_block.n <= 0) {
+                boost::this_thread::sleep_for(get_randomised_sleep_duration());
+                continue;
+            }
+
+            itr = rml::snow::block::begin(cur_block);
+            end = rml::snow::block::end(cur_block);
+        }
+
+        auto id = *itr;
+        ++itr;
+
+        return id;
+    }
+};
+
+} // namespace
 
 namespace app {
 
@@ -46,6 +109,8 @@ namespace rmldb = rml::database::mysql;
 
 class retention : public rmldb::basic_database<retention, rmldb::transactional_connection>
 {
+    rml::snow::client& snow_client;
+
 public:
 	struct data
 	{
@@ -94,8 +159,8 @@ public:
 		return "retention";
 	}
 
-	explicit retention(const boost::program_options::variables_map& confMap) :
-			rmldb::basic_database<retention, rmldb::transactional_connection>(confMap)
+	retention(const boost::program_options::variables_map& confMap, rml::snow::client& snow_client) :
+			rmldb::basic_database<retention, rmldb::transactional_connection>(confMap), snow_client(snow_client)
 	{
 	}
 
@@ -157,6 +222,8 @@ public:
 		if(begin == end)
 			return true;
 
+        snow_pool sp(snow_client, 500);
+
 		try
 		{
 			ExtractIdentifier get_identifier;
@@ -183,8 +250,8 @@ public:
 
 				mysqlpp::Query query = conn->query();
 				query << "/* audit "<<id<<' '<<auditable_action<<" */ "
-						"INSERT INTO `Audit_"<<org<<"` (`OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID`)"
-						"    SELECT "<<org<<", "<<int(id.filetype)<<", 0x"<<uuid_hex<<", '"<<auditable_action<<"', NOW(), "<<eventlog_id<<
+						"INSERT INTO `Audit_"<<org<<"` (`ID`, `OrgID`, `Type`, `UUID`, `Action`, `Time`, `AuditLogID`)"
+						"    SELECT "<<sp.get_id()<<", "<<org<<", "<<int(id.filetype)<<", 0x"<<uuid_hex<<", '"<<auditable_action<<"', NOW(), "<<eventlog_id<<
 						"        FROM `Audit_"<<org<<"` WHERE NOT EXISTS ("
 						"            SELECT ID FROM `Audit_"<<org<<"` WHERE Type="<<int(id.filetype)<<" AND UUID=0x"<<uuid_hex<<" AND Action='"<<auditable_action<<"' LIMIT 1"
 						"        ) LIMIT 1";
@@ -616,6 +683,8 @@ public:
 
 	bool save(const data::multiset_t& data, const usage_data::multiset_t& usage_data)
 	{
+		snow_pool sp(snow_client, 1000);
+
 		try {
 			boost::shared_ptr<rmldb::transactional_connection> conn = get_connection_wait_for(boost::chrono::seconds(5));
 			conn->start_transaction();
@@ -631,7 +700,7 @@ public:
 
 					mysqlpp::Query query = conn->query();
 					query << "INSERT INTO `Retention_" << org << "` \n"
-							 "( UUID, LegUUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate,"
+							 "( ID, UUID, LegUUID, Format, OrgID, UserID, PolicyID, PolicyVersion, CreationDate,"
 							 " RetentionMinDate, RetentionMaxDate, MidnightOffsetSeconds, EndpointID, Type )"
 							 " VALUES ";
 
@@ -646,6 +715,7 @@ public:
 
 						query << ((itr != batch_range.first)? ',': '\n')
 							  <<"( "
+							  <<sp.get_id()<<", "
 							  <<"0x"<<uuid_hex<<" /* "<<itr->uuid<<" */, ";
 
 						if(!itr->leg_uuid.empty()) {

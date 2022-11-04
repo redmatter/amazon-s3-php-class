@@ -69,6 +69,8 @@ include_directories(
         ${librml_INC_DIR}
         /usr/include/threadpool
         ${MYSQL_INCLUDE_DIR}
+        ${json_SOURCE_DIR}
+        ${rml-snow-client_SOURCE_DIR}
         ../common
 )
 

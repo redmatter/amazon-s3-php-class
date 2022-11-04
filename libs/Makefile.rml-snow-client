@@ -1,0 +1,12 @@
+include ../common/Makefile.macros
+
+RML_SNOW_CLIENT_GIT_SUBMODULE=libs/rml-snow-client
+RML_SNOW_CLIENT_DIR=$(PROJECT_DIR)/$(RML_SNOW_CLIENT_GIT_SUBMODULE)
+RML_SNOW_CLIENT_HPP=$(RML_SNOW_CLIENT_DIR)/rml/snow/client.hpp
+
+CXX_INCLUDES += -I $(RML_SNOW_CLIENT_DIR)
+
+$(RML_SNOW_CLIENT_HPP):
+	@cd $(PROJECT_DIR) && git submodule update --init --recursive $(RML_SNOW_CLIENT_GIT_SUBMODULE)
+
+*.cpp: $(RML_SNOW_CLIENT_HPP)

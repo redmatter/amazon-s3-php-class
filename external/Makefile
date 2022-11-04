@@ -17,7 +17,12 @@ LIBS3_VER=$(LIBS3_VER_MAJOR).$(LIBS3_VER_MINOR)
 LIBS3_GIT_HASH=84d5b0a
 LIBS3_GIT_DOWNLOAD_URL=https://github.com/redmatter/libs3/tarball/$(LIBS3_GIT_HASH)
 
-.PHONY: libs3 sqlite cpp-netlib cryptopp clean
+JSON_H_GIT_HASH=bdcf2e1
+JSON_H_GIT_DOWNLOAD_URL=https://github.com/sheredom/json.h/tarball/$(JSON_H_GIT_HASH)
+
+.PHONY: json.h libs3 sqlite cpp-netlib cryptopp clean all
+
+all: sqlite cpp-netlib libs3 json.h
 
 sqlite: prefix=$(shell pwd)/$@
 sqlite: sqlite/sqlite-autoconf-$(SQLITE_VERSION)
@@ -86,8 +91,20 @@ redmatter-libs3-$(LIBS3_GIT_HASH).tar.gz:
 .PHONY: libs3-download-tar-gz
 libs3-download-tar-gz: libs3-$(LIBS3_GIT_HASH).tar.gz
 
+json.h: json.h/json.h-$(JSON_H_GIT_HASH)
+	cp json.h/json.h-$(JSON_H_GIT_HASH)/json.h json.h/json.h && \
+	rm -rf json.h/json.h-$(JSON_H_GIT_HASH)
+
+json.h/json.h-$(JSON_H_GIT_HASH): sheredom-json.h-$(JSON_H_GIT_HASH).tar.gz
+	mkdir -p "$@" && \
+	tar -C "$@" --strip-components=1 -xzf $<
+
+sheredom-json.h-$(JSON_H_GIT_HASH).tar.gz:
+	wget -O "$@" $(JSON_H_GIT_DOWNLOAD_URL)
+
 clean:
 	rm -rf sqlite
 	rm -rf cpp-netlib
 	rm -rf cryptopp
 	rm -rf libs3
+	rm -rf json.h
