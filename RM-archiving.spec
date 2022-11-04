@@ -1,6 +1,8 @@
 %{!?__build_pkg_version: %define __build_pkg_version 1.0.0}
 %{!?__build_pkg_release: %define __build_pkg_release 1}
 %{!?__librml_buildtype: %define __librml_buildtype DBGREL}
+%{!?__build_vcs_epoch: %define __build_vcs_epoch 0}
+%{!?__build_vcs_commit_id: %define __build_vcs_commit_id deadbeef}
 
 %if 0%{?el5}
 %define reload_rsyslog() if [ -x /etc/init.d/rsyslog ]; then \
@@ -310,6 +312,8 @@ Archiving Purge Verification scripts
 %build
 echo %{version} | awk -F\. '{print "VERSION_MAJOR="$1"\nVERSION_MINOR="$2"\nVERSION_PATCH="$3"\n"}' > version_info
 echo "BUILD_ID=%{release}" >> version_info
+echo "VCS_EPOCH_TIME=%{__build_vcs_epoch}" >> version_info
+echo "VCS_COMMIT_ID=%{__build_vcs_commit_id}" >> version_info
 %if 0%{?el7}
 export PKG_CONFIG_PATH=/usr/lib64/mysql:$PKG_CONFIG_PATH
 %endif
