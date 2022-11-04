@@ -22,7 +22,7 @@
 	url = ssh://git@bitbucket.redmatter.com/lib/rml.git
 [submodule "libs/makefiles"]
 	path = libs/makefiles
-	url = ../../lib/makefiles.git
+	url = ssh://git@bitbucket.redmatter.com/lib/makefiles.git
 [submodule "libs/rml-snow-client"]
 	path = libs/rml-snow-client
-	url = ../../lib/rml-snow-client.git
+	url = ssh://git@bitbucket.redmatter.com/lib/rml-snow-client.git
