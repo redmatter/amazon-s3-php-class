@@ -21,15 +21,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
-require_once 'rmapp/class.BaseApp.php';
-require_once 'rmdaemonscripts/DaemonScripts.php';
-
-// todo remove the phar file from repo and use composer; also sort out the require_onces below
-//     for \RedMatter\Archiving\AWS namespace
-define('ARCHIVING_INC_DIR', is_dir(__DIR__.DIRECTORY_SEPARATOR.'inc')? (__DIR__.DIRECTORY_SEPARATOR.'inc'): 'archiving');
-require_once ARCHIVING_INC_DIR.'/aws.phar';
-require_once ARCHIVING_INC_DIR.'/RedMatter/Archiving/AWS/GuzzleLogAdapter.php';
-require_once ARCHIVING_INC_DIR.'/RedMatter/Archiving/AWS/StorageEndpointCredentials.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * PurgePolicyFixerApp

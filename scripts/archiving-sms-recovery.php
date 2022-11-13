@@ -21,8 +21,7 @@ define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 //define('RM_CLI_APP', true);
 
-require_once 'rmapp/class.BaseApp.php';
-require_once 's3/S3.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * Instructions that should be followed prior to running this script:

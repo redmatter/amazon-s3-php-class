@@ -14,9 +14,6 @@
  * @link      http://www.redmatter.com
  */
 
-use RedMatter\Archiving\Apps\BulkDeleteRequesterApp as App;
-use CLIUsageErrorException as UsageError;
-
 define('APP_NAME_', 'rm-arcblkdelreq');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
@@ -26,15 +23,10 @@ define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
 date_default_timezone_set('Europe/London');
 
-define('ARCHIVING_INC_DIR', is_dir(__DIR__.'/../inc')? (__DIR__.'/../inc'): 'archiving');
-if (file_exists(__DIR__.'/autoload.php')) {
-    // for dev setup where autoload.php exists in the same directory as app.php
-    include_once __DIR__.'/autoload.php';
-} else {
-    // for packaged setup where autoload.php is copied to /usr/share/php/archiving
-    /** @noinspection PhpIncludeInspection */
-    include_once ARCHIVING_INC_DIR.'/arcblkdelreq_autoload.php';
-}
+include_once __DIR__ . '/../vendor/autoload.php';
+
+use RedMatter\Archiving\Apps\BulkDeleteRequesterApp as App;
+use CLIUsageErrorException as UsageError;
 
 /**
  * Show usage info

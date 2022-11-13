@@ -20,12 +20,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
-require_once 'rmapp/class.BaseApp.php';
-require_once 'rmapp/class.BaseDaemonApp.php';
-require_once 'rmdaemonscripts/DaemonScripts.php';
-
-define('ARCHIVING_INC_DIR', is_dir(__DIR__.DIRECTORY_SEPARATOR.'inc')? (__DIR__.DIRECTORY_SEPARATOR.'inc'): 'archiving');
-require_once ARCHIVING_INC_DIR.'/class.PcapRecordingImportApp.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 try
 {

@@ -61,3 +61,5 @@ modules.xml
 /PoCs/archived-server/poc-archived-server
 /PoCs/archived-client/poc-archived-client
 /collect-importd/cronjobs/phonero/phonero-cron.phar
+/scripts/vendor/
+/composer.phar

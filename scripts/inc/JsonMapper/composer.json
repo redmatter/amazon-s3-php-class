@@ -1,6 +1,0 @@
-{
-    "require": {
-        "mtdowling/burgomaster": "dev-master",
-        "netresearch/jsonmapper": "^0.11.0"
-    }
-}

@@ -18,8 +18,7 @@ define('APP_NAME_', 'rm-archiving-export-any');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-require_once "s3/S3.php";
-require_once 'rmapp/class.BaseApp.php';
+include_once __DIR__ . '/../vendor/autoload.php';
 
 /**
  * ArchivingExportAny
@@ -259,7 +258,8 @@ class ArchivingExporterApp extends BaseApp
 	 */
 	public function run()
 	{
-        API::Init($this->getConf()->get('coreapi.url', 'http://cdr.coreapi.{hapi:SearchDomain}'), new ArrayStorage(),
+        $storage = new ArrayStorage();
+        API::Init($this->getConf()->get('coreapi.url', 'http://cdr.coreapi.{hapi:SearchDomain}'), $storage,
             APP_NAME_ . ':1.0');
         API::LoginBasicAuth($this->getConf()->get('coreapi.authorization_creds', false), null/*mfa*/,
             true/*re_authenticate*/);

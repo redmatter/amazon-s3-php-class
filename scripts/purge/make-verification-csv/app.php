@@ -23,19 +23,7 @@ define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
 date_default_timezone_set('Europe/London');
 
-require_once 'rmapp/class.BaseApp.php';
-
-define('ARCHIVING_INC_DIR', is_dir(__DIR__.'/../../inc')? (__DIR__.'/../../inc'): 'archiving');
-if (file_exists(__DIR__.'/autoload.php'))
-{
-    // for dev setup where autoload.php exists in the same directory as app.php
-    include_once __DIR__.'/autoload.php';
-}
-else
-{
-    // for packaged setup where autoload.php is copied to /usr/share/php/archiving
-    include_once ARCHIVING_INC_DIR.'/purgeverifycsv_autoload.php';
-}
+include_once __DIR__ . '/../../vendor/autoload.php';
 
 use \RedMatter\Archiving\PurgeVerificationCsv\App;
 

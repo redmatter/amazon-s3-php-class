@@ -1,0 +1,43 @@
+{
+  "config": {
+    "vendor-dir": "scripts/vendor",
+    "platform": {
+      "php": "5.4"
+    }
+  },
+  "minimum-stability": "dev",
+  "autoload": {
+    "classmap": [
+      "scripts/inc/",
+
+      "/usr/share/php/eventlog/",
+      "/usr/share/php/syslogger/",
+      "/usr/share/php/rmapp/",
+      "/usr/share/php/rmdaemonscripts/",
+      "/usr/share/php/s3/",
+      "/usr/share/php/rmbranding/"
+    ],
+    "files": [
+      "/usr/share/php/hPHP/hapi.php",
+      "/usr/share/php/syslogger/class.SysLogger.php",
+      "/usr/share/php/rmapp/class.BaseApp.php",
+      "/usr/share/php/eventlog/class.EventLog.php",
+      "/usr/share/php/rmdaemonscripts/DaemonScripts.php",
+      "/usr/share/php/s3/S3.php"
+    ]
+  },
+  "repositories": [
+    {
+      "type": "git",
+      "url": "ssh://git@bitbucket.redmatter.com/lib/php-snow-client.git"
+    }
+  ],
+  "require": {
+    "netresearch/jsonmapper": "^0.11.0",
+    "justinrainbow/json-schema": "^2.0",
+    "redmatter/snow-client": "dev-feature/downgrade-guzzle-to-5-x",
+    "ext-simplexml": "*",
+    "ext-pcntl": "*",
+    "aws/aws-sdk-php": "2.7.17"
+  }
+}

@@ -22,6 +22,8 @@ fi;
 %define buildtype %{__librml_buildtype}
 %define __os_install_post %{nil}
 
+%define php_datadir %{_datadir}/php/archiving
+
 %define rm_daemonscripts_version 1.2.0
 
 %define libs3_abi 4.1
@@ -211,6 +213,7 @@ Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
+Requires: RM-branding-php >= 1.22.0
 
 %package qascripts
 Summary: Archiving Utility Scripts for QA
@@ -335,7 +338,7 @@ mkdir -p %{buildroot}/usr/share/archiving/bin
 # mkdir -p %{buildroot}/usr/share/archiving/migration-scripts
 mkdir -p %{buildroot}/var/lib/archiving
 mkdir -p %{buildroot}/var/run/archiving
-mkdir -p %{buildroot}/usr/share/php/archiving
+mkdir -p %{buildroot}%{php_datadir}
 
 # ArchiveD
 mkdir -p %{buildroot}/var/www/rmarchived
@@ -357,7 +360,7 @@ cp archived/rmarchived.conf %{buildroot}/etc/archiving/
 cp archived/logrotate.conf %{buildroot}/etc/logrotate.d/rmarchived
 cp archived/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmarchived.conf
 cp -L external/libs3/lib/libs3.so.%{libs3_abi} %{buildroot}/usr/lib/archiving
-( cd %{buildroot}/usr/lib/archiving && ln -sf libs3.so.%{libs3_abi} libs3.so.%{libs3_abi_major} )
+( cd %{buildroot}/usr/lib/archiving &&  libs3.so.%{libs3_abi} libs3.so.%{libs3_abi_major} )
 cp -L external/libs3/bin/s3 %{buildroot}/usr/bin/s3-%{libs3_abi}-archiving
 
 # ArchiveD retention-purge config (platform specific)
@@ -473,28 +476,53 @@ cp estuary/logrotate.conf %{buildroot}/etc/logrotate.d/rmestuary
 cp estuary/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-rmestuary.conf
 
 # Scripts
-for file in $( find scripts/inc -type f -not \( -path "scripts/inc/JsonSchema/*" -o -path "scripts/inc/JsonMapper/*" \) ); do
-	install -m 644 -D ${file} %{buildroot}/usr/share/php/archiving/${file#scripts/inc/}
+# Copy all of our own PHP scripts
+for file in $( find scripts -type f -not -path "*/vendor/*" -name *php ); do
+	install -m 644 -D ${file} %{buildroot}%{php_datadir}/${file#scripts/}
 done
-ln -sf /usr/share/php/archiving/aws-2.7.17.phar %{buildroot}/usr/share/php/archiving/aws.phar
+# Copy everything from vendor directory
+for file in $( find scripts/vendor -type f ); do
+	install -m 644 -D ${file} %{buildroot}%{php_datadir}/${file#scripts/}
+done
+# Make sure any executable scripts have the right mode bits set, since they are symlinked later on.
+fot file in \
+    scripts/purge/make-verification-csv/app.php \
+    scripts/qa/makepurgedata.php \
+    scripts/qa/verifypurge.php \
+    scripts/qa/send-test-eml.php \
+    scripts/archiving-sms-recovery.php \
+    scripts/checker.php \
+    scripts/dev-setup-v2.php \
+    scripts/export.php \
+    scripts/extract.php \
+    scripts/headerspatch.php \
+    scripts/pcap-recording-import.php \
+    scripts/purge-policy-fixer.php \
+    scripts/bulk-delete-requester/app.php \
+    scripts/dsr-pre-processor/app.php \
+    scripts/export-any/export-any.php \
+; do
+    chmod 555 %{buildroot}%{php_datadir}/${file#scripts/};
+done
+
 %if 0%{?el5}
 cp scripts/archiving.sh %{buildroot}/usr/bin/archiving
 %endif
 %if 0%{?el7}
 cp scripts/archiving-systemd.sh %{buildroot}/usr/bin/archiving
 %endif
-cp scripts/checker.php %{buildroot}/usr/bin/archiving-checker
+ln -sf %{php_datadir}/checker.php %{buildroot}/usr/bin/archiving-checker
 cp scripts/checker-feed.sh %{buildroot}/usr/bin/archiving-checker-feed.sh
 cp scripts/checker.conf %{buildroot}/usr/share/archiving/archiving-checker.conf.sample
 cp scripts/archiving-checker-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-checker.conf
-cp scripts/extract.php %{buildroot}/usr/bin/archiving-extract
+ln -sf %{php_datadir}/extract.php %{buildroot}/usr/bin/archiving-extract
 cp scripts/extract.conf %{buildroot}/usr/share/archiving/archiving-extract.conf.sample
 cp scripts/archiving-extract-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-extract.conf
-cp scripts/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
+ln -sf %{php_datadir}/headerspatch.php %{buildroot}/usr/bin/archiving-headerspatch
 cp scripts/headerspatch.conf %{buildroot}/usr/share/archiving/archiving-headerspatch.conf.sample
 cp scripts/archiving-headerspatch-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-headerspatch.conf
 cp scripts/archiving-headerspatch-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-headerspatch
-cp scripts/purge-policy-fixer.php %{buildroot}/usr/bin/archiving-purge-policy-fixer
+ln -sf %{php_datadir}/purge-policy-fixer.php %{buildroot}/usr/bin/archiving-purge-policy-fixer
 cp scripts/purge-policy-fixer.conf %{buildroot}/etc/archiving/purge-policy-fixer.conf
 %if 0%{?el5}
 cp scripts/rmarchpolfix.sh %{buildroot}/etc/rc.d/init.d/rmarchpolfix
@@ -504,7 +532,7 @@ install -Dpm 0644 scripts/rmarchpolfix.service %{buildroot}%{_unitdir}
 %endif
 cp scripts/archiving-purge-policy-fixer-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-purge-policy-fixer.conf
 cp scripts/archiving-purge-policy-fixer-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-purge-policy-fixer
-cp scripts/export.php %{buildroot}/usr/bin/archiving-export
+ln -sf %{php_datadir}/export.php %{buildroot}/usr/bin/archiving-export
 cp scripts/export.conf %{buildroot}/etc/archiving/export.conf
 %if 0%{?el5}
 cp scripts/rmarchexport.sh %{buildroot}/etc/rc.d/init.d/rmarchexport
@@ -518,7 +546,7 @@ cp scripts/retention_ro.conf %{buildroot}/etc/archiving/scripts-retention_ro.con
 cp scripts/retention_rw.conf %{buildroot}/etc/archiving/scripts-retention_rw.conf
 # pcap-import
 mkdir -p %{buildroot}/var/lib/archiving/pcap-import/done
-cp scripts/pcap-recording-import.php %{buildroot}/usr/bin/archiving-pcap-recording-import
+ln -sf %{php_datadir}/pcap-recording-import.php %{buildroot}/usr/bin/archiving-pcap-recording-import
 cp scripts/pcap-recording-import.conf %{buildroot}/etc/archiving/pcap-recording-import.conf
 %if 0%{?el5}
 cp scripts/pcap-recording-import-init.sh %{buildroot}/etc/rc.d/init.d/rmarchpcapimport
@@ -530,9 +558,8 @@ cp scripts/pcap-recording-import-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-arch
 cp scripts/pcap-recording-import-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-pcap-recording-import
 cp common/big_database.conf %{buildroot}/etc/archiving/conf.d/big_database.conf
 # dsr-pre-processor
-cp scripts/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
+ln -sf %{php_datadir}/dsr-pre-processor/app.php %{buildroot}/usr/bin/archiving-dsr-pre-processor
 cp scripts/dsr-pre-processor/app.conf %{buildroot}/etc/archiving/dsr-preproc.conf
-cp scripts/dsr-pre-processor/autoload.php %{buildroot}/usr/share/php/archiving/archdsrpreproc_autoload.php
 %if 0%{?el5}
 cp scripts/dsr-pre-processor/init.sh %{buildroot}/etc/rc.d/init.d/rmarchdsrpreproc
 %endif
@@ -542,33 +569,31 @@ install -Dpm 0644 scripts/dsr-pre-processor/init.service %{buildroot}%{_unitdir}
 cp scripts/dsr-pre-processor/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 cp scripts/dsr-pre-processor/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-dsr-pre-processor
 # bulk-delete-requester
-cp scripts/bulk-delete-requester/app.php %{buildroot}/usr/bin/archiving-bulk-delete-requester
+ln -sf %{php_datadir}/bulk-delete-requester/app.php %{buildroot}/usr/bin/archiving-bulk-delete-requester
 cp scripts/bulk-delete-requester/app.conf %{buildroot}/etc/archiving/bulk-delete-requester.conf
-cp scripts/bulk-delete-requester/autoload.php %{buildroot}/usr/share/php/archiving/arcblkdelreq_autoload.php
 cp scripts/bulk-delete-requester/logrotate.conf %{buildroot}/etc/logrotate.d/archiving-bulk-delete-requester
 cp scripts/bulk-delete-requester/rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-bulk-delete-requester.conf
 
 # qascripts
-cp scripts/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
+ln -sf %{php_datadir}/qa/makepurgedata.php %{buildroot}/usr/bin/archiving-makepurgedata
 cp scripts/qa/makepurgedata.conf %{buildroot}/usr/share/archiving/archiving-makepurgedata.conf.sample
 cp scripts/qa/archiving-makepurgedata-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-makepurgedata.conf
 cp scripts/qa/archiving-makepurgedata-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-makepurgedata
-cp scripts/qa/send-test-eml.php %{buildroot}/usr/bin
+ln -sf %{php_datadir}/qa/send-test-eml.php %{buildroot}/usr/bin/send-test-eml.php
 cp -r collectd/tests/cdrgen %{buildroot}/usr/share/archiving/collectd-cdrgen
 
 # purge-verify
-cp scripts/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
+ln -sf %{php_datadir}/qa/verifypurge.php %{buildroot}/usr/bin/archiving-verifypurge
 cp scripts/qa/verifypurge.conf %{buildroot}/usr/share/archiving/archiving-verifypurge.conf.sample
 cp scripts/qa/archiving-verifypurge-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-verifypurge.conf
 cp scripts/qa/archiving-verifypurge-logrotate.conf %{buildroot}/etc/logrotate.d/archiving-verifypurge
-cp scripts/purge/make-verification-csv/app.php %{buildroot}/usr/bin/archiving-make-purge-verification-csv
+ln -sf %{php_datadir}/purge/make-verification-csv/app.php %{buildroot}/usr/bin/archiving-make-purge-verification-csv
 cp scripts/purge/make-verification-csv/app.conf %{buildroot}/etc/archiving/make-purge-verification-csv.conf
 cp scripts/purge/make-verification-csv/definition-schema.json %{buildroot}/usr/share/archiving/purge-verify-definition-schema.json
 cp scripts/purge/make-verification-csv/example-definition.json %{buildroot}/usr/share/archiving/purge-verify-definition.example.json
-cp scripts/purge/make-verification-csv/autoload.php %{buildroot}/usr/share/php/archiving/purgeverifycsv_autoload.php
 
 # Other scripts
-cp scripts/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
+ln -sf %{php_datadir}/archiving-sms-recovery.php %{buildroot}/usr/bin/archiving-sms-recovery
 cp scripts/archiving-sms-recovery.conf %{buildroot}/usr/share/archiving/archiving-sms-recovery.conf.sample
 cp scripts/archiving-sms-recovery-rsyslog.conf %{buildroot}/etc/rsyslog.d/11-archiving-sms-recovery.conf
 
@@ -666,7 +691,7 @@ fi
 # else
 # 	/usr/sbin/groupadd -g 134 cdrmunch || exit
 # fi
-# 
+#
 # if ! /usr/bin/id cdrmunch &>/dev/null; then
 # 	/usr/sbin/useradd -r -g cdrmunch -s /bin/false -d /var/log/cdrmunch -u 134 cdrmunch || exit
 # fi
@@ -1018,7 +1043,7 @@ fi
 
 %files scripts
 %defattr(-,root,root)
-/usr/share/php/archiving/*
+%{php_datadir}/*
 /usr/bin/archiving
 /usr/bin/archiving-checker
 /usr/bin/archiving-checker-feed.sh
@@ -1065,13 +1090,11 @@ fi
 /etc/logrotate.d/archiving-pcap-recording-import
 %attr(755,root,root) /usr/bin/archiving-dsr-pre-processor
 /etc/archiving/dsr-preproc.conf
-/usr/share/php/archiving/archdsrpreproc_autoload.php
 /etc/rsyslog.d/11-archiving-dsr-pre-processor.conf
 /etc/logrotate.d/archiving-dsr-pre-processor
 # bulk-delete-requester
-%attr(500,root,root) /usr/bin/archiving-bulk-delete-requester
+%attr(555,root,root) /usr/bin/archiving-bulk-delete-requester
 %attr(400,root,root) /etc/archiving/bulk-delete-requester.conf
-%attr(400,root,root) /usr/share/php/archiving/arcblkdelreq_autoload.php
 /etc/logrotate.d/archiving-bulk-delete-requester
 /etc/rsyslog.d/11-archiving-bulk-delete-requester.conf
 

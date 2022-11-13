@@ -22,7 +22,7 @@ define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 // define('RM_CLI_APP', true);
 
-require_once 'rmapp/class.BaseApp.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 /**
 * ArchivingExtractApp

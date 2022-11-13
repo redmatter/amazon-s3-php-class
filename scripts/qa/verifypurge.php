@@ -19,8 +19,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_RECURSIVE_LOOP_SAFETY', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-require_once "s3/S3.php";
-require_once 'rmapp/class.BaseApp.php';
+include_once __DIR__ . '/../vendor/autoload.php';
 
 /**
  * VerifyPurgeApp

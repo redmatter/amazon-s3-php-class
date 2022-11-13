@@ -19,7 +19,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_RECURSIVE_LOOP_SAFETY', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-require_once 'rmapp/class.BaseApp.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * MakePurgeDataApp
@@ -54,7 +54,8 @@ class ArchivingDevSetupApp extends BaseApp
 
 		$authPass = cli::get('--api-auth-password', $config->get('api.authorization_password', 'letmein'));
 
-		API::Init($config->get('api.url', 'api'), new ArrayStorage());
+        $storage = new ArrayStorage();
+		API::Init($config->get('api.url', 'api'), $storage);
 		API::Login($authUser, $authPass);
 		$sentry = new ScopeSentry(
 			function()

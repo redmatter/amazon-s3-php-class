@@ -39,13 +39,7 @@ if (!defined('CURL_SSLVERSION_SSLv3')) {
     define('CURL_SSLVERSION_SSLv3', 3);
 }
 
-require_once 'rmapp/class.BaseApp.php';
-require_once 'rmdaemonscripts/DaemonScripts.php';
-require_once 's3/S3.php';
-require_once 'archiving/class.ArchivingProcessFile.php';
-require_once 'hPHP/hapi.php';
-require_once 'eventlog/class.EventLog.php';
-require_once 'rmbranding/Brand.php';
+include_once __DIR__ . '/vendor/autoload.php';
 
 function formatTime($time, $timeZone, $format)
 {
@@ -786,7 +780,7 @@ abstract class ArchivingExport
 		)->fetch_all(MySQLiResult::AS_ASSOC);
 
 		if (empty($result) || empty($result[0]) || empty($result[0]['PolicyID']))
-			throw new Exception("Could not fetch default {$type} policy ID for Org {$orgID}");
+			throw new Exception("Could not fetch default {$this->archivingType()} policy ID for Org {$orgID}");
 		return (int)$result[0]['PolicyID'];	
 	}
 	
@@ -808,26 +802,26 @@ abstract class ArchivingExport
 		}
 
 		$xpath = API::Get("/archiving/policypermissions/{$this->orgID}/{$policyID}/{$this->userID}/{$ownerUserID}/read");
-		
+
 		$permsDom = simplexml_import_dom($xpath->_dom);
 
 		$nodes = $permsDom->xpath('@Allowed');
 		if (empty($nodes))
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 		$allowed = (string)$nodes[0];
 		$allowed = ($allowed == 'YES');
 						
 		$nodes = $permsDom->xpath('@RetentionMax');
 		if (empty($nodes))
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 		$retentionMax = (int)$nodes[0];
 		
 		$nodes = $permsDom->xpath('@RetentionMaxUnit');
 		if (empty($nodes))
-			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");
+			throw new Exception("Failed to query CoreAPI archiving policy permissions for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 		$retentionMaxUnit = (string)$nodes[0];	
 		
-		LogDebug("{$this->context()}Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}, response: {$permsResponse}");	
+		LogDebug("{$this->context()}Checked CoreAPI archiving policy permission for policy ID {$policyID}, Retention User ID {$ownerUserID}");
 
 		// stash away notification settings for subsequent custodian Email/SMS notifications
 		if (!isset($this->policyNotificationList[$policyID]))
@@ -1694,7 +1688,8 @@ class ArchivingCallExport extends ArchivingExport
 			case 'NO_ROUTE_DESTINATION':			return 'No route destination';
 			case 'CHANNEL_UNACCEPTABLE':			return 'Unacceptable channel';
 			case 'CALL_AWARDED_DELIVERED':
-			case 'NORMAL_CLEARING':					return 'Normal';
+            case 'NORMAL_UNSPECIFIED':
+            case 'NORMAL_CLEARING':					return 'Normal';
 			case 'USER_BUSY':						return 'User busy';
 			case 'NO_USER_RESPONSE':
 			case 'NO_ANSWER':						return 'No answer';
@@ -1705,19 +1700,19 @@ class ArchivingCallExport extends ArchivingExport
 			case 'EXCHANGE_ROUTING_ERROR':			return 'Maximum number of call hops reached';
 			case 'DESTINATION_OUT_OF_ORDER':		return 'Unable to connect';
 			case 'INVALID_NUMBER_FORMAT':			return 'Invalid number format';
-			case 'FACILITY_REJECTED':				return 'Destination unavailable';
+            case 'NORMAL_CIRCUIT_CONGESTION':
+            case 'FACILITY_REJECTED':				return 'Destination unavailable';
 			case 'RESPONSE_TO_STATUS_ENQUIRY':		return 'Response to status enquiry';
-			case 'NORMAL_CIRCUIT_CONGESTION':		return 'Destination unavailable';
-			case 'NETWORK_OUT_OF_ORDER':			return 'Network unavailable';
+            case 'NETWORK_OUT_OF_ORDER':			return 'Network unavailable';
 			case 'NORMAL_TEMPORARY_FAILURE':		return 'Temporary failure';
 			case 'SWITCH_CONGESTION':				return 'Congestion';
 			case 'ACCESS_INFO_DISCARDED':			return 'Access unavailable';
 			case 'REQUESTED_CHAN_UNAVAIL':			return 'Destination channel unavailable';
-			case 'FACILITY_NOT_SUSCRIBED':			return 'Unauthorised access';
+            case 'BEARERCAPABILITY_NOTAUTH':
+            case 'FACILITY_NOT_SUSCRIBED':			return 'Unauthorised access';
 			case 'OUTGOING_CALL_BARRED':
 			case 'INCOMING_CALL_BARRED':			return 'Call barred';
-			case 'BEARERCAPABILITY_NOTAUTH':		return 'Unauthorised access';
-			case 'BEARERCAPABILITY_NOTAVAIL':		return 'Bearer unavailable';
+            case 'BEARERCAPABILITY_NOTAVAIL':		return 'Bearer unavailable';
 			case 'SERVICE_UNAVAILABLE':				return 'Service unavailable';
 			case 'BEARERCAPABILITY_NOTIMPL':		return 'Bearer not implemented';
 			case 'CHAN_NOT_IMPLEMENTED':			return 'Channel not implemented';
@@ -1730,10 +1725,7 @@ class ArchivingCallExport extends ArchivingExport
 			case 'ATTENDED_TRANSFER':				return 'Attended transfer';
 			case 'ALLOTTED_TIMEOUT':				return 'Timeout exceeded';
 			case 'USER_NOT_REGISTERED':				return 'User failed to register';
-			case 'NO_ROUTE_TRANSIT_NET':			return 'Unallocated number';
-			case 'NORMAL_UNSPECIFIED':				return 'Normal';
-			case 'NO_ANSWER':						return 'No answer';
-			case 'RECOVERY_ON_TIMER_EXPIRE':		return 'Device timeout';
+            case 'RECOVERY_ON_TIMER_EXPIRE':		return 'Device timeout';
 			case 'LOSE_RACE':						return 'Another device answered';
 			case 'SYSTEM_SHUTDOWN':					return 'System shutdown';
 			default: return $cause;
@@ -2349,7 +2341,8 @@ class ArchivingExportApp extends BaseApp
 	
 	private function loginToCoreApi()
 	{
-		API::Init($this->coreApiUrl, new ArrayStorage(), APP_NAME_.':1.0');
+        $storage = new ArrayStorage();
+		API::Init($this->coreApiUrl, $storage, APP_NAME_.':1.0');
 		
 		API::LoginBasicAuth($this->coreApiAuthCreds, null/*mfa*/, true/*re_authenticate*/);
 		
