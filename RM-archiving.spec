@@ -203,16 +203,22 @@ Requires: RM-systemd-service-helpers >= 1.2.3
 %package scripts
 Summary: Archiving Utility Scripts
 Group: RedMatter/Archiving
+BuildRequires: RM-php-rmapp >= 0.0.5
 Requires: RM-php-rmapp >= 0.0.5
+BuildRequires: RM-php-eventlog >= 1.2.1
 Requires: RM-php-eventlog >= 1.2.1
+BuildRequires: php-s3 >= 0.5.1-1.0.0
 Requires: php-s3 >= 0.5.1-1.0.0
 Requires: RM-%{appname}-convert >= %{version}-%{release}
 %if 0%{?el5}
 Requires: RM-daemonscripts >= %{rm_daemonscripts_version}
 %endif
+BuildRequires: RM-daemonscripts-php >= %{rm_daemonscripts_version}
+Requires: RM-daemonscripts-php >= %{rm_daemonscripts_version}
 Requires: p7zip
 Requires: RM-pcaptools >= 0.0.1-42064
 Requires: RM-%{appname}-cli >= %{version}-%{release}
+BuildRequires: RM-branding-php >= 1.22.0
 Requires: RM-branding-php >= 1.22.0
 
 %package qascripts
@@ -221,6 +227,7 @@ Group: RedMatter/Archiving
 #Requires: RM-%{appname}-scripts >= %{version}-%{release}
 Requires: RM-%{appname}-scripts
 Requires: RM-%{appname}-purge-verify
+BuildRequires: RM-syslogger >= 0.0.1-22449
 Requires: RM-syslogger >= 0.0.1-22449
 Requires: php54-cli
 Requires: php-gd
