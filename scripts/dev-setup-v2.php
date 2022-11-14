@@ -19,7 +19,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_RECURSIVE_LOOP_SAFETY', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-include_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * MakePurgeDataApp

@@ -18,7 +18,7 @@ define('APP_NAME_', 'rm-archiving-export-any');
 define('RM_SYSLOGGER_NO_INIT_NO_LOGS', false);
 define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
-include_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 /**
  * ArchivingExportAny

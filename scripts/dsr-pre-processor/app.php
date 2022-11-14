@@ -23,7 +23,7 @@ define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
 date_default_timezone_set('Europe/London');
 
-include_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 use \RedMatter\Archiving\DataSubjectRequest\App;
 

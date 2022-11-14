@@ -13,8 +13,6 @@
  * @link     http://trac.redmatter.com/
  */
 
-require_once 'eventlog/class.EventLog.php';
-
 /**
  * ConfigMap class that parses the config file, into a memory map
  *

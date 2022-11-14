@@ -21,7 +21,7 @@ define('RM_SYSLOGGER_LOG_MULTILINE', true);
 define('RM_SYSLOGGER_LOG_SOURCE_CONTEXT', true);
 define('RMAPP_HAPI_OVERRIDES_ENABLED', true);
 
-include_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * PurgePolicyFixerApp
