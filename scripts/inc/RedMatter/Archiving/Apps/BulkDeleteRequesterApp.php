@@ -27,10 +27,13 @@ use MySQLiBindParams as Params;
 use MySQLiTransactional as DB;
 use RedMatter\Services\CoreAPI;
 use RedMatter\Services\DGAPI;
+use RedMatter\Services\Helper\SnowTrait;
 use RuntimeException;
 
 class BulkDeleteRequesterApp extends BaseApp
 {
+    use SnowTrait;
+
     const CONFIG_PATH = '/etc/archiving/bulk-delete-requester.conf';
     const INSERT_BATCH_SIZE = 2000;
 
@@ -156,9 +159,10 @@ class BulkDeleteRequesterApp extends BaseApp
             $db->StartTransaction();
             $db->query(
                 "INSERT INTO `ArchivingRetention`.`DeleteRequest_{$orgId}`" .
-                " ( `Time`, `OrgID`, `UserID`, `AuditLogID`, `State`, `ExternalReference` )" .
-                " VALUES ( ? , ? , ? , ? , 'Pending' , ? )",
+                " ( `ID`, `Time`, `OrgID`, `UserID`, `AuditLogID`, `State`, `ExternalReference` )" .
+                " VALUES ( ? , ? , ? , ? , ? , 'Pending' , ? )",
                 Params::Create()
+                    ->add('i', $this->getSnowId())
                     ->add('i', $time)
                     ->add('i', $orgId)
                     ->add('i', $me->ID)

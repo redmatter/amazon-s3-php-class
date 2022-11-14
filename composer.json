@@ -5,7 +5,7 @@
       "php": "5.4"
     }
   },
-  "minimum-stability": "dev",
+  "minimum-stability": "stable",
   "autoload": {
     "classmap": [
       "scripts/inc/",
@@ -29,15 +29,22 @@
   "repositories": [
     {
       "type": "git",
-      "url": "ssh://git@bitbucket.redmatter.com/lib/php-snow-client.git"
+      "url": "ssh://git@bitbucket.redmatter.com/lib/php-snow-generator-guzzle5.git"
+    },
+    {
+      "type": "git",
+      "url": "ssh://git@bitbucket.redmatter.com/lib/php-snow-block.git"
     }
   ],
   "require": {
-    "netresearch/jsonmapper": "^0.11.0",
-    "justinrainbow/json-schema": "^2.0",
-    "redmatter/snow-client": "dev-feature/downgrade-guzzle-to-5-x",
     "ext-simplexml": "*",
     "ext-pcntl": "*",
-    "aws/aws-sdk-php": "2.7.17"
+    "ext-json": "*",
+    "netresearch/jsonmapper": "^0.11.0",
+    "justinrainbow/json-schema": "^2.0",
+    "redmatter/snow-generator-guzzle5": "1.*",
+    "aws/aws-sdk-php": "2.7.17",
+    "phpunit/phpunit": "4.*",
+    "paragonie/random_compat": ">=1"
   }
 }

@@ -21,6 +21,7 @@ namespace RedMatter\Archiving\DataSubjectRequest;
 use RedMatter\Cache\Cache;
 use RedMatter\Services\CoreAPI;
 use RedMatter\Services\DGAPI;
+use RedMatter\Services\Helper\SnowTrait;
 
 /** @noinspection SingletonFactoryPatternViolationInspection */
 
@@ -34,6 +35,8 @@ use RedMatter\Services\DGAPI;
  */
 class App extends \BaseApp
 {
+    use SnowTrait;
+
     const CONFIG_PATH = '/etc/archiving/dsr-preproc.conf';
     const DATA_SUBJECT_REQUEST_TIME_LIMIT_DAYS = 30;
     const LEGAL_HOLD_EXPIRY_NOTICE_DAYS = 2;
@@ -68,7 +71,8 @@ class App extends \BaseApp
 
         $config = $this->getConf();
 
-        \API::Init($config->get('api.base_url', 'http://api'), new \ArrayStorage(), APP_NAME_ . ':1.0');
+        $storage = new \ArrayStorage();
+        \API::Init($config->get('api.base_url', 'http://api'), $storage, APP_NAME_ . ':1.0');
 
         if ($authCreds = $config->get('api.authorization_creds', false)) {
             try {

@@ -22,6 +22,9 @@ define('RMAPP_EXIT_ON_PHP_ERRORS', false);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use RedMatter\Services\Helper\SnowPool;
+use RedMatter\Services\Helper\SnowTrait;
+
 /**
  * MakePurgeDataApp
  *
@@ -34,6 +37,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
  */
 class MakePurgeDataApp extends BaseApp
 {
+    use SnowTrait;
+
 	const DEFAULT_BATCH_SIZE = 1000;
 
 	const CONF_SAMPLE = '/usr/share/archiving/archiving-makepurgedata.conf.sample';
@@ -156,7 +161,7 @@ class MakePurgeDataApp extends BaseApp
 	 *
 	 * @return void
 	 */
-	public static function BatchSaveRetentionObjs(&$retention_array, $obj = null)
+	public static function BatchSaveRetentionObjs(SnowPool $snow, &$retention_array, $obj = null)
 	{
 		if (!is_null($obj))
 		{
@@ -170,7 +175,7 @@ class MakePurgeDataApp extends BaseApp
 
         $hourly_usage_table_exists = self::_CheckHourlyUsageTableExists($retention_array[0]->OrgID);
 
-		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` ( `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID`, `UserID` ) VALUES ";
+		$sql_retention = "INSERT INTO `Retention_{$retention_array[0]->OrgID}` (`ID`, `UUID`, `Format`, `Type`, `OrgID`, `PolicyID`, `PolicyVersion`, `CreationDate`, `RetentionMinDate`, `RetentionMaxDate`, `EndpointID`, `UserID` ) VALUES ";
 		if ($hourly_usage_table_exists)
         {
             $sql_usage = "INSERT INTO `HourlyUsage_{$retention_array[0]->OrgID}` ( `Hour`, `Type`, `EndpointID`, `Count`, `ClearUsage`, `RealUsage` ) VALUES ";
@@ -182,7 +187,21 @@ class MakePurgeDataApp extends BaseApp
 		$first = true;
 		foreach ($retention_array as $retention)
 		{
-			$sql_retention .= sprintf("\n%s( UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, 0 )", $first? '': ', ', $retention->UUID, $retention->Format, Archiving::GetFileType($retention->Type), $retention->OrgID, $retention->PolicyID, $retention->PolicyVersion, $retention->CreationDate, $retention->RetentionMinDate, $retention->RetentionMaxDate, $retention->EndpointID);
+            $sql_retention .= sprintf(
+                "\n%s( %d, UNHEX(REPLACE('%s', '-', '')), %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, 0 )",
+                $first ? '' : ', ',
+                $snow->getOneId(),
+                $retention->UUID,
+                $retention->Format,
+                Archiving::GetFileType($retention->Type),
+                $retention->OrgID,
+                $retention->PolicyID,
+                $retention->PolicyVersion,
+                $retention->CreationDate,
+                $retention->RetentionMinDate,
+                $retention->RetentionMaxDate,
+                $retention->EndpointID
+            );
             if ($hourly_usage_table_exists)
             {
                 $sql_usage .= sprintf("\n%s( '%s', %d, %d, %d, %d, %d )", $first? '': ', ', $retention->CreationDate, Archiving::GetFileType($retention->Type), $retention->EndpointID, 1, 0, $retention->RealUsage);
@@ -273,13 +292,14 @@ class MakePurgeDataApp extends BaseApp
 	public function run()
 	{
 		$config = $this->conf;
+        $snowPool = $this->getSnowPool();
 
 		$retention_recs = array();
 		/** @noinspection PhpUnusedLocalVariableInspection */
 		$retention_recs_sentry = new ScopeSentry(
-			function() use (&$retention_recs)
+			function() use (&$retention_recs, $snowPool)
 			{
-				MakePurgeDataApp::BatchSaveRetentionObjs($retention_recs);
+				MakePurgeDataApp::BatchSaveRetentionObjs($snowPool, $retention_recs);
 			}
 		);
 
@@ -468,7 +488,7 @@ class MakePurgeDataApp extends BaseApp
 			LogMessage("Added {$retention->Type}/{$retention->OrgID}/{$retention->UUID},{$retention->PolicyID},{$retention->PolicyVersion},{$retention->CreationDate},{$retention->RetentionMinDate},{$retention->RetentionMaxDate},{$retention->EndpointID} PurgedBy: {$purgedByDate} ({$purgedByPolicyVersion})");
 
 			// store Retention record
-			self::BatchSaveRetentionObjs($retention_recs, $retention);
+			self::BatchSaveRetentionObjs($snowPool, $retention_recs, $retention);
 		}
 
 		return;

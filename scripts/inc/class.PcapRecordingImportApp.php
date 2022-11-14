@@ -14,7 +14,7 @@
  * @link      http://www.redmatter.com
  */
 
-require_once "s3/S3.php";
+use RedMatter\Services\Helper\SnowTrait;
 
 /**
  * Class PcapRecordingImportApp
@@ -28,6 +28,8 @@ require_once "s3/S3.php";
  */
 class PcapRecordingImportApp extends BaseDaemonApp
 {
+    use SnowTrait;
+
     const RUN_INTERVAL_SECONDS = 60;
     const CONFIG_PATH = '/etc/archiving/pcap-recording-import.conf';
     const CMD_ARCHIVE_CLI = '/usr/bin/archiving-cli';
@@ -840,6 +842,7 @@ HELP;
     private function _getRetentionRecordFromCallMetadata(array $metadata)
     {
         $retentionRecord = array(
+            'ID' => $this->getSnowId(),
             'UUID' => "UNHEX(REPLACE(\"{$metadata['UUID']}\",\"-\",\"\"))",
             'LegUUID' => "UNHEX(REPLACE(\"{$metadata['LegUUID']}\",\"-\",\"\"))",
             'Format' => $metadata['FileFormat'],
