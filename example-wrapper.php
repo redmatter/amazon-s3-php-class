@@ -166,9 +166,29 @@ final class S3Wrapper extends S3 {
 
     private function __getURL($path) {
         $this->url = parse_url($path);
-        if (!isset($this->url['scheme']) || $this->url['scheme'] !== 's3') return $this->url;
-        if (isset($this->url['user'], $this->url['pass'])) self::setAuth($this->url['user'], $this->url['pass']);
-        $this->url['path'] = isset($this->url['path']) ? substr($this->url['path'], 1) : '';
+
+        // Only allow 's3' scheme
+        if (!isset($this->url['scheme']) || $this->url['scheme'] !== 's3') {
+            throw new InvalidArgumentException('Invalid scheme: only s3:// is allowed');
+        }
+
+        // Validate bucket name
+        if (
+            !isset($this->url['host']) ||
+            !preg_match('/^(?!^\d+\.\d+\.\d+\.\d+$)(?!.*\.\.)(?!.*\.$)(?!^\.)[a-z0-9]([a-z0-9.-]{1,61}[a-z0-9])?$/', $this->url['host'])
+        ) {
+            throw new InvalidArgumentException('Invalid S3 bucket name');
+        }
+
+        // Validate path (no directory traversal)
+        $this->url['path'] = isset($this->url['path']) ? ltrim($this->url['path'], '/') : '';
+        if (strpos($this->url['path'], '..') !== false) {
+            throw new InvalidArgumentException('Invalid S3 object path');
+        }
+
+        if (isset($this->url['user'], $this->url['pass'])) {
+            self::setAuth($this->url['user'], $this->url['pass']);
+        }
     }
 
 	private function __translateMode($mode) {
